@@ -16,6 +16,10 @@ import type {
 import type { UnavailabilityInput } from '../availability/dto/venue-unavailability.js';
 import type { BookingRequestInput } from '../availability/dto/booking-request.js';
 import type { TentativeHoldRequestInput } from '../availability/dto/tentative-hold-request.js';
+import {
+  notifyVenueImpact,
+  type ImpactedBooking,
+} from '../notifications/venue-impact-notifications.js';
 
 /** A persisted, catalogue-ready venue record. */
 export interface VenueRecord {
@@ -40,6 +44,8 @@ export interface AffectedBooking {
   start: string;
   end: string;
   status: 'pending' | 'approved';
+  /** SPM-125 AC8/AC9: present (true) when the booking's Event Coordinator was notified of the change. */
+  coordinatorNotified?: true;
 }
 
 export interface VenueReadRecord extends VenueRecord {
@@ -68,7 +74,43 @@ export type VenueReservation =
   | (VenueReservationBase & { status: 'booked'; holdExpiresAt?: never })
   | (VenueReservationBase & { status: 'tentative'; holdExpiresAt?: string });
 
-export type AffectedVenueReservation = VenueReservation & { eventId: string };
+export type AffectedVenueReservation = VenueReservation & {
+  eventId: string;
+  /** SPM-125 AC6: present (true) when the booking's Event Coordinator was notified of the unavailable period. */
+  coordinatorNotified?: true;
+};
+
+/** SPM-125 AC1: one entry of a venue's unavailability history. */
+export interface VenueUnavailabilityHistoryEntry {
+  id: string;
+  periodId: string;
+  action: 'created' | 'ended_early';
+  start: string;
+  end: string;
+  /** Only for an early end: the end the period had before. */
+  previousEnd?: string;
+  reason: string;
+  /** The Venue Staff member's display name; null for periods saved before SPM-125 recorded it. */
+  changedBy: string | null;
+  changedAt: string;
+}
+
+/** SPM-125 AC5: one booking or tentative hold in a venue's booking history, whatever its status. */
+export interface VenueBookingHistoryEntry {
+  id: string;
+  bookingReference: string;
+  eventId: string;
+  eventName: string;
+  coordinatorName: string | null;
+  start: string;
+  end: string;
+  status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
+  requestKind: 'booking' | 'tentative_hold';
+  holdExpiresAt?: string;
+  /** Its occupied period (setup to turnaround) overlaps an unavailable period, current, ended or scheduled. */
+  affectedByUnavailablePeriod: boolean;
+  requestedAt: string;
+}
 
 /** A pending venue request shown to the venue's Venue Staff for review (SPM-55). */
 export interface PendingVenueBooking {
@@ -194,6 +236,51 @@ interface BookingRow {
   hold_expires_at?: Date | null;
   current: boolean;
   affected: boolean;
+}
+
+/** A booking listed by SPM-121 AC8 or AC9, with what SPM-125 needs to notify its event's Coordinator. */
+interface ListedBookingRow {
+  id: string;
+  event_name: string;
+  start_at: Date;
+  end_at: Date;
+  status: 'pending' | 'approved';
+  event_id: string;
+  coordinator_id: string | null;
+  /**
+   * SPM-125 AC9: false when the listed row no longer holds the venue (an expired tentative hold, or a pending row
+   * that is neither an active hold nor a booking request). The AC8 query lists only rows that do, so it omits this.
+   */
+  holds_venue?: boolean;
+}
+
+/**
+ * SPM-125 AC8/AC9: only bookings that have not ended can still be rearranged, and only rows that still hold the
+ * venue are bookings to rearrange, so only they are notified.
+ */
+function upcomingImpacted(rows: ListedBookingRow[], now: Date): ImpactedBooking[] {
+  return rows
+    .filter((row) => row.end_at.getTime() > now.getTime() && row.holds_venue !== false)
+    .map((row) => ({
+      bookingId: row.id,
+      eventId: row.event_id,
+      eventName: row.event_name,
+      coordinatorId: row.coordinator_id,
+      start: row.start_at,
+      end: row.end_at,
+    }));
+}
+
+/** The SPM-121 listing shape, marked when SPM-125 notified the booking's Coordinator. */
+function toAffectedBooking(row: ListedBookingRow, notified: Set<string>): AffectedBooking {
+  return {
+    bookingId: row.id,
+    eventName: row.event_name,
+    start: row.start_at.toISOString(),
+    end: row.end_at.toISOString(),
+    status: row.status,
+    ...(notified.has(row.id) ? { coordinatorNotified: true as const } : {}),
+  };
 }
 
 const venueSelect = `
@@ -359,14 +446,9 @@ export class VenuesRepository {
       const setupExpr = (p: string, col: string) =>
         `CASE WHEN ${col}.status = 'blocked' THEN interval '0' ELSE make_interval(mins => ${p}::int) END`;
       const affected = timingChanged
-        ? await client.query<{
-            id: string;
-            event_name: string;
-            start_at: Date;
-            end_at: Date;
-            status: 'pending' | 'approved';
-          }>(
-            `SELECT DISTINCT b.id, e.event_name, b.start_at, b.end_at, b.status
+        ? await client.query<ListedBookingRow>(
+            `SELECT DISTINCT b.id, e.event_name, b.start_at, b.end_at, b.status,
+                    b.event_id, e.coordinator_id
                FROM venue_bookings b
                JOIN events e ON e.id = b.event_id
                JOIN venue_bookings o ON o.venue_id = b.venue_id AND o.id <> b.id
@@ -387,26 +469,23 @@ export class VenuesRepository {
             [venueId, input.setupTimeMinutes, input.turnaroundTimeMinutes,
              oldSetup, oldTurnaround, now],
           )
-        : { rows: [] as { id: string; event_name: string; start_at: Date; end_at: Date; status: 'pending' | 'approved' }[] };
+        : { rows: [] as ListedBookingRow[] };
 
       // AC9: when capacity changed, list all pending/approved bookings at this venue.
       const capacityRows = capacityChanged
-        ? await client.query<{
-            id: string;
-            event_name: string;
-            start_at: Date;
-            end_at: Date;
-            status: 'pending' | 'approved';
-          }>(
-            `SELECT b.id, e.event_name, b.start_at, b.end_at, b.status
+        ? await client.query<ListedBookingRow>(
+            `SELECT b.id, e.event_name, b.start_at, b.end_at, b.status,
+                    b.event_id, e.coordinator_id,
+                    -- SPM-125 AC9: whether the row still holds the venue (the AC8 eligibility rule), for notifying.
+                    ${eligibleBooking.replaceAll('$6', '$2')} AS holds_venue
                FROM venue_bookings b
                JOIN events e ON e.id = b.event_id
               WHERE b.venue_id = $1::uuid
                 AND b.status IN ('pending', 'approved')
               ORDER BY b.start_at, b.id`,
-            [venueId],
+            [venueId, now],
           )
-        : { rows: [] as { id: string; event_name: string; start_at: Date; end_at: Date; status: 'pending' | 'approved' }[] };
+        : { rows: [] as ListedBookingRow[] };
 
       const updated = await client.query<VenueRow>(
         `${venueSelect} WHERE v.id = $1::uuid`,
@@ -414,21 +493,26 @@ export class VenuesRepository {
       );
       if (!updated.rows[0]) return { kind: 'not-found' as const };
 
+      // SPM-125 AC8/AC9: notify the Coordinators of the listed bookings that have not ended yet, in this
+      // transaction, so a failed update never sends a notice. The venue is named as it is after the update.
+      const timingNotified = await notifyVenueImpact(client, {
+        venueName: input.name,
+        change: { kind: 'timing' },
+        bookings: upcomingImpacted(affected.rows, now),
+      });
+      const capacityNotified = await notifyVenueImpact(client, {
+        venueName: input.name,
+        change: { kind: 'capacity', previousCapacity: lock.rows[0].capacity, capacity: input.capacity },
+        bookings: upcomingImpacted(capacityRows.rows, now),
+      });
+
       const venue = (await this.withSchedules([this.toReadRecord(updated.rows[0])]))[0];
-      const affectedBookings: AffectedBooking[] = affected.rows.map((r) => ({
-        bookingId: r.id,
-        eventName: r.event_name,
-        start: r.start_at.toISOString(),
-        end: r.end_at.toISOString(),
-        status: r.status,
-      }));
-      const capacityBookings: AffectedBooking[] = capacityRows.rows.map((r) => ({
-        bookingId: r.id,
-        eventName: r.event_name,
-        start: r.start_at.toISOString(),
-        end: r.end_at.toISOString(),
-        status: r.status,
-      }));
+      const affectedBookings: AffectedBooking[] = affected.rows.map((r) =>
+        toAffectedBooking(r, timingNotified),
+      );
+      const capacityBookings: AffectedBooking[] = capacityRows.rows.map((r) =>
+        toAffectedBooking(r, capacityNotified),
+      );
       return { kind: 'updated' as const, venue, affectedBookings, capacityBookings };
     });
   }
@@ -1144,10 +1228,15 @@ export class VenuesRepository {
     return true;
   }
 
-  /** Block a venue without altering existing event bookings or holds. */
+  /**
+   * Block a venue without altering existing event bookings or holds.
+   * SPM-125 AC1: the saved period and its 'created' history entry (naming the Venue Staff member) are one statement.
+   * SPM-125 AC6: the affected bookings' Coordinators are notified in the same transaction.
+   */
   async markUnavailable(
     venueId: string,
     input: UnavailabilityInput,
+    actorId: string,
   ): Promise<
     | {
         period: VenueUnavailablePeriod;
@@ -1157,8 +1246,8 @@ export class VenuesRepository {
   > {
     return this.database.transaction(async (client) => {
       const now = this.clock.now();
-      const venue = await client.query(
-        'SELECT id FROM venues WHERE id = $1::uuid FOR UPDATE',
+      const venue = await client.query<{ id: string; name: string }>(
+        'SELECT id, name FROM venues WHERE id = $1::uuid FOR UPDATE',
         [venueId],
       );
       if (!venue.rows[0]) return undefined;
@@ -1168,13 +1257,22 @@ export class VenuesRepository {
         end_at: Date;
         reason: string;
       }>(
-        `INSERT INTO venue_bookings (venue_id, start_at, end_at, status, reason)
-         VALUES ($1, $2, $3, 'blocked', $4) RETURNING id, start_at, end_at, reason`,
-        [venueId, input.start, input.end, input.reason],
+        `WITH saved AS (
+           INSERT INTO venue_bookings (venue_id, start_at, end_at, status, reason)
+           VALUES ($1, $2, $3, 'blocked', $4) RETURNING id, venue_id, start_at, end_at, reason
+         ), logged AS (
+           INSERT INTO venue_unavailability_history
+             (venue_id, period_id, action, start_at, end_at, reason, actor_user_id)
+           SELECT venue_id, id, 'created', start_at, end_at, reason, $5::uuid FROM saved
+         )
+         SELECT id, start_at, end_at, reason FROM saved`,
+        [venueId, input.start, input.end, input.reason, actorId],
       );
-      const affected = await client.query<BookingRow & { event_id: string }>(
+      const affected = await client.query<
+        BookingRow & { event_id: string; coordinator_id: string | null }
+      >(
         `SELECT b.id, b.event_id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status,
-           b.request_kind, b.hold_expires_at
+           b.request_kind, b.hold_expires_at, e.coordinator_id
          FROM venue_bookings b JOIN events e ON e.id = b.event_id
          JOIN venues v ON v.id = b.venue_id
          WHERE b.venue_id = $1::uuid
@@ -1189,15 +1287,7 @@ export class VenuesRepository {
         [venueId, input.end, now, input.start],
       );
       const row = saved.rows[0];
-      return {
-        period: {
-          id: row.id,
-          start: row.start_at.toISOString(),
-          end: row.end_at.toISOString(),
-          reason: row.reason,
-        },
-        affectedBookings: affected.rows
-          .filter(
+      const affectedRows = affected.rows.filter(
             (booking) =>
               (booking.status === 'approved' &&
                 booking.request_kind !== 'tentative_hold') ||
@@ -1208,8 +1298,33 @@ export class VenuesRepository {
               (booking.status === 'pending' &&
                 booking.hold_expires_at != null &&
                 booking.hold_expires_at.getTime() > now.getTime()),
-          )
-          .map((booking): AffectedVenueReservation => {
+          );
+      // SPM-125 AC6/AC7: the Coordinators of exactly the bookings SPM-122 AC7 lists are notified.
+      const notified = await notifyVenueImpact(client, {
+        venueName: venue.rows[0].name,
+        change: {
+          kind: 'unavailable',
+          start: row.start_at,
+          end: row.end_at,
+          reason: row.reason,
+        },
+        bookings: affectedRows.map((booking) => ({
+          bookingId: booking.id,
+          eventId: booking.event_id,
+          eventName: booking.event_name,
+          coordinatorId: booking.coordinator_id,
+          start: booking.start_at,
+          end: booking.end_at,
+        })),
+      });
+      return {
+        period: {
+          id: row.id,
+          start: row.start_at.toISOString(),
+          end: row.end_at.toISOString(),
+          reason: row.reason,
+        },
+        affectedBookings: affectedRows.map((booking): AffectedVenueReservation => {
             const affectedBooking = {
               id: booking.id,
               eventId: booking.event_id,
@@ -1217,6 +1332,7 @@ export class VenuesRepository {
               start: booking.start_at.toISOString(),
               end: booking.end_at.toISOString(),
               affectedByUnavailablePeriod: true as const,
+              ...(notified.has(booking.id) ? { coordinatorNotified: true as const } : {}),
             };
             // SPM-159: an active approved tentative hold is tentative; only a confirmed booking is booked.
             return booking.status === 'approved' &&
@@ -1234,10 +1350,15 @@ export class VenuesRepository {
     });
   }
 
-  /** Shorten only the selected active blockout; retain every other period. */
+  /**
+   * Shorten only the selected active blockout; retain every other period.
+   * SPM-125 AC1: the update and its 'ended_early' history entry (the new end, the end it replaced and the Venue
+   * Staff member) are one statement, so neither can exist without the other.
+   */
   async endUnavailable(
     venueId: string,
     periodId: string,
+    actorId: string,
   ): Promise<VenueUnavailablePeriod | undefined> {
     const now = this.clock.now();
     const result = await this.database.query<{
@@ -1246,11 +1367,23 @@ export class VenuesRepository {
       end_at: Date;
       reason: string;
     }>(
-      `UPDATE venue_bookings SET end_at = $3::timestamptz
-       WHERE id = $2::uuid AND venue_id = $1::uuid AND status = 'blocked'
-         AND start_at < $3::timestamptz AND end_at > $3::timestamptz
-       RETURNING id, start_at, end_at, reason`,
-      [venueId, periodId, now],
+      `WITH target AS (
+         SELECT id, end_at AS previous_end_at FROM venue_bookings
+          WHERE id = $2::uuid AND venue_id = $1::uuid AND status = 'blocked'
+            AND start_at < $3::timestamptz AND end_at > $3::timestamptz
+          FOR UPDATE
+       ), ended AS (
+         UPDATE venue_bookings b SET end_at = $3::timestamptz
+           FROM target WHERE b.id = target.id
+         RETURNING b.id, b.venue_id, b.start_at, b.end_at, b.reason, target.previous_end_at
+       ), logged AS (
+         INSERT INTO venue_unavailability_history
+           (venue_id, period_id, action, start_at, end_at, previous_end_at, reason, actor_user_id, created_at)
+         SELECT venue_id, id, 'ended_early', start_at, end_at, previous_end_at, reason, $4::uuid, $3::timestamptz
+           FROM ended
+       )
+       SELECT id, start_at, end_at, reason FROM ended`,
+      [venueId, periodId, now, actorId],
     );
     const row = result.rows[0];
     return row
@@ -1261,6 +1394,102 @@ export class VenuesRepository {
           reason: row.reason,
         }
       : undefined;
+  }
+
+  /**
+   * SPM-125 AC1: the venue's unavailability history, newest change first, or undefined when the venue does not
+   * exist. Read only; nothing in the application updates or deletes history rows.
+   */
+  async listUnavailabilityHistory(
+    venueId: string,
+  ): Promise<VenueUnavailabilityHistoryEntry[] | undefined> {
+    const venue = await this.database.query('SELECT id FROM venues WHERE id = $1::uuid', [venueId]);
+    if (!venue.rows[0]) return undefined;
+    const result = await this.database.query<{
+      id: string;
+      period_id: string;
+      action: 'created' | 'ended_early';
+      start_at: Date;
+      end_at: Date;
+      previous_end_at: Date | null;
+      reason: string;
+      changed_by: string | null;
+      created_at: Date;
+    }>(
+      `SELECT h.id, h.period_id, h.action, h.start_at, h.end_at, h.previous_end_at, h.reason,
+              u.display_name AS changed_by, h.created_at
+         FROM venue_unavailability_history h
+         LEFT JOIN users u ON u.id = h.actor_user_id
+        WHERE h.venue_id = $1::uuid
+        ORDER BY h.created_at DESC, h.id`,
+      [venueId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      periodId: row.period_id,
+      action: row.action,
+      start: row.start_at.toISOString(),
+      end: row.end_at.toISOString(),
+      ...(row.previous_end_at ? { previousEnd: row.previous_end_at.toISOString() } : {}),
+      reason: row.reason,
+      changedBy: row.changed_by,
+      changedAt: row.created_at.toISOString(),
+    }));
+  }
+
+  /**
+   * SPM-125 AC5: every booking and tentative hold ever made at the venue (past and future, every status), latest
+   * slot first, or undefined when the venue does not exist. Marking the venue unavailable or ending a period early
+   * changes none of these rows.
+   */
+  async listBookingHistory(
+    venueId: string,
+  ): Promise<VenueBookingHistoryEntry[] | undefined> {
+    const venue = await this.database.query('SELECT id FROM venues WHERE id = $1::uuid', [venueId]);
+    if (!venue.rows[0]) return undefined;
+    const result = await this.database.query<{
+      id: string;
+      booking_reference: string;
+      event_id: string;
+      event_name: string;
+      coordinator_name: string | null;
+      start_at: Date;
+      end_at: Date;
+      status: VenueBookingHistoryEntry['status'];
+      request_kind: 'booking' | 'tentative_hold';
+      hold_expires_at: Date | null;
+      affected: boolean;
+      created_at: Date;
+    }>(
+      `SELECT b.id, 'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference,
+              b.event_id, e.event_name, coordinator_user.display_name AS coordinator_name,
+              b.start_at, b.end_at, b.status, b.request_kind, b.hold_expires_at, b.created_at,
+              EXISTS (SELECT 1 FROM venue_bookings blockout
+                WHERE blockout.venue_id = b.venue_id AND blockout.status = 'blocked'
+                  AND blockout.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)
+                  AND blockout.end_at > b.start_at - make_interval(mins => v.setup_time_minutes)) AS affected
+         FROM venue_bookings b
+         JOIN events e ON e.id = b.event_id
+         JOIN venues v ON v.id = b.venue_id
+         LEFT JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id
+        WHERE b.venue_id = $1::uuid AND b.status <> 'blocked'
+        ORDER BY b.start_at DESC, b.id`,
+      [venueId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      bookingReference: row.booking_reference,
+      eventId: row.event_id,
+      eventName: row.event_name,
+      coordinatorName: row.coordinator_name,
+      start: row.start_at.toISOString(),
+      end: row.end_at.toISOString(),
+      status: row.status,
+      requestKind: row.request_kind,
+      ...(row.hold_expires_at ? { holdExpiresAt: row.hold_expires_at.toISOString() } : {}),
+      affectedByUnavailablePeriod: row.affected,
+      requestedAt: row.created_at.toISOString(),
+    }));
   }
 
   /**

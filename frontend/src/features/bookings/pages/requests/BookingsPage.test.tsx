@@ -1325,3 +1325,45 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
     expect(screen.queryByRole("dialog", { name: /Booking details/ })).toBeNull();
   });
 });
+
+/*
+ * SPM-125 AC7: a notice that a venue change affects a booking opens `/bookings?booking=<id>` (the SPM-137 link), and
+ * the booking's details offer the same "Find a replacement venue" search as its card (SPM-54 AC5). Frontend unit test
+ * with the API stubbed; the Coordinator is a fixture, not a live login.
+ */
+describe("SPM-125 affected booking opened from a notification", () => {
+  /**
+   * VEN-IMPACT-07-D (AC7): the linked affected booking opens in its details dialog, which says the booking is affected
+   * and links "Find a replacement venue" to the venue search for that event.
+   * Kills: the link landing on the list without a way to find a replacement from the booking it is about.
+   */
+  it("VEN-IMPACT-07-D shows the linked affected booking with Find a replacement venue", async () => {
+    apiMock.mockResolvedValue([
+      booking,
+      { ...booking, id: "booking-2", eventId: "event-2", eventName: "Spring Gala", status: "approved", affected: true },
+    ] as never);
+
+    renderPage("/bookings?booking=booking-2");
+
+    const dialog = await screen.findByRole("dialog", { name: "Booking details — Spring Gala" });
+    expect(within(dialog).getByText("⚠ This booking is affected by a venue availability change.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Find a replacement venue" })).toHaveAttribute(
+      "href",
+      "/venues?eventId=event-2",
+    );
+  });
+
+  /**
+   * VEN-IMPACT-07-BND-1 (AC7): a confirmed booking that no venue change affects opens without the warning or the
+   * replacement link (the dialog follows the card's rule).
+   */
+  it("VEN-IMPACT-07-BND-1 offers no replacement for an unaffected confirmed booking", async () => {
+    apiMock.mockResolvedValue([{ ...booking, status: "approved" }] as never);
+
+    renderPage("/bookings?booking=booking-1");
+
+    const dialog = await screen.findByRole("dialog", { name: "Booking details — Gala" });
+    expect(within(dialog).queryByText(/affected by a venue availability change/)).toBeNull();
+    expect(within(dialog).queryByRole("link", { name: "Find a replacement venue" })).toBeNull();
+  });
+});

@@ -2785,3 +2785,52 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(screen.queryByRole("link", { name: /Edit Venue/i })).not.toBeInTheDocument();
   });
 });
+
+/*
+ * SPM-125 AC1 and AC5: the venue record page shows the Unavailability History and Booking History cards to Venue
+ * Staff only. Frontend unit tests with the API stubbed; the signed-in user is a fixture, not a live login.
+ */
+describe("SPM-125 venue history cards", () => {
+  /**
+   * VEN-IMPACT-01-D VEN-IMPACT-05-H (AC1, AC5): Venue Staff see both history cards, each opening its history.
+   * Kills: the cards missing from the venue record page.
+   */
+  it("VEN-IMPACT-01-D VEN-IMPACT-05-H shows both history cards to Venue Staff", async () => {
+    useAppStore.setState({
+      currentUser: { id: "staff", name: "Venue Staff", email: "staff@example.test", role: "venue_staff", roles: ["venue_staff"] },
+    });
+    apiMock.mockImplementation(async (path) => {
+      if (path === `/venues/${id}/unavailability-history`) return [] as never;
+      if (path === `/venues/${id}/booking-history`) return [] as never;
+      return venue as never;
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Unavailability History" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Booking History" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show unavailability history" }));
+    await user.click(screen.getByRole("button", { name: "Show booking history" }));
+    expect(await screen.findByText("No unavailable periods have been recorded for this venue.")).toBeInTheDocument();
+    expect(await screen.findByText("No bookings or tentative holds have been made at this venue.")).toBeInTheDocument();
+  });
+
+  /**
+   * VEN-IMPACT-01-SEC-2 VEN-IMPACT-05-SEC-2 (AC1, AC5): a Coordinator viewing the same venue sees neither card and
+   * never reads either history.
+   * Kills: the histories being shown to every role.
+   */
+  it("VEN-IMPACT-01-SEC-2 VEN-IMPACT-05-SEC-2 hides the history cards from a Coordinator", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coord", name: "Coordinator", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+      events: [],
+    });
+    mockVenueApi();
+    renderPage(`/venue-records/${id}`);
+
+    expect(await screen.findByRole("heading", { name: "Conference Room" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Unavailability History" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Booking History" })).toBeNull();
+    expect(apiMock.mock.calls.some(([path]) => String(path).includes("history"))).toBe(false);
+  });
+});

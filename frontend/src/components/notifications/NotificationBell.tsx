@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/Button";
 const BADGE_CAP = 9;
 
 // SPM-77 (SC-SPM77-02): a Coordinator's bell lists assignment notices. Change request notices stay in
-// the Pending Change Requests section of the events page. SPM-131 adds the safety response, and SPM-137 adds venue booking decisions.
+// the Pending Change Requests section of the events page. SPM-131 adds the safety response, SPM-137 adds venue
+// booking decisions, and SPM-125 AC6 to AC9 the notices that a Venue Staff change affects one of the Coordinator's bookings.
 // Module-level so the feed hook sees a stable filter.
 const COORDINATOR_TYPES: Notification["type"][] = [
   "coordinator_assignment",
@@ -17,6 +18,9 @@ const COORDINATOR_TYPES: Notification["type"][] = [
   "coordinator_safety_response",
   "venue_booking_approved",
   "venue_booking_rejected",
+  "venue_unavailable_impact",
+  "venue_timing_impact",
+  "venue_capacity_impact",
 ];
 const isCoordinatorNotice = (notification: Notification) => COORDINATOR_TYPES.includes(notification.type);
 

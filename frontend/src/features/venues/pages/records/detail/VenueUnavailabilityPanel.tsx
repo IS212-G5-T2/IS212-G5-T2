@@ -15,7 +15,8 @@ interface Props {
 
 interface SavedPeriod {
   period: VenueUnavailablePeriod;
-  affectedBookings: VenueReservation[];
+  /** SPM-125 AC6: `coordinatorNotified` is true when the booking's Event Coordinator was notified. */
+  affectedBookings: Array<VenueReservation & { coordinatorNotified?: boolean }>;
 }
 
 export function VenueUnavailabilityPanel({ venueId, periods, canManage, onSaved }: Props) {
@@ -132,8 +133,22 @@ export function VenueUnavailabilityPanel({ venueId, periods, canManage, onSaved 
     </section>}
     {result && <section aria-label="Affected bookings" className="space-y-2 rounded-lg bg-gray-50 p-4 text-sm dark:bg-gray-800">
       <h3 className="font-semibold">Affected Bookings</h3>
-      {result.affectedBookings.length === 0 ? <p>No existing bookings are affected.</p> :
-        <ul>{result.affectedBookings.map((booking) => <li key={booking.id}>{booking.eventName} — {formatDateTimeRange(booking.start, booking.end)}</li>)}</ul>}
+      {result.affectedBookings.length === 0 ? <p>No existing bookings are affected.</p> : <>
+        <CoordinatorsNotified count={result.affectedBookings.filter((booking) => booking.coordinatorNotified).length} />
+        <ul>{result.affectedBookings.map((booking) => <li key={booking.id}>{booking.eventName} — {formatDateTimeRange(booking.start, booking.end)}
+          {/* SPM-125 AC6: each affected booking says whether its Event Coordinator was notified. */}
+          <span className={booking.coordinatorNotified ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}> · {booking.coordinatorNotified ? "Coordinator notified" : "No assigned Coordinator to notify"}</span>
+        </li>)}</ul>
+      </>}
     </section>}
   </div>;
+}
+
+/** SPM-125 AC6: confirms how many affected bookings' Event Coordinators were notified in-app. */
+export function CoordinatorsNotified({ count }: { count: number }) {
+  return <p role="status" className="text-gray-700 dark:text-gray-200">
+    {count
+      ? `The Event Coordinator${count === 1 ? " of 1 affected booking has" : `s of ${count} affected bookings have`} been notified in-app that alternative arrangements are required.`
+      : "No Event Coordinator was notified because no affected booking has an assigned Coordinator."}
+  </p>;
 }

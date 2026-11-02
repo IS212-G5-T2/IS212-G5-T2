@@ -129,6 +129,24 @@ export class VenuesController {
     return this.venues.update(request[CURRENT_USER_REQUEST_KEY], id, body);
   }
 
+  /** SPM-125 AC1: Venue Staff read the venue's unavailability history. */
+  @Get(':id/unavailability-history')
+  unavailabilityHistory(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    return this.venues.unavailabilityHistory(request[CURRENT_USER_REQUEST_KEY], id);
+  }
+
+  /** SPM-125 AC5: Venue Staff read the venue's booking history. */
+  @Get(':id/booking-history')
+  bookingHistory(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    return this.venues.bookingHistory(request[CURRENT_USER_REQUEST_KEY], id);
+  }
+
   @Post(':id/unavailable-periods')
   markUnavailable(
     @Req() request: AuthenticatedRequest,

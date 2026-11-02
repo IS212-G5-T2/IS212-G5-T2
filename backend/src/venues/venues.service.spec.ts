@@ -773,3 +773,80 @@ describe('SPM-121 venue service update', () => {
     await expect(service.update(staff, venueId, validBody)).rejects.toThrow('DB connection lost');
   });
 });
+
+/*
+ * SPM-125 AC1 and AC5: the history reads are for Venue Staff only. Unit tests of the service in isolation; the
+ * callers are fixtures, not live logins.
+ */
+describe('SPM-125 venue history service', () => {
+  const listUnavailabilityHistory = vi.fn();
+  const listBookingHistory = vi.fn();
+  const markUnavailable = vi.fn();
+  const endUnavailable = vi.fn();
+  const hasPermission = vi.fn();
+  const service = new VenuesService(
+    { listUnavailabilityHistory, listBookingHistory, markUnavailable, endUnavailable } as unknown as VenuesRepository,
+    { hasPermission } as unknown as RbacRepository,
+  );
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    hasPermission.mockResolvedValue(true);
+  });
+
+  /** VEN-IMPACT-01-C, VEN-IMPACT-05-A (AC1, AC5): Venue Staff get the venue's histories as the repository reads them. */
+  it('VEN-IMPACT-01-C VEN-IMPACT-05-A returns both histories to Venue Staff', async () => {
+    listUnavailabilityHistory.mockResolvedValue([{ id: 'h-1' }]);
+    listBookingHistory.mockResolvedValue([{ id: 'b-1' }]);
+
+    await expect(service.unavailabilityHistory(staff, venue.id)).resolves.toEqual([{ id: 'h-1' }]);
+    await expect(service.bookingHistory(staff, venue.id)).resolves.toEqual([{ id: 'b-1' }]);
+    expect(listUnavailabilityHistory).toHaveBeenCalledWith(venue.id);
+    expect(listBookingHistory).toHaveBeenCalledWith(venue.id);
+  });
+
+  /**
+   * VEN-IMPACT-01-SEC-1, VEN-IMPACT-05-SEC-1 (AC1, AC5): no session answers 401 and a Coordinator 403, before any
+   * history is read.
+   */
+  it('VEN-IMPACT-01-SEC-1 VEN-IMPACT-05-SEC-1 refuses callers who are not Venue Staff before reading', async () => {
+    await expect(service.unavailabilityHistory(undefined, venue.id)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.bookingHistory(coordinator, venue.id)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.unavailabilityHistory(coordinator, venue.id)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(listUnavailabilityHistory).not.toHaveBeenCalled();
+    expect(listBookingHistory).not.toHaveBeenCalled();
+  });
+
+  /** VEN-IMPACT-01-BND-1, VEN-IMPACT-05-BND-1 (AC1, AC5): a malformed or unknown venue id answers 404. */
+  it('VEN-IMPACT-01-BND-1 VEN-IMPACT-05-BND-1 answers 404 for a malformed or unknown venue', async () => {
+    listUnavailabilityHistory.mockResolvedValue(undefined);
+    listBookingHistory.mockResolvedValue(undefined);
+
+    await expect(service.unavailabilityHistory(staff, 'not-a-uuid')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.bookingHistory(staff, 'not-a-uuid')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.unavailabilityHistory(staff, venue.id)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.bookingHistory(staff, venue.id)).rejects.toBeInstanceOf(NotFoundException);
+    expect(listUnavailabilityHistory).toHaveBeenCalledOnce();
+    expect(listBookingHistory).toHaveBeenCalledOnce();
+  });
+
+  /**
+   * VEN-IMPACT-01-BND-1 (AC1): a malformed venue or period id answers 404 before the repository is reached, so no
+   * history entry can be written for it; a period that cannot be ended early (unknown, or not active) answers 404
+   * after the repository wrote nothing.
+   * Kills: dropping the id checks that guard the history writes.
+   */
+  it('VEN-IMPACT-01-BND-1 writes no history for a malformed venue or period, or a period that cannot be ended', async () => {
+    const periodId = '00000000-0000-4000-8000-0000000000aa';
+    endUnavailable.mockResolvedValue(undefined);
+
+    await expect(service.markUnavailable(staff, 'not-a-uuid', {})).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.endUnavailable(staff, 'not-a-uuid', periodId)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.endUnavailable(staff, venue.id, 'not-a-uuid')).rejects.toBeInstanceOf(NotFoundException);
+    expect(markUnavailable).not.toHaveBeenCalled();
+    expect(endUnavailable).not.toHaveBeenCalled();
+
+    await expect(service.endUnavailable(staff, venue.id, periodId)).rejects.toThrow('Unavailable period not found.');
+    expect(endUnavailable).toHaveBeenCalledWith(venue.id, periodId, staff.uid);
+  });
+});

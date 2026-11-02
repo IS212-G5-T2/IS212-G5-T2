@@ -221,10 +221,12 @@ export function VenueEditPage() {
                     <span className="font-medium">{b.eventName}</span>
                     {" — "}{formatDateTimeRange(b.start, b.end)}
                     {" — "}<span className="capitalize">{b.status}</span>
+                    {b.coordinatorNotified && " — Coordinator notified"}
                   </li>
                 ))}
               </ul>
               <p className="mt-2 text-xs text-gray-500">These bookings remain recorded and have not been removed.</p>
+              <NotifiedSummary bookings={affectedBookings} />
             </div>
           )}
           {/* AC9: list all pending/approved bookings when capacity changed */}
@@ -239,10 +241,12 @@ export function VenueEditPage() {
                     <span className="font-medium">{b.eventName}</span>
                     {" — "}{formatDateTimeRange(b.start, b.end)}
                     {" — "}<span className="capitalize">{b.status}</span>
+                    {b.coordinatorNotified && " — Coordinator notified"}
                   </li>
                 ))}
               </ul>
               <p className="mt-2 text-xs text-gray-500">These bookings remain recorded and have not been removed.</p>
+              <NotifiedSummary bookings={capacityBookings} />
             </div>
           )}
           <div className="mt-3 flex gap-3">
@@ -386,5 +390,20 @@ export function VenueEditPage() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * SPM-125 AC8/AC9: how many of the listed bookings' Event Coordinators were notified in-app. Bookings that have
+ * already ended, or whose event has no assigned Coordinator, are not notified.
+ */
+function NotifiedSummary({ bookings }: { bookings: AffectedBooking[] }) {
+  const count = bookings.filter((b) => b.coordinatorNotified).length;
+  return (
+    <p className="mt-1 text-xs font-medium">
+      {count
+        ? `The Event Coordinator${count === 1 ? " of 1 booking has" : `s of ${count} bookings have`} been notified in-app.`
+        : "No Event Coordinator was notified: these bookings have ended or have no assigned Coordinator."}
+    </p>
   );
 }
