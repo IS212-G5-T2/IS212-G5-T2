@@ -106,3 +106,7 @@ Tests
 | Code Quality Review | code-quality-reviewer | PASS. Medium items fixed: remove-issue button now has an accessible name; the too-early refusal is no longer repeated as an alert. Low items not changed: a shared arrangements-locked exception helper, the conditional guard call in change-requests.service.ts, the cancelled-guard file name, and the planning guard in the status service that still reports the generic error for Completed events. |
 | Requirement Review | requirement-reviewer | PASS. Documentation corrections above applied; the coverage gap above recorded. |
 | G1 to G7 test-workflow cycle (ai/scripts/test-workflow) | not run | Needs a scope file and registry records for SPM-153, which do not exist yet. |
+
+## 9. Corrections
+
+- Commit `14c3eb68` describes the backend mutant set as 34 mutants. The file `backend/scripts/mutation/spm153.mutants.mjs` defines 26, and all 26 are killed. The frontend set of 12 is correct.
