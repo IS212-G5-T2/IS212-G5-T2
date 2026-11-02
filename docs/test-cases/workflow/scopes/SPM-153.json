@@ -1,0 +1,121 @@
+{
+  "story": "SPM-153",
+  "title": "Event Status Changes from Confirmed to Completed (Event Coordinator)",
+  "note": "Test cases follow the Confluence matrix 35979372 (33 ids COMPLETE-EVENT-01-A to 06-G, saved in cycle-01/confluence-matrix-ids.txt) and the SPM-153 test case document v1.0 (27 Oct 2026). Owner decisions recorded in spec-conflicts.md (SC-153-001 to SC-153-005). Shared files edited by SPM-153 (status.service.ts, event-planning.service.ts, cancelled-guard.ts, venues.repository.ts, equipment-requests.repository.ts, change-requests.service.ts, change-request-review.service.ts, EventDetailPage.tsx, PlanningInformationPage.tsx) are not in sources: the scope measures only the story's own files, and their SPM-153 edits are covered by the e2e suite and the mutation runners. Change-request tests are included by titleMatch only.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/completion/completion.rules.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/completion/completion-record.service.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/completion/arrangements-guard.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/change-requests/change-requests.service.spec.ts",
+        "titleMatch": "COMPLETE-EVENT-06-E"
+      },
+      {
+        "glob": "backend/src/events/change-requests/review/change-request-review.service.spec.ts",
+        "titleMatch": "COMPLETE-EVENT-06-E"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/events-completion.e2e-spec.ts"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/CompleteEventPanel.test.tsx"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/CompletionRecordForm.test.tsx"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/completion/completion.messages.ts",
+      "backend/src/events/completion/completion.rules.ts",
+      "backend/src/events/completion/completion-record.service.ts",
+      "backend/src/events/completion/completion-record.controller.ts"
+    ],
+    "frontend": [
+      "frontend/src/utils/completion.ts",
+      "frontend/src/features/events/pages/detail/planning/CompleteEventPanel.tsx",
+      "frontend/src/features/events/pages/detail/planning/CompletionRecordForm.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    },
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "TEST_DATABASE_URL"
+      ]
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-completion",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm153.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm153.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-completion",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm153.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm153.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

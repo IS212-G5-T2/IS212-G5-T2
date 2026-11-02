@@ -173,3 +173,13 @@ Measured in `ai/runtime/test-cycles/SPM-54/cycle-77` (backend unit, backend e2e,
 Line numbers for `EventCreatePage.tsx` and `EventEditForm.tsx` above were remapped on 29 Oct 2026 after the SPM-156 option-list change moved code in both files; each row still points at the same source line (checked line by line against the previous version). Re-measured on 29 Oct 2026 with `npm run test:cov`: `EventEditForm.tsx` lines 32 and 260 are still the only uncovered lines in that file; the new option-load error lines are covered by EVENT-UPDATE-08-D.
 
 Remapped again on 30 Oct 2026 for the SPM-156 PR #87 review corrections: `EventEditForm.tsx` line 260 is now 270 (Try again buttons added above it), and every `EventDetailPage.tsx` row above, whose numbers were still those of `dev` (fda88a9), now uses the numbering at the SPM-156 branch head. Each line was mapped by content (unchanged lines only) and still points at the same source line; dev line 190 was rewritten by SPM-156 and is dropped from the SPM-83 row.
+
+## SPM-153
+
+| File:line | Status | Note |
+| --- | --- | --- |
+| frontend/src/features/events/pages/detail/planning/CompleteEventPanel.tsx:62 | LOW-VALUE | `if (pending) return;` guards a second click that the DOM cannot deliver: the button is disabled in the same render that sets `pending`. Defence in depth; the double-click test (COMPLETE-EVENT-02-E) proves one request. |
+| frontend/src/features/events/pages/detail/planning/CompleteEventPanel.tsx:72 | UNREACHABLE | The fallback message applies only to a rejection that is not an `Error`; `api()` rejects only with `Error` instances (ApiError extends Error). |
+| frontend/src/features/events/pages/detail/planning/CompletionRecordForm.tsx:57 | LOW-VALUE | `if (pending) return;` guards a second save click; the disabled button prevents it, as for the panel above. |
+| frontend/src/features/events/pages/detail/planning/CompletionRecordForm.tsx:63 | UNREACHABLE | The fallback message applies only to a rejection that is neither ApiError nor Error; `api()` rejects only with Error instances. |
+| frontend/src/features/events/pages/detail/planning/CompletionRecordForm.tsx:73 | OPEN | One branch of the attendance mapping is reported uncovered by the merged coverage although COMPLETE-EVENT-05-D (typed) sends a non-whole attendance as typed. Not resolved; investigate the branch mapping in the next cycle. |

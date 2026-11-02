@@ -109,6 +109,7 @@ export type VenueBookingDecisionResult =
   | { kind: 'not-found' }
   | { kind: 'already-decided'; status: string }
   | { kind: 'conflict'; reason: string; conflicts: VenueBookingConflict[] }
+  | { kind: 'event-completed' }
   | { kind: 'decided'; booking: VenueBookingDecision };
 
 /** An occupied venue interval that prevents a pending booking from being approved. */
@@ -137,6 +138,7 @@ interface BookingLockRow {
   hold_expires_at?: Date | null;
   reassessment_required?: boolean;
   event_start?: Date | null;
+  event_status?: string | null;
 }
 
 type BookingDecisionRow = BookingLockRow;
@@ -562,6 +564,8 @@ export class VenuesRepository {
       const locked = await this.lockOwnedBooking(client, staffId, bookingId);
       if (!locked) return { kind: 'not-found' as const };
       const { booking, setupMinutes, turnaroundMinutes } = locked;
+      // SPM-153 BR9: a Completed event's venue bookings cannot be approved.
+      if (booking.event_status === 'Completed') return { kind: 'event-completed' as const };
       if (booking.status !== 'pending')
         return { kind: 'already-decided' as const, status: booking.status };
       // SPM-159: Venue Staff recheck eligibility and conflicts on every hold approval, so the
@@ -698,6 +702,8 @@ export class VenuesRepository {
     return this.database.transaction(async (client) => {
       const locked = await this.lockOwnedBooking(client, staffId, bookingId);
       if (!locked) return { kind: 'not-found' as const };
+      // SPM-153 BR9: a Completed event's venue bookings cannot be rejected.
+      if (locked.booking.event_status === 'Completed') return { kind: 'event-completed' as const };
       if (locked.booking.status !== 'pending')
         return {
           kind: 'already-decided' as const,
@@ -754,7 +760,7 @@ export class VenuesRepository {
     const booking = await client.query<BookingLockRow>(
       `SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at,
               b.rejection_reason, b.request_kind, b.reassessment_required,
-              e.start_date_time AS event_start
+              e.start_date_time AS event_start, e.status AS event_status
          FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id
         WHERE b.id = $1::uuid FOR UPDATE OF b`,
       [bookingId],
@@ -780,8 +786,9 @@ export class VenuesRepository {
         id: string;
         event_id: string;
         status: string;
+        event_status: string;
       }>(
-        `SELECT b.id, b.event_id, b.status FROM venue_bookings b
+        `SELECT b.id, b.event_id, b.status, e.status AS event_status FROM venue_bookings b
           JOIN events e ON e.id = b.event_id
          WHERE b.id = $1::uuid AND e.coordinator_id = $2::text
          FOR UPDATE OF b, e`,
@@ -789,6 +796,8 @@ export class VenuesRepository {
       );
       const row = booking.rows[0];
       if (!row) return { kind: 'not-found' as const };
+      // SPM-153 BR9: a Completed event's venue bookings cannot be cancelled.
+      if (row.event_status === 'Completed') return { kind: 'event-completed' as const };
       if (row.status !== 'pending' && row.status !== 'approved')
         return { kind: 'not-active' as const };
       const remaining = await client.query<{ count: number }>(

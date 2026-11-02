@@ -832,10 +832,11 @@ describe("EventDetailPage planning information (coordinator)", () => {
       expect(
         screen.queryByRole("form", { name: /update event information/i }),
       ).not.toBeInTheDocument();
-      // The only button allowed here is the read-only registrations report (offered once the event is confirmed).
+      // Allowed buttons: the read-only registrations report, and SPM-153's Mark as Completed (an action, not an
+      // edit control; shown only to the assigned coordinator once the event has ended).
       const editControls = within(region)
         .queryAllByRole("button")
-        .filter((b) => b.textContent !== "View Registrations");
+        .filter((b) => !["View Registrations", "Mark as Completed"].includes(b.textContent ?? ""));
       expect(editControls).toHaveLength(0);
     },
   );
@@ -1323,3 +1324,26 @@ describe("EventDetailPage planning: the form shows authoritative values after a 
     );
   });
 });
+
+describe("SPM-153 Mark as Completed on the event page (coordinator)", () => {
+  // COMPLETE-EVENT-01-A (page): completing from the event page moves the page to the completed state.
+  it("COMPLETE-EVENT-01-A: marking the ended event completed updates the page to completed", async () => {
+    asCoordinator({ event: eventRecord({ status: "confirmed", endDateTime: "2020-01-01T12:00:00.000Z" }) });
+    apiMock.mockImplementation((async (path: string, init?: RequestInit) => {
+      if (String(path).endsWith("/status-change") && init?.method === "POST")
+        return { eventId: EVENT_ID, status: "Completed", message: "Welcome Evening has been marked as Completed." };
+      if (String(path).endsWith("/planning")) return currentView;
+      if (path.includes("/comments")) return [];
+      return currentView.event;
+    }) as typeof api);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("region", { name: /planning information/i });
+
+    await user.click(await screen.findByRole("button", { name: "Mark as Completed" }));
+
+    expect(await screen.findByText("This event has been marked as completed.")).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledWith(`/events/${EVENT_ID}/status-change`, expect.objectContaining({ method: "POST" }));
+  });
+});
+
