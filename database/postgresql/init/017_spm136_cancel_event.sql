@@ -1,7 +1,7 @@
 -- SPM-136 Cancel an Event and Release its Reservations. Additive and idempotent.
 -- Fresh volumes run this from database/postgresql/init; existing databases apply it once from backend/migrations.
 -- Supersedes migration 009's venue_bookings status and kind constraints: this file replaces them with
--- versions that also allow 'released'. Apply it only after init 011-016 (database/postgresql/init) and
+-- versions that also allow 'released'. Replays preserve later 'cancelled' and 'expired' statuses too. Apply it only after init 011-016 (database/postgresql/init) and
 -- backend migrations 001-010 are installed; each migration is applied once, in numeric order.
 
 -- Cancellation record on the event (status 'Cancelled' already exists in events_status_check).
@@ -15,12 +15,12 @@ ALTER TABLE venue_bookings
     DROP CONSTRAINT IF EXISTS venue_bookings_status_check,
     DROP CONSTRAINT IF EXISTS venue_bookings_kind_check,
     ADD CONSTRAINT venue_bookings_status_check
-        CHECK (status IN ('pending', 'approved', 'rejected', 'blocked', 'released')),
+        CHECK (status IN ('pending', 'approved', 'rejected', 'blocked', 'released', 'cancelled', 'expired')),
     ADD CONSTRAINT venue_bookings_kind_check CHECK (
         (status = 'blocked' AND event_id IS NULL
             AND reason IS NOT NULL AND length(btrim(reason)) BETWEEN 1 AND 500
             AND hold_expires_at IS NULL)
-        OR (status IN ('pending', 'approved', 'rejected', 'released')
+        OR (status IN ('pending', 'approved', 'rejected', 'released', 'cancelled', 'expired')
             AND event_id IS NOT NULL AND reason IS NULL)
     );
 
@@ -39,12 +39,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS notifications_event_cancelled_once
 CREATE OR REPLACE FUNCTION trg_venue_bookings_invalidate_safety() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+  -- Preserve SPM-131 feedback when the selected approved booking returns to Venue Staff review.
+  IF TG_OP = 'UPDATE'
+     AND NEW.status = 'released' AND OLD.status <> 'released' THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'UPDATE'
+     AND NEW.event_id = OLD.event_id
+     AND (to_jsonb(NEW) - ARRAY['status', 'updated_at', 'reassessment_required', 'hold_expires_at', 'rejection_reason'])
+         = (to_jsonb(OLD) - ARRAY['status', 'updated_at', 'reassessment_required', 'hold_expires_at', 'rejection_reason'])
+     AND EXISTS (
+       SELECT 1
+         FROM event_safety_checks safety
+         JOIN safety_check_feedback_items feedback ON feedback.event_id = safety.event_id
+        WHERE safety.event_id = OLD.event_id
+          AND safety.status IN ('changes_needed', 'rejected')
+          AND feedback.reapproval_started_at IS NOT NULL
+          AND COALESCE(feedback.review_arrangements->'venueIds', '[]'::jsonb) ? OLD.id::text
+     ) THEN
+    RETURN NEW;
+  END IF;
   IF TG_OP = 'DELETE' THEN
     IF OLD.event_id IS NOT NULL THEN PERFORM invalidate_safety_check(OLD.event_id, 'The venue booking changed'); END IF;
     RETURN OLD;
-  END IF;
-  IF TG_OP = 'UPDATE' AND NEW.status = 'released' AND OLD.status <> 'released' THEN
-    RETURN NEW;
   END IF;
   IF TG_OP = 'INSERT' OR NEW IS DISTINCT FROM OLD THEN
     IF NEW.event_id IS NOT NULL THEN PERFORM invalidate_safety_check(NEW.event_id, 'The venue booking changed'); END IF;
@@ -56,12 +73,26 @@ $$;
 CREATE OR REPLACE FUNCTION trg_equipment_invalidate_safety() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+  -- Preserve SPM-131 feedback when selected equipment returns to Technical Support review.
+  IF TG_OP = 'UPDATE' AND NEW.status = 'Released' AND OLD.status <> 'Released' THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'UPDATE'
+     AND NEW.event_id = OLD.event_id
+     AND EXISTS (
+       SELECT 1
+         FROM event_safety_checks safety
+         JOIN safety_check_feedback_items feedback ON feedback.event_id = safety.event_id
+        WHERE safety.event_id = OLD.event_id
+          AND safety.status IN ('changes_needed', 'rejected')
+          AND feedback.reapproval_started_at IS NOT NULL
+          AND COALESCE(feedback.review_arrangements->'equipmentIds', '[]'::jsonb) ? OLD.id::text
+     ) THEN
+    RETURN NEW;
+  END IF;
   IF TG_OP = 'DELETE' THEN
     PERFORM invalidate_safety_check(OLD.event_id, 'The equipment request changed');
     RETURN OLD;
-  END IF;
-  IF TG_OP = 'UPDATE' AND NEW.status = 'Released' AND OLD.status <> 'Released' THEN
-    RETURN NEW;
   END IF;
   IF TG_OP = 'INSERT' OR (NEW.equipment_name, NEW.quantity, NEW.status) IS DISTINCT FROM
                          (OLD.equipment_name, OLD.quantity, OLD.status) THEN
