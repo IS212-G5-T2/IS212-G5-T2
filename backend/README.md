@@ -386,6 +386,50 @@ Existing bookings and events are unchanged.
 to the server clock time. `GET /api/venues/:id` exposes current and scheduled
 periods with reasons and a `current` flag for the early-end control.
 
+### Venue unavailability impact, history and notifications (SPM-125)
+
+Schema: `backend/migrations/030_spm125_venue_unavailability_history.sql` (the same file is
+`database/postgresql/init/030_spm125_venue_unavailability_history.sql` for fresh volumes; idempotent; apply after
+SPM-137's 029). It adds the append-only `venue_unavailability_history` table (backfilling a `created` entry, with no
+person, for every existing period). The notices link to their booking through SPM-137's
+`notifications.related_booking_id`.
+
+- Saving a period writes the period and its `created` history entry, with the Venue Staff member, in one statement;
+  ending one early writes the shorter period and its `ended_early` entry (new end, `previousEnd`, person) in one
+  statement. Nothing updates or deletes history rows.
+- In the same transaction as the save, the Event Coordinator of each affected booking listed by SPM-122 AC7
+  (confirmed bookings and active approved holds; pending requests are not listed) gets one
+  `venue_unavailable_impact` notice naming the event, venue, period and reason. Each `affectedBookings` item carries
+  `coordinatorNotified: true` when its Coordinator was notified; an event with no Coordinator is skipped.
+- `PATCH /api/venues/:id` (SPM-121) does the same for its AC8 list (`venue_timing_impact`) and AC9 list
+  (`venue_capacity_impact`, with the old and new capacity), for bookings that have not ended; `affectedBookings` and
+  `capacityBookings` items carry `coordinatorNotified: true` likewise. The AC9 list includes every pending or
+  approved row, but only rows that still hold the venue (the AC8 rule: not an expired tentative hold, and a pending
+  row only when it is an active hold or a booking request) are notified.
+- When the Lead reassigns an event (SPM-47), the previous Coordinator's unread venue-change notices for that event
+  are marked read with their other notices for it (as SPM-137 does for booking decisions), so none is left whose
+  View Booking link opens a booking that is no longer theirs.
+- `GET /api/notifications` returns these notices to Coordinators with `relatedBookingId`. The Venue Staff member who
+  made the change gets no notice (they already see the result, marked `coordinatorNotified`), and Venue Staff still
+  have no notification feed (403).
+- `GET /api/venues/:id/unavailability-history` (newest first: `action`, `start`, `end`, `previousEnd`, `reason`,
+  `changedBy`, `changedAt`) and `GET /api/venues/:id/booking-history` (every booking and hold of the venue, any status
+  and time, latest slot first, with `affectedByUnavailablePeriod`) are for Venue Staff only (401 without a session,
+  403 for other roles, 404 for an unknown venue).
+- The notice wording and the one place that writes these notices is `src/venues/notifications/venue-impact-notifications.ts`.
+  Integration tests: `test/venue-impact.e2e-spec.ts` (11 tests; needs `DATABASE_URL` with init 001 to 030; it
+  re-applies 019, 029 and 030 itself). Without `DATABASE_URL` the suite is skipped locally with a notice, and in CI a
+  missing database fails the run. To run it against a disposable database (see `database/README.md`):
+
+  ```sh
+  docker build -t spm-postgresql database/postgresql
+  docker run --rm -d --name spm125-test -e POSTGRES_USER=spm -e POSTGRES_PASSWORD=spm_dev_password \
+    -e POSTGRES_DB=spm -p 55432:5432 spm-postgresql   # a fresh container runs every init file
+  cd backend && DATABASE_URL=postgresql://spm:spm_dev_password@localhost:55432/spm \
+    npm run test:e2e -- test/venue-impact.e2e-spec.ts   # expect 11 passed, 0 skipped
+  docker rm -f spm125-test
+  ```
+
 ## Venue availability and booking requests (SPM-51)
 
 `GET /api/venues/:id` returns confirmed bookings, active tentative holds and

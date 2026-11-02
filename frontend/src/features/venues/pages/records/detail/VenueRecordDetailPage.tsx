@@ -8,6 +8,8 @@ import { api, ApiError } from "@/utils/api";
 import { formatDateTimeRange } from "@/utils/format";
 import type { VenueRecord } from "../venue-records";
 import { VenueUnavailabilityPanel } from "./VenueUnavailabilityPanel";
+import { VenueUnavailabilityHistory } from "./VenueUnavailabilityHistory";
+import { VenueBookingHistory } from "./VenueBookingHistory";
 import { useAppStore } from "@/store/useAppStore";
 import { hasRole, type EventRecord } from "@/types";
 import {
@@ -1270,6 +1272,27 @@ export function VenueRecordDetailPage() {
           </Card>
         </div>
       </div>
+      {/* SPM-125 AC1 and AC5: Venue Staff see who changed the venue's availability and every booking it has had. */}
+      {hasRole(user, "venue_staff") && (
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold">Unavailability History</h2>
+            </CardHeader>
+            <CardBody>
+              <VenueUnavailabilityHistory venueId={venue.id} refreshKey={revision} />
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold">Booking History</h2>
+            </CardHeader>
+            <CardBody>
+              <VenueBookingHistory venueId={venue.id} refreshKey={revision} />
+            </CardBody>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

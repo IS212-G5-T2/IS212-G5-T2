@@ -429,37 +429,57 @@ export class VenuesService {
     );
   }
 
-  /* v8 ignore start -- SPM-122 unavailable-period mutations are outside SPM-54; booking conflicts are tested through the read/submission API. */
-  /** Venue Staff can save blockouts even when existing bookings are affected. */
+  /**
+   * SPM-122: Venue Staff can save blockouts even when existing bookings are affected.
+   * SPM-125 AC1/AC6: the saving Venue Staff member is recorded in the history and receives the summary notice.
+   */
   async markUnavailable(
     user: AuthenticatedUser | undefined,
     id: string,
     body: unknown,
   ) {
-    await this.authorizeStaff(user);
+    const staff = await this.authorizeStaff(user);
     if (!UUID.test(id)) throw new NotFoundException('Venue not found.');
     const result = await this.repository.markUnavailable(
       id,
       validateUnavailability(body, this.clock.now()),
+      staff.uid,
     );
     if (!result) throw new NotFoundException('Venue not found.');
     return result;
   }
 
+  /** SPM-122 AC5: ends an active period now. SPM-125 AC1: the early end is recorded with the Venue Staff member. */
   async endUnavailable(
     user: AuthenticatedUser | undefined,
     id: string,
     periodId: string,
   ) {
-    await this.authorizeStaff(user);
+    const staff = await this.authorizeStaff(user);
     if (!UUID.test(id) || !UUID.test(periodId))
       throw new NotFoundException('Unavailable period not found.');
-    const period = await this.repository.endUnavailable(id, periodId);
+    const period = await this.repository.endUnavailable(id, periodId, staff.uid);
     if (!period) throw new NotFoundException('Unavailable period not found.');
     return { period };
   }
 
-  /* v8 ignore stop */
+  /** SPM-125 AC1: the venue's unavailability history, for Venue Staff only. */
+  async unavailabilityHistory(user: AuthenticatedUser | undefined, id: string) {
+    await this.authorizeStaff(user);
+    if (!UUID.test(id)) throw new NotFoundException('Venue not found.');
+    const entries = await this.repository.listUnavailabilityHistory(id);
+    if (!entries) throw new NotFoundException('Venue not found.');
+    return entries;
+  }
+
+  /** SPM-125 AC5: the venue's booking history (every booking and hold, past and future), for Venue Staff only. */
+  async bookingHistory(user: AuthenticatedUser | undefined, id: string) {
+    await this.authorizeStaff(user);
+    if (!UUID.test(id)) throw new NotFoundException('Venue not found.');
+    const entries = await this.repository.listBookingHistory(id);
+    if (!entries) throw new NotFoundException('Venue not found.');
+    return entries;
+  }
 
   /** SPM-55: the authorization gate for the Venue Staff review endpoints, so it is measured rather than excluded. */
   private async authorizeStaff(user: AuthenticatedUser | undefined) {

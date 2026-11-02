@@ -65,6 +65,10 @@ const COORDINATOR_NOTIFICATION_TYPES = [
   'coordinator_safety_response',
   'venue_booking_approved',
   'venue_booking_rejected',
+  // SPM-125 AC6 to AC9: a venue change affects one of the Coordinator's bookings.
+  'venue_unavailable_impact',
+  'venue_timing_impact',
+  'venue_capacity_impact',
 ];
 
 // Build a letters-only, >=3-word reason of exactly n characters (n >= 10) with no
@@ -553,5 +557,37 @@ describe('SPM-47 AC8 and AC10: notifications for reassignment', () => {
     db.query.mockResolvedValueOnce({ rows: [{ id: 'notif-3' }] });
     await expect(service.readNotification(VALID_UUID, lead)).resolves.toEqual({ success: true });
     expect(db.query.mock.calls[1][1]).toEqual([VALID_UUID, 'lead-1', ['coordinator_unavailable']]);
+  });
+});
+
+/*
+ * SPM-125 AC6 to AC9: the notification feed carries the venue-change notices. Unit tests of EventsService in
+ * isolation; the database is a fixture and the callers are fixtures, not live logins.
+ */
+describe('SPM-125 venue notices in the notification feed', () => {
+  const created = new Date('2026-10-07T09:00:00.000Z');
+
+  /**
+   * VEN-IMPACT-07-E (AC7): a Coordinator's venue notices are labelled for the Coordinator and carry the booking they
+   * are about, so the bell can open that booking.
+   * Kills: a venue notice without its booking link, or labelled for the wrong audience.
+   */
+  it('VEN-IMPACT-07-E labels the three Coordinator venue notices and gives their booking', async () => {
+    const row = { recipient_id: 'coordinator-1', related_event_id: VALID_UUID, related_booking_id: 'booking-1', event_name: 'Gala', read: false, created_at: created };
+    db.query.mockResolvedValueOnce({
+      rows: [
+        { ...row, id: 'n-1', type: 'venue_unavailable_impact', message: 'unavailable' },
+        { ...row, id: 'n-2', type: 'venue_timing_impact', message: 'timing' },
+        { ...row, id: 'n-3', type: 'venue_capacity_impact', message: 'capacity' },
+      ],
+    });
+
+    const result = await service.notifications(coordinator());
+
+    expect(result.map((n) => [n.type, n.audienceRole, n.relatedBookingId])).toEqual([
+      ['venue_unavailable_impact', 'coordinator', 'booking-1'],
+      ['venue_timing_impact', 'coordinator', 'booking-1'],
+      ['venue_capacity_impact', 'coordinator', 'booking-1'],
+    ]);
   });
 });

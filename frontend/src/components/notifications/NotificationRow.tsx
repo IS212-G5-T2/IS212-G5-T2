@@ -23,7 +23,15 @@ function headlineOf(message: string, type: Notification["type"], eventName?: str
 
 const CHANGE_REQUEST_DECISIONS = new Set<Notification["type"]>(["change_request_approved", "change_request_denied"]);
 // SPM-137: a venue booking decision opens the Coordinator's Bookings page for that booking, not an event page.
-const BOOKING_DECISIONS = new Set<Notification["type"]>(["venue_booking_approved", "venue_booking_rejected"]);
+// SPM-125 AC7: so does a notice that a Venue Staff change (unavailability, setup or turnaround, capacity) affects
+// the booking, where the Coordinator can find a replacement venue (SPM-54 AC5).
+const BOOKING_NOTICES = new Set<Notification["type"]>([
+  "venue_booking_approved",
+  "venue_booking_rejected",
+  "venue_unavailable_impact",
+  "venue_timing_impact",
+  "venue_capacity_impact",
+]);
 
 /**
  * One unread notification inside the top-bar bell dropdown (SPM-88, SC-SPM88-10). Every type uses the same
@@ -43,7 +51,7 @@ export function NotificationRow({
   const headlineId = useId();
   const headline = headlineOf(n.message, n.type, n.relatedEventName);
   const isChangeRequest = CHANGE_REQUEST_DECISIONS.has(n.type);
-  const isBooking = BOOKING_DECISIONS.has(n.type);
+  const isBooking = BOOKING_NOTICES.has(n.type);
   // A notice with no booking id (older data) still opens the Bookings page, just without a booking selected.
   const linkTarget = isBooking
     ? n.relatedBookingId

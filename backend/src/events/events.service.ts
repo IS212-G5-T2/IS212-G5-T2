@@ -39,6 +39,7 @@ import {
   ATTENDEE_VISIBLE_STATUSES,
   isRegistrationOpen,
 } from '../registrations/registration/registration-window.js';
+import { VENUE_IMPACT_COORDINATOR_TYPES } from '../venues/notifications/venue-impact-notifications.js';
 
 // SPM-46: the event's most recent reassignment, read with each event so the
 // current coordinator can see who it came from and when.
@@ -84,6 +85,8 @@ function audienceRoleFor(row: AudienceRow) {
   if (row.type.startsWith('coordinator_')) return 'coordinator';
   // SPM-137: the venue booking decision notices are the assigned coordinator's.
   if (row.type === BOOKING_APPROVED_NOTICE || row.type === BOOKING_REJECTED_NOTICE) return 'coordinator';
+  // SPM-125: the Coordinator's notices that a venue change affects their booking.
+  if ((VENUE_IMPACT_COORDINATOR_TYPES as readonly string[]).includes(row.type)) return 'coordinator';
   return 'organiser';
 }
 
@@ -474,6 +477,8 @@ export class EventsService {
             // SPM-137: Venue Staff approved or rejected a booking for an event assigned to them.
             BOOKING_APPROVED_NOTICE,
             BOOKING_REJECTED_NOTICE,
+            // SPM-125 AC6 to AC9: a venue change (unavailability, setup or turnaround, capacity) affects a booking.
+            ...VENUE_IMPACT_COORDINATOR_TYPES,
           ]
         : []),
       ...(user.roles.includes('COORDINATOR_LEAD') ? ['coordinator_unavailable'] : []),
@@ -507,7 +512,7 @@ export class EventsService {
       type: row.type,
       message: row.message,
       relatedEventId: row.related_event_id,
-      // SPM-137: the booking a venue booking decision notice is about (null for every other type), the bell's link target.
+      // SPM-137 and SPM-125 AC7: the booking a venue booking notice is about (null for every other type), the bell's link target.
       relatedBookingId: row.related_booking_id ?? null,
       // SPM-88: the event's current name (null when the notice has no event), so the bell can tell a denial's name from its reason.
       relatedEventName: row.event_name,

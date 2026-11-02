@@ -1540,3 +1540,138 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
     expect(postReadCalls("n3")).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-125: venue-change notices. The Coordinator's bell also lists the notices that a Venue Staff change affects one
+// of their bookings (AC6 to AC9), opening that booking on the Bookings page (AC7). Venue Staff get no bell: their save
+// result already shows which Coordinators were notified (SC-SPM125-01; ASSIGN-NOTIFY-01-E still covers it). Frontend
+// unit tests with the notifications API stubbed; the signed-in user is a fixture, not a live login.
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-125: venue unavailability and venue change notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const UNAVAILABLE_MESSAGE =
+    'Orchid Hall is unavailable from 8 Oct 2026, 11:00 am – 1:00 pm (reason: Maintenance). Alternative arrangements are required for your booking for "Welcome Evening" (8 Oct 2026, 11:30 am – 12:30 pm).';
+
+  function setUser(roles: Array<"coordinator" | "venue_staff">) {
+    useAppStore.setState({
+      currentUser: { id: "user-125", name: "U", email: "u@example.test", role: roles[0], roles },
+    });
+  }
+
+  function venueNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-venue-1",
+      audienceRole: "coordinator",
+      audienceUserId: "user-125",
+      type: "venue_unavailable_impact",
+      message: UNAVAILABLE_MESSAGE,
+      relatedEventId: "event-1",
+      relatedEventName: "Welcome Evening",
+      relatedBookingId: "booking-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  /** Renders the bell with the pages its venue links open, then opens the dropdown. */
+  function renderBellWithVenueRoutes() {
+    const view = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <NotificationBell />
+                <Outlet />
+              </>
+            }
+          >
+            <Route path="bookings" element={<BookingsRoute />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(bellButton());
+    return view;
+  }
+
+  // MemoryRouter does not change window.location, so the marker shows the router's search string instead.
+  function BookingsRoute() {
+    const params = new URLSearchParams(useLocationSearch());
+    return <p>Bookings page for {params.get("booking") ?? "no booking"}</p>;
+  }
+
+  /**
+   * VEN-IMPACT-07-B (AC6, AC7): a Coordinator's bell lists the unavailability notice in full (event name, venue,
+   * period and reason) with the notification time, counted as unread.
+   * Kills: the Coordinator filter dropping venue notices; the row cutting the period or reason.
+   */
+  it("VEN-IMPACT-07-B lists the unavailability notice with the event, venue, period and reason for a Coordinator", async () => {
+    setUser(["coordinator"]);
+    apiMock.mockResolvedValue([venueNotice()]);
+
+    renderBell();
+
+    const row = (await screen.findByText(UNAVAILABLE_MESSAGE)).closest("li")!;
+    expect(row).toHaveTextContent("Welcome Evening");
+    expect(row).toHaveTextContent("Orchid Hall");
+    expect(row).toHaveTextContent("8 Oct 2026, 11:00 am – 1:00 pm");
+    expect(row).toHaveTextContent("reason: Maintenance");
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+
+  /**
+   * VEN-IMPACT-07-C (AC7): View Booking opens the Bookings page for that booking (`/bookings?booking=booking-1`, the SPM-137 link),
+   * marks the notice read once and closes the dropdown.
+   * Kills: a link to the event page instead of the booking; opening without marking read.
+   */
+  it("VEN-IMPACT-07-C View Booking opens the affected booking on the Bookings page and marks the notice read", async () => {
+    setUser(["coordinator"]);
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [venueNotice()]));
+
+    renderBellWithVenueRoutes();
+    const link = await screen.findByRole("link", { name: "View Booking" });
+    expect(link).toHaveAttribute("href", "/bookings?booking=booking-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Bookings page for booking-1")).toBeTruthy();
+    expect(postReadCalls("notif-venue-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * VEN-IMPACT-08-D, VEN-IMPACT-09-D (AC8, AC9): setup/turnaround and capacity notices are listed for a Coordinator
+   * and also open their booking; a notice without a booking id falls back to the Bookings page.
+   * Kills: only the unavailability type being listed; a broken link when the booking id is missing.
+   */
+  it("VEN-IMPACT-08-D VEN-IMPACT-09-D lists timing and capacity notices, each opening its booking", async () => {
+    setUser(["coordinator"]);
+    apiMock.mockResolvedValue([
+      venueNotice({ id: "n-timing", type: "venue_timing_impact", message: "Timing changed", relatedBookingId: "booking-2" }),
+      venueNotice({ id: "n-capacity", type: "venue_capacity_impact", message: "Capacity changed", relatedBookingId: undefined }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText("Timing changed")).toBeTruthy();
+    expect(screen.getByText("Capacity changed")).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "View Booking" }).map((l) => l.getAttribute("href"))).toEqual([
+      "/bookings?booking=booking-2",
+      "/bookings",
+    ]);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+});
+
+/** The current router location's search string (used by the SPM-125 Bookings route marker). */
+function useLocationSearch() {
+  return useLocation().search;
+}

@@ -25,6 +25,9 @@ const iconByType: Record<Notification["type"], string> = {
   cancellation: "🚫",
   WaitlistPromoted: "🎟️",
   EventCancelled: "🚫",
+  venue_unavailable_impact: "🏛️",
+  venue_timing_impact: "🏛️",
+  venue_capacity_impact: "🏛️",
 };
 
 const CHANGE_REQUEST_NOTICES: ReadonlySet<Notification["type"]> = new Set([
