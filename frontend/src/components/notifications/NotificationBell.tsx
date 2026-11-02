@@ -22,8 +22,9 @@ const isCoordinatorNotice = (notification: Notification) => COORDINATOR_TYPES.in
 
 /**
  * Top-bar notification bell (SPM-88, SC-SPM88-10; SPM-77, SC-SPM77-03; SPM-137). Organisers see their unread request
- * decisions and anyone holding the Coordinator role sees their assignment and venue booking decision notices in a
- * dropdown; other roles get nothing until later tickets add their notification types.
+ * decisions (SPM-162 adds the outcome of their cancellation request) and anyone holding the Coordinator role sees
+ * their assignment and venue booking decision notices in a dropdown; other roles get nothing until later tickets add
+ * their notification types.
  */
 export function NotificationBell() {
   const user = useAppStore((s) => s.currentUser);

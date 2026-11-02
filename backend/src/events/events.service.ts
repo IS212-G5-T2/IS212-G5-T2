@@ -34,6 +34,7 @@ import { settleIfDue } from '../registrations/waitlist/settle.js';
 import { runRegistrationCloseJob } from '../registrations/waitlist/close-job.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import { BOOKING_APPROVED_NOTICE, BOOKING_REJECTED_NOTICE } from '../venues/review/booking-decision-notice.js';
+import { CANCELLATION_ACCEPTED_NOTICE, CANCELLATION_DECLINED_NOTICE } from './cancellation-requests/cancellation-request-notice.js';
 import { COORDINATOR_NOTIFICATION_TYPES } from './coordinator-notification-types.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,
@@ -466,6 +467,9 @@ export class EventsService {
             // SPM-65: the coordinator approved or denied the organiser's change request.
             'change_request_approved',
             'change_request_denied',
+            // SPM-162: the Coordinator accepted or declined the organiser's cancellation request.
+            CANCELLATION_ACCEPTED_NOTICE,
+            CANCELLATION_DECLINED_NOTICE,
           ]
         : []),
       ...(user.roles.includes('COORDINATOR')

@@ -1540,3 +1540,197 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
     expect(postReadCalls("n3")).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-162: the Organiser's bell lists the outcome of their cancellation request (accepted or declined) and links each
+// one to the event page (/events/<id>). The backend builds the message and decides who gets the notice; these are
+// frontend unit tests of the bell with the notifications API stubbed and the signed-in user set directly in the store
+// (a fixture, not a live login).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-162: cancellation request outcome notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const ACCEPTED_MESSAGE = 'Your cancellation request for "Welcome Evening" was accepted. The event is cancelled.';
+  const DECLINED_MESSAGE = 'Your cancellation request for "Welcome Evening" was declined. The event keeps its current status.';
+
+  function outcomeNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-outcome-1",
+      audienceRole: "organiser",
+      audienceUserId: "organiser-9",
+      type: "cancellation_request_accepted",
+      message: ACCEPTED_MESSAGE,
+      relatedEventId: "event-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  /**
+   * CANCEL-OUTCOME-01-G (SPM-162 AC1): an Organiser's bell lists an accepted and a declined cancellation outcome with
+   * an unread count of 2.
+   * Kills: either outcome type dropped by the bell, or filtered out.
+   */
+  it("CANCEL-OUTCOME-01-G shows an Organiser both an accepted and a declined outcome notice with an unread count of 2", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      outcomeNotice(),
+      outcomeNotice({ id: "notif-outcome-2", type: "cancellation_request_declined", message: DECLINED_MESSAGE, relatedEventId: "event-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(ACCEPTED_MESSAGE)).toBeTruthy();
+    expect(screen.getByText(DECLINED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * CANCEL-OUTCOME-02-F (SPM-162 AC2): the row shows the whole message exactly as stored and the notification's own
+   * timestamp as a <time> element, with no reason added.
+   * Kills: a row that rewrites the message, hides the decision time, or adds a reason.
+   */
+  it("CANCEL-OUTCOME-02-F shows the full message and the decision time, with no reason", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([outcomeNotice({ type: "cancellation_request_declined", message: DECLINED_MESSAGE })]);
+
+    renderBell();
+
+    const row = (await screen.findByText(DECLINED_MESSAGE)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(DECLINED_MESSAGE);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent(/Reason/);
+  });
+
+  /**
+   * CANCEL-OUTCOME-04-B (SPM-162 AC4): the link on an outcome notice goes to /events/event-1, marks the notification
+   * read once, lands on the event page and closes the dropdown.
+   * Kills: a link to the Change Requests page or the bookings page, opening without marking read.
+   */
+  it.each([
+    ["accepted", "cancellation_request_accepted", ACCEPTED_MESSAGE],
+    ["declined", "cancellation_request_declined", DECLINED_MESSAGE],
+  ] as const)("CANCEL-OUTCOME-04-B View Request on a %s notice opens /events/event-1 and marks it read", async (_label, type, message) => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [outcomeNotice({ type, message })]));
+
+    renderBellWithEventRoute();
+    const link = await screen.findByRole("link", { name: "View Request" });
+    expect(link).toHaveAttribute("href", "/events/event-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Event detail page for event-1")).toBeTruthy();
+    expect(postReadCalls("notif-outcome-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * CANCEL-OUTCOME-04-C (SPM-162 AC4): two outcome notices for two events each link to their own event, and following
+   * one marks only that notice read.
+   * Kills: every row linking to the same event, one read call serving all rows.
+   */
+  it("CANCEL-OUTCOME-04-C links each outcome notice to its own event", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              outcomeNotice({ id: "n1", relatedEventId: "event-1" }),
+              outcomeNotice({ id: "n2", type: "cancellation_request_declined", message: DECLINED_MESSAGE, relatedEventId: "event-2" }),
+            ],
+      ),
+    );
+
+    renderBellWithEventRoute();
+    const links = await screen.findAllByRole("link", { name: "View Request" });
+    expect(links.map((l) => l.getAttribute("href")).sort()).toEqual(["/events/event-1", "/events/event-2"]);
+    fireEvent.click(links.find((l) => l.getAttribute("href") === "/events/event-2")!);
+
+    await waitFor(() => expect(postReadCalls("n2")).toHaveLength(1));
+    expect(postReadCalls("n1")).toHaveLength(0);
+  });
+
+  /**
+   * CANCEL-OUTCOME-05-D (SPM-162 AC5): the badge counts outcome notices with the Organiser's other notices, and a
+   * notice the server already holds as read is neither listed nor counted.
+   * Kills: outcome notices left out of the count; read notices shown.
+   */
+  it("CANCEL-OUTCOME-05-D counts unread outcome notices with other Organiser notices and leaves out a read one", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      outcomeNotice(),
+      outcomeNotice({ id: "notif-outcome-read", type: "cancellation_request_declined", message: DECLINED_MESSAGE, read: true }),
+      approvalNotification(),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(ACCEPTED_MESSAGE)).toBeTruthy();
+    expect(screen.queryByText(DECLINED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * CANCEL-OUTCOME-05-E (SPM-162 AC5): Mark As Read on an outcome notice posts the read call, drops the row and lowers
+   * the count without opening the event page.
+   * Kills: Mark As Read not posting for this type, or leaving the notice counted.
+   */
+  it("CANCEL-OUTCOME-05-E Mark As Read marks an outcome notice read and lowers the unread count", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [outcomeNotice()]));
+
+    renderBellWithEventRoute();
+    await screen.findByText(ACCEPTED_MESSAGE);
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() => expect(postReadCalls("notif-outcome-1")).toHaveLength(1));
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.queryByText(/Event detail page for/)).toBeNull();
+  });
+
+  /**
+   * CANCEL-OUTCOME-05-F (SPM-162 AC5): opening and closing the bell does not mark an outcome notice read; it stays
+   * unread and counted until it is opened or marked read.
+   * Kills: marking the notices read when the dropdown opens.
+   */
+  it("CANCEL-OUTCOME-05-F leaves an outcome notice unread after the bell is opened and closed", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [outcomeNotice()]));
+
+    renderBell();
+    expect(await screen.findByText(ACCEPTED_MESSAGE)).toBeTruthy();
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(apiMock.mock.calls.filter(([path]) => String(path).endsWith("/read"))).toHaveLength(0);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+
+  /**
+   * CANCEL-OUTCOME-01-H (SPM-162 AC1, SUPPORTING): a Coordinator's bell never lists an outcome notice (it is the
+   * Organiser's), so the Coordinator filter is unchanged.
+   * Kills: adding the outcome types to the Coordinator filter.
+   */
+  it("CANCEL-OUTCOME-01-H does not list an outcome notice in a Coordinator's bell", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+    apiMock.mockResolvedValue([outcomeNotice()]);
+
+    renderBell();
+
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(screen.queryByText(ACCEPTED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+});

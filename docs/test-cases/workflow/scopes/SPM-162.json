@@ -1,0 +1,116 @@
+{
+  "story": "SPM-162",
+  "title": "Event Cancellation Request Outcome (Organiser)",
+  "note": "Implementation pass (2 Nov 2026): 39 CANCEL-OUTCOME ids (38 PRIMARY, matching the Confluence SPM-162 matrix, plus SUPPORTING CANCEL-OUTCOME-01-H); all ids are pending approval by the story owner (chaw678). Shared files use titleMatch ^CANCEL-OUTCOME- so the SPM-155, SPM-136, SPM-88 and SPM-123 tests in them are not in scope. Spec conflicts SC-SPM162-01 (notification type names) and SC-SPM162-02 (the SPM-155 'a decline sends no notices' cases superseded by AC1) are recorded and awaiting confirmation. The existing SPM-155 unit tests CANCEL-REQUEST-03-A and 05-A, the e2e tests CANCEL-REQUEST-03-E, 04-B and 05-C, and the organiser-list assertions in events.reject.spec.ts (EVENT-REJECT-02-B, LEAD-ASN-09-C) were adjusted for the new notice and are not part of this scope. Not yet committed: linesFrom changed-lines needs the story commits, so G5 is only meaningful after the commit.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/cancellation-requests/cancellation-request-notice.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/cancellation-request-notifications.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/cancel/cancel-event.service.spec.ts",
+        "titleMatch": "^CANCEL-OUTCOME-"
+      },
+      {
+        "glob": "backend/src/events/cancellation-requests/cancellation-requests.service.spec.ts",
+        "titleMatch": "^CANCEL-OUTCOME-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/cancellation-request-outcome.e2e-spec.ts"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "^CANCEL-OUTCOME-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/cancellation-requests/cancellation-request-notice.ts",
+      "backend/src/events/cancellation-requests/cancellation-request.messages.ts",
+      "backend/src/events/cancellation-requests/cancellation-requests.service.ts",
+      "backend/src/events/cancel/cancel-event.service.ts",
+      "backend/src/events/events.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationBell.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm162",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm162.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm162.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm162",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm162.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm162.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

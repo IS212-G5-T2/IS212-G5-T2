@@ -345,7 +345,8 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       pool.query('SELECT * FROM equipment_reservations WHERE event_id = $1 ORDER BY id', [eventId]),
       pool.query('SELECT * FROM event_registrations WHERE event_id = $1 ORDER BY id', [eventId]),
       pool.query('SELECT * FROM event_status_history WHERE event_id = $1 ORDER BY id', [eventId]),
-      pool.query('SELECT * FROM notifications WHERE related_event_id = $1 ORDER BY id', [eventId]),
+      // SPM-162: the Organiser's request-outcome notice is the decision's own output, so it is not part of what a request leaves alone.
+      pool.query(`SELECT * FROM notifications WHERE related_event_id = $1 AND type NOT IN ('cancellation_request_accepted', 'cancellation_request_declined') ORDER BY id`, [eventId]),
       pool.query('SELECT * FROM event_safety_checks WHERE event_id = $1', [eventId]),
     ]);
     return {
@@ -1140,7 +1141,8 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       const perRecipient = new Map<string, number>();
       for (const row of after.notifications) perRecipient.set(row.recipient_id, (perRecipient.get(row.recipient_id) ?? 0) + 1);
       expect([...perRecipient.values()].every((count) => count === 1)).toBe(true);
-      expect(after.notifications).toHaveLength(final === 'accepted' ? 6 : 0);
+      // SPM-162: the snapshot leaves out the Organiser's outcome notice, so an accept leaves the five other EventCancelled notices
+      expect(after.notifications).toHaveLength(final === 'accepted' ? 5 : 0);
     });
   });
 
@@ -1269,12 +1271,17 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
         expect(row).toMatchObject({ status: 'Cancelled', cancellation_reason: 'Event cancelled' });
       // The waiting-list entry (ATT-04) is Cancelled too (SPM-138 releaser; it carries no reason)
       expect(registrations.rows.find((r) => r.attendee_id === att4.uid)?.status).toBe('Cancelled');
-      // Assert: ORG-01, COO-01 and ATT-01 to ATT-04 are each notified exactly once, with the SPM-136 notice and nothing else
+      // Assert: ORG-01, COO-01 and ATT-01 to ATT-04 are each notified exactly once, with the SPM-136 notice (the Organiser with the SPM-162 outcome notice instead) and nothing else
       const notices = await pool.query('SELECT recipient_id, type, message FROM notifications WHERE related_event_id = $1 ORDER BY recipient_id', [eventId]);
       expect(notices.rows).toHaveLength(6);
       expect(notices.rows.map((row) => row.recipient_id).sort()).toEqual([org1.uid, coo1.uid, att1.uid, att2.uid, att3.uid, att4.uid].sort());
       for (const row of notices.rows) {
         // The waiting-list attendee's notice is the SPM-138 text (MSG-WL-06); everyone else gets the SPM-136 text
+        // SPM-162 AC3: the Organiser gets the request-outcome notice instead of EventCancelled
+        if (row.recipient_id === org1.uid) {
+          expect(row).toMatchObject({ type: 'cancellation_request_accepted', message: 'Your cancellation request for "Annual Gala Dinner" was accepted. The event is cancelled.' });
+          continue;
+        }
         const expected = row.recipient_id === att4.uid ? `${CANCELLED_NOTICE} Your waitlist place is cancelled.` : CANCELLED_NOTICE;
         expect(row).toMatchObject({ type: 'EventCancelled', message: expected });
       }
@@ -1424,10 +1431,14 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
     });
   });
 
-  /** CANCEL-REQUEST-05-C (SPEC, S7): a decline sends no notices and writes no status change. */
-  describe('CANCEL-REQUEST-05-C: a decline sends no notices', () => {
+  /**
+   * CANCEL-REQUEST-05-C (SPEC, S7): a decline writes no status change and sends only the Organiser's outcome notice. Changed
+   * 2 Nov 2026 (SPM-162 AC1): a decline writes exactly one notice, the Organiser's request-outcome notice, and nothing
+   * for anyone else.
+   */
+  describe('CANCEL-REQUEST-05-C: a decline sends only the Organiser outcome notice', () => {
     // Kills: M1, M12a, M12b, M18d, M38
-    it('CANCEL-REQUEST-05-C: no notification of any kind exists for the event and no status history row is written', async () => {
+    it('CANCEL-REQUEST-05-C: only the Organiser outcome notice exists for the event and no status history row is written', async () => {
       // Arrange: EVT-1105 clone, attendees with zero notifications
       const { eventId } = await seedGala();
       const requestId = (await postRequest(org1, eventId).expect(201)).body.request.id as string;
@@ -1437,11 +1448,13 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       // Act
       await decide(coo1, requestId, { decision: 'decline' }).expect(200);
 
-      // Assert: no notification related to the event, none for any attendee, the organiser or the coordinator, and no history row
+      // Assert: no other notification related to the event, none for any attendee or the coordinator, only the SPM-162 Organiser notice for the organiser, and no history row
       const after = await snapshot(eventId);
       expect(after.notifications).toHaveLength(0);
-      const forPeople = await pool.query('SELECT 1 FROM notifications WHERE recipient_id = ANY($1::text[])', [[att1.uid, att2.uid, att3.uid, att4.uid, org1.uid, coo1.uid]]);
+      const forPeople = await pool.query('SELECT 1 FROM notifications WHERE recipient_id = ANY($1::text[])', [[att1.uid, att2.uid, att3.uid, att4.uid, coo1.uid]]);
       expect(forPeople.rowCount).toBe(0);
+      const organiserNotices = await pool.query('SELECT type FROM notifications WHERE recipient_id = $1', [org1.uid]);
+      expect(organiserNotices.rows).toEqual([{ type: 'cancellation_request_declined' }]);
       expect(after.history).toHaveLength(0);
     });
   });

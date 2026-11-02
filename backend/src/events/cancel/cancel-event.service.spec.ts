@@ -356,6 +356,63 @@ describe('SPM-155 transactional cancellation entry (D13a: CANCEL-REQUEST-04-SUP-
   );
 });
 
+describe('SPM-162 the Organiser is left out of EventCancelled on the request path (AC3)', () => {
+  /** The recipients array the single EventCancelled INSERT was sent. */
+  const recipientsOf = (statements: Array<{ sql: string; params: unknown[] }>) =>
+    (statements.find((s) => /INSERT INTO notifications/.test(s.sql))?.params[0] ?? []) as string[];
+
+  /**
+   * CANCEL-OUTCOME-03-C (SPM-162 AC3): with skipOrganiserNotice the EventCancelled notices go to the Coordinator and the
+   * attendees only; the Organiser is not among the recipients, and the cancellation itself still happens.
+   * Kills: ignoring the option, removing the wrong recipient (the Coordinator or an attendee), skipping the cancellation.
+   */
+  it('CANCEL-OUTCOME-03-C skipOrganiserNotice sends EventCancelled to the Coordinator and attendees, not the Organiser', async () => {
+    const { database, client, statements, releaserRecorder } = transactionalSetup({ recipients: ['att-1', 'att-2'] });
+    const service = new CancelEventService(database as never, { now: () => NOW }, [releaserRecorder]);
+
+    const result = await service.cancelInTransaction(client as never, coordinator, EVENT, NOW, { skipOrganiserNotice: true });
+
+    expect(recipientsOf(statements)).toEqual(['coo-01', 'att-1', 'att-2']);
+    expect(result.status).toBe('Cancelled');
+    expect(statements.some((s) => /UPDATE events/.test(s.sql))).toBe(true);
+    expect(releaserRecorder.release).toHaveBeenCalledWith(EVENT, client, NOW);
+  });
+
+  /**
+   * CANCEL-OUTCOME-03-D (SPM-162 AC3): without the option, or with it false, a Coordinator's own cancellation still
+   * notifies the Organiser (the direct SPM-136 path is unchanged).
+   * Kills: making the skip the default, or treating any options object as a skip.
+   */
+  it.each([
+    ['no options', undefined],
+    ['an empty options object', {}],
+    ['skipOrganiserNotice false', { skipOrganiserNotice: false }],
+  ])('CANCEL-OUTCOME-03-D with %s the Organiser is still a recipient', async (_label, options) => {
+    const { database, client, statements, releaserRecorder } = transactionalSetup({ recipients: ['att-1'] });
+    const service = new CancelEventService(database as never, { now: () => NOW }, [releaserRecorder]);
+
+    await service.cancelInTransaction(client as never, coordinator, EVENT, NOW, options);
+
+    expect(recipientsOf(statements)).toEqual(['org-01', 'coo-01', 'att-1']);
+  });
+
+  /**
+   * CANCEL-OUTCOME-03-E (SPM-162 AC3): the skip also holds when a releaser reports the Organiser as a recipient (an
+   * Organiser who is also registered), because the removal happens after every recipient is collected.
+   * Kills: removing the Organiser before the releasers add recipients.
+   */
+  it('CANCEL-OUTCOME-03-E skipOrganiserNotice still leaves the Organiser out when a releaser lists them', async () => {
+    const { database, client, statements } = transactionalSetup({ recipients: ['org-01', 'att-1'] });
+    const service = new CancelEventService(database as never, { now: () => NOW }, [
+      { name: 'fake', collectRecipients: async () => ['org-01', 'att-1'], release: async () => undefined },
+    ]);
+
+    await service.cancelInTransaction(client as never, coordinator, EVENT, NOW, { skipOrganiserNotice: true });
+
+    expect(recipientsOf(statements)).toEqual(['coo-01', 'att-1']);
+  });
+});
+
 /*
  * ASSUMPTION INDEX (SPM-136). Master list: docs/specs/SPM-136-test-results.md, "Assumptions (SPM-136)".
  *   A1 attendee copy of the EventCancelled notice uses the organiser text -> CANCEL-EVENT-03-A

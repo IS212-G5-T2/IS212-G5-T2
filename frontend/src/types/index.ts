@@ -451,6 +451,9 @@ export type NotificationType =
   | "change_request_approved"
   | "change_request_denied"
   | "venue_booking"
+  /** SPM-162: the coordinator accepted or declined the organiser's cancellation request. */
+  | "cancellation_request_accepted"
+  | "cancellation_request_declined"
   /** SPM-137: Venue Staff approved or rejected a venue booking for the coordinator's event. */
   | "venue_booking_approved"
   | "venue_booking_rejected"
