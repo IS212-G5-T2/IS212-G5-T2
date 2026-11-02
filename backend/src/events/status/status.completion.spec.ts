@@ -65,8 +65,10 @@ describe('COMPLETE-EVENT-01-B and 01-D: the date and the assignment are checked'
 
   it('COMPLETE-EVENT-01-D: a coordinator who is not assigned is refused with 403 before anything is read under the lock', async () => {
     const { svc, history } = service({ coordinator: 'coord-z' });
+    const database = (svc as unknown as { database: { transaction: unknown } }).database;
 
     await expect(svc.changeStatus(COORDINATOR, EVENT, { targetStatus: 'Completed' })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(database.transaction).not.toHaveBeenCalled();
     expect(history).toEqual([]);
   });
 
@@ -85,6 +87,16 @@ describe('COMPLETE-EVENT-01-B and 01-D: the date and the assignment are checked'
 });
 
 describe('COMPLETE-EVENT-02-C and 02-E: only a Confirmed event completes, and only once', () => {
+  it('COMPLETE-EVENT-02-C: a Planning event whose end has not passed is refused with 409 (the status is checked before the date)', async () => {
+    const { svc, history } = service({ status: 'Planning', endDate: FUTURE });
+
+    const error = await svc.changeStatus(COORDINATOR, EVENT, { targetStatus: 'Completed' }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({ code: 'EVENT_NOT_COMPLETABLE' });
+    expect(history).toEqual([]);
+  });
+
   it.each(['Planning', 'Approved', 'Completed'])('COMPLETE-EVENT-02-C: a %s event is refused with 409 EVENT_NOT_COMPLETABLE', async (status) => {
     const { svc, history } = service({ status });
 

@@ -431,6 +431,27 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     });
   });
 
+  it('COMPLETE-EVENT-06-E refuses to deny a request on a Completed event with 409 EVENT_COMPLETED', async () => {
+    await expect(
+      setup({ event: eventRow({ status: 'Completed' }) }).svc.deny(coordinator, EVENT_ID, REQUEST_ID, { reason: 'Not possible' }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'EVENT_COMPLETED' }),
+    });
+  });
+
+  it('COMPLETE-EVENT-06-E refuses to recheck an approved change on a Completed event with 409 EVENT_COMPLETED', async () => {
+    await expect(
+      setup({ event: eventRow({ status: 'Completed' }), request: requestRow({ status: 'Approved' }) }).svc.markRechecked(
+        coordinator,
+        EVENT_ID,
+        REQUEST_ID,
+        'item-1',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'EVENT_COMPLETED' }),
+    });
+  });
+
   it.each(['Rejected'])(
     'refuses to apply a change to a %s event',
     async (status) => {
