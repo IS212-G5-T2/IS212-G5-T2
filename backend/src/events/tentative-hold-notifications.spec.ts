@@ -68,11 +68,16 @@ describe('SPM-165 tentative hold notices in the notification feed', () => {
   /**
    * VENUE-HOLD-NOTIF-03-G (SPM-165 AC3): each hold notice in the feed carries the id of its hold (the bell link target)
    * and is labelled a Coordinator notice; a notice without a link carries null.
-   * Kills: dropping relatedBookingId, labelling the notice Organiser.
+   * A non-hold notice (EventApproved) in the same feed is the control: it keeps the default Organiser label.
+   * Kills: dropping relatedBookingId, labelling the notice Organiser, labelling every notice Coordinator.
    */
   it('VENUE-HOLD-NOTIF-03-G returns the hold id and a coordinator audience for each tentative hold notice', async () => {
     db.query.mockResolvedValue({
-      rows: [row(), row({ id: 'n2', type: 'tentative_hold_rejected', related_booking_id: null })],
+      rows: [
+        row(),
+        row({ id: 'n2', type: 'tentative_hold_rejected', related_booking_id: null }),
+        row({ id: 'n3', type: 'EventApproved', related_booking_id: null }),
+      ],
     });
 
     const items = await service.notifications(as('coo-01', 'COORDINATOR'));
@@ -80,6 +85,7 @@ describe('SPM-165 tentative hold notices in the notification feed', () => {
     expect(items).toMatchObject([
       { id: NOTICE, type: 'tentative_hold_approved', audienceRole: 'coordinator', relatedEventId: EVENT, relatedBookingId: HOLD, read: false },
       { id: 'n2', type: 'tentative_hold_rejected', audienceRole: 'coordinator', relatedBookingId: null },
+      { id: 'n3', type: 'EventApproved', audienceRole: 'organiser' },
     ]);
     expect(items[0].createdAt).toBe('2030-01-10T12:00:00.000Z');
   });
