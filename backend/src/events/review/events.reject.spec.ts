@@ -54,6 +54,7 @@ const VALID_REASON = 'Venue unavailable for the requested date.';
 // Notification types a coordinator reads: SPM-123 assignment, SPM-47 reassignment to and away from them.
 // SPM-136 adds EventCancelled for coordinators (assigned coordinator is notified of a cancellation).
 // SPM-64 AC3 adds the organiser's change request notice to the coordinator's feed.
+// SPM-131 adds the Safety Officer's response notice to the coordinator's feed.
 // SPM-137 adds the two venue booking decision notices (approved, rejected).
 const COORDINATOR_NOTIFICATION_TYPES = [
   'coordinator_assignment',
@@ -61,6 +62,7 @@ const COORDINATOR_NOTIFICATION_TYPES = [
   'coordinator_unassignment',
   'EventCancelled',
   'coordinator_change_request',
+  'coordinator_safety_response',
   'venue_booking_approved',
   'venue_booking_rejected',
 ];

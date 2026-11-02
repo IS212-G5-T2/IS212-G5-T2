@@ -21,11 +21,11 @@ const CONFIRMED_SNAPSHOT = {
   equipmentNoneConfirmed: false,
 };
 
-function setup(queryRows: unknown[] = [], transactionRows: unknown[] = [], snapshot = CONFIRMED_SNAPSHOT, eventFound = true, detailRows = queryRows) {
+function setup(queryRows: unknown[] = [], transactionRows: unknown[] = [], snapshot = CONFIRMED_SNAPSHOT, eventFound = true, detailRows = queryRows, coordinatorId: string | null = null) {
   const candidateRows = queryRows;
   const query = vi.fn().mockImplementation((sql: string) => Promise.resolve({ rows: sql.includes('AS venues') ? detailRows : candidateRows }));
   const clientQuery = vi.fn().mockImplementation((sql: string) => Promise.resolve({ rows:
-    sql.includes('FROM events') ? (eventFound ? [{ id: 'event-1', event_name: 'Welcome Evening', equipment_needs: 'Wireless microphone', equipment_confirmed_at: null }] : [])
+    sql.includes('FROM events') ? (eventFound ? [{ id: 'event-1', event_name: 'Welcome Evening', equipment_needs: 'Wireless microphone', equipment_confirmed_at: null, coordinator_id: coordinatorId }] : [])
       : sql.includes('FROM event_safety_checks') ? transactionRows : [] }));
   const transaction = vi.fn(async (work: (client: { query: typeof clientQuery }) => Promise<unknown>) => work({ query: clientQuery }));
   const arrangements = { read: vi.fn().mockResolvedValue(snapshot) };
@@ -163,39 +163,112 @@ describe('SPM-129 SafetyOfficerService', () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
     await service.respond(OFFICER, 'event-1', { decision: 'rejected', reason: 'Please add an accessible route.' });
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE event_safety_checks'), ['event-1', 'rejected', 'Safety Officer', 'Please add an accessible route.']);
-    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Please add an accessible route.']);
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Please add an accessible route.', JSON.stringify({ venueIds: ['booking-1'], equipmentIds: ['equipment-1'] })]);
   });
 
-  /** SAFETY-DECISION-03: a requested change retains its description as coordinator feedback. */
-  it('SAFETY-DECISION-03 records requested changes and its description', async () => {
+  /** SAFETY-OUTCOME-05: rejection routes selected active arrangements to staff review without releasing their rows. */
+  it('SAFETY-OUTCOME-05 returns selected venue and equipment rows to review', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
-    await service.respond(OFFICER, 'event-1', { decision: 'changes_needed', reason: 'Confirm a backup microphone.' });
-    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE event_safety_checks'), ['event-1', 'changes_needed', 'Safety Officer', 'Confirm a backup microphone.']);
-    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Confirm a backup microphone.']);
+    await service.respond(OFFICER, 'event-1', { decision: 'rejected', reason: 'Please add an accessible route.' });
+
+    const arrangementWrites = clientQuery.mock.calls
+      .map(([sql]) => String(sql))
+      .filter((sql) => /\b(?:UPDATE|DELETE)\s+(?:venue_bookings|equipment_reservations)\b/i.test(sql));
+    expect(arrangementWrites).toEqual(expect.arrayContaining([
+      expect.stringContaining("UPDATE venue_bookings SET status = 'pending'"),
+      expect.stringContaining("UPDATE equipment_reservations SET status = 'Requested'"),
+    ]));
   });
 
-  /** SAFETY-DECISION-03: legacy reason strings remain one feedback item even when they contain line breaks. */
-  it('SAFETY-DECISION-03 keeps a legacy multiline reason as one item', async () => {
-    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
-    const legacyReason = 'Add a fire exit plan.\nConfirm occupancy.';
-    await service.respond(OFFICER, 'event-1', { decision: 'changes_needed', reason: legacyReason });
-    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', legacyReason]);
-    expect(clientQuery.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO safety_check_feedback_items'))).toHaveLength(1);
+  /** SAFETY-OUTCOME-04: legacy reason-only requests cannot persist feedback without an arrangement review marker. */
+  it('SAFETY-OUTCOME-04 refuses legacy reason-only change requests before a transaction', async () => {
+    const { service, transaction } = setup();
+    await expect(service.respond(OFFICER, 'event-1', { decision: 'changes_needed', reason: 'Confirm a backup microphone.' }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction).not.toHaveBeenCalled();
   });
 
-  /** SAFETY-DECISION-03: each explicit change row is persisted separately and keeps its own text. */
-  it('SAFETY-DECISION-03 persists each submitted change row independently', async () => {
+  /** SAFETY-OUTCOME-04: legacy string arrays cannot persist feedback without arrangement review markers. */
+  it('SAFETY-OUTCOME-04 refuses legacy string change rows before a transaction', async () => {
+    const { service, transaction } = setup();
+    await expect(service.respond(OFFICER, 'event-1', { decision: 'changes_needed', changes: ['Add a fire exit plan.'] }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  /** SAFETY-DECISION-03: each selected change row is persisted separately and keeps its own text. */
+  it('SAFETY-DECISION-03 persists each selected change row independently', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
     await service.respond(OFFICER, 'event-1', {
       decision: 'changes_needed',
-      changes: ['Add a fire exit plan.', 'Confirm occupancy.', 'Label the emergency lighting.'],
+      changes: [
+        { text: 'Add a fire exit plan.', venueIds: ['booking-1'] },
+        { text: 'Confirm occupancy.', equipmentIds: ['equipment-1'] },
+        { text: 'Label the emergency lighting.', venueIds: ['booking-1'], equipmentIds: ['equipment-1'] },
+      ],
     });
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE event_safety_checks'), ['event-1', 'changes_needed', 'Safety Officer', 'Add a fire exit plan.']);
     expect(clientQuery.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO safety_check_feedback_items'))).toEqual([
-      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Add a fire exit plan.']],
-      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Confirm occupancy.']],
-      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Label the emergency lighting.']],
+      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Add a fire exit plan.', JSON.stringify({ venueIds: ['booking-1'], equipmentIds: [] })]],
+      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Confirm occupancy.', JSON.stringify({ venueIds: [], equipmentIds: ['equipment-1'] })]],
+      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Label the emergency lighting.', JSON.stringify({ venueIds: ['booking-1'], equipmentIds: ['equipment-1'] })]],
     ]);
+  });
+
+  /** SAFETY-OUTCOME-04: request-changes stores only explicitly selected safety-review arrangement IDs. */
+  it('SAFETY-OUTCOME-04 stores the selected venue and equipment review markers', async () => {
+    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
+    await service.respond(OFFICER, 'event-1', { decision: 'changes_needed', changes: [{ text: 'Check the venue route.', venueIds: ['booking-1'], equipmentIds: [] }] });
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO safety_check_feedback_items'), [
+      'event-1', 'Check the venue route.', JSON.stringify({ venueIds: ['booking-1'], equipmentIds: [] }),
+    ]);
+  });
+
+  /** SAFETY-OUTCOME-04: a change row that selects one arrangement kind defaults its omitted peer ID list to empty. */
+  it('SAFETY-OUTCOME-04 defaults omitted arrangement ID lists to empty arrays', async () => {
+    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
+    await service.respond(OFFICER, 'event-1', {
+      decision: 'changes_needed',
+      changes: [
+        { text: 'Review the venue entrance.', venueIds: ['booking-1'] },
+        { text: 'Inspect the microphone.', equipmentIds: ['equipment-1'] },
+      ],
+    });
+    expect(clientQuery.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO safety_check_feedback_items'))).toEqual([
+      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Review the venue entrance.', JSON.stringify({ venueIds: ['booking-1'], equipmentIds: [] })]],
+      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Inspect the microphone.', JSON.stringify({ venueIds: [], equipmentIds: ['equipment-1'] })]],
+    ]);
+  });
+
+  /** SAFETY-OUTCOME-04: unknown arrangement IDs cannot be recorded as pending review for another event. */
+  it('SAFETY-OUTCOME-04 rejects stale arrangement selections without writing outcome data', async () => {
+    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
+    await expect(service.respond(OFFICER, 'event-1', { decision: 'changes_needed', changes: [{ text: 'Review this.', venueIds: ['other-booking'], equipmentIds: [] }] }))
+      .rejects.toBeInstanceOf(ConflictException);
+    expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO safety_check_feedback_items'))).toBe(false);
+  });
+
+  /** SAFETY-OUTCOME-04: malformed arrangement identifiers and empty affected-arrangement selections are refused before writing. */
+  it.each([
+    ['a missing description', { venueIds: ['booking-1'], equipmentIds: [] }],
+    ['a non-array venue list', { text: 'Review the venue.', venueIds: 'booking-1', equipmentIds: [] }],
+    ['a non-array equipment list', { text: 'Review the equipment.', venueIds: [], equipmentIds: 'equipment-1' }],
+    ['an empty affected-arrangement selection', { text: 'Review this.', venueIds: [], equipmentIds: [] }],
+  ])('SAFETY-OUTCOME-04 refuses %s without writing the decision', async (_label, change) => {
+    const { service, transaction } = setup();
+    await expect(service.respond(OFFICER, 'event-1', { decision: 'changes_needed', changes: [change] }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  /** SAFETY-OUTCOME-04: equipment IDs are validated against this event before any outcome is written. */
+  it('SAFETY-OUTCOME-04 rejects equipment selections that belong to another event', async () => {
+    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
+    await expect(service.respond(OFFICER, 'event-1', {
+      decision: 'changes_needed',
+      changes: [{ text: 'Inspect the replacement microphone.', venueIds: [], equipmentIds: ['other-equipment'] }],
+    })).rejects.toBeInstanceOf(ConflictException);
+    expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO safety_check_feedback_items'))).toBe(false);
   });
 
   /** SAFETY-DECISION-04: malformed change-row payloads are refused before starting a response transaction. */
@@ -250,6 +323,29 @@ describe('SPM-129 SafetyOfficerService', () => {
     await expect(service.respond(OFFICER, 'event-1', { decision: 'approved' })).rejects.toBeInstanceOf(ConflictException);
     expect(clientQuery).toHaveBeenCalledTimes(1);
     expect(clientQuery.mock.calls[0][0]).toContain('FOR UPDATE');
+  });
+});
+
+describe('SPM-131 AC1 safety response notification', () => {
+  /** SAFETY-OUTCOME-01: a response creates a notification for the event's assigned coordinator in the same transaction. */
+  it('notifies the assigned coordinator when the Safety Officer responds', async () => {
+    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }], CONFIRMED_SNAPSHOT, true, [], 'coordinator-1');
+
+    await expect(service.respond(OFFICER, 'event-1', { decision: 'approved' })).resolves.toEqual({ eventId: 'event-1', status: 'approved' });
+
+    expect(clientQuery).toHaveBeenCalledWith(
+      expect.stringContaining("'coordinator_safety_response'"),
+      [expect.any(String), 'coordinator-1', 'The Safety Officer responded to the safety check for Welcome Evening.', 'event-1'],
+    );
+  });
+
+  /** SAFETY-OUTCOME-01: events without an assigned coordinator do not create an orphaned notification. */
+  it('does not write a coordinator notification when no coordinator is assigned', async () => {
+    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
+
+    await service.respond(OFFICER, 'event-1', { decision: 'approved' });
+
+    expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO notifications'))).toBe(false);
   });
 });
 

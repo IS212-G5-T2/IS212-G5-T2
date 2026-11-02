@@ -28,6 +28,8 @@ function renderFeedback(overrides: Partial<ComponentProps<typeof SafetyCheckChan
       eventId="event-1"
       status="rejected"
       feedback={feedback}
+      venues={[]}
+      equipment={[]}
       canRequestSafetyCheck
       onRefresh={onRefresh}
       pending={false}
@@ -47,7 +49,7 @@ describe("SafetyCheckChangesNeeded", () => {
   /** SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION: a rejected decision and unresolved reason remain visible until coordinator resolution. */
   it("shows rejection feedback and disables another request until all feedback is resolved", () => {
     renderFeedback();
-    expect(screen.getByText("Rejected")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Rejection feedback" })).toBeInTheDocument();
     expect(screen.getByText("Provide a fire exit layout")).toBeInTheDocument();
     expect(screen.getByText("0 of 1 items resolved. Complete all before re-requesting.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Re-Request Safety Check" })).toBeDisabled();
@@ -57,6 +59,28 @@ describe("SafetyCheckChangesNeeded", () => {
   it("keeps the changes-needed state label", () => {
     renderFeedback({ status: "changes_needed" });
     expect(screen.getByText("Changes needed")).toBeInTheDocument();
+  });
+
+  /** SAFETY-OUTCOME-04/05: each feedback row names only the venue and equipment selected for that item. */
+  it("shows the selected venue and equipment names beside their own feedback and omits unknown IDs", () => {
+    renderFeedback({
+      feedback: [
+        { ...feedback[0], reviewArrangements: { venueIds: ["venue-1", "missing"], equipmentIds: ["equipment-1"] } },
+        { id: "feedback-2", text: "Check the audio setup", requestedAt: "2026-10-01T00:00:00Z", reviewArrangements: { venueIds: ["venue-2"], equipmentIds: [] } },
+      ],
+      venues: [
+        { id: "venue-1", venueName: "Sample Orchid Hall" },
+        { id: "venue-2", venueName: "Orchard Room" },
+      ],
+      equipment: [{ id: "equipment-1", name: "SPM-58 Demo Projector" }],
+    });
+
+    const first = screen.getByRole("list", { name: "Arrangements to change for: Provide a fire exit layout" });
+    expect(first).toHaveTextContent("Venue: Sample Orchid Hall");
+    expect(first).toHaveTextContent("Equipment: SPM-58 Demo Projector");
+    expect(first).not.toHaveTextContent("Orchard Room");
+    expect(first).not.toHaveTextContent("missing");
+    expect(screen.getByRole("list", { name: "Arrangements to change for: Check the audio setup" })).toHaveTextContent("Venue: Orchard Room");
   });
 
   /** SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION: resolving feedback refreshes the coordinator's safety state. */
@@ -80,7 +104,7 @@ describe("SafetyCheckChangesNeeded", () => {
   it("allows re-request when all feedback is resolved", async () => {
     const user = userEvent.setup();
     const { onRefresh } = renderFeedback({ feedback: [{ ...feedback[0], resolvedByCoordinatorAt: "2026-10-02T00:00:00Z" }] });
-    expect(screen.getByText("All items resolved. Safety Officer will review your changes.")).toBeInTheDocument();
+    expect(screen.getByText("All feedback checked off. You can re-request the safety check.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Re-Request Safety Check" }));
     await waitFor(() => expect(requestSafetyCheck).toHaveBeenCalledWith("event-1"));
     expect(onRefresh).toHaveBeenCalledOnce();

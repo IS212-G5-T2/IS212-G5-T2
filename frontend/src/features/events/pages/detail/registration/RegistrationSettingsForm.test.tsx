@@ -36,10 +36,10 @@ function settings(overrides: Partial<RegistrationSettings> = {}): RegistrationSe
   };
 }
 
-function renderForm(status = "planning", initial = settings(), onSaved = vi.fn()) {
+function renderForm(status = "planning", initial = settings(), onSaved = vi.fn(), onDraftStateChange = vi.fn()) {
   fetchMock.mockResolvedValue(initial);
-  render(<RegistrationSettingsForm eventId={EVENT_ID} startDateTime={START} status={status} onSaved={onSaved} />);
-  return { onSaved };
+  render(<RegistrationSettingsForm eventId={EVENT_ID} startDateTime={START} status={status} onSaved={onSaved} onDraftStateChange={onDraftStateChange} />);
+  return { onSaved, onDraftStateChange };
 }
 
 async function fillSetOk(user: ReturnType<typeof userEvent.setup>) {
@@ -469,5 +469,58 @@ describe("settings form: a server error on the enabled switch", () => {
     await fillSetOk(user);
     await user.click(screen.getByRole("button", { name: "Save registration settings" }));
     expect(await screen.findByText("Registration enabled must be true or false.")).toBeInTheDocument();
+  });
+});
+
+describe("settings form: report unsaved registration drafts", () => {
+  it("SAFETY-OUTCOME-06 reports pending for changed values, restores saved state when reverted, and stays pending after a failed save", async () => {
+    const user = userEvent.setup();
+    const onDraftStateChange = vi.fn();
+    renderForm("planning", settings(), vi.fn(), onDraftStateChange);
+    await waitFor(() => expect(onDraftStateChange).toHaveBeenLastCalledWith(false));
+
+    const enabled = await screen.findByLabelText("Registration enabled");
+    await user.click(enabled);
+    await waitFor(() => expect(onDraftStateChange).toHaveBeenLastCalledWith(true));
+    await user.click(enabled);
+    await waitFor(() => expect(onDraftStateChange).toHaveBeenLastCalledWith(false));
+
+    await user.clear(screen.getByLabelText("Registration capacity"));
+    await user.type(screen.getByLabelText("Registration capacity"), "2");
+    saveMock.mockRejectedValue(new Error("network down"));
+    await user.click(screen.getByRole("button", { name: "Save registration settings" }));
+    expect(await screen.findByText("Registration settings could not be saved.")).toBeInTheDocument();
+    await waitFor(() => expect(onDraftStateChange).toHaveBeenLastCalledWith(true));
+  });
+});
+
+describe("SAFETY-OUTCOME-06 stale settings loads", () => {
+  /** SAFETY-OUTCOME-06: a late response for the prior event cannot replace the current event's saved settings. */
+  it("ignores a stale successful settings response after the event changes", async () => {
+    let resolveFirst!: (value: RegistrationSettings) => void;
+    let resolveSecond!: (value: RegistrationSettings) => void;
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+    const view = render(<RegistrationSettingsForm eventId={EVENT_ID} startDateTime={START} status="planning" />);
+    view.rerender(<RegistrationSettingsForm eventId="event-second" startDateTime={START} status="planning" />);
+    resolveSecond(settings({ eventId: "event-second", registrationEnabled: true, registrationOpensAt: "2026-10-19T01:00:00.000Z", registrationClosesAt: "2026-10-28T15:59:00.000Z", capacity: 50 }));
+    expect(await screen.findByLabelText("Registration enabled")).toBeChecked();
+    resolveFirst(settings({ registrationEnabled: false }));
+    await waitFor(() => expect(screen.getByLabelText("Registration enabled")).toBeChecked());
+  });
+
+  /** SAFETY-OUTCOME-06: a stale failure for the prior event cannot replace the current event's loaded form. */
+  it("ignores a stale failed settings response after the event changes", async () => {
+    let rejectFirst!: (reason: Error) => void;
+    let resolveSecond!: (value: RegistrationSettings) => void;
+    fetchMock.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectFirst = reject; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+    const view = render(<RegistrationSettingsForm eventId={EVENT_ID} startDateTime={START} status="planning" />);
+    view.rerender(<RegistrationSettingsForm eventId="event-second" startDateTime={START} status="planning" />);
+    resolveSecond(settings({ eventId: "event-second" }));
+    await screen.findByLabelText("Registration enabled");
+    rejectFirst(new Error("stale failure"));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Registration enabled")).not.toBeChecked();
   });
 });

@@ -1,6 +1,7 @@
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -8,12 +9,16 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { PlanningInformationPage } from "@/features/events/pages/detail/planning/PlanningInformationPage";
 import { ApiError, api } from "@/utils/api";
 import { PLANNING_REFRESH_MS } from "@/utils/planning";
 import type { PlanningChecklist } from "@/utils/arrangements";
 import type { EventRecord, PlanningView } from "@/types";
+import { fetchRegistrationSettings, saveRegistrationSettings, type RegistrationSettings, type RegistrationSettingsSaved } from "@/features/events/api/registration-settings-api";
+import { RegistrationSettingsForm } from "@/features/events/pages/detail/registration/RegistrationSettingsForm";
 
 /*
  * SPM-135 coordinator planning page. The HTTP layer is the boundary and is
@@ -24,8 +29,14 @@ vi.mock("@/utils/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   api: vi.fn(),
 }));
+vi.mock("@/features/events/api/registration-settings-api", () => ({
+  fetchRegistrationSettings: vi.fn(),
+  saveRegistrationSettings: vi.fn(),
+}));
 
 const apiMock = vi.mocked(api);
+const registrationFetchMock = vi.mocked(fetchRegistrationSettings);
+const registrationSaveMock = vi.mocked(saveRegistrationSettings);
 const EVENT_ID = "00000000-0000-4000-8000-000000000201";
 
 const event = {
@@ -63,6 +74,7 @@ function checklist(over: Partial<PlanningChecklist> = {}): PlanningChecklist {
       confirmedByCoordinator: false,
     },
     safetyCheck: { status: "not_requested" },
+    registration: { enabled: false, status: "confirmed" },
     canRequestSafetyCheck: false,
     blocking: ["venue", "equipment"],
     ...over,
@@ -85,16 +97,54 @@ function routeApi() {
   }) as typeof api);
 }
 
-function renderPage() {
+function renderPage(registration?: ReactNode) {
   return render(
     <MemoryRouter>
       <PlanningInformationPage
         view={view}
         status="planning"
         onConfirmed={() => undefined}
+        registration={registration}
       />
     </MemoryRouter>,
   );
+}
+
+function renderIntegratedRegistrationPage(saved: RegistrationSettings) {
+  function IntegratedPage() {
+    const [draftPending, setDraftPending] = useState(false);
+    const [revision, setRevision] = useState(0);
+    return (
+      <MemoryRouter>
+        <PlanningInformationPage
+          view={{ ...view, lastUpdatedAt: `${view.lastUpdatedAt}-${revision}` }}
+          status="planning"
+          onConfirmed={() => undefined}
+          registrationDraftPending={draftPending}
+          registration={
+            <RegistrationSettingsForm
+              eventId={EVENT_ID}
+              startDateTime={event.startDateTime}
+              status="planning"
+              onDraftStateChange={setDraftPending}
+              onSaved={() => {
+                current = checklist({
+                  venue: { status: "confirmed", items: [] },
+                  equipment: { required: false, status: "confirmed", items: [], confirmedByCoordinator: true },
+                  registration: { enabled: true, status: "confirmed" },
+                  canRequestSafetyCheck: true,
+                  blocking: [],
+                });
+                setRevision((value) => value + 1);
+              }}
+            />
+          }
+        />
+      </MemoryRouter>
+    );
+  }
+  registrationFetchMock.mockResolvedValue(saved);
+  return render(<IntegratedPage />);
 }
 
 /** A promise the test settles by hand, so a request can be held in flight. */
@@ -115,12 +165,262 @@ const postCalls = () =>
 
 beforeEach(() => {
   apiMock.mockReset();
+  registrationFetchMock.mockReset();
+  registrationSaveMock.mockReset();
   current = checklist();
   routeApi();
 });
 afterEach(cleanup);
 
 describe("PlanningInformationPage", () => {
+  /** SAFETY-OUTCOME-06: unsaved enabled registration, failed save and successful save drive the safety gate from the real form. */
+  it("blocks on an unsaved registration draft and enables safety only after valid settings save", async () => {
+    const user = userEvent.setup();
+    const saved: RegistrationSettings = {
+      eventId: EVENT_ID, registrationEnabled: false, registrationOpensAt: null,
+      registrationClosesAt: null, capacity: 1, confirmedCount: 0, version: 0,
+    };
+    const completed: RegistrationSettingsSaved = {
+      ...saved, registrationEnabled: true,
+      registrationOpensAt: "2026-10-19T01:00:00.000Z",
+      registrationClosesAt: "2026-10-28T15:59:00.000Z",
+      version: 1, message: "Registration settings saved.",
+    };
+    current = checklist({
+      venue: { status: "confirmed", items: [] },
+      equipment: { required: false, status: "confirmed", items: [], confirmedByCoordinator: true },
+      registration: { enabled: false, status: "confirmed" },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    registrationSaveMock.mockRejectedValueOnce(new Error("offline")).mockResolvedValue(completed);
+    renderIntegratedRegistrationPage(saved);
+    await user.click(await screen.findByRole("tab", { name: /Registration/ }));
+    const requestButton = screen.getByRole("button", { name: "Request For Safety Check" });
+    expect(requestButton).toBeEnabled();
+
+    await user.click(screen.getByLabelText("Registration enabled"));
+    await waitFor(() => expect(requestButton).toBeDisabled());
+    expect(screen.getByText("Registration: Pending")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save registration settings" }));
+    expect(await screen.findAllByText("Set the registration period and capacity before turning registration on.")).toHaveLength(2);
+    expect(registrationSaveMock).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Registration opens (SGT)"), { target: { value: "2026-10-19T09:00" } });
+    fireEvent.change(screen.getByLabelText("Registration closes (SGT)"), { target: { value: "2026-10-28T23:59" } });
+    await user.click(screen.getByRole("button", { name: "Save registration settings" }));
+    expect(await screen.findByText("Registration settings could not be saved.")).toBeInTheDocument();
+    expect(requestButton).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Save registration settings" }));
+    await waitFor(() => expect(requestButton).toBeEnabled());
+    expect(screen.getByText("Registration: Confirmed")).toBeInTheDocument();
+    expect(registrationSaveMock).toHaveBeenCalledTimes(2);
+  });
+
+  /** SAFETY-OUTCOME-06: untouched disabled settings are confirmed and reverting an unsaved toggle restores that state. */
+  it("keeps disabled registration confirmed and restores it when a draft toggle is reverted", async () => {
+    const saved: RegistrationSettings = {
+      eventId: EVENT_ID, registrationEnabled: false, registrationOpensAt: null,
+      registrationClosesAt: null, capacity: 1, confirmedCount: 0, version: 0,
+    };
+    current = checklist({
+      venue: { status: "confirmed", items: [] },
+      equipment: { required: false, status: "confirmed", items: [], confirmedByCoordinator: true },
+      registration: { enabled: false, status: "confirmed" },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    renderIntegratedRegistrationPage(saved);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: /Registration/ }));
+    expect(await screen.findByRole("button", { name: "Request For Safety Check" })).toBeEnabled();
+    expect(screen.getByText("Registration: Confirmed")).toBeInTheDocument();
+    const enabled = screen.getByLabelText("Registration enabled");
+    await user.click(enabled);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Request For Safety Check" })).toBeDisabled());
+    expect(screen.getByText("Registration: Pending")).toBeInTheDocument();
+    await user.click(enabled);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Request For Safety Check" })).toBeEnabled());
+    expect(screen.getByText("Registration: Confirmed")).toBeInTheDocument();
+  });
+
+  /** SAFETY-OUTCOME-06: the persisted server checklist keeps enabled, incomplete registration pending and blocks safety requests. */
+  it("shows Registration pending and disables safety request until saved settings are complete", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [] },
+      equipment: { required: false, status: "confirmed", items: [], confirmedByCoordinator: true },
+      registration: { enabled: true, status: "pending" },
+      canRequestSafetyCheck: false,
+      blocking: ["registration"],
+    });
+    renderPage(<div>Registration settings</div>);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Request For Safety Check" })).toBeDisabled());
+    const registrationTab = screen.getByRole("tab", { name: /Registration/ });
+    expect(within(registrationTab).getByRole("img", { name: "Action needed" })).toBeInTheDocument();
+    expect(screen.getByText("Registration: Pending")).toBeInTheDocument();
+    expect(screen.getByText("Enable registration and save both the opening and closing dates before requesting the safety check.")).toBeInTheDocument();
+    expect(screen.getByText("Pending registration confirmation to proceed")).toBeInTheDocument();
+  });
+
+  /** SAFETY-OUTCOME-06: the server marks disabled registration confirmed in the section tab and prerequisite card. */
+  it("shows disabled registration as confirmed in planning status", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [] },
+      equipment: { required: false, status: "confirmed", items: [], confirmedByCoordinator: true },
+      registration: { enabled: false, status: "confirmed" },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    renderPage(<div>Registration settings</div>);
+    await waitFor(() => expect(within(screen.getByRole("tab", { name: /Registration/ })).getByRole("img", { name: "Complete" })).toBeInTheDocument());
+    expect(screen.getByText("Registration: Confirmed")).toBeInTheDocument();
+  });
+
+  /** SAFETY-OUTCOME-04/05: selected unresolved safety feedback makes only its venue/equipment sections pending and remains visible. */
+  it("shows selected safety changes as pending while retaining feedback", async () => {
+    current = checklist({
+      venue: { status: "pending", items: [{ id: "b1", venueName: "Main Hall", status: "pending", safetyReviewStatus: "Pending review" }] },
+      equipment: { required: true, status: "pending", items: [{ id: "e1", name: "Microphone", quantity: 1, status: "pending", safetyReviewStatus: "Pending review" }], confirmedByCoordinator: false },
+      safetyCheck: { status: "changes_needed", feedback: [{
+        id: "f1", text: "Review all arrangements.", requestedAt: "2026-10-13T09:00:00.000Z",
+        reviewArrangements: { venueIds: ["b1"], equipmentIds: ["e1"] },
+      }] },
+      canRequestSafetyCheck: false,
+      blocking: ["venue", "equipment"],
+    });
+    renderPage();
+    expect(await screen.findByText("Venue: Main Hall")).toBeInTheDocument();
+    expect(screen.getByText("Equipment: Microphone")).toBeInTheDocument();
+    const venuesTab = await screen.findByRole("tab", { name: /Venues/ });
+    await userEvent.setup().click(venuesTab);
+    expect(await screen.findAllByText("Safety re-approval required")).toHaveLength(2);
+    expect(screen.getByText("Venue Request Pending")).toBeInTheDocument();
+    expect(screen.getByText("Equipment Request Pending")).toBeInTheDocument();
+    expect(screen.getByText("Changes needed")).toBeInTheDocument();
+    const equipmentTab = screen.getByRole("tab", { name: /Equipment/ });
+    await userEvent.setup().click(equipmentTab);
+    expect(screen.getAllByText("Safety re-approval required")).toHaveLength(2);
+  });
+
+  /** SAFETY-OUTCOME-06: resolving feedback alone cannot clear pending resource approvals or enable a safety re-request. */
+  it("keeps re-request disabled after feedback is checked until venue and equipment staff approve again", async () => {
+    current = checklist({
+      venue: { status: "pending", items: [{ id: "b1", venueName: "Main Hall", status: "pending", safetyReviewStatus: "Pending review" }] },
+      equipment: { required: true, status: "pending", items: [{ id: "e1", name: "Microphone", quantity: 1, status: "pending", safetyReviewStatus: "Pending review" }], confirmedByCoordinator: false },
+      safetyCheck: { status: "changes_needed", feedback: [{
+        id: "f1", text: "Review all arrangements.", requestedAt: "2026-10-13T09:00:00.000Z",
+        resolvedByCoordinatorAt: "2026-10-13T10:00:00.000Z",
+        reviewArrangements: { venueIds: ["b1"], equipmentIds: ["e1"] },
+      }] },
+      canRequestSafetyCheck: false,
+      blocking: ["venue", "equipment"],
+    });
+    renderPage();
+
+    expect(await screen.findByText(/Wait for Venue Staff to approve the venue and Technical Support to reserve the equipment/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox")).toBeChecked();
+    expect(screen.getByRole("button", { name: "Re-Request Safety Check" })).toBeDisabled();
+    expect(postCalls()).toHaveLength(0);
+
+    await userEvent.setup().click(screen.getByRole("tab", { name: /Venues/ }));
+    expect(await screen.findByText("Venue Request Pending")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("tab", { name: /Equipment/ }));
+    expect(await screen.findByText("Equipment Request Pending")).toBeInTheDocument();
+  });
+
+  /** SAFETY-OUTCOME-04: resolved feedback clears its pending overlay while its safety history remains visible. */
+  it("shows confirmed sections after feedback is checked off while retaining its resolved history", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: true, status: "confirmed", items: [{ id: "e1", name: "Microphone", quantity: 1, status: "confirmed" }], confirmedByCoordinator: false },
+      safetyCheck: { status: "changes_needed", feedback: [{
+        id: "f1", text: "Review all arrangements.", requestedAt: "2026-10-13T09:00:00.000Z",
+        resolvedByCoordinatorAt: "2026-10-13T10:00:00.000Z",
+        reviewArrangements: { venueIds: ["b1"], equipmentIds: ["e1"] },
+      }] },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    renderPage();
+    expect(await screen.findByText("Venue: Main Hall")).toBeInTheDocument();
+    expect(screen.getByText("Equipment: Microphone")).toBeInTheDocument();
+    expect(screen.getByText("All feedback checked off. You can re-request the safety check.")).toBeInTheDocument();
+    expect(screen.getByText(/Resolved by you/)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("tab", { name: /Venues/ }));
+    expect(await screen.findByText("Venue Confirmed")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("tab", { name: /Equipment/ }));
+    expect(await screen.findByText("Equipment Confirmed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Re-Request Safety Check" })).toBeEnabled();
+  });
+
+  /** Confirmed-page secondary tabs and coordinator people content remain visible when supplied by their owning page. */
+  it("shows confirmed requirements and optional registration and people content", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: { status: "approved", approverName: "Safety Officer" },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    render(
+      <MemoryRouter>
+        <PlanningInformationPage
+          view={view}
+          status="confirmed"
+          onConfirmed={() => undefined}
+          people={<div>Assigned coordinator details</div>}
+          registration={<div>Registration dates</div>}
+        />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("tab", { name: /Requirements/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Event Information" })).toBeInTheDocument();
+    expect(screen.getByText("Assigned coordinator details")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("tab", { name: /Registration/ }));
+    expect(screen.getByText("Registration dates")).toBeInTheDocument();
+  });
+
+  /** A changes-needed status with no feedback rows still exposes its explicit re-request action. */
+  it("shows the re-request action for a changes-needed outcome with no feedback rows", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: { status: "changes_needed", feedback: [] },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    renderPage();
+    expect(await screen.findByText("Changes needed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Re-Request Safety Check" })).toBeEnabled();
+  });
+
+  /** Repeated direct activation while a planning action is pending is ignored. */
+  it("ignores a second safety-check activation while the first request is pending", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    const request = deferred<unknown>();
+    apiMock.mockImplementation(((path: string, init?: RequestInit) => {
+      if (init?.method === "POST" && path.endsWith("/safety-check/request")) return request.promise;
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({ eventId: EVENT_ID, ready: true, outstanding: [], checklist: current });
+      return Promise.resolve({});
+    }) as typeof api);
+    renderPage();
+    const button = await screen.findByRole("button", { name: "Request For Safety Check" });
+    act(() => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(postCalls()).toHaveLength(1);
+    await act(async () => { request.resolve({ eventId: EVENT_ID, status: "pending" }); });
+  });
+
   /** The Venues and Equipment tabs show the warning icon and the safety check stays disabled with its blocking reason while nothing is confirmed. */
   it("shows warning icons on Venues and Equipment and a disabled safety check with the blocking reason", async () => {
     renderPage();
@@ -1113,7 +1413,9 @@ describe("PlanningInformationPage", () => {
     });
     renderPage();
 
-    expect(await screen.findAllByText("Rejected")).toHaveLength(2);
+    expect(await screen.findByText("Safety check:")).toBeInTheDocument();
+    expect(screen.getByText("Rejected")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Rejection feedback" })).toBeInTheDocument();
     expect(screen.getByText("Add a fire exit plan.")).toBeInTheDocument();
     expect(screen.getByRole("checkbox")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Re-Request Safety Check" })).toBeDisabled();

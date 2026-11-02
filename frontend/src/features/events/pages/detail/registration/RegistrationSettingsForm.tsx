@@ -4,7 +4,7 @@
  * problem is explained before a request is sent, and it keeps what was typed when a save is refused.
  * An event outside Approved, Planning and Confirmed shows its saved settings read-only (BR13).
  */
-import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { TextInput } from "@/components/ui/FormControls";
 import { ApiError } from "@/utils/api";
@@ -33,6 +33,8 @@ interface Props {
   status: string;
   /** Called after a successful save so the page can reload the event. */
   onSaved?: () => void;
+  /** True while the visible form differs from the saved settings or a save is in flight. */
+  onDraftStateChange?: (pending: boolean) => void;
 }
 
 type FieldErrors = Partial<Record<keyof SettingsFormValues | "registrationOpensAt" | "registrationClosesAt", string>>;
@@ -53,7 +55,7 @@ function valuesFrom(settings: RegistrationSettings): SettingsFormValues {
   };
 }
 
-export function RegistrationSettingsForm({ eventId, startDateTime, status, onSaved }: Props) {
+export function RegistrationSettingsForm({ eventId, startDateTime, status, onSaved, onDraftStateChange }: Props) {
   const ids = useId();
   const [settings, setSettings] = useState<RegistrationSettings | null>(null);
   const [values, setValues] = useState<SettingsFormValues | null>(null);
@@ -62,21 +64,44 @@ export function RegistrationSettingsForm({ eventId, startDateTime, status, onSav
   const [formError, setFormError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const loadGeneration = useRef(0);
+
+  const hasUnsavedDraft = Boolean(settings && settings.eventId === eventId && values && (
+    values.enabled !== settings.registrationEnabled ||
+    values.opens !== (settings.registrationOpensAt ? isoToSgtInput(settings.registrationOpensAt) : "") ||
+    values.closes !== (settings.registrationClosesAt ? isoToSgtInput(settings.registrationClosesAt) : "") ||
+    values.capacity !== String(settings.capacity)
+  ));
+
+  useEffect(() => {
+    onDraftStateChange?.(saving || hasUnsavedDraft || (loading && settings?.eventId !== eventId));
+  }, [eventId, hasUnsavedDraft, loading, onDraftStateChange, saving, settings?.eventId]);
 
   const load = useCallback(async () => {
+    const generation = ++loadGeneration.current;
+    setLoading(true);
+    setSettings(null);
+    setValues(null);
+    setLoadError(null);
     try {
       const loaded = await fetchRegistrationSettings(eventId);
+      if (generation !== loadGeneration.current) return;
       setSettings(loaded);
       setValues(valuesFrom(loaded));
       setLoadError(null);
+      setLoading(false);
     } catch (error) {
+      if (generation !== loadGeneration.current) return;
       setLoadError(error instanceof ApiError ? error.message : "Registration settings could not be loaded.");
+      setLoading(false);
     }
   }, [eventId]);
 
   useEffect(() => {
     load();
+    return () => { loadGeneration.current += 1; };
   }, [load]);
 
   const editable = CONFIGURABLE_STATUSES.includes(status);

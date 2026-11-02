@@ -190,4 +190,15 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.listReservations(undefined)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(listReservations).toHaveBeenCalledTimes(1);
   });
+
+  /** SAFETY-OUTCOME-06: the coordinator receives a conflict when an equipment revision changes an arrangement not selected by the Safety Officer. */
+  it('SAFETY-OUTCOME-06 refuses an update that changes unselected equipment', async () => {
+    update.mockResolvedValue({ kind: 'invalid-safety-review-update', id: '00000000-0000-4000-8000-000000000099' });
+
+    await expect(service.update(coordinator, '00000000-0000-4000-8000-000000000099', {
+      eventId,
+      items: [{ id: '00000000-0000-4000-8000-000000000126', equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }],
+    })).rejects.toBeInstanceOf(ConflictException);
+    expect(update).toHaveBeenCalledOnce();
+  });
 });

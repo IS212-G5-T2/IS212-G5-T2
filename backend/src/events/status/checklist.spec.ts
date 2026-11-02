@@ -63,6 +63,151 @@ describe('buildChecklist', () => {
     expect(result.blocking).toEqual([]);
   });
 
+  /** SAFETY-OUTCOME-06: disabled registration is a configured no-registration choice and satisfies the prerequisite. */
+  it('SAFETY-OUTCOME-06 treats disabled registration as confirmed', () => {
+    const result = buildChecklist({
+      snapshot: { venueBookings: [booking()], equipment: [line()] },
+      equipmentNeeds: 'Projector', equipmentConfirmedAt: null,
+      registration: { enabled: false, opensAt: null, closesAt: null },
+      safety: { status: 'not_requested' }, now,
+    });
+    expect(result.registration).toEqual({ enabled: false, status: 'confirmed' });
+    expect(result.blocking).toEqual([]);
+    expect(result.canRequestSafetyCheck).toBe(true);
+  });
+
+  /** SAFETY-OUTCOME-06: enabled registration must have saved open and close dates before safety can be requested. */
+  it.each([
+    [{ enabled: true, opensAt: null, closesAt: new Date('2026-10-20T00:00:00Z') }],
+    [{ enabled: true, opensAt: new Date('2026-10-20T00:00:00Z'), closesAt: null }],
+  ] as const)('SAFETY-OUTCOME-06 blocks incomplete enabled registration settings', (registration) => {
+    const result = buildChecklist({
+      snapshot: { venueBookings: [booking()], equipment: [line()] },
+      equipmentNeeds: 'Projector', equipmentConfirmedAt: null,
+      registration, safety: { status: 'not_requested' }, now,
+    });
+    expect(result.registration).toEqual({ enabled: true, status: 'pending' });
+    expect(result.blocking).toEqual(['registration']);
+    expect(result.canRequestSafetyCheck).toBe(false);
+  });
+
+  /** SAFETY-OUTCOME-06: enabled registration is confirmed only by a complete saved period. */
+  it('SAFETY-OUTCOME-06 allows complete enabled registration settings', () => {
+    const result = buildChecklist({
+      snapshot: { venueBookings: [booking()], equipment: [line()] },
+      equipmentNeeds: 'Projector', equipmentConfirmedAt: null,
+      registration: { enabled: true, opensAt: new Date('2026-10-20T00:00:00Z'), closesAt: new Date('2026-10-21T00:00:00Z') },
+      safety: { status: 'not_requested' }, now,
+    });
+    expect(result.registration).toEqual({ enabled: true, status: 'confirmed' });
+    expect(result.blocking).toEqual([]);
+    expect(result.canRequestSafetyCheck).toBe(true);
+  });
+
+  /** SAFETY-OUTCOME-04: selected arrangements are pending in their real workflow and remain tagged in the checklist. */
+  it('SAFETY-OUTCOME-04 shows actual pending status only for selected arrangements', () => {
+    const result = buildChecklist({
+      snapshot: { venueBookings: [booking({ status: 'pending' }), booking({ id: 'b2', venueId: 'venue-2', venueName: 'Side Hall' })], equipment: [line(), line({ id: 'e2', name: 'Microphone', status: 'Requested' })] },
+      equipmentNeeds: 'Projector and microphone',
+      equipmentConfirmedAt: null,
+      safety: { status: 'changes_needed', feedback: [{
+        id: 'f1', text: 'Check the route.', requestedAt: now.toISOString(),
+        reviewArrangements: { venueIds: ['b1'], equipmentIds: ['e2'] },
+      }] },
+      now,
+    });
+    expect(result.venue.items).toEqual([
+      expect.objectContaining({ id: 'b1', status: 'pending', safetyReviewStatus: 'Pending review' }),
+      expect.objectContaining({ id: 'b2', status: 'confirmed' }),
+    ]);
+    expect(result.equipment.items).toEqual([
+      expect.objectContaining({ id: 'e1', status: 'confirmed' }),
+      expect.objectContaining({ id: 'e2', status: 'pending', safetyReviewStatus: 'Pending review' }),
+    ]);
+    expect(result.venue.status).toBe('pending');
+    expect(result.equipment.status).toBe('pending');
+    expect(result.canRequestSafetyCheck).toBe(false);
+    expect(result.safetyCheck.status).toBe('changes_needed');
+  });
+
+  /** SAFETY-OUTCOME-04: safety review markers are scoped to selected rows even when unselected rows are also pending. */
+  it('SAFETY-OUTCOME-04 tags only selected pending venue and equipment rows', () => {
+    const result = buildChecklist({
+      snapshot: {
+        venueBookings: [booking({ status: 'pending' }), booking({ id: 'b2', venueId: 'venue-2', venueName: 'Side Hall', status: 'pending' })],
+        equipment: [line({ status: 'Requested' }), line({ id: 'e2', name: 'Microphone', status: 'Requested' })],
+      },
+      equipmentNeeds: 'Projector and microphone', equipmentConfirmedAt: null,
+      registration: { enabled: false, opensAt: null, closesAt: null },
+      safety: { status: 'changes_needed', feedback: [{ id: 'f1', text: 'Update selected items.', requestedAt: now.toISOString(), reviewArrangements: { venueIds: ['b1'], equipmentIds: ['e1'] } }] },
+      now,
+    });
+    expect(result.venue.items.find((item) => item.id === 'b1')).toHaveProperty('safetyReviewStatus', 'Pending review');
+    expect(result.venue.items.find((item) => item.id === 'b2')).not.toHaveProperty('safetyReviewStatus');
+    expect(result.equipment.items.find((item) => item.id === 'e1')).toHaveProperty('safetyReviewStatus', 'Pending review');
+    expect(result.equipment.items.find((item) => item.id === 'e2')).not.toHaveProperty('safetyReviewStatus');
+  });
+
+  /** SAFETY-OUTCOME-04: resolving feedback clears only its overlay and permits re-request when actual arrangements are ready. */
+  it('SAFETY-OUTCOME-04 clears resolved overlays without changing approved or reserved resource states', () => {
+    const result = buildChecklist({
+      snapshot: { venueBookings: [booking(), booking({ id: 'b2', venueId: 'venue-2', venueName: 'Side Hall' })], equipment: [line(), line({ id: 'e2', name: 'Microphone' })] },
+      equipmentNeeds: 'Projector and microphone',
+      equipmentConfirmedAt: null,
+      safety: { status: 'changes_needed', feedback: [{
+        id: 'f1', text: 'Change the selected venue and equipment.', requestedAt: now.toISOString(),
+        resolvedByCoordinatorAt: now.toISOString(),
+        reviewArrangements: { venueIds: ['b1'], equipmentIds: ['e2'] },
+      }] },
+      now,
+    });
+    expect(result.venue.items).toEqual([
+      expect.objectContaining({ id: 'b1', status: 'confirmed' }),
+      expect.objectContaining({ id: 'b2', status: 'confirmed' }),
+    ]);
+    expect(result.equipment.items).toEqual([
+      expect.objectContaining({ id: 'e1', status: 'confirmed' }),
+      expect.objectContaining({ id: 'e2', status: 'confirmed' }),
+    ]);
+    expect(result.canRequestSafetyCheck).toBe(true);
+  });
+
+  /** SAFETY-OUTCOME-04: a real non-ready resource remains blocking after its feedback is checked. */
+  it('SAFETY-OUTCOME-04 keeps underlying operational blockers after feedback resolution', () => {
+    const result = buildChecklist({
+      snapshot: { venueBookings: [booking()], equipment: [line({ status: 'Requested' })] },
+      equipmentNeeds: 'Projector',
+      equipmentConfirmedAt: null,
+      safety: { status: 'changes_needed', feedback: [{
+        id: 'f1', text: 'Check the equipment.', requestedAt: now.toISOString(),
+        resolvedByCoordinatorAt: now.toISOString(),
+        reviewArrangements: { venueIds: [], equipmentIds: ['e1'] },
+      }] },
+      now,
+    });
+    expect(result.equipment.status).toBe('pending');
+    expect(result.blocking).toEqual(['equipment']);
+    expect(result.canRequestSafetyCheck).toBe(false);
+  });
+
+  /** Legacy or partially migrated feedback without review metadata remains visible as text without marking an arrangement. */
+  it('ignores absent safety review metadata on a feedback item', () => {
+    const result = buildChecklist({
+      snapshot: { venueBookings: [booking()], equipment: [line()] },
+      equipmentNeeds: 'Projector',
+      equipmentConfirmedAt: null,
+      safety: { status: 'rejected', feedback: [{
+        id: 'f1', text: 'Review the plan.', requestedAt: now.toISOString(),
+        reviewArrangements: undefined as never,
+      }] },
+      now,
+    });
+    expect(result.venue.items[0]).toMatchObject({ status: 'confirmed' });
+    expect(result.venue.items[0]).not.toHaveProperty('safetyReviewStatus');
+    expect(result.equipment.items[0]).toMatchObject({ status: 'confirmed' });
+    expect(result.equipment.items[0]).not.toHaveProperty('safetyReviewStatus');
+  });
+
   // SAFETY-RESET-01 (rule level): while venue or equipment is pending, the safety check is not
   // requested, even if a stale safety record is passed in. Kills: a page showing an approval
   // that no longer covers the pending arrangements.

@@ -16,6 +16,8 @@ interface RequestRow {
   requested_by: string; coordinator_name: string | null; created_at: Date;
   decision_reason: string | null;
   item_id: string; equipment_name: string; equipment_type: string; quantity: number;
+  reservation_id: string | null; reservation_status: string | null;
+  safety_review_selected: boolean;
   available_quantity: number;
 }
 interface ReservationRow {
@@ -112,6 +114,68 @@ export class EquipmentRequestsRepository {
       if (row.event_status === 'Confirmed') return { kind: 'event-confirmed' as const };
       if (!['Approved', 'Planning'].includes(row.event_status)) return { kind: 'event-not-open' as const };
 
+      const safetySelected = await client.query<{
+        item_id: string; reservation_id: string; equipment_name: string; equipment_type: string; quantity: number; status: string;
+      }>(
+        `SELECT DISTINCT item.id AS item_id, reservation.id AS reservation_id,
+                item.equipment_name, item.equipment_type, item.quantity, reservation.status
+           FROM equipment_request_items item
+           JOIN equipment_reservations reservation ON reservation.equipment_request_item_id = item.id
+           JOIN safety_check_feedback_items feedback ON feedback.event_id = reservation.event_id
+           JOIN event_safety_checks safety ON safety.event_id = feedback.event_id
+          WHERE item.request_id = $1::uuid
+            AND safety.status IN ('changes_needed', 'rejected')
+            AND COALESCE(feedback.review_arrangements->'equipmentIds', '[]'::jsonb) ? reservation.id::text`,
+        [requestId],
+      );
+      if (safetySelected.rows.length) {
+        const currentItems = await client.query<{
+          item_id: string; reservation_id: string | null; equipment_name: string; equipment_type: string; quantity: number; status: string | null;
+        }>(
+          `SELECT item.id AS item_id, reservation.id AS reservation_id,
+                  item.equipment_name, item.equipment_type, item.quantity, reservation.status
+             FROM equipment_request_items item
+             LEFT JOIN equipment_reservations reservation ON reservation.equipment_request_item_id = item.id
+            WHERE item.request_id = $1::uuid ORDER BY item.item_order, item.id FOR UPDATE OF item`,
+          [requestId],
+        );
+        const submittedById = new Map(input.items.filter((item) => item.id).map((item) => [item.id!, item]));
+        const existingIds = new Set(currentItems.rows.map((item) => item.item_id));
+        if (submittedById.size !== input.items.length || submittedById.size !== currentItems.rows.length ||
+            [...submittedById.keys()].some((id) => !existingIds.has(id)))
+          return { kind: 'invalid-safety-review-update' as const };
+        const selectedItems = new Set(safetySelected.rows.map((item) => item.item_id));
+        for (const existingItem of currentItems.rows) {
+          const submitted = submittedById.get(existingItem.item_id)!;
+          if (!selectedItems.has(existingItem.item_id) &&
+              (submitted.equipmentName !== existingItem.equipment_name ||
+               submitted.equipmentType !== existingItem.equipment_type ||
+               submitted.quantity !== existingItem.quantity))
+            return { kind: 'invalid-safety-review-update' as const };
+        }
+        for (const selected of safetySelected.rows) {
+          const submitted = submittedById.get(selected.item_id)!;
+          await client.query(
+            `UPDATE equipment_request_items
+                SET equipment_name = $2, equipment_type = $3, quantity = $4
+              WHERE id = $1::uuid`,
+            [selected.item_id, submitted.equipmentName, submitted.equipmentType, submitted.quantity],
+          );
+          await client.query(
+            `UPDATE equipment_reservations
+                SET equipment_name = $2, quantity = $3, status = 'Requested', updated_at = $4::timestamptz
+              WHERE id = $1::uuid AND equipment_request_item_id = $5::uuid`,
+            [selected.reservation_id, submitted.equipmentName, submitted.quantity, this.clock.now(), selected.item_id],
+          );
+        }
+        await client.query(
+          `UPDATE equipment_requests SET status = 'Pending Review', decision_reason = NULL, updated_at = $2::timestamptz
+            WHERE id = $1::uuid`,
+          [requestId, this.clock.now()],
+        );
+        return { kind: 'updated' as const, id: row.id };
+      }
+
       await client.query('DELETE FROM equipment_request_items WHERE request_id = $1::uuid', [requestId]);
       for (const [itemOrder, item] of input.items.entries()) {
         const savedItem = await client.query<{ id: string }>(
@@ -165,7 +229,11 @@ export class EquipmentRequestsRepository {
   }
 
   async listQueue() {
-    return this.readRequests("WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')", []);
+    return this.readRequests(`WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')
+      AND (NOT EXISTS (SELECT 1 FROM equipment_reservations requested
+                        JOIN equipment_request_items requested_item ON requested_item.id = requested.equipment_request_item_id
+                       WHERE requested_item.request_id = r.id AND requested.status = 'Requested')
+        OR reservation.status = 'Requested')`, []);
   }
 
   /** SPM-58 AC7: Technical Support can see the event that owns each reservation,
@@ -213,10 +281,15 @@ export class EquipmentRequestsRepository {
       // two approvals for the same named equipment cannot both see the same
       // Active units and over-reserve them.
       const requested = await client.query<{ equipment_name: string; requested_quantity: number }>(
-        `SELECT equipment_name, SUM(quantity)::integer AS requested_quantity
-           FROM equipment_request_items
-          WHERE request_id = $1::uuid
-          GROUP BY equipment_name`,
+        `SELECT item.equipment_name, SUM(item.quantity)::integer AS requested_quantity
+           FROM equipment_request_items item
+           LEFT JOIN equipment_reservations reservation ON reservation.equipment_request_item_id = item.id
+          WHERE item.request_id = $1::uuid
+            AND (NOT EXISTS (SELECT 1 FROM equipment_reservations pending
+                              JOIN equipment_request_items pending_item ON pending_item.id = pending.equipment_request_item_id
+                             WHERE pending_item.request_id = $1::uuid AND pending.status = 'Requested')
+              OR reservation.status = 'Requested')
+          GROUP BY item.equipment_name`,
         [requestId],
       );
       const names = requested.rows.map((item) => item.equipment_name);
@@ -231,12 +304,16 @@ export class EquipmentRequestsRepository {
         `SELECT r.equipment_name, SUM(r.quantity)::integer AS reserved_quantity
            FROM equipment_reservations r JOIN events e ON e.id = r.event_id
           WHERE r.status = 'Reserved'
-            AND r.event_id <> $1::uuid
+            AND (r.event_id <> $1::uuid OR EXISTS (
+              SELECT 1 FROM equipment_reservations selected
+              JOIN equipment_request_items selected_item ON selected_item.id = selected.equipment_request_item_id
+              WHERE selected_item.request_id = $5::uuid AND selected.status = 'Requested'
+            ))
             AND e.start_date_time < $3::timestamptz
             AND e.end_date_time > $2::timestamptz
             AND r.equipment_name = ANY($4::text[])
           GROUP BY r.equipment_name`,
-        [request.event_id, request.start_date_time, request.end_date_time, names],
+        [request.event_id, request.start_date_time, request.end_date_time, names, requestId],
       );
       const inventoryByName = new Map(inventory.rows.map((item) => [item.equipment_name, item]));
       const reservedByName = new Map(reserved.rows.map((item) => [item.equipment_name, item.reserved_quantity]));
@@ -258,6 +335,9 @@ export class EquipmentRequestsRepository {
          SELECT $2::uuid, item.equipment_name, item.quantity, 'Reserved', item.id
            FROM equipment_request_items item
           WHERE item.request_id = $1::uuid
+            AND NOT EXISTS (SELECT 1 FROM equipment_reservations pending
+                             JOIN equipment_request_items pending_item ON pending_item.id = pending.equipment_request_item_id
+                            WHERE pending_item.request_id = $1::uuid AND pending.status = 'Requested')
             AND NOT EXISTS (SELECT 1 FROM equipment_reservations linked WHERE linked.equipment_request_item_id = item.id)`,
         [requestId, request.event_id],
       );
@@ -267,7 +347,11 @@ export class EquipmentRequestsRepository {
             SET event_id = $2::uuid, equipment_name = item.equipment_name, quantity = item.quantity,
                 status = 'Reserved', updated_at = $3::timestamptz
            FROM equipment_request_items item
-          WHERE item.request_id = $1::uuid AND reservation.equipment_request_item_id = item.id`,
+          WHERE item.request_id = $1::uuid AND reservation.equipment_request_item_id = item.id
+            AND (NOT EXISTS (SELECT 1 FROM equipment_reservations pending
+                              JOIN equipment_request_items pending_item ON pending_item.id = pending.equipment_request_item_id
+                             WHERE pending_item.request_id = $1::uuid AND pending.status = 'Requested')
+              OR reservation.status = 'Requested')`,
         [requestId, request.event_id, now],
       );
       await client.query(
@@ -313,7 +397,11 @@ export class EquipmentRequestsRepository {
            FROM equipment_request_items item
           WHERE item.request_id = $1::uuid
             AND reservation.equipment_request_item_id = item.id
-            AND reservation.status IN ('Requested', 'Reserved')`,
+            AND (reservation.status = 'Requested' OR (
+              NOT EXISTS (SELECT 1 FROM equipment_reservations pending
+                           JOIN equipment_request_items pending_item ON pending_item.id = pending.equipment_request_item_id
+                          WHERE pending_item.request_id = $1::uuid AND pending.status = 'Requested')
+              AND reservation.status = 'Reserved'))`,
         [requestId, now],
       );
       return { kind: 'cannot-provided' as const, id: request.id };
@@ -325,17 +413,28 @@ export class EquipmentRequestsRepository {
       `SELECT r.id, r.event_id, e.event_name, e.start_date_time, e.end_date_time,
               e.expected_attendance, e.status AS event_status, r.status, r.requested_by, e.coordinator_name,
               r.created_at, r.decision_reason, i.id AS item_id, i.equipment_type, i.quantity,
-              i.equipment_name,
+              i.equipment_name, reservation.id AS reservation_id, reservation.status AS reservation_status,
+              (reservation.id IS NOT NULL AND EXISTS (
+                SELECT 1 FROM safety_check_feedback_items feedback
+                JOIN event_safety_checks safety ON safety.event_id = feedback.event_id
+                WHERE feedback.event_id = e.id AND safety.status IN ('changes_needed', 'rejected')
+                  AND COALESCE(feedback.review_arrangements->'equipmentIds', '[]'::jsonb) ? reservation.id::text
+              )) AS safety_review_selected,
               GREATEST(COALESCE((SELECT CASE WHEN eq.is_available THEN eq.active_quantity ELSE 0 END
                   FROM equipment eq WHERE eq.equipment_name = i.equipment_name LIMIT 1), 0)
                 - COALESCE((SELECT SUM(res.quantity) FROM equipment_reservations res
                   JOIN events other_event ON other_event.id = res.event_id
                  WHERE res.equipment_name = i.equipment_name AND res.status = 'Reserved'
-                   AND res.event_id IS DISTINCT FROM e.id
+                   AND (res.event_id IS DISTINCT FROM e.id OR EXISTS (
+                     SELECT 1 FROM equipment_reservations selected
+                     JOIN equipment_request_items selected_item ON selected_item.id = selected.equipment_request_item_id
+                     WHERE selected_item.request_id = r.id AND selected.status = 'Requested'
+                   ))
                    AND other_event.start_date_time < e.end_date_time
                    AND other_event.end_date_time > e.start_date_time), 0), 0)::integer AS available_quantity
          FROM equipment_requests r JOIN events e ON e.id = r.event_id
          JOIN equipment_request_items i ON i.request_id = r.id
+         LEFT JOIN equipment_reservations reservation ON reservation.equipment_request_item_id = i.id
          ${where} ORDER BY r.created_at DESC, r.id, i.item_order, i.created_at, i.id`, params,
     );
     const records = new Map<string, {
@@ -343,7 +442,7 @@ export class EquipmentRequestsRepository {
       eventStart: string; eventEnd: string; expectedAttendance: number;
       status: string; eventStatus: RequestRow['event_status']; requestedBy: string; coordinatorName: string | null;
       createdAt: string; decisionReason: string | null;
-      items: { id: string; equipmentName: string; equipmentType: string; quantity: number; availableQuantity: number; sufficient: boolean }[];
+      items: { id: string; equipmentName: string; equipmentType: string; quantity: number; availableQuantity: number; sufficient: boolean; reservationId?: string; reservationStatus?: string; safetyReviewSelected: boolean }[];
     }>();
     for (const row of result.rows) {
       let record = records.get(row.id);
@@ -360,7 +459,10 @@ export class EquipmentRequestsRepository {
         records.set(row.id, record);
       }
       record.items.push({ id: row.item_id, equipmentName: row.equipment_name, equipmentType: row.equipment_type, quantity: row.quantity,
-        availableQuantity: row.available_quantity, sufficient: row.available_quantity >= row.quantity });
+        availableQuantity: row.available_quantity, sufficient: row.available_quantity >= row.quantity,
+        ...(row.reservation_id ? { reservationId: row.reservation_id } : {}),
+        ...(row.reservation_status ? { reservationStatus: row.reservation_status } : {}),
+        safetyReviewSelected: row.safety_review_selected, });
     }
     return [...records.values()];
   }
