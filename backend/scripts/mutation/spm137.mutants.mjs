@@ -214,7 +214,7 @@ export const MUTANTS = [
     file: EVENTS,
     suites: ['backendUnit', 'backendE2E'],
     testMappings: [...feed('01-F', '04-F'), ...e2e('01-SEC-1')],
-    edits: [["            'change_request_denied',\n          ]\n        : []),\n      ...(user.roles.includes('COORDINATOR')", "            'change_request_denied',\n            BOOKING_APPROVED_NOTICE,\n            BOOKING_REJECTED_NOTICE,\n          ]\n        : []),\n      ...(user.roles.includes('COORDINATOR')"]],
+    edits: [["            CANCELLATION_DECLINED_NOTICE,\n          ]\n        : []),\n      ...(user.roles.includes('COORDINATOR')", "            CANCELLATION_DECLINED_NOTICE,\n            BOOKING_APPROVED_NOTICE,\n            BOOKING_REJECTED_NOTICE,\n          ]\n        : []),\n      ...(user.roles.includes('COORDINATOR')"]],
   },
   {
     id: 'SPM137-BE-24',

@@ -65,12 +65,27 @@ export class CancelEventService {
    * inside its own transaction so the request update and the cancellation commit or roll back together. It opens
    * no transaction, takes the acting user and the instant from the caller, and re-checks on the locked row that the
    * actor is the assigned Coordinator. POST status-change reaches the same steps through cancel().
+   *
+   * SPM-162 AC3: the request flow passes `skipOrganiserNotice` because the Organiser is told by the request-outcome
+   * notice instead, so they get no EventCancelled for that cancellation. Every other recipient is unchanged.
    */
-  cancelInTransaction(client: pg.PoolClient, user: AuthenticatedUser, eventId: string, now: Date) {
-    return this.cancelInside(client, user, eventId, now);
+  cancelInTransaction(
+    client: pg.PoolClient,
+    user: AuthenticatedUser,
+    eventId: string,
+    now: Date,
+    options: { skipOrganiserNotice?: boolean } = {},
+  ) {
+    return this.cancelInside(client, user, eventId, now, options.skipOrganiserNotice === true);
   }
 
-  private async cancelInside(client: pg.PoolClient, user: AuthenticatedUser, eventId: string, now: Date) {
+  private async cancelInside(
+    client: pg.PoolClient,
+    user: AuthenticatedUser,
+    eventId: string,
+    now: Date,
+    skipOrganiserNotice = false,
+  ) {
     const locked = await client.query<CancelEventRow>(
       'SELECT id, status, event_name, organiser_id, coordinator_id FROM events WHERE id = $1 FOR UPDATE',
       [eventId],
@@ -101,6 +116,7 @@ export class CancelEventService {
     recipients.add(user.uid);
     for (const releaser of this.releasers)
       for (const recipient of (await releaser.collectRecipients?.(eventId, client)) ?? []) recipients.add(recipient);
+    if (skipOrganiserNotice) recipients.delete(event.organiser_id);
 
     // Notices are written before the releases, inside the same transaction: a fault in any later step
     // rolls them back with everything else (CANCEL-EVENT-04-C).
