@@ -39,6 +39,8 @@ describe.skipIf(!databaseUrl)(
         '021_spm55_booking_review.sql',
         '024_spm159_tentative_hold_requests.sql',
         '025_spm159_approved_hold_expiry.sql',
+        '029_spm137_booking_decision_notification.sql',
+        '030_spm132_hold_expiry.sql',
       ])
         await pool.query(
           await readFile(

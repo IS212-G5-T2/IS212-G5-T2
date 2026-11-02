@@ -291,6 +291,7 @@ export function VenueRecordDetailPage() {
   }, [canCoordinate, requestedEventId, venue?.id, bookingMode, revision, availabilityNow]);
 
   async function cancelEventVenueBooking(confirmed = false) {
+    if (!eventVenueBooking) return;
     setCancelling(true);
     setRequestError("");
     try {

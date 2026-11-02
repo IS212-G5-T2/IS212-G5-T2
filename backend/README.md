@@ -500,10 +500,10 @@ operator must review and resolve those rows explicitly before retrying. Fresh
 databases receive the mirrored
 `database/postgresql/init/025_spm159_approved_hold_expiry.sql`.
 
-Migration `026_spm132_hold_expiry.sql` extends lifecycle/audit constraints for
+Migration `030_spm132_hold_expiry.sql` extends lifecycle/audit constraints for
 converted, released and system-expired holds and indexes due approved holds.
 Fresh databases receive the mirrored
-`database/postgresql/init/026_spm132_hold_expiry.sql`.
+`database/postgresql/init/030_spm132_hold_expiry.sql`.
 
 Run SPM-51 fault-injection checks with a PostgreSQL database configured in
 `DATABASE_URL`:

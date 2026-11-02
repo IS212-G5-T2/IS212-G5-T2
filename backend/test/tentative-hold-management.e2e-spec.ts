@@ -32,7 +32,9 @@ describe.skipIf(!databaseUrl)('SPM-132 Venue Staff tentative hold lifecycle HTTP
       '008_venue_owner_user_id.sql', '009_venue_availability.sql', '010_remove_venue_operating_schedule.sql',
       '019_spm54_venue_booking_lifecycle.sql', '021_spm55_booking_review.sql',
       '022_spm55_booking_special_request.sql', '024_spm159_tentative_hold_requests.sql',
-      '025_spm159_approved_hold_expiry.sql', '026_spm132_hold_expiry.sql',
+      '025_spm159_approved_hold_expiry.sql',
+      '029_spm137_booking_decision_notification.sql',
+      '030_spm132_hold_expiry.sql',
     ]) await pool.query(await readFile(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'));
 
     const module = await Test.createTestingModule({ imports: [AppModule] })
