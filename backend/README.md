@@ -417,8 +417,18 @@ person, for every existing period). The notices link to their booking through SP
   and time, latest slot first, with `affectedByUnavailablePeriod`) are for Venue Staff only (401 without a session,
   403 for other roles, 404 for an unknown venue).
 - The notice wording and the one place that writes these notices is `src/venues/notifications/venue-impact-notifications.ts`.
-  Integration tests: `test/venue-impact.e2e-spec.ts` (needs `DATABASE_URL` with init 001 to 030; it re-applies 019,
-  029 and 030 itself).
+  Integration tests: `test/venue-impact.e2e-spec.ts` (11 tests; needs `DATABASE_URL` with init 001 to 030; it
+  re-applies 019, 029 and 030 itself). Without `DATABASE_URL` the suite is skipped locally with a notice, and in CI a
+  missing database fails the run. To run it against a disposable database (see `database/README.md`):
+
+  ```sh
+  docker build -t spm-postgresql database/postgresql
+  docker run --rm -d --name spm125-test -e POSTGRES_USER=spm -e POSTGRES_PASSWORD=spm_dev_password \
+    -e POSTGRES_DB=spm -p 55432:5432 spm-postgresql   # a fresh container runs every init file
+  cd backend && DATABASE_URL=postgresql://spm:spm_dev_password@localhost:55432/spm \
+    npm run test:e2e -- test/venue-impact.e2e-spec.ts   # expect 11 passed, 0 skipped
+  docker rm -f spm125-test
+  ```
 
 ## Venue availability and booking requests (SPM-51)
 

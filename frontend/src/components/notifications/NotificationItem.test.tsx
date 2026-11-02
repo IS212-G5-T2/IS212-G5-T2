@@ -48,6 +48,13 @@ describe("NotificationItem", () => {
     expect(screen.queryByLabelText("Unread")).not.toBeInTheDocument();
   });
 
+  /** SAFETY-OUTCOME-01: the coordinator's safety response notification links directly to the event. */
+  it("SAFETY-OUTCOME-01 opens the event from a safety response notification", () => {
+    renderItem(notice({ type: "coordinator_safety_response", message: "The Safety Officer responded to the safety check." }));
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/events/event-1");
+    expect(screen.getByRole("link").querySelector('[aria-hidden="true"]')).toHaveTextContent("🦺");
+  });
+
   /** A notice without an event is a button that marks it read. */
   it("renders a notice without an event as a button", async () => {
     const onRead = renderItem(notice({ type: "submission", relatedEventId: undefined }));

@@ -995,6 +995,29 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
   });
 
   /**
+   * SAFETY-OUTCOME-01 (SPM-131 AC1): a Coordinator sees the Safety Officer's outcome in the same bell, can open
+   * the event, and may mark it read. This guards the Coordinator-type filter as the old Assignment Updates panel
+   * was retired by SPM-77.
+   */
+  it("SAFETY-OUTCOME-01 shows the safety response in the coordinator notification bell", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      coordinatorNotice({
+        id: "safety-response-1",
+        type: "coordinator_safety_response",
+        message: 'Safety Coordinator approved "SPM-131 Demo 2".',
+        relatedEventId: "demo-2",
+      }),
+    ]);
+
+    renderBellWithEventRoute();
+
+    expect(await screen.findByText('Safety Coordinator approved "SPM-131 Demo 2".')).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View Request" })).toHaveAttribute("href", "/events/demo-2");
+    expect(screen.getByRole("button", { name: "Mark As Read" })).toBeTruthy();
+  });
+
+  /**
    * ASSIGN-NOTIFY-01-D (SPM-77 AC1): a user who is a Coordinator and also holds another role (Venue Staff) still
    * gets the bell and the assignment.
    * Kills: checking only the primary role, so a multi-role Coordinator gets no bell.

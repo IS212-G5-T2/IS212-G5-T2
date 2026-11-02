@@ -1,0 +1,206 @@
+{
+  "story": "SPM-131",
+  "title": "Respond to safety outcome (Event Coordinator)",
+  "note": "Jira SPM-131 AC1-AC6 and Confluence matrix 36798544 / case pages 36831297, 36896834, 36831315, 36700305, 36798580, 36896852 are authoritative. User clarification (2026-11-02): preserve existing arrangement rows and IDs; selected venue/equipment rows transition to pending in their normal staff review workflows, while unselected arrangements remain unchanged. Staff must approve/reserve selected arrangements again, and the Coordinator must independently resolve all safety feedback before re-request. Enabled registration must have saved opening and closing dates; disabled registration is an intentional no-registration configuration and satisfies the safety prerequisite. Use persisted event settings for the server gate and displayed status. Checkboxes never substitute for staff approval. Request-changes selects only affected arrangement IDs; rejection selects all active approved venues and Reserved equipment. Keep feedback visible during those staff transitions. Rejection leaves the event Planning and does not delete or release arrangement rows. AC4 requires at least one selected arrangement per change row; legacy reason-only or changes:string[] requests are refused.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/events.service.spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "backend/src/events/cancelled-notifications.spec.ts",
+        "titleMatch": "WaitlistPromoted branch"
+      },
+      {
+        "glob": "backend/src/events/review/events.approve.spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "backend/src/events/safety-officer/safety-officer.service.spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "backend/src/events/status/checklist.spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "backend/src/events/status/safety-check.source.spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "backend/src/events/review/events.reject.spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "backend/src/events/queue/coordinator-queue.service.spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "backend/src/event-drafts/drafts.http.spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "backend/src/event-drafts/drafts.service.spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "backend/src/equipment/requests/equipment-requests.repository.spec.ts"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "backend/src/equipment/requests/equipment-requests.service.spec.ts"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "backend/src/equipment/requests/dto/equipment-request-input.spec.ts"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "backend/src/events/status/status.safety-registration.spec.ts"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/safety-officer.e2e-spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "backend/test/events-confirm-safety-source.e2e-spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "backend/test/events-safety-feedback.e2e-spec.ts",
+        "titleMatch": "SAFETY-OUTCOME"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationItem.test.tsx",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/registration/RegistrationSettingsForm.test.tsx",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.test.tsx",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "frontend/src/features/equipment/pages/requests/EquipmentReservationForm.test.tsx"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.test.tsx"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/events.service.ts",
+      "backend/src/events/safety-officer/safety-officer.service.ts",
+      "backend/src/events/coordinator-notification-types.ts",
+      "backend/src/events/status/checklist.ts",
+      "backend/src/events/status/status.service.ts",
+      "backend/src/events/status/safety-check.source.ts",
+      "backend/src/equipment/requests/dto/equipment-request-input.ts",
+      "backend/src/equipment/requests/equipment-requests.repository.ts",
+      "backend/src/equipment/requests/equipment-requests.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationItem.tsx",
+      "frontend/src/components/notifications/NotificationBell.tsx",
+      "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.tsx",
+      "frontend/src/features/events/pages/detail/EventDetailPage.tsx",
+      "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.tsx",
+      "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.tsx",
+      "frontend/src/features/events/pages/detail/registration/RegistrationSettingsForm.tsx",
+      "frontend/src/features/equipment/api/equipment-requests-api.ts",
+      "frontend/src/features/equipment/pages/requests/EquipmentReservationForm.tsx",
+      "frontend/src/utils/arrangements.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": [
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "spm131-notifications",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm131.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm131.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    },
+    {
+      "id": "spm131-frontend-notification",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm131.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm131.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ],
+  "linesFrom": "changed-lines"
+}

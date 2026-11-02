@@ -33,6 +33,7 @@ export interface SafetyCheckFeedback {
   text: string;
   requestedAt: string;
   resolvedByCoordinatorAt?: string;
+  reviewArrangements?: { venueIds: string[]; equipmentIds: string[] };
 }
 
 export interface VenueRequestItem {
@@ -40,6 +41,7 @@ export interface VenueRequestItem {
   venueName: string;
   status: RequestStatus;
   requestedDate?: string;
+  safetyReviewStatus?: "Pending review";
 }
 
 export interface EquipmentRequestItem {
@@ -48,6 +50,7 @@ export interface EquipmentRequestItem {
   quantity: number;
   status: RequestStatus;
   requestedDate?: string;
+  safetyReviewStatus?: "Pending review";
 }
 
 /** What the coordinator's planning page shows for venues, equipment and the safety check. */
@@ -75,9 +78,10 @@ export interface PlanningChecklist {
     resetReason?: string;
     resetDate?: string;
   };
+  registration: { enabled: boolean; status: 'confirmed' | 'pending' };
   canRequestSafetyCheck: boolean;
   /** Prerequisites still blocking a safety check request. */
-  blocking: ("venue" | "equipment")[];
+  blocking: ("venue" | "equipment" | "registration")[];
 }
 
 export interface ArrangementsStatus {

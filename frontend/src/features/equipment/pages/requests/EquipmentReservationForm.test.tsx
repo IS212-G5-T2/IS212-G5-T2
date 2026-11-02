@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { EventRecord } from '@/types';
+import type { EquipmentRequestRecord } from '../../api/equipment-requests-api';
 import { EquipmentReservationForm } from './EquipmentReservationForm';
 
 const event: EventRecord = {
@@ -13,6 +14,62 @@ const event: EventRecord = {
 };
 
 describe('SPM-57 equipment request form', () => {
+  /** SAFETY-OUTCOME-06: the form cannot submit while a request update is already in flight. */
+  it('SAFETY-OUTCOME-06 disables submission while updating', () => {
+    render(<EquipmentReservationForm events={[event]} initialEventId={event.id} submitting onSubmit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Submitting…' })).toBeDisabled();
+  });
+
+  /** SAFETY-OUTCOME-06: an in-flight edit shows its update state and cannot send a duplicate request. */
+  it('SAFETY-OUTCOME-06 keeps an equipment re-review submission disabled while updating', () => {
+    const onSubmit = vi.fn();
+    render(<EquipmentReservationForm events={[event]} initialEventId={event.id} submitting onSubmit={onSubmit} isEditing />);
+    expect(screen.getByRole('button', { name: 'Updating…' })).toBeDisabled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  /** SAFETY-OUTCOME-06: edit mode without the selected event cannot submit. */
+  it('SAFETY-OUTCOME-06 disables submission when an edited event is unavailable', () => {
+    render(<EquipmentReservationForm events={[]} initialEventId={event.id} submitting={false} onSubmit={vi.fn()} isEditing />);
+    expect(screen.getByRole('button', { name: 'Update Event' })).toBeDisabled();
+  });
+
+  /** SAFETY-OUTCOME-06: a new request cannot be submitted while the eligible event picker has no events. */
+  it('SAFETY-OUTCOME-06 disables new-request submission when no eligible event is available', () => {
+    render(<EquipmentReservationForm events={[]} initialEventId="" submitting={false} onSubmit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Submit Request' })).toBeDisabled();
+  });
+
+  /** SAFETY-OUTCOME-04: coordinator revisions keep unselected reservations intact and submit stable item identifiers. */
+  it('edits only selected safety-review equipment and retains all item IDs', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const request: EquipmentRequestRecord = {
+      id: 'request-1', reference: 'EQR-1', eventId: event.id, eventName: event.name,
+      eventStart: event.startDateTime, eventEnd: event.endDateTime, expectedAttendance: event.expectedAttendance,
+      eventStatus: 'Planning', status: 'Pending Review', requestedBy: 'coordinator-1',
+      coordinatorName: 'Coordinator', createdAt: '2030-02-01T00:00:00.000Z',
+      items: [
+        { id: 'selected-item', reservationId: 'selected-reservation', reservationStatus: 'Requested', safetyReviewSelected: true, equipmentName: 'Projector', equipmentType: 'Visual', quantity: 1 },
+        { id: 'retained-item', reservationId: 'retained-reservation', reservationStatus: 'Reserved', safetyReviewSelected: false, equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 2 },
+      ],
+    };
+    render(<EquipmentReservationForm events={[]} initialEventId={event.id} submitting={false} onSubmit={onSubmit} request={request} isEditing />);
+    const selected = screen.getByText('Equipment item 1').closest('fieldset')!;
+    const retained = screen.getByText('Equipment item 2').closest('fieldset')!;
+    expect(within(retained).getByRole('textbox', { name: /Equipment name/ })).toBeDisabled();
+    expect(within(retained).getByRole('combobox', { name: /Equipment type/ })).toBeDisabled();
+    expect(within(retained).getByRole('spinbutton', { name: /Quantity/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add another item' })).toBeDisabled();
+    await user.clear(within(selected).getByRole('spinbutton', { name: /Quantity/ }));
+    await user.type(within(selected).getByRole('spinbutton', { name: /Quantity/ }), '3');
+    await user.click(screen.getByRole('button', { name: 'Submit equipment for re-review' }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(event.id, [
+      { id: 'selected-item', equipmentName: 'Projector', equipmentType: 'Visual', quantity: 3 },
+      { id: 'retained-item', equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 2 },
+    ]));
+  });
+
   /** EQUIP-REQUEST-01-A: an assigned eligible event opens the request form with its details prefilled. */
   it('EQUIP-REQUEST-01-A shows the selected event name, date, time, and expected attendance', () => {
     render(<EquipmentReservationForm events={[event]} initialEventId={event.id} submitting={false} onSubmit={vi.fn()} />);

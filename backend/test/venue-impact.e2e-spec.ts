@@ -13,10 +13,17 @@ import { CLOCK } from '../src/common/clock.js';
  * SPM-125 Manage Venue Unavailability Impact, History and Notifications: integration cases through the real API and
  * PostgreSQL. Users are the seeded accounts in the test database and sign in through the real login route
  * (/api/auth/login); the server clock is fixed at 10 Jan 2030, 8:00 pm Singapore time. Needs DATABASE_URL with
- * database/postgresql/init 001 to 030 applied.
+ * database/postgresql/init 001 to 030 applied. Without DATABASE_URL the suite is skipped locally (with a notice);
+ * in CI a missing database fails the run instead, so a green pipeline can never hide these tests being skipped.
  */
 
 const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl && process.env.CI)
+  throw new Error('SPM-125 venue-impact PostgreSQL tests must run in CI: set DATABASE_URL.');
+if (!databaseUrl)
+  process.stderr.write(
+    'SPM-125 venue-impact integration tests SKIPPED: DATABASE_URL is not set (see backend/README.md, SPM-125).\n',
+  );
 const password = 'P@55w0rd';
 const fixedNow = new Date('2030-01-10T12:00:00.000Z');
 const at = (iso: string) => new Date(iso);

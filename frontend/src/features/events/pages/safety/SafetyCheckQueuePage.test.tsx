@@ -12,6 +12,16 @@ function response(value: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } }));
 }
 
+function selectVenueForAllChanges(dialog: HTMLElement) {
+  const changeCount = within(dialog).getAllByRole("textbox").length;
+  const checkboxes = within(dialog).getAllByRole("checkbox");
+  for (let rowNumber = 0; rowNumber < changeCount; rowNumber += 1) {
+    const checkbox = checkboxes[rowNumber * 2];
+    if (!checkbox) throw new Error(`Venue checkbox for change ${rowNumber + 1} was not rendered.`);
+    if (!(checkbox as HTMLInputElement).checked) fireEvent.click(checkbox);
+  }
+}
+
 describe("SPM-129 SafetyCheckQueuePage", () => {
   beforeEach(() => vi.stubGlobal("fetch", vi.fn()));
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -86,6 +96,48 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(within(dialog).getByLabelText("Change 1")).toBeRequired();
     expect(within(dialog).queryByLabelText("Reason for rejection")).not.toBeInTheDocument();
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  /** SAFETY-OUTCOME-04: the Safety Officer selects affected venue or technical arrangements per change, and cannot submit an empty selection. */
+  it("SAFETY-OUTCOME-04 submits selected affected arrangements with each change description", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => response({ eventId: "e1", status: "changes_needed" }));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    await user.type(within(dialog).getByLabelText("Change 1"), "Review the microphone setup.");
+    await user.click(within(dialog).getByRole("button", { name: "Add change" }));
+    await user.type(within(dialog).getByLabelText("Change 2"), "Review the venue route.");
+    const firstChange = within(dialog).getByLabelText("Change 1").parentElement?.parentElement;
+    if (!firstChange) throw new Error("Change row 1 was not rendered.");
+    const secondChange = within(dialog).getByLabelText("Change 2").parentElement?.parentElement;
+    if (!secondChange) throw new Error("Change row 2 was not rendered.");
+    await user.click(within(firstChange).getByRole("checkbox", { name: "Main Hall (venue)" }));
+    await user.click(within(firstChange).getByRole("checkbox", { name: "Main Hall (venue)" }));
+    await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Change 1 must select at least one arrangement for review.");
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    await user.click(within(firstChange).getByRole("checkbox", { name: "Microphone (equipment)" }));
+    await user.click(within(firstChange).getByRole("checkbox", { name: "Microphone (equipment)" }));
+    await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await user.click(within(firstChange).getByRole("checkbox", { name: "Microphone (equipment)" }));
+    await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Change 2 must select at least one arrangement for review.");
+    await user.click(within(secondChange).getByRole("checkbox", { name: "Microphone (equipment)" }));
+    await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({
+      body: JSON.stringify({ decision: "changes_needed", changes: [
+        { text: "Review the microphone setup.", venueIds: [], equipmentIds: ["equipment-1"] },
+        { text: "Review the venue route.", venueIds: [], equipmentIds: ["equipment-1"] },
+      ] }),
+    }));
   });
 
   async function expectAccessibleFeedbackModal(action: string, label: string) {
@@ -175,10 +227,11 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(within(dialog).getByLabelText("Change 1")).toHaveValue("Add a fire exit plan.");
     expect(within(dialog).getByLabelText("Change 2")).toHaveValue("Confirm occupancy.");
 
+    selectVenueForAllChanges(dialog);
     await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
     expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
     expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({
-      body: JSON.stringify({ decision: "changes_needed", changes: ["Add a fire exit plan.", "Confirm occupancy."] }),
+      body: JSON.stringify({ decision: "changes_needed", changes: [{ text: "Add a fire exit plan.", venueIds: ["booking-1"], equipmentIds: [] }, { text: "Confirm occupancy.", venueIds: ["booking-1"], equipmentIds: [] }] }),
     }));
   });
 
@@ -195,15 +248,17 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     const dialog = await screen.findByRole("dialog", { name: "Request changes" });
     await user.type(within(dialog).getByLabelText("Change 1"), "Add a fire exit plan.");
     await user.click(within(dialog).getByRole("button", { name: "Add change" }));
+    selectVenueForAllChanges(dialog);
     await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Change 2");
     expect(fetch).toHaveBeenCalledTimes(2);
 
     await user.type(within(dialog).getByLabelText("Change 2"), "Confirm occupancy.");
+    selectVenueForAllChanges(dialog);
     await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
     expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
     expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({
-      body: JSON.stringify({ decision: "changes_needed", changes: ["Add a fire exit plan.", "Confirm occupancy."] }),
+      body: JSON.stringify({ decision: "changes_needed", changes: [{ text: "Add a fire exit plan.", venueIds: ["booking-1"], equipmentIds: [] }, { text: "Confirm occupancy.", venueIds: ["booking-1"], equipmentIds: [] }] }),
     }));
   });
 
@@ -226,10 +281,11 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     await user.click(within(dialog).getByRole("button", { name: "Add change" }));
     await user.type(within(dialog).getByLabelText("Change 3"), "Temporary third item.");
     await user.click(within(dialog).getByRole("button", { name: "Remove change 2" }));
+    selectVenueForAllChanges(dialog);
     await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
     expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
     expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({
-      body: JSON.stringify({ decision: "changes_needed", changes: ["Add a fire exit plan.", "Temporary third item."] }),
+      body: JSON.stringify({ decision: "changes_needed", changes: [{ text: "Add a fire exit plan.", venueIds: ["booking-1"], equipmentIds: [] }, { text: "Temporary third item.", venueIds: ["booking-1"], equipmentIds: [] }] }),
     }));
   });
 
@@ -249,6 +305,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     await user.type(within(dialog).getByLabelText("Change 1"), "Add a fire exit plan.");
     await user.click(within(dialog).getByRole("button", { name: "Add change" }));
     await user.type(within(dialog).getByLabelText("Change 2"), "Confirm occupancy.");
+    selectVenueForAllChanges(dialog);
     await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
 
     expect(within(dialog).getByRole("button", { name: "Add change" })).toBeDisabled();
@@ -260,10 +317,11 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("The service is temporarily unavailable.");
     expect(within(dialog).getByLabelText("Change 1")).toHaveValue("Add a fire exit plan.");
     expect(within(dialog).getByLabelText("Change 2")).toHaveValue("Confirm occupancy.");
+    selectVenueForAllChanges(dialog);
     await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
     expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
     expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({
-      body: JSON.stringify({ decision: "changes_needed", changes: ["Add a fire exit plan.", "Confirm occupancy."] }),
+      body: JSON.stringify({ decision: "changes_needed", changes: [{ text: "Add a fire exit plan.", venueIds: ["booking-1"], equipmentIds: [] }, { text: "Confirm occupancy.", venueIds: ["booking-1"], equipmentIds: [] }] }),
     }));
   });
 
@@ -348,6 +406,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
     const dialog = await screen.findByRole("dialog", { name: "Request changes" });
     fireEvent.change(within(dialog).getByLabelText("Change 1"), { target: { value: "Provide a second exit." } });
+    selectVenueForAllChanges(dialog);
     const submit = within(dialog).getByRole("button", { name: "Submit change request" });
     act(() => {
       submit.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -375,7 +434,9 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
     expect(await screen.findByText("Expected attendance: 80")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
-    fireEvent.change(await screen.findByLabelText("Change 1"), { target: { value: "Refresh the current safety plan." } });
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    fireEvent.change(within(dialog).getByLabelText("Change 1"), { target: { value: "Refresh the current safety plan." } });
+    selectVenueForAllChanges(dialog);
     fireEvent.click(screen.getByRole("button", { name: "Submit change request" }));
     expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("This event is no longer awaiting a safety check.");
@@ -462,17 +523,19 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
     await screen.findByText("Expected attendance: 80");
     fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
-    const input = await screen.findByLabelText("Change 1");
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    const input = within(dialog).getByLabelText("Change 1");
     await user.click(input);
     await user.type(input, "Confirm a backup microphone.");
     expect(input).toHaveFocus();
     expect(input).toHaveValue("Confirm a backup microphone.");
+    selectVenueForAllChanges(dialog);
     fireEvent.click(screen.getByRole("button", { name: "Submit change request" }));
     expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toContainElement(screen.getByRole("status"));
     expect(screen.getByRole("status")).not.toBeEmptyDOMElement();
     fireEvent.click(screen.getByRole("button", { name: "Return to queue" }));
     expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/decision"), expect.objectContaining({ body: JSON.stringify({ decision: "changes_needed", changes: ["Confirm a backup microphone."] }) }));
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/decision"), expect.objectContaining({ body: JSON.stringify({ decision: "changes_needed", changes: [{ text: "Confirm a backup microphone.", venueIds: ["booking-1"], equipmentIds: [] }] }) }));
   });
 
   /** SAFETY-DECISION-05: every successful decision displays a confirmation modal before returning to the refreshed queue. */
@@ -493,6 +556,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
       const label = decision === "rejected" ? "Reason for rejection" : "Change 1";
       const submit = decision === "rejected" ? "Submit rejection" : "Submit change request";
       fireEvent.change(await screen.findByLabelText(label), { target: { value: reason } });
+      if (decision === "changes_needed") selectVenueForAllChanges(screen.getByRole("dialog", { name: "Request changes" }));
       fireEvent.click(screen.getByRole("button", { name: submit }));
     }
 

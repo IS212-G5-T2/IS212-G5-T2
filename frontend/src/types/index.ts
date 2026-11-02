@@ -447,6 +447,8 @@ export type NotificationType =
   | "coordinator_unassignment"
   | "coordinator_unavailable"
   | "coordinator_change_request"
+  /** SPM-131 AC1: the Safety Officer responded to the event's safety check. */
+  | "coordinator_safety_response"
   /** SPM-65: the organiser's change request was approved or denied. */
   | "change_request_approved"
   | "change_request_denied"
