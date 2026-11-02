@@ -54,8 +54,8 @@ BEGIN
          JOIN safety_check_feedback_items feedback ON feedback.event_id = safety.event_id
         WHERE safety.event_id = OLD.event_id
           AND safety.status IN ('changes_needed', 'rejected')
-          AND feedback.reapproval_started_at IS NOT NULL
-          AND COALESCE(feedback.review_arrangements->'venueIds', '[]'::jsonb) ? OLD.id::text
+          AND (to_jsonb(feedback)->>'reapproval_started_at') IS NOT NULL
+          AND COALESCE((to_jsonb(feedback)->'review_arrangements')->'venueIds', '[]'::jsonb) ? OLD.id::text
      ) THEN
     RETURN NEW;
   END IF;
@@ -85,8 +85,8 @@ BEGIN
          JOIN safety_check_feedback_items feedback ON feedback.event_id = safety.event_id
         WHERE safety.event_id = OLD.event_id
           AND safety.status IN ('changes_needed', 'rejected')
-          AND feedback.reapproval_started_at IS NOT NULL
-          AND COALESCE(feedback.review_arrangements->'equipmentIds', '[]'::jsonb) ? OLD.id::text
+          AND (to_jsonb(feedback)->>'reapproval_started_at') IS NOT NULL
+          AND COALESCE((to_jsonb(feedback)->'review_arrangements')->'equipmentIds', '[]'::jsonb) ? OLD.id::text
      ) THEN
     RETURN NEW;
   END IF;
