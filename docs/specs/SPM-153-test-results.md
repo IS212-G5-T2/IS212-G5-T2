@@ -76,8 +76,8 @@ Tests
 | 06-A | Partly covered: the planning view of a Completed event is readable and read-only (e2e). The display of arrangements in the UI is not tested. | The UI display of arrangements was not changed in this story. |
 | 01-F, M24 | Not tested | No scheduled job check. |
 | 03-B, 03-C, 03-D | Partly covered (refused attempts leave no row; UTC instant asserted). Not tested: SGT display across the boundary, three time zones, strict body (400 for `changedBy`), history PUT and DELETE (405) | Status change ignores unknown body keys (F6 expects 400). |
-| 04-B, 04-C | Not tested | Queue before and after completion, empty state, other Coordinators' events. |
-| 05-E | Boundaries tested in pure rules; not through HTTP | Validation logic covered; HTTP mapping of maxima not asserted. |
+| 04-B, 04-C | Covered at API level (e2e): queue before and after completion, empty list, other Coordinators' events. Not covered: the UI empty state and the organiser and attendee filters. |
+| 05-E | Boundaries tested in pure rules; HTTP mapping of the maxima not asserted | Validation logic covered; 05-G (script and SQL text stored as plain text) is covered by e2e. |
 | 05-G | Not tested | Plain-text rendering of script and SQL text not asserted. |
 | 02-A, 02-B (queue) | Partly covered (panel shown only for Confirmed) | Queue-level action absence not asserted. |
 | 06-E | Unit tests (mocked) only | No e2e for change-request submit or review on a Completed event. |
@@ -104,7 +104,8 @@ Tests
 |---|---|---|
 | Test Code Review | test-code-reviewer (two rounds) | First round FAIL (equipment, venue reject and cancel, race and queue assertions); fixed and re-run: PASS. Residual: change-request guards have unit tests only (6-E). |
 | Code Quality Review | code-quality-reviewer | PASS. Medium items fixed: remove-issue button now has an accessible name; the too-early refusal is no longer repeated as an alert. Low items not changed: a shared arrangements-locked exception helper, the conditional guard call in change-requests.service.ts, the cancelled-guard file name, and the planning guard in the status service that still reports the generic error for Completed events. |
-| Requirement Review | requirement-reviewer | PASS. Documentation corrections above applied; the coverage gap above recorded. |
+| Requirement Review | requirement-reviewer (two rounds) | First round PASS with documentation corrections applied. Final snapshot PASS: all six ACs and the owner decisions met. Gaps recorded: no UI test for the clarification hiding, bottom-right placement or completed timeline stage on EventDetailPage; backend clarifications still accept comments on Completed events; cancellation panels still render on Completed events (not mentioned before this review). |
+| Code Quality Review (final snapshot) | code-quality-reviewer | PASS. No high or medium findings. Low items recorded above (shared arrangements-locked helper, guard call style, a defensive branch in complete()). |
 | G1 to G7 test-workflow cycle (ai/scripts/test-workflow) | not run | Needs a scope file and registry records for SPM-153, which do not exist yet. |
 
 ## 9. Corrections
