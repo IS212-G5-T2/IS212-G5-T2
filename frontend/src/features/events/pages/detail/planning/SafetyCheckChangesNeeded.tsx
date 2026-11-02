@@ -6,13 +6,18 @@ import {
   resolveFeedbackItem,
   unresolveFeedbackItem,
   requestSafetyCheck,
+  type EquipmentRequestItem,
   type SafetyCheckFeedback,
+  type VenueRequestItem,
 } from "@/utils/arrangements";
 
 interface Props {
   eventId: string;
   status: "changes_needed" | "rejected";
   feedback: SafetyCheckFeedback[];
+  venues?: Pick<VenueRequestItem, "id" | "venueName">[];
+  equipment?: Pick<EquipmentRequestItem, "id" | "name">[];
+  blocking?: ("venue" | "equipment" | "registration")[];
   canRequestSafetyCheck: boolean;
   onRefresh: () => Promise<void>;
   pending: boolean;
@@ -23,6 +28,9 @@ export function SafetyCheckChangesNeeded({
   eventId,
   status,
   feedback,
+  venues = [],
+  equipment = [],
+  blocking = [],
   canRequestSafetyCheck,
   onRefresh,
   pending,
@@ -33,6 +41,10 @@ export function SafetyCheckChangesNeeded({
   const resolvedCount = feedback.filter((item) => item.resolvedByCoordinatorAt).length;
   const totalCount = feedback.length;
   const allResolved = resolvedCount === totalCount;
+  const pendingApprovals = [
+    ...(blocking.includes("venue") ? ["Venue Staff to approve the venue"] : []),
+    ...(blocking.includes("equipment") ? ["Technical Support to reserve the equipment"] : []),
+  ];
 
   const toggleResolution = useCallback(
     async (feedbackId: string, isResolved: boolean) => {
@@ -69,15 +81,23 @@ export function SafetyCheckChangesNeeded({
 
   return (
     <div className="space-y-4">
-      <p className="flex items-center gap-2 text-sm">
-        <span className="rounded-full bg-danger-100 px-2 py-0.5 text-xs font-medium text-danger-800 dark:bg-danger-900/30 dark:text-danger-300">
-          {status === "rejected" ? "Rejected" : "Changes needed"}
-        </span>
-      </p>
+      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        {status === "rejected" ? "Rejection feedback" : "Changes needed"}
+      </h3>
 
       <div className="space-y-2">
         {feedback.map((item) => {
           const isResolved = !!item.resolvedByCoordinatorAt;
+          const selectedVenues = new Set(item.reviewArrangements?.venueIds ?? []);
+          const selectedEquipment = new Set(item.reviewArrangements?.equipmentIds ?? []);
+          const arrangementTags = [
+            ...venues
+              .filter((venue) => selectedVenues.has(venue.id))
+              .map((venue) => `Venue: ${venue.venueName}`),
+            ...equipment
+              .filter((entry) => selectedEquipment.has(entry.id))
+              .map((entry) => `Equipment: ${entry.name}`),
+          ];
           return (
             <label
               key={item.id}
@@ -104,6 +124,15 @@ export function SafetyCheckChangesNeeded({
                 >
                   {item.text}
                 </p>
+                {arrangementTags.length > 0 && (
+                  <ul aria-label={`Arrangements to change for: ${item.text}`} className="mt-1 flex flex-wrap gap-1">
+                    {arrangementTags.map((tag) => (
+                      <li key={tag} className="rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-800 dark:bg-primary-900/30 dark:text-primary-300">
+                        {tag}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {isResolved
                     ? `Resolved by you – ${formatDateTime(item.resolvedByCoordinatorAt!)}`
@@ -123,7 +152,9 @@ export function SafetyCheckChangesNeeded({
         )}
         {allResolved && (
           <p className="text-sm text-success-700 dark:text-success-300">
-            All items resolved. Safety Officer will review your changes.
+            {canRequestSafetyCheck
+              ? "All feedback checked off. You can re-request the safety check."
+              : `All feedback checked off. Wait for ${pendingApprovals.length ? pendingApprovals.join(" and ") : "the selected arrangements to be approved or reserved"} before re-requesting.`}
           </p>
         )}
         <Button

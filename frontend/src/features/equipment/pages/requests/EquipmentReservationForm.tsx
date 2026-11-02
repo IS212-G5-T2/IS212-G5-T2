@@ -5,7 +5,7 @@ import type { EquipmentRecord } from '@/types';
 import type { EquipmentRequestEvent, EquipmentRequestItemInput, EquipmentRequestRecord } from '../../api/equipment-requests-api';
 
 const equipmentTypes: EquipmentRecord['type'][] = ['Audio', 'Visual', 'Furniture', 'Lighting', 'Other'];
-interface DraftItem { equipmentName: string; equipmentType: string; quantity: string }
+interface DraftItem { id?: string; equipmentName: string; equipmentType: string; quantity: string; safetyReviewSelected?: boolean }
 const blankItem = (): DraftItem => ({ equipmentName: '', equipmentType: '', quantity: '1' });
 const eventDateFormat = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -18,8 +18,10 @@ export function EquipmentReservationForm({
 }) {
   const [eventId, setEventId] = useState(initialEventId);
   const [items, setItems] = useState<DraftItem[]>(request?.items.map((item) => ({
+    id: item.id, safetyReviewSelected: item.safetyReviewSelected,
     equipmentName: item.equipmentName, equipmentType: item.equipmentType, quantity: String(item.quantity),
   })) ?? [blankItem()]);
+  const safetyReviewActive = request?.items.some((item) => item.safetyReviewSelected) ?? false;
   const [errors, setErrors] = useState<Record<string, string>>({});
   // An existing request is permanently tied to its event.  Do not depend on the
   // create-only eligible-events feed to rediscover it: that feed can change as
@@ -49,6 +51,7 @@ export function EquipmentReservationForm({
     setErrors(next);
     if (Object.keys(next).length || !event) return;
     await onSubmit(event.id, items.map((item) => ({
+      ...(item.id ? { id: item.id } : {}),
       equipmentName: item.equipmentName.trim(),
       equipmentType: item.equipmentType as EquipmentRecord['type'],
       quantity: Number(item.quantity),
@@ -57,6 +60,9 @@ export function EquipmentReservationForm({
 
   return <form onSubmit={submit} noValidate className="space-y-5">
     <h2 className="text-lg font-semibold">{isEditing ? 'Update equipment request' : 'Request equipment'}</h2>
+    {safetyReviewActive && <p role="status" className="rounded-lg bg-warning-50 px-3 py-2 text-sm text-warning-900 dark:bg-warning-900/20 dark:text-warning-200">
+      Update only the equipment marked for Safety Officer re-review. Other equipment remains reserved and will not be changed.
+    </p>}
     {!isEditing && <Select id="equipment-request-event" label="Event" required value={eventId} onChange={(e) => setEventId(e.target.value)} error={errors.eventId}
       options={events.map((item) => ({ value: item.id, label: item.name }))} />}
     {event && <dl className="grid gap-2 rounded-lg bg-gray-50 p-4 text-sm dark:bg-gray-800 sm:grid-cols-2" aria-label="Selected event details">
@@ -68,17 +74,20 @@ export function EquipmentReservationForm({
     {items.map((item, index) => <fieldset key={index} className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
       <legend className="px-1 font-medium">Equipment item {index + 1}</legend>
       <TextInput id={`equipment-request-name-${index}`} label="Equipment name" required value={item.equipmentName}
+        disabled={safetyReviewActive && !item.safetyReviewSelected}
         error={errors[`name-${index}`]} onChange={(e) => updateItem(index, { equipmentName: e.target.value })} />
       <Select id={`equipment-request-type-${index}`} label="Equipment type" required value={item.equipmentType} error={errors[`type-${index}`]}
+        disabled={safetyReviewActive && !item.safetyReviewSelected}
         onChange={(e) => updateItem(index, { equipmentType: e.target.value })}
         options={equipmentTypes.map((type) => ({ value: type, label: type }))} />
       <TextInput id={`equipment-request-quantity-${index}`} label="Quantity" required type="number" min={1} step={1} value={item.quantity}
+        disabled={safetyReviewActive && !item.safetyReviewSelected}
         error={errors[`quantity-${index}`]} onChange={(e) => updateItem(index, { quantity: e.target.value })} />
-      {items.length > 1 && <Button type="button" variant="secondary" onClick={() => setItems((current) => current.filter((_, i) => i !== index))}>Remove item {index + 1}</Button>}
+      {items.length > 1 && !safetyReviewActive && <Button type="button" variant="secondary" onClick={() => setItems((current) => current.filter((_, i) => i !== index))}>Remove item {index + 1}</Button>}
     </fieldset>)}
     <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="secondary" onClick={() => setItems((current) => [...current, blankItem()])}>Add another item</Button>
-      <Button type="submit" disabled={submitting || (!isEditing && !events.length) || (isEditing && !event)}>{submitting ? (isEditing ? 'Updating…' : 'Submitting…') : (isEditing ? 'Update Event' : 'Submit Request')}</Button>
+      <Button type="button" variant="secondary" disabled={safetyReviewActive} onClick={() => setItems((current) => [...current, blankItem()])}>Add another item</Button>
+      <Button type="submit" disabled={submitting || (!isEditing && !events.length) || (isEditing && !event)}>{submitting ? (isEditing ? 'Updating…' : 'Submitting…') : (isEditing ? (safetyReviewActive ? 'Submit equipment for re-review' : 'Update Event') : 'Submit Request')}</Button>
     </div>
   </form>;
 }

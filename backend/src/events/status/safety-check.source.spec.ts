@@ -95,15 +95,15 @@ describe('EventSafetyCheckSource.view', () => {
   });
 
   /** An approved check shows the approver, and feedback items keep their resolved mark only when set. */
-  it('reports an approved check with its approver and each feedback item with its resolved mark', async () => {
+  it('SAFETY-OUTCOME-04 reads review arrangement identifiers from safety feedback', async () => {
     const requestedAt = new Date('2026-10-12T01:00:00.000Z');
     const raisedAt = new Date('2026-10-12T02:00:00.000Z');
     const resolvedAt = new Date('2026-10-12T03:00:00.000Z');
     const source = sourceReturningInOrder(
       [{ status: 'approved', requested_at: requestedAt, approver_name: 'Safety Officer 1' }],
       [
-        { id: 'f1', feedback_text: 'Clear the aisle', requested_at: raisedAt, resolved_by_coordinator_at: resolvedAt },
-        { id: 'f2', feedback_text: 'Check the exits', requested_at: raisedAt, resolved_by_coordinator_at: null },
+        { id: 'f1', feedback_text: 'Clear the aisle', requested_at: raisedAt, resolved_by_coordinator_at: resolvedAt, review_arrangements: { venueIds: ['booking-1'], equipmentIds: [] } },
+        { id: 'f2', feedback_text: 'Check the exits', requested_at: raisedAt, resolved_by_coordinator_at: null, review_arrangements: { venueIds: [], equipmentIds: ['equipment-1'] } },
       ],
     );
 
@@ -112,9 +112,21 @@ describe('EventSafetyCheckSource.view', () => {
       requestedDate: '2026-10-12T01:00:00.000Z',
       approverName: 'Safety Officer 1',
       feedback: [
-        { id: 'f1', text: 'Clear the aisle', requestedAt: '2026-10-12T02:00:00.000Z', resolvedByCoordinatorAt: '2026-10-12T03:00:00.000Z' },
-        { id: 'f2', text: 'Check the exits', requestedAt: '2026-10-12T02:00:00.000Z' },
+        { id: 'f1', text: 'Clear the aisle', requestedAt: '2026-10-12T02:00:00.000Z', resolvedByCoordinatorAt: '2026-10-12T03:00:00.000Z', reviewArrangements: { venueIds: ['booking-1'], equipmentIds: [] } },
+        { id: 'f2', text: 'Check the exits', requestedAt: '2026-10-12T02:00:00.000Z', reviewArrangements: { venueIds: [], equipmentIds: ['equipment-1'] } },
       ],
+    });
+  });
+
+  /** Feedback rows from before the marker migration default to no affected arrangements. */
+  it('defaults missing review arrangement metadata to empty venue and equipment lists', async () => {
+    const source = sourceReturningInOrder(
+      [{ status: 'rejected', requested_at: REQUESTED_AT, approver_name: 'Safety Officer 1' }],
+      [{ id: 'f1', feedback_text: 'Revise the plan.', requested_at: REQUESTED_AT, resolved_by_coordinator_at: null, review_arrangements: null }],
+    );
+    await expect(source.view(EVENT_ID)).resolves.toMatchObject({
+      status: 'rejected',
+      feedback: [{ reviewArrangements: { venueIds: [], equipmentIds: [] } }],
     });
   });
 });

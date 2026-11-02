@@ -28,6 +28,7 @@ export class EquipmentRequestsService {
       throw new ConflictException({ code: COMPLETION_CODES.arrangementsLocked, message: COMPLETION_MESSAGES.arrangementsLocked });
     if (result.kind === 'event-confirmed') throw new ConflictException('Equipment requests cannot be updated after the event is confirmed.');
     if (result.kind === 'event-not-open') throw new ConflictException('This event is not open for equipment requests.');
+    if (result.kind === 'invalid-safety-review-update') throw new ConflictException('Only equipment flagged by the Safety Officer can be changed while this review is open; keep other requested items unchanged.');
     return { ...result, requestReference: `ER-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}` };
   }
 

@@ -80,6 +80,59 @@ beforeEach(() => {
 });
 
 describe("EventDetailPage", () => {
+  /** SAFETY-OUTCOME-06: an unsaved registration edit in the real event-detail flow disables safety request until the draft is reverted. */
+  it("SAFETY-OUTCOME-06 connects registration drafts to the event safety request gate", async () => {
+    const event = { ...assignedEvent(), status: 'planning' as const };
+    const planning = {
+      event, venueBookings: [], equipmentArrangements: [], pendingChanges: [],
+      readOnly: false, editableFields: [], lastUpdatedAt: '2026-10-01T00:00:00.000Z',
+    };
+    const readiness = {
+      eventId: event.id, ready: true, outstanding: [],
+      checklist: {
+        venue: { status: 'confirmed', items: [{ id: 'booking-1', venueName: 'Main Hall', status: 'confirmed' }] },
+        equipment: { required: true, status: 'confirmed', items: [{ id: 'reservation-1', name: 'Projector', quantity: 1, status: 'confirmed' }], confirmedByCoordinator: false },
+        safetyCheck: { status: 'not_requested' },
+        registration: { enabled: false, status: 'confirmed' },
+        canRequestSafetyCheck: true, blocking: [],
+      },
+    };
+    apiMock.mockImplementation((path: string) => {
+      if (path.includes('/comments')) return Promise.resolve([]);
+      if (path.endsWith('/planning/history')) return Promise.resolve([]);
+      if (path.endsWith('/planning')) return Promise.resolve(planning);
+      if (path.endsWith('/arrangements-status')) return Promise.resolve(readiness);
+      if (path.endsWith('/registration-settings')) return Promise.resolve({
+        eventId: event.id, registrationEnabled: false, registrationOpensAt: null,
+        registrationClosesAt: null, capacity: 1, confirmedCount: 0, version: 0,
+      });
+      return Promise.resolve(event);
+    });
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+          <Routes>
+            <Route path="/events/:id" element={<EventDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Welcome Evening' })).toBeTruthy();
+    const requestButton = await screen.findByRole('button', { name: 'Request For Safety Check' });
+    await screen.findByRole('tab', { name: /Registration/ });
+    expect(await screen.findByRole('button', { name: 'Request For Safety Check' })).toBeEnabled();
+    await screen.findByRole('tab', { name: /Registration/ }).then((tab) => fireEvent.click(tab));
+    const enabled = await screen.findByRole('checkbox', { name: 'Registration enabled' });
+    fireEvent.click(enabled);
+    expect(await screen.findByText('Save or restore the Registration settings before requesting the safety check.')).toBeTruthy();
+    expect(requestButton).toBeDisabled();
+
+    fireEvent.click(enabled);
+    await screen.findByRole('button', { name: 'Request For Safety Check' }).then((button) => expect(button).toBeEnabled());
+  });
+
   // SPM-38 Test Case EVE-REV-03-A
   // Kills: the attachment list missing its View button, or the Download link lacking the file name or the data URL as href.
   it("shows attached files with view and download actions", async () => {

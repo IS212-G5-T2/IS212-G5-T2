@@ -153,6 +153,15 @@ export function EventDetailPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionError, setRejectionError] = useState(false);
   const [submittingDecision, setSubmittingDecision] = useState(false);
+  const [registrationDraft, setRegistrationDraft] = useState<{ eventId?: string; pending: boolean }>({ pending: false });
+  const reportRegistrationDraft = useCallback((pending: boolean) => {
+    setRegistrationDraft((current) =>
+      current.eventId === id && current.pending === pending
+        ? current
+        : { eventId: id, pending },
+    );
+  }, [id]);
+  const registrationDraftPending = registrationDraft.eventId === id && registrationDraft.pending;
   // SPM-136: the cancel dialog is mounted only while it is open.
   const [showCancel, setShowCancel] = useState(false);
   // CQ F2: where focus goes when the dialog closes: the cancelled banner if the event is now cancelled, else the trigger.
@@ -607,7 +616,7 @@ export function EventDetailPage() {
         <PlanningInformationPage
           view={planningView}
           status={event.status}
-          registrationPeriodSet={Boolean(event.registrationOpensAt && event.registrationClosesAt)}
+          registrationDraftPending={registrationDraftPending}
           // SPM-139: the registration dates and capacity can be set from approval through confirmation, in their own tab.
           registration={
             ["approved", "planning", "confirmed"].includes(event.status) ? (
@@ -617,6 +626,7 @@ export function EventDetailPage() {
                   startDateTime={event.startDateTime}
                   status={event.status}
                   onSaved={refreshEvent}
+                  onDraftStateChange={reportRegistrationDraft}
                 />
                 {event.status === "confirmed" && canViewRegistrationReport(currentUser, event) && (
                   <div className="mt-4">

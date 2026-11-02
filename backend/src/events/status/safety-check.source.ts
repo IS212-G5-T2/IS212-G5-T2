@@ -17,6 +17,7 @@ export interface SafetyCheckFeedback {
   text: string;
   requestedAt: string;
   resolvedByCoordinatorAt?: string;
+  reviewArrangements: { venueIds: string[]; equipmentIds: string[] };
 }
 
 export interface SafetyCheckView {
@@ -40,6 +41,7 @@ interface FeedbackRow {
   feedback_text: string;
   requested_at: Date;
   resolved_by_coordinator_at: Date | null;
+  review_arrangements: { venueIds: string[]; equipmentIds: string[] };
 }
 
 const FACT_STATE: Record<SafetyCheckRow['status'], SafetyFact['state']> = {
@@ -81,7 +83,7 @@ export class EventSafetyCheckSource implements SafetyOutcomeSource {
 
   private async feedbackItems(eventId: string): Promise<SafetyCheckFeedback[]> {
     const result = await this.database.query<FeedbackRow>(
-      `SELECT id, feedback_text, requested_at, resolved_by_coordinator_at
+      `SELECT id, feedback_text, requested_at, resolved_by_coordinator_at, review_arrangements
          FROM safety_check_feedback_items WHERE event_id = $1 ORDER BY requested_at, id`,
       [eventId],
     );
@@ -89,6 +91,7 @@ export class EventSafetyCheckSource implements SafetyOutcomeSource {
       id: row.id,
       text: row.feedback_text,
       requestedAt: row.requested_at.toISOString(),
+      reviewArrangements: row.review_arrangements ?? { venueIds: [], equipmentIds: [] },
       ...(row.resolved_by_coordinator_at
         ? { resolvedByCoordinatorAt: row.resolved_by_coordinator_at.toISOString() }
         : {}),

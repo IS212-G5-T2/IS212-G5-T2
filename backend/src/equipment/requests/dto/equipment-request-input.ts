@@ -3,6 +3,7 @@ import { UUID_PATTERN } from '../../../common/uuid.js';
 import { EQUIPMENT_TYPES } from '../../creation/dto/equipment-input.js';
 
 export interface EquipmentRequestItemInput {
+  id?: string;
   equipmentName: string;
   equipmentType: (typeof EQUIPMENT_TYPES)[number];
   quantity: number;
@@ -15,7 +16,7 @@ export interface EquipmentRequestInput {
 
 const MAX_QUANTITY = 2_147_483_647;
 const FIELDS = ['eventId', 'items'];
-const ITEM_FIELDS = ['equipmentName', 'equipmentType', 'quantity'];
+const ITEM_FIELDS = ['id', 'equipmentName', 'equipmentType', 'quantity'];
 
 function invalid(field: string, message: string): never {
   throw new BadRequestException({ message: 'Invalid equipment request.', errors: { [field]: message } });
@@ -33,11 +34,13 @@ export function validateEquipmentRequest(value: unknown): EquipmentRequestInput 
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) invalid(prefix, 'Equipment item details are required.');
     const item = candidate as Record<string, unknown>;
     if (Object.keys(item).some((field) => !ITEM_FIELDS.includes(field))) invalid(prefix, 'The equipment item contains unsupported fields.');
+    if (item.id !== undefined && (typeof item.id !== 'string' || !UUID_PATTERN.test(item.id))) invalid(`${prefix}.id`, 'Equipment item reference is invalid.');
     if (typeof item.equipmentName !== 'string' || item.equipmentName.trim().length === 0) invalid(`${prefix}.equipmentName`, 'Equipment name is required.');
     if (typeof item.equipmentType !== 'string' || !EQUIPMENT_TYPES.includes(item.equipmentType as EquipmentRequestItemInput['equipmentType'])) invalid(`${prefix}.equipmentType`, 'Choose a valid equipment type.');
     if (item.quantity === undefined || item.quantity === null || item.quantity === '') invalid(`${prefix}.quantity`, 'Quantity is required.');
     if (typeof item.quantity !== 'number' || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > MAX_QUANTITY) invalid(`${prefix}.quantity`, `Quantity must be a whole number between 1 and ${MAX_QUANTITY}.`);
     return {
+      ...(typeof item.id === 'string' ? { id: item.id } : {}),
       equipmentName: item.equipmentName.trim(),
       equipmentType: item.equipmentType as EquipmentRequestItemInput['equipmentType'],
       quantity: item.quantity,

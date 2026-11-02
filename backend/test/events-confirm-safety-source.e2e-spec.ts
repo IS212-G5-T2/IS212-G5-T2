@@ -165,10 +165,10 @@ describe.skipIf(!database)('SPM-135 Confirm gate against the real safety source 
   });
 
   /**
-   * A real changes_needed safety check is an unresolved outcome, so the gate refuses Confirmed with
+   * SAFETY-OUTCOME-03: a real changes_needed safety check is an unresolved outcome, so the gate refuses Confirmed with
    * 422 CONFIRM_BLOCKED and reports the state "Changes Requested". The event stays in Planning.
    */
-  it('SAFETY-SOURCE-02: a real changes_needed safety check blocks Confirmed with 422 CONFIRM_BLOCKED', async () => {
+  it('SAFETY-OUTCOME-03 SAFETY-SOURCE-02: a changes_needed safety check blocks Confirmed until approved', async () => {
     // Arrange
     const eventId = await seedReadyEvent();
     await writeSafetyRow(eventId, 'changes_needed');
@@ -203,10 +203,10 @@ describe.skipIf(!database)('SPM-135 Confirm gate against the real safety source 
   });
 
   /**
-   * Positive control: the same ready event with an approved real safety row is confirmed, which shows
+   * SAFETY-OUTCOME-03 positive control: the same ready event with an approved real safety row is confirmed, which shows
    * the refusals above are caused by the safety state and not by the fixture.
    */
-  it('SAFETY-SOURCE-04: a real approved safety check lets the same event be confirmed (200)', async () => {
+  it('SAFETY-OUTCOME-03 SAFETY-SOURCE-04: approved safety permits confirmation', async () => {
     // Arrange
     const eventId = await seedReadyEvent();
     await writeSafetyRow(eventId, 'approved');

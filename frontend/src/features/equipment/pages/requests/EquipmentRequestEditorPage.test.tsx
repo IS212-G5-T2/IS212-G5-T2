@@ -116,7 +116,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     await waitFor(() => expect(nameInput).toHaveValue('Wireless microphone'));
     await user.click(screen.getByRole('button', { name: 'Update Event' }));
     await waitFor(() => expect(updateEquipmentRequest).toHaveBeenCalledWith(record.id, {
-      eventId: event.id, items: [{ equipmentName: 'Wireless microphone', equipmentType: 'Audio', quantity: 1 }],
+      eventId: event.id, items: [{ id: 'item-1', equipmentName: 'Wireless microphone', equipmentType: 'Audio', quantity: 1 }],
     }));
     expect(screen.getByTestId('location')).toHaveTextContent(`/equipment/requests?updated=${record.reference}`);
     expect(submitEquipmentRequest).not.toHaveBeenCalled();
@@ -132,7 +132,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(screen.queryByRole('combobox', { name: /Event/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Update Event' }));
     await waitFor(() => expect(updateEquipmentRequest).toHaveBeenCalledWith(record.id, {
-      eventId: record.eventId, items: [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }],
+      eventId: record.eventId, items: [{ id: 'item-1', equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }],
     }));
   });
 
