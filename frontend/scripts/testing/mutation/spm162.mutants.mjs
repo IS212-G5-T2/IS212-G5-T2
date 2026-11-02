@@ -35,7 +35,7 @@ export const MUTANTS = [
     file: ROW,
     suites: ['outcomeNotices'],
     testMappings: bell('04-B', '04-C'),
-    edits: [['new Set<Notification["type"]>(["venue_booking_approved", "venue_booking_rejected"])', 'new Set<Notification["type"]>(["venue_booking_approved", "venue_booking_rejected", "cancellation_request_accepted", "cancellation_request_declined"])']],
+    edits: [['  "venue_capacity_impact",\n]);', '  "venue_capacity_impact",\n  "cancellation_request_accepted",\n  "cancellation_request_declined",\n]);']],
   },
   {
     id: 'SPM162-FE-04',
