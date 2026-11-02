@@ -26,6 +26,7 @@ import { PlanningInformationPanel } from "@/features/events/pages/detail/plannin
 import { PlanningUpdateForm } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
 import { FlaggedChangeReview } from "@/features/events/pages/detail/planning/FlaggedChangeReview";
 import { PlanningInformationPage } from "@/features/events/pages/detail/planning/PlanningInformationPage";
+import { CompleteEventPanel } from "@/features/events/pages/detail/planning/CompleteEventPanel";
 import { StatusHistory } from "@/features/events/pages/detail/planning/StatusHistory";
 import { ChangeHistoryList } from "@/features/events/pages/detail/planning/ChangeHistoryList";
 import { ConfirmedArrangementsPanel } from "@/features/events/pages/detail/planning/ConfirmedArrangementsPanel";
@@ -62,6 +63,7 @@ const STATUS_FLOW = [
   "approved",
   "planning",
   "confirmed",
+  "completed",
   "cancelled",
 ] as const;
 
@@ -76,10 +78,12 @@ const REJECTED_FLOW = ["draft", "submitted", "rejected"] as const;
 function timelineStages(status: string, cancelledFrom: string | null): readonly string[] {
   const flow = STATUS_FLOW as readonly string[];
   if (status === "cancelled") {
-    const reached = flow.indexOf(cancelledFrom ?? "");
+    // A cancelled event can never have reached Completed, so that stage is left out of its timeline.
+    const beforeCancel = flow.filter((stage) => stage !== "completed");
+    const reached = beforeCancel.indexOf(cancelledFrom ?? "");
     // A history row that says "cancelled" as the origin must not add a second Cancelled step.
-    const cancelledAt = flow.indexOf("cancelled");
-    return reached >= 0 ? [...flow.slice(0, Math.min(reached + 1, cancelledAt)), "cancelled"] : ["cancelled"];
+    const cancelledAt = beforeCancel.indexOf("cancelled");
+    return reached >= 0 ? [...beforeCancel.slice(0, Math.min(reached + 1, cancelledAt)), "cancelled"] : ["cancelled"];
   }
   const current = flow.indexOf(status);
   return current >= 0 ? flow.slice(0, current + 1) : flow;
@@ -821,7 +825,8 @@ export function EventDetailPage() {
           />
         )}
 
-        {(isOwner || isAssignedCoordinator) && (
+        {/* SPM-153: a Completed event's arrangements are closed, so its clarifications and amendments are not shown. */}
+        {(isOwner || isAssignedCoordinator) && event.status !== "completed" && (
           <div className="lg:col-span-3">
             <ClarificationThread
               comments={comments}
@@ -864,13 +869,21 @@ export function EventDetailPage() {
 
       {/* Straight after submitting, "back" would return to the submitted form;
           the success banner's "View My Events" link is the way on instead. */}
-      {!location.state?.submitted && (
-        <div className="mt-4">
+      <div className="mt-4 flex items-end justify-between gap-4">
+        {!location.state?.submitted && (
           <button onClick={() => navigate(-1)} className="text-sm text-gray-500 dark:text-gray-400 hover:underline">
             ← Back
           </button>
-        </div>
-      )}
+        )}
+        {/* SPM-153: Mark as Completed sits at the bottom right of the event, and a Completed event says so. */}
+        <CompleteEventPanel
+          eventId={event.id}
+          status={event.status}
+          endDateTime={event.endDateTime}
+          isAssignedCoordinator={isAssignedCoordinator}
+          onCompleted={() => setEventStatus(event.id, "completed")}
+        />
+      </div>
     </div>
   );
 }

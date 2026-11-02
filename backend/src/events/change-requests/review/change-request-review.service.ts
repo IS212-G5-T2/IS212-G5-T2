@@ -41,7 +41,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { AuthenticatedUser } from '../../../auth/types/auth.models.js';
 import { CLOCK, systemClock, type Clock } from '../../../common/clock.js';
-import { assertEventNotCancelled } from '../../cancelled-guard.js';
+import { assertArrangementsEditable } from '../../cancelled-guard.js';
 import {
   validateEventUpdate,
   type EventFieldKey,
@@ -141,7 +141,7 @@ export class ChangeRequestReviewService {
       const { event } = await this.assignedEvent(user, eventId);
       const request = await this.findRequest(eventId, requestId, true);
       this.requirePending(request);
-      assertEventNotCancelled(event.status);
+      assertArrangementsEditable(event.status);
       if (!OPEN.includes(event.status))
         throw new ConflictException(REVIEW_MESSAGES.notOpen);
       if (this.clock.now().getTime() >= Date.parse(event.startDateTime))
@@ -273,7 +273,7 @@ export class ChangeRequestReviewService {
       const { event } = await this.assignedEvent(user, eventId);
       const request = await this.findRequest(eventId, requestId, true);
       this.requirePending(request);
-      assertEventNotCancelled(event.status);
+      assertArrangementsEditable(event.status);
       const now = this.clock.now();
       const decided = await this.repository.query(
         `UPDATE event_change_requests
@@ -314,7 +314,7 @@ export class ChangeRequestReviewService {
       const request = await this.findRequest(eventId, requestId, true);
       if (request.status !== 'Approved')
         throw new ConflictException(REVIEW_MESSAGES.notApproved);
-      assertEventNotCancelled(event.status);
+      assertArrangementsEditable(event.status);
       const items = request.recheck as RecheckItem[];
       const item = items.find((entry) => entry.id === itemId);
       if (!item) throw new NotFoundException(REVIEW_MESSAGES.recheckNotFound);

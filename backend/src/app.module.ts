@@ -45,6 +45,8 @@ import { LeadAssignmentController } from './lead/lead-assignment.controller.js';
 import { LeadAssignmentService } from './lead/lead-assignment.service.js';
 import { StatusController } from './events/status/status.controller.js';
 import { StatusService } from './events/status/status.service.js';
+import { CompletionRecordController } from './events/completion/completion-record.controller.js';
+import { CompletionRecordService } from './events/completion/completion-record.service.js';
 import { ArrangementsReader, NoSafetyRecordSource, SAFETY_OUTCOME_SOURCE } from './events/status/arrangements.reader.js';
 import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
 import { CancelEventService } from './events/cancel/cancel-event.service.js';
@@ -70,6 +72,7 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     CoordinatorAvailabilityController,
     LeadAssignmentController,
     StatusController,
+    CompletionRecordController,
     CancellationRequestsController,
   ],
   providers: [
@@ -95,6 +98,7 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     EventSafetyCheckSource,
     { provide: SAFETY_OUTCOME_SOURCE, useExisting: EventSafetyCheckSource },
     StatusService,
+    CompletionRecordService,
     CancelEventService,
     CancellationRequestsService,
     { provide: EVENT_RELEASERS, useValue: DEFAULT_RELEASERS },
@@ -125,6 +129,7 @@ export class AppModule implements NestModule {
         CoordinatorAvailabilityController,
         LeadAssignmentController,
         StatusController,
+        CompletionRecordController,
         CancellationRequestsController,
       );
   }

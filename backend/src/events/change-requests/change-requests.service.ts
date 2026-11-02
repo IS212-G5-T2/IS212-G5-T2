@@ -39,6 +39,7 @@ import type pg from 'pg';
 import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import { CLOCK, systemClock, type Clock } from '../../common/clock.js';
 import { DatabaseService } from '../../database/database.service.js';
+import { assertArrangementsEditable } from '../cancelled-guard.js';
 import { changeRequestNoticeMessage, insertChangeRequestNotice } from './change-request-notice.js';
 import { recordOutcome } from './change-request-audit.js';
 import {
@@ -168,6 +169,9 @@ export class ChangeRequestsService {
       return await this.database.transaction(async (client) => {
         const event = await this.lockEvent(client, eventId);
         if (!event || event.organiser_id !== user.uid) throw new NotFoundException(MESSAGES.notFound);
+        // SPM-153 AC6: a Completed event's date, time, venue and equipment cannot be changed by request either.
+        // Only Completed is checked here so Cancelled keeps its existing 'change_request_closed' answer below.
+        if (event.status === 'Completed') assertArrangementsEditable(event.status);
         if (!(CHANGE_REQUEST_OPEN_STATUSES as readonly string[]).includes(event.status))
           throw new ConflictException({ message: MESSAGES.closed, code: 'change_request_closed' });
         if (this.clock.now().getTime() >= new Date(event.start_date_time).getTime())

@@ -630,7 +630,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     const { eventId } = await seedReadyEvent();
 
     // Act
-    const response = await statusChange(coordinator, eventId, 'Completed').expect(400);
+    const response = await statusChange(coordinator, eventId, 'Planning').expect(400);
 
     // Assert
     expect(response.body.code).toBe('UNSUPPORTED_TARGET_STATUS');

@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { COMPLETION_CODES, COMPLETION_MESSAGES } from '../../events/completion/completion.messages.js';
 import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import { EquipmentRequestsRepository } from './equipment-requests.repository.js';
 import { validateEquipmentRequest } from './dto/equipment-request-input.js';
@@ -23,6 +24,8 @@ export class EquipmentRequestsService {
     const coordinator = this.coordinator(user);
     const result = await this.repository.update(coordinator.uid, requestId, validateEquipmentRequest(body));
     if (result.kind === 'request-not-found') throw new NotFoundException('Equipment request not found.');
+    if (result.kind === 'event-completed')
+      throw new ConflictException({ code: COMPLETION_CODES.arrangementsLocked, message: COMPLETION_MESSAGES.arrangementsLocked });
     if (result.kind === 'event-confirmed') throw new ConflictException('Equipment requests cannot be updated after the event is confirmed.');
     if (result.kind === 'event-not-open') throw new ConflictException('This event is not open for equipment requests.');
     if (result.kind === 'invalid-safety-review-update') throw new ConflictException('Only equipment flagged by the Safety Officer can be changed while this review is open; keep other requested items unchanged.');
@@ -56,6 +59,8 @@ export class EquipmentRequestsService {
     if (!user.roles.includes('TECH_SUPPORT')) throw new ForbiddenException('Technical Support access required.');
     const result = await this.repository.reserve(requestId);
     if (result.kind === 'request-not-found') throw new NotFoundException('Equipment request not found.');
+    if (result.kind === 'event-completed')
+      throw new ConflictException({ code: COMPLETION_CODES.arrangementsLocked, message: COMPLETION_MESSAGES.arrangementsLocked });
     if (result.kind === 'event-confirmed') throw new ConflictException('Equipment requests cannot be changed after the event is confirmed.');
     if (result.kind === 'not-pending') throw new ConflictException('Only Pending Review equipment requests can be reserved.');
     if (result.kind === 'insufficient-active-stock') {
@@ -71,6 +76,8 @@ export class EquipmentRequestsService {
     const reason = this.cannotProvideReason(body);
     const result = await this.repository.markCannotProvide(requestId, reason);
     if (result.kind === 'request-not-found') throw new NotFoundException('Equipment request not found.');
+    if (result.kind === 'event-completed')
+      throw new ConflictException({ code: COMPLETION_CODES.arrangementsLocked, message: COMPLETION_MESSAGES.arrangementsLocked });
     if (result.kind === 'event-confirmed') throw new ConflictException('Equipment requests cannot be changed after the event is confirmed.');
     if (result.kind === 'not-pending') throw new ConflictException('Only Pending Review equipment requests can be marked Cannot Provide.');
     return { ...result, requestReference: `ER-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}` };

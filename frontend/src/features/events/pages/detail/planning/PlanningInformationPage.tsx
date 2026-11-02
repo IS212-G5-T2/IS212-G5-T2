@@ -32,6 +32,7 @@ import {
 } from "@/utils/arrangements";
 import { EventInformationList } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
 import { ConfirmEventPanel } from "@/features/events/pages/detail/planning/ConfirmEventPanel";
+import { CompletionRecordForm } from "@/features/events/pages/detail/planning/CompletionRecordForm";
 import { SafetyCheckChangesNeeded } from "@/features/events/pages/detail/planning/SafetyCheckChangesNeeded";
 import { shouldShowSafetyFeedback } from "@/features/events/pages/detail/planning/safetyFeedbackVisibility";
 import { activeVenueRequests } from "@/features/events/pages/detail/planning/activeVenueRequests";
@@ -845,6 +846,8 @@ export function PlanningInformationPage({
           }}
         />
       )}
+
+      <CompletionRecordForm eventId={eventId} status={status} isAssignedCoordinator />
     </section>
   );
 }

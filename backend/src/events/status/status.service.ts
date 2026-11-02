@@ -33,6 +33,8 @@ import { CancelEventService } from '../cancel/cancel-event.service.js';
 import { CANCEL_CODES, CANCEL_MESSAGES } from '../cancel/cancel.messages.js';
 import { assertEventNotCancelled } from '../cancelled-guard.js';
 import { STATUS_CODES, STATUS_MESSAGES } from './status.messages.js';
+import { COMPLETION_CODES, COMPLETION_MESSAGES } from '../completion/completion.messages.js';
+import { hasEventEnded } from '../completion/completion.rules.js';
 import { safetyFeedbackCanBeResolved } from './safety-feedback-resolution.js';
 import {
   evaluateReadiness,
@@ -80,6 +82,11 @@ export class StatusService {
     if (targetStatus === 'Cancelled') return this.cancellation.cancel(identity, eventId, body);
     const user = this.requireUser(identity);
     const event = await this.assignedEventOrThrow(user, eventId);
+    // SPM-153: Confirmed to Completed, once the event has ended (BR2 to BR4). Status and date are checked under the lock.
+    if (targetStatus === 'Completed')
+      return this.database.transaction((client) =>
+        this.complete(client, { identity: user, event, now: this.clock.now() }),
+      );
     // SPM-136: a cancelled event can only be confirmed (refused by the Confirmed handler, MSG-CF-05).
     if (event.status === 'Cancelled' && targetStatus !== 'Confirmed')
       throw new UnprocessableEntityException({
@@ -514,6 +521,46 @@ export class StatusService {
       eventId: event.id,
       status: 'Confirmed',
       message: STATUS_MESSAGES.confirmed(updated.rows[0].event_name),
+    };
+  }
+
+  /**
+   * SPM-153: one compare-and-set from Confirmed to Completed under the event row lock. The end instant is read
+   * from the locked row and compared with the injected clock. One history row is written with the transition.
+   */
+  private async complete(client: pg.PoolClient, { identity, event, now }: StatusChangeContext) {
+    const locked = await client.query<EventRow & { end_date_time: Date }>(
+      'SELECT id, status, event_name, organiser_id, coordinator_id, end_date_time FROM events WHERE id = $1 FOR UPDATE',
+      [event.id],
+    );
+    const current = locked.rows[0];
+    if (!current) throw new NotFoundException(STATUS_MESSAGES.notFound);
+    if (current.coordinator_id !== identity.uid)
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: STATUS_MESSAGES.notAssigned });
+    if (current.status !== 'Confirmed')
+      throw new ConflictException({ code: COMPLETION_CODES.notCompletable, message: COMPLETION_MESSAGES.notCompletable });
+    if (!hasEventEnded(current.end_date_time, now))
+      throw new UnprocessableEntityException({ code: COMPLETION_CODES.notEnded, message: COMPLETION_MESSAGES.notEnded });
+
+    const updated = await client.query<{ event_name: string }>(
+      `UPDATE events SET status = 'Completed', updated_at = $2
+        WHERE id = $1 AND status = 'Confirmed'
+        RETURNING event_name`,
+      [event.id, now],
+    );
+    if (!updated.rows[0])
+      throw new ConflictException({ code: COMPLETION_CODES.notCompletable, message: COMPLETION_MESSAGES.notCompletable });
+
+    await client.query(
+      `INSERT INTO event_status_history (id, event_id, from_status, to_status, actor_id, created_at)
+       VALUES ($1, $2, 'Confirmed', 'Completed', $3, $4)`,
+      [randomUUID(), event.id, identity.uid, now],
+    );
+
+    return {
+      eventId: event.id,
+      status: 'Completed',
+      message: COMPLETION_MESSAGES.completed(updated.rows[0].event_name),
     };
   }
 

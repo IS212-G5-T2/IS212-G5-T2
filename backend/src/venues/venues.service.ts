@@ -15,6 +15,7 @@ import type {
 import { RbacRepository } from '../auth/authorization/repository/rbac.repository.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
+import { COMPLETION_CODES, COMPLETION_MESSAGES } from '../events/completion/completion.messages.js';
 import {
   PLANNING_CODES,
   PLANNING_MESSAGES,
@@ -82,7 +83,16 @@ function decisionOrThrow(
       conflicts: result.conflicts,
     });
   }
+  if (result.kind === 'event-completed') throw arrangementsLocked();
   return result.booking;
+}
+
+/** SPM-153 BR9 / MSG-CP-06: the venue bookings of a Completed event are read-only. */
+function arrangementsLocked() {
+  return new ConflictException({
+    code: COMPLETION_CODES.arrangementsLocked,
+    message: COMPLETION_MESSAGES.arrangementsLocked,
+  });
 }
 
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';
@@ -370,6 +380,7 @@ export class VenuesService {
     );
     if (result.kind === 'not-found')
       throw new NotFoundException('Venue booking not found.');
+    if (result.kind === 'event-completed') throw arrangementsLocked();
     if (result.kind === 'not-active')
       throw new ConflictException(
         'Only pending or approved venue bookings can be cancelled.',
