@@ -33,7 +33,7 @@ describe('COMPLETE-EVENT-05-D/05-E: completion record validation at its boundari
   it.each([
     ['a'.repeat(2000), true],
     ['a'.repeat(2001), false],
-    ['😀'.repeat(2000), true], // code points, not UTF-16 units
+    ['😀'.repeat(2000), true], // counted in code points, not in code units
   ])('COMPLETE-EVENT-05-E: notes of %s characters are accepted: %s', (notes, accepted) => {
     expect(validateCompletionRecord({ operationalNotes: notes }).ok).toBe(accepted);
   });
@@ -56,9 +56,25 @@ describe('COMPLETE-EVENT-05-D/05-E: completion record validation at its boundari
     expect(validateCompletionRecord({ issues: [] })).toEqual({ ok: true, value: { issues: [] } });
   });
 
+  it.each([
+    [{ operationalNotes: 5 }, 'operationalNotes'],
+    [{ issues: ['not an object'] }, 'issues'],
+    [{ issues: [{ description: 3 }] }, 'issues'],
+  ])('COMPLETE-EVENT-05-D: a value of the wrong type is refused and names its field: %j', (body, field) => {
+    expect(validateCompletionRecord(body)).toEqual({ ok: false, field });
+  });
+
   it('COMPLETE-EVENT-05-D: an empty body and an unknown key are refused as the body', () => {
     expect(validateCompletionRecord({})).toEqual({ ok: false, field: 'body' });
     expect(validateCompletionRecord({ attendanceCount: 1, changedBy: 'x' })).toEqual({ ok: false, field: 'body' });
     expect(validateCompletionRecord(null)).toEqual({ ok: false, field: 'body' });
+  });
+
+  // COMPLETE-EVENT-05-B (clear): null clears attendance and notes, and the record keeps the other items.
+  it('COMPLETE-EVENT-05-B: null clears attendance and notes', () => {
+    expect(validateCompletionRecord({ attendanceCount: null, operationalNotes: null })).toEqual({
+      ok: true,
+      value: { attendanceCount: null, operationalNotes: null },
+    });
   });
 });

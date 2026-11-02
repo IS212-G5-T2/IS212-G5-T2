@@ -54,7 +54,6 @@ export function CompletionRecordForm({ eventId, status, isAssignedCoordinator }:
   if (!visible) return null;
 
   const handleSave = async () => {
-    if (pending) return;
     setPending(true);
     setErrorMessage("");
     setSuccessMessage("");

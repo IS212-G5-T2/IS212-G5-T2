@@ -1125,6 +1125,44 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | SAFETY-DECISION-04 | PRIMARY | SPM-130 | AC4 | Confluence matrix 36798526; case page 36733026 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-28 | Active |
 | SAFETY-DECISION-05 | PRIMARY | SPM-130 | AC5 | Confluence matrix 36798526; case page 36831279 | frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-28 | Active |
 
+## SPM-153
+
+| ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |
+|---|---|---|---|---|---|---|---|
+| COMPLETE-EVENT-01-A | PRIMARY | SPM-153 | AC1 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, frontend/src/features/events/pages/detail/planning/CompleteEventPanel.test.tsx | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-01-B | PRIMARY | SPM-153 | AC1 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, frontend/src/features/events/pages/detail/planning/CompleteEventPanel.test.tsx | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-01-C | PRIMARY | SPM-153 | AC1 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, backend/src/events/completion/completion.rules.spec.ts, frontend/src/features/events/pages/detail/planning/CompleteEventPanel.test.tsx | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-01-D | PRIMARY | SPM-153 | AC1 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-01-E | PRIMARY | SPM-153 | AC1 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-01-F | PRIMARY | SPM-153 | AC1 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-02-A | PRIMARY | SPM-153 | AC2 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-02-B | PRIMARY | SPM-153 | AC2 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, frontend/src/features/events/pages/detail/planning/CompleteEventPanel.test.tsx | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-02-C | PRIMARY | SPM-153 | AC2 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-02-D | PRIMARY | SPM-153 | AC2 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-02-E | PRIMARY | SPM-153 | AC2 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, frontend/src/features/events/pages/detail/planning/CompleteEventPanel.test.tsx | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-02-F | PRIMARY | SPM-153 | AC2 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-03-A | PRIMARY | SPM-153 | AC3 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-03-B | PRIMARY | SPM-153 | AC3 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-03-C | PRIMARY | SPM-153 | AC3 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-03-D | PRIMARY | SPM-153 | AC3 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-04-A | PRIMARY | SPM-153 | AC4 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-04-B | PRIMARY | SPM-153 | AC4 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-04-C | PRIMARY | SPM-153 | AC4 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-05-A | PRIMARY | SPM-153 | AC5 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, frontend/src/features/events/pages/detail/planning/CompletionRecordForm.test.tsx | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-05-B | PRIMARY | SPM-153 | AC5 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, backend/src/events/completion/completion.rules.spec.ts, frontend/src/features/events/pages/detail/planning/CompletionRecordForm.test.tsx | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-05-C | PRIMARY | SPM-153 | AC5 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, frontend/src/features/events/pages/detail/planning/CompletionRecordForm.test.tsx | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-05-D | PRIMARY | SPM-153 | AC5 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, backend/src/events/completion/completion.rules.spec.ts, frontend/src/features/events/pages/detail/planning/CompletionRecordForm.test.tsx | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-05-E | PRIMARY | SPM-153 | AC5 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/src/events/completion/completion.rules.spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-05-F | PRIMARY | SPM-153 | AC5 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, frontend/src/features/events/pages/detail/planning/CompletionRecordForm.test.tsx | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-05-G | PRIMARY | SPM-153 | AC5 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-06-A | PRIMARY | SPM-153 | AC6 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-06-B | PRIMARY | SPM-153 | AC6 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts, backend/src/events/completion/arrangements-guard.spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-06-C | PRIMARY | SPM-153 | AC6 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-06-D | PRIMARY | SPM-153 | AC6 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-06-E | PRIMARY | SPM-153 | AC6 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/src/events/change-requests/change-requests.service.spec.ts, backend/src/events/change-requests/review/change-request-review.service.spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-06-F | PRIMARY | SPM-153 | AC6 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+| COMPLETE-EVENT-06-G | PRIMARY | SPM-153 | AC6 | Confluence matrix 35979372 (SPM-153 matrix v1.0, 27 Oct 2026) | backend/test/events-completion.e2e-spec.ts | Matrix row (no approval needed) | Active |
+
 ## Notes
 
 - `CONFIRM-EVENT-03-D` is used by a confirm panel test but has no Confluence case, so it is registered as SUPPORTING. Its name reads like a matrix row; renaming it to a supporting id is a follow-up.
@@ -1161,3 +1199,4 @@ Id-shaped text in the tests that is not a test id (fixture labels, message codes
 | VS     | Venue Staff login labels in specs (SPM-48 VS-01)             |
 | H1     | Fixture hold label in specs (SPM-48 MONITOR-QUEUE-08-B)      |
 | SC-SPM48 | Spec-conflict register ids for SPM-48, named in test comments |
+| MSG-CP | SPM-153 message catalogue codes (MSG-CP-01 to MSG-CP-07 in the test case document), named in assertions, not test ids |

@@ -59,7 +59,6 @@ export function CompleteEventPanel({ eventId, status, endDateTime, isAssignedCoo
   if (!showAction) return null;
 
   const handleComplete = async () => {
-    if (pending) return;
     setPending(true);
     setErrorMessage("");
     try {

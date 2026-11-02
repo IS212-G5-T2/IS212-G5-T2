@@ -73,12 +73,13 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     app = moduleFixture.createNestApplication();
     await app.init();
 
+    // Five logins (bcrypt) per test; under load they can exceed the 30 s default hook limit.
     coordinator = await createSession('COORDINATOR');
     otherCoordinator = await createSession('COORDINATOR');
     lead = await createSession('COORDINATOR_LEAD');
     organiser = await createSession('ORGANISER');
     attendee = await createSession('ATTENDEE');
-  });
+  }, 60_000);
 
   afterEach(async () => {
     await app.close();
@@ -373,6 +374,45 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     });
   });
 
+  // COMPLETE-EVENT-05-A (empty): a fresh event has an empty record.
+  it('COMPLETE-EVENT-05-A: a fresh event has an empty record (nulls and an empty list)', async () => {
+    const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
+
+    const read = await recordGet(coordinator, eventId).expect(200);
+
+    expect(read.body).toMatchObject({ attendanceCount: null, operationalNotes: null, issues: [], updatedAt: null, updatedBy: null });
+  });
+
+  // COMPLETE-EVENT-05-B (notes only): saving only notes keeps the saved attendance.
+  it('COMPLETE-EVENT-05-B: saving notes only keeps the saved attendance and issues', async () => {
+    const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
+    await recordPut(coordinator, eventId, COMP_OK).expect(200);
+
+    await recordPut(coordinator, eventId, { operationalNotes: 'Revised notes.' }).expect(200);
+
+    const read = await recordGet(coordinator, eventId).expect(200);
+    expect(read.body).toMatchObject({ attendanceCount: COMP_OK.attendanceCount, operationalNotes: 'Revised notes.', issues: COMP_OK.issues });
+  });
+
+  // COMPLETE-EVENT-05-F (unknown): a malformed or unknown event id is 404 for the record, not 500.
+  it.each([
+    ['a malformed id', 'not-a-uuid'],
+    ['an unknown event', '00000000-0000-4000-8000-00000000ffff'],
+  ])('COMPLETE-EVENT-05-F: a record read of %s is 404', async (_label, id) => {
+    await recordGet(coordinator, id).expect(404);
+  });
+
+  // COMPLETE-EVENT-05-B (empty notes kept): a save that does not send notes keeps the empty notes already saved.
+  it('COMPLETE-EVENT-05-B: a save without notes keeps empty notes', async () => {
+    const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
+    await recordPut(coordinator, eventId, { attendanceCount: 5 }).expect(200);
+
+    await recordPut(coordinator, eventId, { attendanceCount: 6 }).expect(200);
+
+    const read = await recordGet(coordinator, eventId).expect(200);
+    expect(read.body).toMatchObject({ attendanceCount: 6, operationalNotes: null });
+  });
+
   // COMPLETE-EVENT-05-C: a record cannot be saved on an event that is not Completed.
   it.each([
     ['Confirmed', 'Confirmed'],
@@ -528,6 +568,159 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(items.rows).toEqual([{ equipment_name: 'Projector', quantity: 1 }]);
   });
 
+  // COMPLETE-EVENT-01-E: an event that has started but not ended is refused (422 MSG-CP-02).
+  it('COMPLETE-EVENT-01-E: an event that has started but not ended is refused with 422 and stays Confirmed', async () => {
+    const eventId = await seedEvent({ status: 'Confirmed', start: '2026-10-12T02:00:00.000Z', end: '2026-10-12T06:00:00.000Z' });
+
+    const response = await statusChange(coordinator, eventId, 'Completed').expect(422);
+
+    expect(response.body.code).toBe('EVENT_NOT_ENDED');
+    expect(await statusOf(eventId)).toBe('Confirmed');
+    expect(await historyRows(eventId)).toEqual([]);
+  });
+
+  // COMPLETE-EVENT-01-F: no time limit after the event; an event that ended long ago can still be completed.
+  it('COMPLETE-EVENT-01-F: an event that ended 90 days ago can be completed, and the history shows the marking time', async () => {
+    const eventId = await seedEvent({ status: 'Confirmed', start: '2026-07-14T02:00:00.000Z', end: '2026-07-14T04:00:00.000Z' });
+
+    await statusChange(coordinator, eventId, 'Completed').expect(200);
+
+    expect(await statusOf(eventId)).toBe('Completed');
+    expect((await historyRows(eventId)).at(-1)?.created_at.toISOString()).toBe(T0);
+  });
+
+  // COMPLETE-EVENT-02-A: the assigned coordinator sees the Confirmed event under the Confirmed filter.
+  it('COMPLETE-EVENT-02-A: an ended Confirmed event is listed under the coordinator queue filter Confirmed', async () => {
+    const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
+
+    const response = await as(coordinator)(http().get('/api/coordinator/queue?status=Confirmed')).expect(200);
+
+    expect((response.body as { id: string }[]).map((row) => row.id)).toContain(eventId);
+  });
+
+  // COMPLETE-EVENT-03-B: refused attempts leave the status history of every event exactly as it was.
+  it('COMPLETE-EVENT-03-B: refused completion attempts add no history row to any of the events', async () => {
+    const tooEarly = await seedEvent({ status: 'Confirmed', start: FUTURE_START, end: FUTURE_END });
+    const approved = await seedEvent({ status: 'Approved', start: ENDED_START, end: ENDED_END });
+    const notAssigned = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
+    await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [notAssigned, otherCoordinator.uid]);
+    const ids = [tooEarly, approved, notAssigned];
+    const before = await Promise.all(ids.map((id) => historyRows(id)));
+
+    await statusChange(coordinator, tooEarly, 'Completed').expect(422);
+    await statusChange(coordinator, approved, 'Completed').expect(409);
+    await statusChange(coordinator, notAssigned, 'Completed').expect(403);
+
+    expect(await Promise.all(ids.map((id) => historyRows(id)))).toEqual(before);
+  });
+
+  // COMPLETE-EVENT-03-C: the marking time is stored in UTC; 11 Nov 2026 00:30 SGT is 10 Nov 16:30 UTC.
+  it('COMPLETE-EVENT-03-C: a change at 11 Nov 2026 00:30 SGT is stored as 2026-11-10T16:30:00Z', async () => {
+    const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
+    clockNow = '2026-11-10T16:30:00.000Z';
+
+    await statusChange(coordinator, eventId, 'Completed').expect(200);
+
+    const stored = await pool.query<{ created_at: Date }>('SELECT created_at FROM event_status_history WHERE event_id = $1', [eventId]);
+    expect(stored.rows[0].created_at.toISOString()).toBe('2026-11-10T16:30:00.000Z');
+  });
+
+  // COMPLETE-EVENT-03-D: the actor and the time come from the session and the server, never from the body.
+  it('COMPLETE-EVENT-03-D: a body naming another coordinator and a 2020 time does not change the recorded actor or time', async () => {
+    const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
+
+    await as(coordinator)(http().post(`/api/events/${eventId}/status-change`))
+      .send({ targetStatus: 'Completed', changedBy: otherCoordinator.uid, changedAt: '2020-01-01T00:00:00.000Z' })
+      .expect(200);
+
+    const rows = await historyRows(eventId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].actor_id).toBe(coordinator.uid);
+    expect(rows[0].created_at.toISOString()).toBe(T0);
+  });
+
+  // COMPLETE-EVENT-04-B: an event leaves the Confirmed filter and appears once under Completed.
+  it('COMPLETE-EVENT-04-B: after completion the event is under Completed only, once', async () => {
+    const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
+    const ids = async (status: string) =>
+      ((await as(coordinator)(http().get(`/api/coordinator/queue?status=${status}`)).expect(200)).body as { id: string }[]).map((row) => row.id);
+
+    expect(await ids('Confirmed')).toContain(eventId);
+    await statusChange(coordinator, eventId, 'Completed').expect(200);
+
+    expect(await ids('Confirmed')).not.toContain(eventId);
+    expect((await ids('Completed')).filter((id) => id === eventId)).toHaveLength(1);
+  });
+
+  // COMPLETE-EVENT-04-C: a coordinator with no events gets an empty Completed list; another coordinator's Completed event is not listed.
+  it('COMPLETE-EVENT-04-C: an empty Completed list for a coordinator with no events, and other coordinators\' events are not listed', async () => {
+    const othersEvent = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
+    await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [othersEvent, otherCoordinator.uid]);
+    const newcomer = await createSession('COORDINATOR');
+
+    const empty = await as(newcomer)(http().get('/api/coordinator/queue?status=Completed')).expect(200);
+    expect(empty.body).toEqual([]);
+
+    const mine = await as(coordinator)(http().get('/api/coordinator/queue?status=Completed')).expect(200);
+    expect((mine.body as { id: string }[]).map((row) => row.id)).not.toContain(othersEvent);
+  });
+
+  // COMPLETE-EVENT-05-G: script and SQL text is stored and returned as the coordinator entered it (plain text).
+  it('COMPLETE-EVENT-05-G: script and SQL text is stored and returned as plain text, and the events table is intact', async () => {
+    const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
+    const notes = '<script>alert(1)</script>';
+    const issue = "'; DROP TABLE events; --";
+
+    await recordPut(coordinator, eventId, { operationalNotes: notes, issues: [{ description: issue }] }).expect(200);
+
+    const read = await recordGet(coordinator, eventId).expect(200);
+    expect(read.body).toMatchObject({ operationalNotes: notes, issues: [{ description: issue }] });
+    expect(await statusOf(eventId)).toBe('Completed');
+  });
+
+  // COMPLETE-EVENT-06-F: marking a venue unavailable for a Completed event's slot leaves its venue booking and status unchanged.
+  // The venue-unavailable flag is accepted as not needed on Completed events (spec conflict SC-153-002).
+  it('COMPLETE-EVENT-06-F: marking the venue unavailable for a Completed event slot leaves its booking approved and its status Completed', async () => {
+    const eventId = await seedEvent({ status: 'Completed', start: '2026-12-05T02:00:00.000Z', end: '2026-12-05T04:00:00.000Z', name: 'Future completed' });
+    const owner = await createSession('VENUE_STAFF');
+    const venue = await pool.query<{ id: string }>(
+      `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information, setup_time_minutes, turnaround_time_minutes)
+       VALUES ($1,$2,$3,200,'Open weekdays',0,0) RETURNING id`,
+      [owner.uid, 'Hall 06F', `Level 6 ${randomUUID()}`],
+    );
+    createdVenueIds.push(venue.rows[0].id);
+    const booking = await pool.query<{ id: string }>(
+      `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status)
+       VALUES ($1,$2,'2026-12-05T02:00:00Z','2026-12-05T04:00:00Z','approved') RETURNING id`,
+      [eventId, venue.rows[0].id],
+    );
+
+    await as(owner)(http().post(`/api/venues/${venue.rows[0].id}/unavailable-periods`))
+      .send({ start: '2026-12-05T02:00:00.000Z', end: '2026-12-05T04:00:00.000Z', reason: 'Maintenance' })
+      .expect(201);
+
+    const after = await pool.query<{ status: string }>('SELECT status FROM venue_bookings WHERE id = $1', [booking.rows[0].id]);
+    expect(after.rows[0].status).toBe('approved');
+    expect(await statusOf(eventId)).toBe('Completed');
+  });
+
+  // COMPLETE-EVENT-06-G: the coordinator cannot change even the name of a Completed event (deviation SC-153-001), and a mixed request is refused whole.
+  it('COMPLETE-EVENT-06-G: a name-only or mixed planning update of a Completed event is refused with 409 and nothing is saved', async () => {
+    const eventId = await seedEvent({ status: 'Completed', start: '2026-12-05T02:00:00.000Z', end: '2026-12-05T04:00:00.000Z', name: 'Future completed' });
+    const body = { purpose: 'Purpose', description: 'Description', layout: 'Banquet', startDateTime: '2026-12-05T02:00:00.000Z', endDateTime: '2026-12-05T04:00:00.000Z' };
+
+    const nameOnly = await as(coordinator)(http().patch(`/api/events/${eventId}/planning`)).send({ ...body, name: 'Renamed' }).expect(409);
+    expect(nameOnly.body.code).toBe('EVENT_COMPLETED');
+
+    const mixed = await as(coordinator)(http().patch(`/api/events/${eventId}/planning`))
+      .send({ ...body, name: 'Renamed', startDateTime: '2026-12-05T03:00:00.000Z' })
+      .expect(409);
+    expect(mixed.body.code).toBe('EVENT_COMPLETED');
+
+    const stored = await pool.query<{ event_name: string }>('SELECT event_name FROM events WHERE id = $1', [eventId]);
+    expect(stored.rows[0].event_name).toBe('Future completed');
+  });
+
   // COMPLETE-EVENT-06-A (read): a Completed event's planning information stays readable for the coordinator.
   it('COMPLETE-EVENT-06-A: the planning view of a Completed event is readable (200) and shows status Completed', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -549,5 +742,16 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     const ids = (response.body as { id: string }[]).map((row) => row.id);
     expect(ids).toContain(eventId);
     expect(ids).not.toContain(otherConfirmed);
+  });
+
+  // COMPLETE-EVENT-05-B (clear): null clears attendance and notes over HTTP.
+  it('COMPLETE-EVENT-05-B: sending null clears the saved attendance and notes', async () => {
+    const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
+    await recordPut(coordinator, eventId, COMP_OK).expect(200);
+
+    await recordPut(coordinator, eventId, { attendanceCount: null, operationalNotes: null }).expect(200);
+
+    const read = await recordGet(coordinator, eventId).expect(200);
+    expect(read.body).toMatchObject({ attendanceCount: null, operationalNotes: null, issues: COMP_OK.issues });
   });
 });

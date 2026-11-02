@@ -128,7 +128,7 @@ describe("SPM-153 Mark as Completed (action)", () => {
   });
 
   // The completed line is shown to any viewer of a Completed event, and no button is offered.
-  it("SPM-153 AC2/AC3: a Completed event states it to any viewer and offers no button", () => {
+  it("COMPLETE-EVENT-01-A: a Completed event states the completion to any viewer and offers no button", () => {
     renderPanel({ status: "completed", isAssignedCoordinator: false });
 
     expect(screen.getByRole("status")).toHaveTextContent(MSG_COMPLETED);
@@ -146,5 +146,30 @@ describe("SPM-153 Mark as Completed (action)", () => {
     await user.dblClick(button);
 
     expect(apiMock).toHaveBeenCalledTimes(1);
+  });
+
+  // COMPLETE-EVENT-01-A (failure): a failed completion shows the server's message and keeps the button available.
+  it("COMPLETE-EVENT-01-A: a failed completion shows the server's message and keeps the button", async () => {
+    vi.setSystemTime(AT_END);
+    apiMock.mockRejectedValue(new ApiError("This event could not be marked as Completed.", undefined, "SOMETHING_ELSE", 409));
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByRole("button", { name: "Mark as Completed" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("This event could not be marked as Completed.");
+    expect(screen.getByRole("button", { name: "Mark as Completed" })).toBeEnabled();
+  });
+
+  // COMPLETE-EVENT-01-A (fallback): a failure that is not an Error shows the fallback message.
+  it("COMPLETE-EVENT-01-A: a failure that is not an Error shows the fallback message", async () => {
+    vi.setSystemTime(AT_END);
+    apiMock.mockRejectedValue("unexpected");
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByRole("button", { name: "Mark as Completed" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not mark the event as Completed.");
   });
 });
