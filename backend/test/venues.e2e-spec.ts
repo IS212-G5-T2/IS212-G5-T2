@@ -234,6 +234,17 @@ describe.skipIf(!databaseUrl)(
           'utf8',
         ),
       );
+      // Re-running 009 restores its older booking constraint (no 'released' or 'cancelled'); 019 puts the current
+      // one back so suites that run after this file can still insert those bookings.
+      await pool.query(
+        await readFile(
+          new URL(
+            '../migrations/019_spm54_venue_booking_lifecycle.sql',
+            import.meta.url,
+          ),
+          'utf8',
+        ),
+      );
       const moduleFixture: TestingModule = await Test.createTestingModule({
         imports: [AppModule],
       })

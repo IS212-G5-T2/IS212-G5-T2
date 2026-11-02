@@ -9,7 +9,9 @@
  *   Completed or Cancelled is shown as Closed, derived on every read and never written (D4).
  * - AC3 to AC5: the Coordinator assigned at decision time accepts or declines. Accept runs the request update and
  *   the SPM-136 core (`CancelEventService.cancelInTransaction`) in ONE transaction, so a failure anywhere rolls both
- *   back (D2). Decline writes the request row only: no arrangement, hold, history or notification is touched.
+ *   back (D2). Decline writes the request row only: no arrangement, hold or history is touched.
+ * - SPM-162: either decision also writes one request-outcome notice for the Organiser in that same transaction. On
+ *   accept it replaces the Organiser's EventCancelled; a refused or already-decided decision writes nothing.
  *
  * Check order for a decision (D7, amended by the user on 31 Oct 2026): 401, authorisation (403: an unknown or malformed
  * request id answers the same 403 as another user's request, so a caller cannot probe which ids exist), body (400), already decided
@@ -34,6 +36,7 @@ import { UUID_PATTERN } from '../../common/uuid.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { CancelEventService } from '../cancel/cancel-event.service.js';
 import { isCancellable } from '../cancel/cancel-rules.js';
+import { notifyCancellationOutcome } from './cancellation-request-notice.js';
 import { validateCreateBody, validateDecisionBody } from './cancellation-request.input.js';
 import { CANCELLATION_REQUEST_CODES as CODES, CANCELLATION_REQUEST_MESSAGES as MESSAGES } from './cancellation-request.messages.js';
 import { displayStatusOf, type DisplayCancellationStatus, type StoredCancellationStatus } from './cancellation-request.status.js';
@@ -192,12 +195,15 @@ export class CancellationRequestsService {
 
       if (decision === 'accept') {
         // The SPM-136 core on this transaction: a failure in any release rolls the request update back too.
-        await this.cancelEvent.cancelInTransaction(client, user, eventId, now);
+        // SPM-162 AC3: the Organiser gets the outcome notice below instead of EventCancelled.
+        await this.cancelEvent.cancelInTransaction(client, user, eventId, now, { skipOrganiserNotice: true });
+        await notifyCancellationOutcome(client, event, 'accepted', now);
         return {
           request: this.toRecord(updated.rows[0], event.event_name, 'Cancelled'),
           message: MESSAGES.accepted(event.event_name),
         };
       }
+      await notifyCancellationOutcome(client, event, 'declined', now);
       return { request: this.toRecord(updated.rows[0], event.event_name, event.status), message: MESSAGES.declined };
     });
   }

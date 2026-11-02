@@ -609,13 +609,13 @@ describe('SPM-155 decide: what accept and decline do (AC3, AC4, AC5)', () => {
     expect(result.message).toBe('Cancellation request accepted. Hack Night is cancelled.');
     expect(result.request).toMatchObject({ id: REQUEST, status: 'accepted', displayStatus: 'accepted', decidedBy: 'Daniel Koh' });
     expect(core.cancelInTransaction).toHaveBeenCalledTimes(1);
-    expect(core.cancelInTransaction).toHaveBeenCalledWith(client, coo1, EVENT, NOW);
+    expect(core.cancelInTransaction).toHaveBeenCalledWith(client, coo1, EVENT, NOW, { skipOrganiserNotice: true });
     const update = statements.find((s) => /UPDATE event_cancellation_requests/.test(s.sql));
     expect(update?.params).toEqual([REQUEST, 'accepted', 'coo-01', 'Daniel Koh', NOW]);
   });
 
   // Kills: M10b, M11, M12b, M18d, M7c, M7d, M7e, M7f
-  /** CANCEL-REQUEST-05-A and 05-C (SPEC): decline issues exactly one write (the request) and never calls the core. */
+  /** CANCEL-REQUEST-05-A and 05-C (SPEC): decline writes the request and, since SPM-162, only the Organiser's outcome notice; it never calls the core. */
   it('CANCEL-REQUEST-05-A: decline writes only the request row, with COO-01 and the instant, and never calls the core', async () => {
     // Arrange
     const { service, core, writes, statements } = setup({
@@ -627,11 +627,14 @@ describe('SPM-155 decide: what accept and decline do (AC3, AC4, AC5)', () => {
     // Act
     const result = await service.decide(coo1, REQUEST, { decision: 'decline' });
 
-    // Assert: MSG-CR-05; one UPDATE of the request; no event, history, booking or notification write
+    // Assert: MSG-CR-05; one UPDATE of the request plus the SPM-162 outcome notice; no event, history or booking write
     expect(result.message).toBe('Cancellation request declined.');
     expect(result.request).toMatchObject({ status: 'declined', displayStatus: 'declined' });
     expect(core.cancelInTransaction).not.toHaveBeenCalled();
-    expect(writes()).toHaveLength(1);
+    expect(writes().map((w) => w.sql.trim().split(/\s+/).slice(0, 3).join(' '))).toEqual([
+      'UPDATE event_cancellation_requests SET',
+      'INSERT INTO notifications',
+    ]);
     expect(statements.find((s) => /UPDATE event_cancellation_requests/.test(s.sql))?.params).toEqual([REQUEST, 'declined', 'coo-01', 'Daniel Koh', NOW]);
   });
 
@@ -814,5 +817,84 @@ describe('SPM-155 reads (AC2)', () => {
     expect(database.query.mock.calls[0][1]).toEqual(['org-01', true, false]);
     expect(database.query.mock.calls[1][1]).toEqual(['coo-01', false, true]);
     expect(mine[0]).toMatchObject({ eventId: EVENT, eventName: 'Hack Night', status: 'pending', displayStatus: 'pending' });
+  });
+});
+
+// SPM-162: the Organiser's request-outcome notice. The notice is a statement on the decision's own transaction client.
+describe('SPM-162 decide: the request-outcome notice (AC1, AC6)', () => {
+  const noticeWrites = (statements: Array<{ sql: string; params: unknown[] }>) => statements.filter((s) => /INSERT INTO notifications/.test(s.sql));
+
+  /** CANCEL-OUTCOME-01-D (SPM-162 AC1, AC3): accept runs the core with the Organiser skipped, then writes one accepted notice for ORG-01 on the same client at the decision instant. */
+  it('CANCEL-OUTCOME-01-D: accept writes one accepted notice for the Organiser on the same client', async () => {
+    // Arrange
+    const { service, client, core, statements } = setup({ event: eventRow('Confirmed'), request: requestRow('pending'), updated: requestRow('accepted') });
+
+    // Act
+    await service.decide(coo1, REQUEST, { decision: 'accept' });
+
+    // Assert: the core is told to skip the Organiser, then exactly one notice for org-01 is written on that client at NOW
+    expect(core.cancelInTransaction).toHaveBeenCalledWith(client, coo1, EVENT, NOW, { skipOrganiserNotice: true });
+    const notices = noticeWrites(statements);
+    expect(notices).toHaveLength(1);
+    expect(notices[0].params.slice(1)).toEqual(['org-01', 'cancellation_request_accepted', 'Your cancellation request for "Hack Night" was accepted. The event is cancelled.', EVENT, NOW]);
+    expect(client.query.mock.calls.filter(([sql]) => /INSERT INTO notifications/.test(sql as string))).toHaveLength(1);
+  });
+
+  /** CANCEL-OUTCOME-01-E (SPM-162 AC1): decline writes one declined notice for ORG-01 on the same client at the decision instant and never calls the core. */
+  it('CANCEL-OUTCOME-01-E: decline writes one declined notice for the Organiser and never calls the core', async () => {
+    // Arrange
+    const { service, core, statements } = setup({ event: eventRow('Confirmed'), request: requestRow('pending'), updated: requestRow('declined') });
+
+    // Act
+    await service.decide(coo1, REQUEST, { decision: 'decline' });
+
+    // Assert
+    expect(core.cancelInTransaction).not.toHaveBeenCalled();
+    const notices = noticeWrites(statements);
+    expect(notices).toHaveLength(1);
+    expect(notices[0].params.slice(1)).toEqual(['org-01', 'cancellation_request_declined', 'Your cancellation request for "Hack Night" was declined. The event keeps its current status.', EVENT, NOW]);
+  });
+
+  /** CANCEL-OUTCOME-06-E (SPM-162 AC6): a refused or already-decided decision writes no notice (403, 400, 409 decided, 409 not cancellable, a lost compare-and-set). */
+  it.each([
+    ['a Coordinator who is not assigned', coo2, { decision: 'accept' }, eventRow('Confirmed'), requestRow('pending'), requestRow('accepted')],
+    ['the requesting Organiser', org1, { decision: 'accept' }, eventRow('Confirmed'), requestRow('pending'), requestRow('accepted')],
+    ['an invalid decision', coo1, { decision: 'maybe' }, eventRow('Confirmed'), requestRow('pending'), requestRow('accepted')],
+    ['an already accepted request', coo1, { decision: 'decline' }, eventRow('Cancelled'), requestRow('accepted'), requestRow('declined')],
+    ['an already declined request', coo1, { decision: 'accept' }, eventRow('Confirmed'), requestRow('declined'), requestRow('accepted')],
+    ['an event that is no longer cancellable', coo1, { decision: 'decline' }, eventRow('Completed'), requestRow('pending'), requestRow('declined')],
+    ['a decision that loses the compare-and-set', coo1, { decision: 'accept' }, eventRow('Confirmed'), requestRow('pending'), null],
+  ])('CANCEL-OUTCOME-06-E: %s writes no notice', async (_label, actor, body, event, request, updated) => {
+    // Arrange
+    const { service, core, statements } = setup({ event, request, updated });
+
+    // Act
+    await refusal(service.decide(actor, REQUEST, body));
+
+    // Assert: no INSERT into notifications and no core call
+    expect(noticeWrites(statements)).toHaveLength(0);
+    expect(core.cancelInTransaction).not.toHaveBeenCalled();
+  });
+
+  /** CANCEL-OUTCOME-06-F (SPM-162 AC6): if the core fails on accept, no notice is attempted; if the notice write fails on decline, the error propagates so the transaction rolls the decision back. */
+  it('CANCEL-OUTCOME-06-F: a failing core writes no notice, and a failing notice write propagates out of decide', async () => {
+    // Arrange 1: the core throws on accept
+    const failing = setup({ event: eventRow('Confirmed'), request: requestRow('pending'), updated: requestRow('accepted') });
+    failing.core.cancelInTransaction.mockRejectedValueOnce(new Error('releaser failed'));
+
+    // Act / Assert 1
+    await expect(failing.service.decide(coo1, REQUEST, { decision: 'accept' })).rejects.toThrow('releaser failed');
+    expect(noticeWrites(failing.statements)).toHaveLength(0);
+
+    // Arrange 2: the notice INSERT throws on decline
+    const broken = setup({ event: eventRow('Confirmed'), request: requestRow('pending'), updated: requestRow('declined') });
+    const normal = broken.client.query.getMockImplementation()!;
+    broken.client.query.mockImplementation(async (sql: string, params: unknown[] = []) => {
+      if (/INSERT INTO notifications/.test(sql)) throw new Error('notice failed');
+      return normal(sql, params);
+    });
+
+    // Act / Assert 2: the failure reaches the caller, so the real transaction would roll the request update back
+    await expect(broken.service.decide(coo1, REQUEST, { decision: 'decline' })).rejects.toThrow('notice failed');
   });
 });
