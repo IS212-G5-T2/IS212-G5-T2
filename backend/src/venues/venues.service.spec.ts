@@ -44,8 +44,10 @@ describe('SPM-50 venue service', () => {
   const list = vi.fn();
   const get = vi.fn();
   const hasPermission = vi.fn();
+  const convertHoldToBooking = vi.fn();
+  const releaseHold = vi.fn();
   const service = new VenuesService(
-    { create, list, get } as unknown as VenuesRepository,
+    { create, list, get, convertHoldToBooking, releaseHold } as unknown as VenuesRepository,
     { hasPermission } as unknown as RbacRepository,
   );
 
@@ -77,6 +79,23 @@ describe('SPM-50 venue service', () => {
       service.create({ uid: '', roles: ['VENUE_STAFF'] }, venueInput),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  /** VEN-HOLD-DEC-01-SEC-2: anonymous users cannot reach the conversion or release repository operations. */
+  it('VEN-HOLD-DEC-01-SEC-2 rejects unauthenticated convert and release requests', async () => {
+    const bookingId = 'b9c6f700-85b1-4a79-96d8-5f5c3fd616fb';
+    await expect(service.convertHoldToBooking(undefined, bookingId)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.releaseHold(undefined, bookingId)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(convertHoldToBooking).not.toHaveBeenCalled();
+    expect(releaseHold).not.toHaveBeenCalled();
+  });
+
+  /** VEN-HOLD-DEC-09-B and VEN-HOLD-DEC-10-B: malformed booking ids are rejected before conversion or release persistence. */
+  it('VEN-HOLD-DEC-09-B and VEN-HOLD-DEC-10-B reject malformed lifecycle booking ids', async () => {
+    await expect(service.convertHoldToBooking(staff, 'not-a-uuid')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.releaseHold(staff, 'not-a-uuid')).rejects.toBeInstanceOf(NotFoundException);
+    expect(convertHoldToBooking).not.toHaveBeenCalled();
+    expect(releaseHold).not.toHaveBeenCalled();
   });
 
   // SPM-50 / VEN-CRE-04-A, VEN-CRE-05-A, VEN-CRE-05-B: a valid request saves one complete record and confirms success.
@@ -274,7 +293,7 @@ describe('SPM-55 venue booking review service', () => {
     await expect(service.listPendingVenueBookings(staff)).resolves.toEqual([
       { id: bookingId },
     ]);
-    expect(listPendingVenueBookings).toHaveBeenCalledWith(staff.uid);
+    expect(listPendingVenueBookings).toHaveBeenCalledWith(staff.uid, false);
     // The gate checks the Venue update permission specifically, not a read permission.
     expect(hasPermission).toHaveBeenCalledWith('VENUE_STAFF', 'Venue', 'update');
 

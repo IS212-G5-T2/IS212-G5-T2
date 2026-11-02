@@ -9,6 +9,7 @@ import { formatSingaporeDateTime, formatSingaporeRange } from "@/utils/format";
 /**
  * Venue Staff decision on one pending request (SPM-55 AC2, AC3). Approve and reject call the
  * backend directly; the parent updates the booking's status through onDecided after success.
+ * SPM-132: also supports converting and releasing active tentative holds.
  */
 export function BookingDetailModal({
   booking,
@@ -18,7 +19,7 @@ export function BookingDetailModal({
 }: {
   booking: PendingBookingRequest | null;
   onClose: () => void;
-  onDecided: (outcome: { id: string; status: "approved" | "rejected"; reason?: string; holdExpiresAt?: string }) => void;
+  onDecided: (outcome: { id: string; status: "approved" | "rejected" | "converted" | "released"; reason?: string; holdExpiresAt?: string }) => void;
   onConflict?: (message: string, conflicts?: VenueBookingConflict[]) => void;
 }) {
   const [decision, setDecision] = useState<"approved" | "rejected" | "">("");
@@ -26,6 +27,11 @@ export function BookingDetailModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const isTentativeHold = booking?.requestKind === "tentative_hold";
+  const isActiveHold =
+    isTentativeHold &&
+    booking?.status === "approved" &&
+    booking?.holdExpiresAt &&
+    !booking?.holdExpired;
 
   if (!booking) return null;
 
@@ -70,6 +76,46 @@ export function BookingDetailModal({
     }
   };
 
+  const convertHold = async () => {
+    setSubmitting(true);
+    setError("");
+    try {
+      await api(`/venues/bookings/${encodeURIComponent(booking.id)}/convert`, {
+        method: "POST",
+      });
+      onDecided({ id: booking.id, status: "converted" });
+      onClose();
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Unable to convert this hold.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const releaseHold = async () => {
+    setSubmitting(true);
+    setError("");
+    try {
+      await api(`/venues/bookings/${encodeURIComponent(booking.id)}/release`, {
+        method: "POST",
+      });
+      onDecided({ id: booking.id, status: "released" });
+      onClose();
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Unable to release this hold.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Modal
       open={!!booking}
@@ -92,6 +138,25 @@ export function BookingDetailModal({
               onClick={() => void submit()}
             >
               Submit Decision
+            </Button>
+          </>
+        ) : isActiveHold ? (
+          <>
+            <Button variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+            <Button
+              disabled={submitting}
+              onClick={() => void convertHold()}
+            >
+              {submitting ? "Converting…" : "Convert to Booking"}
+            </Button>
+            <Button
+              variant="danger"
+              disabled={submitting}
+              onClick={() => void releaseHold()}
+            >
+              {submitting ? "Releasing…" : "Release Hold"}
             </Button>
           </>
         ) : (
@@ -145,9 +210,9 @@ export function BookingDetailModal({
         </p>
       )}
 
-      {isTentativeHold && booking.status === "approved" && booking.holdExpiresAt && (
+      {isTentativeHold && (booking.status === "approved" || booking.status === "expired") && booking.holdExpiresAt && (
         <p role="status" className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
-          {booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until {formatSingaporeDateTime(booking.holdExpiresAt)}.
+          {booking.status === "expired" || booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until {formatSingaporeDateTime(booking.holdExpiresAt)}.
         </p>
       )}
 
@@ -186,6 +251,11 @@ export function BookingDetailModal({
           {booking.status === "rejected" && (
             <p className="mt-1 text-sm text-red-700 dark:text-red-400">
               Rejection reason: {booking.rejectionReason ?? "Not provided"}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">
+              {error}
             </p>
           )}
         </div>

@@ -46,3 +46,17 @@ describe("SPM-48 event status badges", () => {
     expect(new Set(badges.map((badge) => badge.textContent)).size).toBe(7);
   });
 });
+
+describe("SPM-132 hold terminal status badges", () => {
+  /** VEN-HOLD-DEC-06-BND-1: the persisted expired hold state has an explicit display label. */
+  it("VEN-HOLD-DEC-06-BND-1 labels a persisted expired hold", () => {
+    render(<StatusBadge status="expired" />);
+    expect(screen.getByText("Expired")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-10-A: a released hold has an explicit terminal display label. */
+  it("VEN-HOLD-DEC-10-A labels a released hold", () => {
+    render(<StatusBadge status="released" />);
+    expect(screen.getByText("Released")).toBeInTheDocument();
+  });
+});

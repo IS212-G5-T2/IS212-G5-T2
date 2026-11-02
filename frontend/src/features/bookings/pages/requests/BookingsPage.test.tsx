@@ -97,6 +97,195 @@ function pendingRequest(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe("Coordinator venue bookings", () => {
+  /** VEN-HOLD-DEC-01-VAR-1: an assigned Coordinator can read their own Pending hold without Venue Staff controls. */
+  it("VEN-HOLD-DEC-01-VAR-1 shows an assigned Coordinator's own pending hold as read-only", async () => {
+    apiMock.mockResolvedValueOnce([{
+      ...booking,
+      requestKind: "tentative_hold",
+      holdExpired: false,
+      holdExpiresAt: undefined,
+    }] as never);
+    renderPage();
+
+    expect(await screen.findByText("Tentative hold request pending Venue Staff approval. The hold is not active.")).toBeInTheDocument();
+    const card = screen.getByRole("article");
+    expect(within(card).getByRole("heading", { name: "Gala" })).toBeInTheDocument();
+    expect(within(card).getByText("Venue: Main Hall")).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /Review Details|Submit Decision|Convert to Booking|Release Hold/ })).not.toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-01-B: an empty managed queue renders a clear empty state. */
+  it("VEN-HOLD-DEC-01-B shows an empty state when Venue Staff has no pending hold requests", async () => {
+    setVenueStaff();
+    apiMock.mockResolvedValueOnce([] as never);
+    renderPage();
+    expect(await screen.findByText("No bookings match this filter.")).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledWith("/venues/bookings/pending");
+  });
+
+  /** VEN-HOLD-DEC-01-SEC-2: a Coordinator can read their own request but cannot use Venue Staff decision controls. */
+  it("VEN-HOLD-DEC-01-SEC-2 hides hold decision controls from a Coordinator", async () => {
+    apiMock.mockResolvedValueOnce([{
+      ...booking,
+      requestKind: "tentative_hold",
+      holdExpired: false,
+    }] as never);
+    renderPage();
+    expect(await screen.findByText("Tentative hold request pending Venue Staff approval. The hold is not active.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Review Details|Submit Decision|Convert to Booking|Release Hold/ })).not.toBeInTheDocument();
+    expect(apiMock).not.toHaveBeenCalledWith(expect.stringMatching(/\/(approve|reject|convert|release)$/), expect.anything());
+  });
+
+  /** VEN-HOLD-DEC-02-A: Pending details state the 14-day activation policy without inventing an expiry. */
+  it("VEN-HOLD-DEC-02-A explains the pending hold duration without showing an expiry", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockResolvedValueOnce([pendingRequest({
+      requestKind: "tentative_hold",
+      start: "2030-11-20T02:00:00.000Z",
+      end: "2030-11-20T04:00:00.000Z",
+    })] as never);
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Main Hall");
+    expect(dialog).toHaveTextContent("Gala");
+    expect(dialog).toHaveTextContent("Coordinator Two");
+    expect(dialog).toHaveTextContent("20 Nov 2030, 10:00 – 20 Nov 2030, 12:00 SGT");
+    expect(dialog).toHaveTextContent("14 days (336 hours) from approval");
+    expect(dialog).not.toHaveTextContent(/expires|expiry/i);
+  });
+
+  /** VEN-HOLD-DEC-05-A: Venue Staff can see the persisted expiry on an active tentative hold. */
+  it("VEN-HOLD-DEC-05-A displays the expiry timestamp for an approved active hold", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockResolvedValueOnce([pendingRequest({
+      requestKind: "tentative_hold",
+      status: "approved",
+      holdExpiresAt: "2030-11-15T01:00:00.000Z",
+      holdExpired: false,
+    })] as never);
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    await user.click(await screen.findByRole("button", { name: "View Details" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Active tentative hold until 15 Nov 2030, 09:00 SGT.");
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Convert to Booking" })).toBeEnabled();
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Release Hold" })).toBeEnabled();
+  });
+
+  /** VEN-HOLD-DEC-06-BND-1: a scheduler-persisted expired hold remains visible as expired and has no active-hold controls. */
+  it("VEN-HOLD-DEC-06-BND-1 shows persisted expiry without conversion or release actions", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    const expiredHold = pendingRequest({
+      requestKind: "tentative_hold",
+      status: "expired",
+      holdExpiresAt: "2030-11-15T01:00:00.000Z",
+      holdExpired: true,
+    });
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending") return [pendingRequest()] as never;
+      if (path === "/venues/bookings/pending?includeDecided=true") return [expiredHold] as never;
+      throw new Error(`Unexpected request ${path}`);
+    });
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "expired");
+    expect(apiMock).toHaveBeenCalledWith("/venues/bookings/pending?includeDecided=true");
+    expect(await screen.findByText(/Expired tentative hold until 15 Nov 2030, 09:00 SGT/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "View Details" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Expired tentative hold until 15 Nov 2030, 09:00 SGT.");
+    expect(within(dialog).queryByRole("button", { name: "Convert to Booking" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Release Hold" })).not.toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-09-B: when the active status lags behind the expiry instant, the API expiry flag still hides actions. */
+  it("VEN-HOLD-DEC-09-B hides conversion and release when the server marks an approved hold expired", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockResolvedValueOnce([pendingRequest({
+      requestKind: "tentative_hold",
+      status: "approved",
+      holdExpiresAt: "2030-11-15T01:00:00.000Z",
+      holdExpired: true,
+    })] as never);
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    expect(await screen.findByText(/Expired tentative hold until 15 Nov 2030, 09:00 SGT/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "View Details" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByRole("button", { name: "Convert to Booking" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Release Hold" })).not.toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-10-A: a released hold appears as released in the Coordinator's read-only request list. */
+  it("VEN-HOLD-DEC-10-A labels a released hold in the Coordinator's request list", async () => {
+    apiMock.mockResolvedValueOnce([{
+      ...booking,
+      requestKind: "tentative_hold",
+      status: "released",
+      holdExpiresAt: "2030-11-15T01:00:00.000Z",
+      holdExpired: false,
+    }] as never);
+    renderPage();
+    expect(await screen.findByText("Tentative hold released.")).toBeInTheDocument();
+    expect(screen.getByText("released")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Release Hold" })).not.toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-06-BND-1: a scheduler-persisted expired status remains visible in the Coordinator's request list. */
+  it("VEN-HOLD-DEC-06-BND-1 labels a scheduler-expired hold in the Coordinator's request list", async () => {
+    apiMock.mockResolvedValueOnce([{
+      ...booking,
+      requestKind: "tentative_hold",
+      status: "expired",
+      holdExpiresAt: "2030-11-15T01:00:00.000Z",
+      holdExpired: true,
+    }, {
+      ...booking,
+      id: "expired-without-expiry",
+      requestKind: "tentative_hold",
+      status: "approved",
+      holdExpiresAt: undefined,
+      holdExpired: true,
+    }] as never);
+    renderPage();
+    expect(await screen.findByText("Expired tentative hold until 15 Nov 2030, 09:00 SGT.")).toBeInTheDocument();
+    expect(screen.getByText("Expired tentative hold.")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-06-B: rejected holds and ordinary bookings do not receive an active/expired hold label. */
+  it("VEN-HOLD-DEC-06-B omits active hold labels for rejected holds and ordinary bookings", async () => {
+    apiMock.mockResolvedValueOnce([{
+      ...booking,
+      id: "rejected-hold",
+      requestKind: "tentative_hold",
+      status: "rejected",
+      holdExpiresAt: "2030-11-15T01:00:00.000Z",
+      holdExpired: false,
+    }, {
+      ...booking,
+      id: "ordinary-approved-booking",
+      requestKind: "booking",
+      status: "approved",
+      holdExpiresAt: "2030-11-15T01:00:00.000Z",
+      holdExpired: false,
+    }, {
+      ...booking,
+      id: "approved-hold-without-expiry",
+      requestKind: "tentative_hold",
+      status: "approved",
+      holdExpiresAt: undefined,
+      holdExpired: false,
+    }] as never);
+    renderPage();
+
+    expect(await screen.findByText("rejected")).toBeInTheDocument();
+    expect(screen.getAllByText("approved")).toHaveLength(2);
+    expect(screen.queryByText(/Active tentative hold|Expired tentative hold/)).not.toBeInTheDocument();
+  });
+
   /** VEN-BKG-08-A: My Bookings loads persisted requests scoped by the server and shows event, venue, and status. */
   it("VEN-BKG-08-A SPM-54 shows API-backed event, venue, and booking status", async () => {
     apiMock.mockResolvedValue([booking] as never);
@@ -362,7 +551,8 @@ describe("Coordinator venue bookings", () => {
     setVenueStaff();
     apiMock
       .mockResolvedValueOnce([pendingRequest({ requestKind: "tentative_hold" })] as never)
-      .mockResolvedValueOnce({ holdExpiresAt: "2030-01-24T12:00:00.000Z" } as never);
+      .mockResolvedValueOnce({ holdExpiresAt: "2030-01-24T12:00:00.000Z" } as never)
+      .mockResolvedValueOnce([pendingRequest({ requestKind: "tentative_hold", status: "approved", holdExpiresAt: "2030-01-24T12:00:00.000Z" })] as never);
     renderPage();
 
     expect(await screen.findByText("Tentative hold request")).toBeInTheDocument();
@@ -454,7 +644,8 @@ describe("Coordinator venue bookings", () => {
     setVenueStaff();
     apiMock
       .mockResolvedValueOnce([pendingRequest()] as never)
-      .mockResolvedValueOnce({ id: "booking-1", status: "approved" } as never);
+      .mockResolvedValueOnce({ id: "booking-1", status: "approved" } as never)
+      .mockResolvedValueOnce([pendingRequest({ status: "approved" })] as never);
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
@@ -466,7 +657,7 @@ describe("Coordinator venue bookings", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(apiMock).toHaveBeenCalledWith("/venues/bookings/booking-1/approve", { method: "POST" });
-    // Booking stays in the list with updated status; no re-fetch is issued.
+    // The decision itself updates the row locally; the status history is fetched when its filter is opened.
     expect(apiMock).toHaveBeenCalledTimes(2);
     // Approved booking is hidden under the default Pending filter; switching to Approved reveals it.
     await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
@@ -500,7 +691,8 @@ describe("Coordinator venue bookings", () => {
     setVenueStaff();
     apiMock
       .mockResolvedValueOnce([pendingRequest()] as never)
-      .mockResolvedValueOnce({ id: "booking-1", status: "rejected" } as never);
+      .mockResolvedValueOnce({ id: "booking-1", status: "rejected" } as never)
+      .mockResolvedValueOnce([pendingRequest({ status: "rejected", rejectionReason: "Clashes with maintenance" })] as never);
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
@@ -518,7 +710,7 @@ describe("Coordinator venue bookings", () => {
       method: "POST",
       body: JSON.stringify({ reason: "Clashes with maintenance" }),
     });
-    // Booking stays in the list with updated status; no re-fetch is issued.
+    // The decision itself updates the row locally; the status history is fetched when its filter is opened.
     expect(apiMock).toHaveBeenCalledTimes(2);
     expect(apiMock).toHaveBeenNthCalledWith(1, "/venues/bookings/pending");
     // Rejected booking is hidden under the default Pending filter; switching to Rejected reveals it.
@@ -927,15 +1119,23 @@ describe("Coordinator venue bookings", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
-  /** VEN-REV-08-A: each status filter shows only the bookings in that status, and All statuses shows pending, approved and rejected together. */
+  /** VEN-REV-08-A: status filters include current requests plus all persisted history statuses. */
   it("SPM-55 AC1 isolates each status in the Venue Staff filter and All statuses shows every status", async () => {
     const user = userEvent.setup();
     setVenueStaff();
-    apiMock.mockResolvedValueOnce([
-      pendingRequest({ id: "booking-p", eventName: "Pending Event", status: "pending" }),
+    const pendingRows = [pendingRequest({ id: "booking-p", eventName: "Pending Event", status: "pending" })];
+    const decidedRows = [
+      ...pendingRows,
       pendingRequest({ id: "booking-a", eventName: "Approved Event", status: "approved" }),
       pendingRequest({ id: "booking-r", eventName: "Rejected Event", status: "rejected", rejectionReason: "Clashes with maintenance" }),
-    ] as never);
+      pendingRequest({ id: "booking-e", eventName: "Expired Event", requestKind: "tentative_hold", status: "expired", holdExpired: true }),
+      pendingRequest({ id: "booking-x", eventName: "Released Event", requestKind: "tentative_hold", status: "released" }),
+    ];
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending") return pendingRows as never;
+      if (path === "/venues/bookings/pending?includeDecided=true") return decidedRows as never;
+      throw new Error(`Unexpected request ${path}`);
+    });
     renderPage();
 
     // The default filter is Pending, so only the pending request is listed.
@@ -946,6 +1146,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByText(/Rejection reason/)).not.toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText("Status filter"), "Approved");
+    expect(apiMock).toHaveBeenCalledWith("/venues/bookings/pending?includeDecided=true");
     expect(screen.getByText("Approved Event")).toBeInTheDocument();
     expect(screen.queryByText("Pending Event")).not.toBeInTheDocument();
     expect(screen.queryByText("Rejected Event")).not.toBeInTheDocument();
@@ -957,10 +1158,27 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByText("Pending Event")).not.toBeInTheDocument();
     expect(screen.queryByText("Approved Event")).not.toBeInTheDocument();
 
+    await user.selectOptions(screen.getByLabelText("Status filter"), "Expired");
+    expect(screen.getByText("Expired Event")).toBeInTheDocument();
+    expect(screen.queryByText("Released Event")).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Status filter"), "Released");
+    expect(screen.getByText("Released Event")).toBeInTheDocument();
+    expect(screen.queryByText("Expired Event")).not.toBeInTheDocument();
+
+    // Once decided history is loaded, returning to Pending still fetches the current queue.
+    await user.selectOptions(screen.getByLabelText("Status filter"), "Pending");
+    expect(apiMock).toHaveBeenLastCalledWith("/venues/bookings/pending");
+    expect(screen.getByText("Pending Event")).toBeInTheDocument();
+    expect(screen.queryByText("Approved Event")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rejected Event")).not.toBeInTheDocument();
+
     await user.selectOptions(screen.getByLabelText("Status filter"), "All statuses");
     expect(screen.getByText("Pending Event")).toBeInTheDocument();
     expect(screen.getByText("Approved Event")).toBeInTheDocument();
     expect(screen.getByText("Rejected Event")).toBeInTheDocument();
+    expect(screen.getByText("Expired Event")).toBeInTheDocument();
+    expect(screen.getByText("Released Event")).toBeInTheDocument();
   });
 
   /** VEN-REV-08-B: approving one request changes only that row in place to Approved; the other request stays pending. */
@@ -972,7 +1190,11 @@ describe("Coordinator venue bookings", () => {
         pendingRequest({ id: "booking-1", eventName: "Gala" }),
         pendingRequest({ id: "booking-2", eventName: "Workshop" }),
       ] as never)
-      .mockResolvedValueOnce({ id: "booking-1", status: "approved" } as never);
+      .mockResolvedValueOnce({ id: "booking-1", status: "approved" } as never)
+      .mockResolvedValueOnce([
+        pendingRequest({ id: "booking-1", eventName: "Gala", status: "approved" }),
+        pendingRequest({ id: "booking-2", eventName: "Workshop" }),
+      ] as never);
     renderPage();
 
     await user.click((await screen.findAllByRole("button", { name: "Review Details" }))[0]);
@@ -988,7 +1210,8 @@ describe("Coordinator venue bookings", () => {
     expect(within(galaCard).getByRole("button", { name: "View Details" })).toBeInTheDocument();
     expect(within(workshopCard).getByText("Pending", { selector: "span" })).toBeInTheDocument();
     expect(within(workshopCard).getByRole("button", { name: "Review Details" })).toBeInTheDocument();
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(apiMock).toHaveBeenCalledTimes(3);
+    expect(apiMock).toHaveBeenLastCalledWith("/venues/bookings/pending?includeDecided=true");
   });
 
   /** VEN-REV-08-C: after a rejection the card shows the entered reason and a Rejected badge. */
@@ -997,7 +1220,8 @@ describe("Coordinator venue bookings", () => {
     setVenueStaff();
     apiMock
       .mockResolvedValueOnce([pendingRequest()] as never)
-      .mockResolvedValueOnce({ id: "booking-1", status: "rejected" } as never);
+      .mockResolvedValueOnce({ id: "booking-1", status: "rejected" } as never)
+      .mockResolvedValueOnce([pendingRequest({ status: "rejected", rejectionReason: "Clashes with maintenance" })] as never);
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
@@ -1007,6 +1231,7 @@ describe("Coordinator venue bookings", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await user.selectOptions(screen.getByLabelText("Status filter"), "Rejected");
+    expect(apiMock).toHaveBeenLastCalledWith("/venues/bookings/pending?includeDecided=true");
     const card = screen.getByRole("heading", { name: "Gala" }).closest("div.rounded-xl") as HTMLElement;
     expect(within(card).getByText("Rejection reason: Clashes with maintenance")).toBeInTheDocument();
     expect(within(card).getByText("Rejected", { selector: "span" })).toBeInTheDocument();
@@ -1141,6 +1366,262 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Unable to load your venue bookings.")).toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledWith("/venues/bookings/pending");
     expect(apiMock).toHaveBeenCalledWith("/venues/bookings/mine");
+  });
+
+  /** VEN-HOLD-DEC-01-A: staff sees only the pending requests returned for managed venues. */
+  it("VEN-HOLD-DEC-01-A renders the managed-venue pending tentative hold queue", async () => {
+    setVenueStaff();
+    apiMock.mockResolvedValueOnce([pendingRequest({
+      id: "managed-hold",
+      requestKind: "tentative_hold",
+      venueName: "Managed Hall",
+    })] as never);
+    renderPage();
+    expect(await screen.findByText("Venue: Managed Hall")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review Details" })).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledWith("/venues/bookings/pending");
+  });
+
+  /** VEN-HOLD-DEC-07-B: rejection remains disabled until the staff member provides a nonblank reason. */
+  it("VEN-HOLD-DEC-07-B requires a nonblank reason before rejecting a hold", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockResolvedValueOnce([pendingRequest({ requestKind: "tentative_hold" })] as never);
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByRole("radio", { name: "Reject — provide reason" }));
+    const submit = screen.getByRole("button", { name: "Submit Decision" });
+    expect(submit).toBeDisabled();
+    const reason = screen.getByRole("textbox", { name: /Rejection reason/ });
+    await user.type(reason, "   ");
+    expect(submit).toBeDisabled();
+    await user.clear(reason);
+    await user.type(reason, "Conflict with maintenance");
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith(
+      "/venues/bookings/booking-1/reject",
+      { method: "POST", body: JSON.stringify({ reason: "Conflict with maintenance" }) },
+    ));
+  });
+
+  /** VEN-HOLD-DEC-07-A: rejecting a pending hold displays its stored reason and Rejected state. */
+  it("VEN-HOLD-DEC-07-A displays the reason after rejecting a pending tentative hold", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock
+      .mockResolvedValueOnce([pendingRequest({ requestKind: "tentative_hold" })] as never)
+      .mockResolvedValueOnce({ id: "booking-1", status: "rejected" } as never)
+      .mockResolvedValueOnce([pendingRequest({ requestKind: "tentative_hold", status: "rejected", rejectionReason: "Venue maintenance scheduled" })] as never);
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByRole("radio", { name: "Reject — provide reason" }));
+    await user.type(screen.getByRole("textbox", { name: /Rejection reason/ }), "Venue maintenance scheduled");
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith(
+      "/venues/bookings/booking-1/reject",
+      { method: "POST", body: JSON.stringify({ reason: "Venue maintenance scheduled" }) },
+    ));
+    await user.selectOptions(screen.getByLabelText("Status filter"), "rejected");
+    expect(apiMock).toHaveBeenCalledWith("/venues/bookings/pending?includeDecided=true");
+    const card = screen.getByRole("heading", { name: "Gala" }).closest("div.rounded-xl") as HTMLElement;
+    expect(within(card).getByText("Rejected", { selector: "span" })).toBeInTheDocument();
+    expect(within(card).getByText("Rejection reason: Venue maintenance scheduled")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-09-A: conversion calls the API and refreshes the Venue Staff queue after success. */
+  it("VEN-HOLD-DEC-09-A converts an active hold and reloads the staff queue", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending")
+        return [pendingRequest({ requestKind: "tentative_hold", status: "approved", holdExpired: false, holdExpiresAt: "2030-11-15T01:00:00.000Z" })] as never;
+      if (path.endsWith("/convert")) return {} as never;
+      throw new Error(`Unexpected request ${path}`);
+    });
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    await user.click(await screen.findByRole("button", { name: "View Details" }));
+    await user.click(screen.getByRole("button", { name: "Convert to Booking" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/venues/bookings/booking-1/convert", { method: "POST" }));
+    await waitFor(() => expect(apiMock.mock.calls.filter(([path]) => path === "/venues/bookings/pending")).toHaveLength(2));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-09-A: a viewer with both roles refreshes the Coordinator's read-only booking list after conversion. */
+  it("VEN-HOLD-DEC-09-A refreshes both booking lists after a dual-role Venue Staff conversion", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    useAppStore.setState((state) => ({
+      ...state,
+      currentUser: { ...state.currentUser!, roles: ["venue_staff", "coordinator"] },
+    }));
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending")
+        return [pendingRequest({ requestKind: "tentative_hold", status: "approved", holdExpired: false, holdExpiresAt: "2030-11-15T01:00:00.000Z" })] as never;
+      if (path === "/venues/bookings/mine") return [] as never;
+      if (path.endsWith("/convert")) return {} as never;
+      throw new Error(`Unexpected request ${path}`);
+    });
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    await user.click(await screen.findByRole("button", { name: "View Details" }));
+    await user.click(screen.getByRole("button", { name: "Convert to Booking" }));
+    await waitFor(() => expect(apiMock.mock.calls.filter(([path]) => path === "/venues/bookings/mine")).toHaveLength(2));
+  });
+
+  /** VEN-HOLD-DEC-09-A: failure to refresh the dual-role Coordinator view is visible after conversion. */
+  it("VEN-HOLD-DEC-09-A reports a failed Coordinator refresh after conversion", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    useAppStore.setState((state) => ({
+      ...state,
+      currentUser: { ...state.currentUser!, roles: ["venue_staff", "coordinator"] },
+    }));
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending")
+        return [pendingRequest({ requestKind: "tentative_hold", status: "approved", holdExpired: false, holdExpiresAt: "2030-11-15T01:00:00.000Z" })] as never;
+      if (path === "/venues/bookings/mine") throw new Error("refresh failed");
+      if (path.endsWith("/convert")) return {} as never;
+      throw new Error(`Unexpected request ${path}`);
+    });
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    await user.click(await screen.findByRole("button", { name: "View Details" }));
+    await user.click(screen.getByRole("button", { name: "Convert to Booking" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to reload your venue bookings.");
+  });
+
+  /** VEN-HOLD-DEC-09-A: an ordinary approval updates the Venue Staff and dual-role Coordinator rows. */
+  it("VEN-HOLD-DEC-09-A updates both views when a dual-role user approves a hold", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    useAppStore.setState((state) => ({
+      ...state,
+      currentUser: { ...state.currentUser!, roles: ["venue_staff", "coordinator"] },
+    }));
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending")
+        return [pendingRequest({ requestKind: "tentative_hold", status: "pending", holdExpired: false, holdExpiresAt: null })] as never;
+      if (path === "/venues/bookings/booking-1/approve")
+        return { id: "booking-1", status: "approved", holdExpiresAt: "2030-11-15T01:00:00.000Z" } as never;
+      if (path === "/venues/bookings/mine") return [
+        pendingRequest({ requestKind: "tentative_hold", status: "pending", holdExpired: false }),
+        pendingRequest({
+          id: "unrelated-coordinator-request",
+          eventId: "unrelated-event",
+          eventName: "Independent event",
+          requestKind: "tentative_hold",
+          status: "pending",
+          holdExpired: false,
+        }),
+      ] as never;
+      throw new Error(`Unexpected request ${path}`);
+    });
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByRole("radio", { name: "Approve — activate tentative hold" }));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    expect(await screen.findByText("Approved", { selector: "span" })).toBeInTheDocument();
+    const unrelatedCardHeading = screen.getAllByRole("heading", { name: "Independent event" }).find((heading) => heading.tagName === "H3");
+    const unrelatedCard = unrelatedCardHeading?.closest("article");
+    expect(unrelatedCard).not.toBeNull();
+    expect(within(unrelatedCard as HTMLElement).getByText("pending")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-10-A: releasing an active hold refreshes the Venue Staff queue after success. */
+  it("VEN-HOLD-DEC-10-A releases an active hold and reloads the staff queue", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending")
+        return [pendingRequest({ requestKind: "tentative_hold", status: "approved", holdExpired: false, holdExpiresAt: "2030-11-15T01:00:00.000Z" })] as never;
+      if (path.endsWith("/release")) return { id: "booking-1", status: "released" } as never;
+      throw new Error(`Unexpected request ${path}`);
+    });
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    await user.click(await screen.findByRole("button", { name: "View Details" }));
+    await user.click(screen.getByRole("button", { name: "Release Hold" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/venues/bookings/booking-1/release", { method: "POST" }));
+    await waitFor(() => expect(apiMock.mock.calls.filter(([path]) => path === "/venues/bookings/pending")).toHaveLength(2));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-09-B: a failed server conversion keeps the review open and shows the service error. */
+  it("VEN-HOLD-DEC-09-B keeps the modal open when conversion fails", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending")
+        return [pendingRequest({ requestKind: "tentative_hold", status: "approved", holdExpired: false, holdExpiresAt: "2030-11-15T01:00:00.000Z" })] as never;
+      if (path.endsWith("/convert")) throw new Error("Conversion refused by server.");
+      throw new Error(`Unexpected request ${path}`);
+    });
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    await user.click(await screen.findByRole("button", { name: "View Details" }));
+    await user.click(screen.getByRole("button", { name: "Convert to Booking" }));
+    expect(await screen.findByText("Conversion refused by server.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-10-B: a failed server release keeps the review open and shows the service error. */
+  it("VEN-HOLD-DEC-10-B keeps the modal open when release fails", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending")
+        return [pendingRequest({ requestKind: "tentative_hold", status: "approved", holdExpired: false, holdExpiresAt: "2030-11-15T01:00:00.000Z" })] as never;
+      if (path.endsWith("/release")) throw new Error("Release refused by server.");
+      throw new Error(`Unexpected request ${path}`);
+    });
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    await user.click(await screen.findByRole("button", { name: "View Details" }));
+    await user.click(screen.getByRole("button", { name: "Release Hold" }));
+    expect(await screen.findByText("Release refused by server.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-09-B: a non-Error conversion rejection uses the modal's retryable fallback. */
+  it("VEN-HOLD-DEC-09-B shows the conversion fallback for a non-Error rejection", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending")
+        return [pendingRequest({ requestKind: "tentative_hold", status: "approved", holdExpired: false, holdExpiresAt: "2030-11-15T01:00:00.000Z" })] as never;
+      if (path.endsWith("/convert")) throw { code: "CONVERSION_FAILED" };
+      throw new Error(`Unexpected request ${path}`);
+    });
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    await user.click(await screen.findByRole("button", { name: "View Details" }));
+    await user.click(screen.getByRole("button", { name: "Convert to Booking" }));
+
+    expect(await screen.findByText("Unable to convert this hold.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-10-B: a non-Error release rejection uses the modal's retryable fallback. */
+  it("VEN-HOLD-DEC-10-B shows the release fallback for a non-Error rejection", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/pending")
+        return [pendingRequest({ requestKind: "tentative_hold", status: "approved", holdExpired: false, holdExpiresAt: "2030-11-15T01:00:00.000Z" })] as never;
+      if (path.endsWith("/release")) throw { code: "RELEASE_FAILED" };
+      throw new Error(`Unexpected request ${path}`);
+    });
+    renderPage();
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    await user.click(await screen.findByRole("button", { name: "View Details" }));
+    await user.click(screen.getByRole("button", { name: "Release Hold" }));
+
+    expect(await screen.findByText("Unable to release this hold.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
 

@@ -35,9 +35,13 @@ export class VenuesController {
 
   /** SPM-55 AC1: pending requests for the caller's venues, ordered by event date. */
   @Get('bookings/pending')
-  listPendingVenueBookings(@Req() request: AuthenticatedRequest) {
+  listPendingVenueBookings(
+    @Req() request: AuthenticatedRequest,
+    @Query('includeDecided') includeDecided?: string,
+  ) {
     return this.venues.listPendingVenueBookings(
       request[CURRENT_USER_REQUEST_KEY],
+      includeDecided === 'true',
     );
   }
 
@@ -64,6 +68,30 @@ export class VenuesController {
       request[CURRENT_USER_REQUEST_KEY],
       bookingId,
       body,
+    );
+  }
+
+  /** SPM-132 AC9: Venue Staff convert an active tentative hold to a confirmed booking. */
+  @Post('bookings/:bookingId/convert')
+  convertHoldToBooking(
+    @Req() request: AuthenticatedRequest,
+    @Param('bookingId') bookingId: string,
+  ) {
+    return this.venues.convertHoldToBooking(
+      request[CURRENT_USER_REQUEST_KEY],
+      bookingId,
+    );
+  }
+
+  /** SPM-132 AC10: Venue Staff release an active tentative hold. */
+  @Post('bookings/:bookingId/release')
+  releaseHold(
+    @Req() request: AuthenticatedRequest,
+    @Param('bookingId') bookingId: string,
+  ) {
+    return this.venues.releaseHold(
+      request[CURRENT_USER_REQUEST_KEY],
+      bookingId,
     );
   }
 

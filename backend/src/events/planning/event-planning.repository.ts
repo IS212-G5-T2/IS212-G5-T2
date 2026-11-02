@@ -200,7 +200,9 @@ function optionalIso(value: unknown): string | undefined {
   return value === null || value === undefined ? undefined : iso(value);
 }
 
+/* v8 ignore start -- TypeScript emits an unreachable decorator metadata fallback branch. */
 @Injectable()
+/* v8 ignore stop */
 export class EventPlanningRepository {
   private readonly context = new AsyncLocalStorage<pg.PoolClient>();
 
@@ -256,7 +258,7 @@ export class EventPlanningRepository {
     // SPM-124 owns venue_bookings. An approved booking is confirmed; a pending
     // row is a venue hold only while it has an explicit future expiry. Pending
     // booking requests without a hold expiry are not tentative holds, and an
-    // expired hold has been released. An approved tentative hold (SPM-159) is
+    // expired hold has persisted as expired. An approved tentative hold (SPM-159) is
     // 'Hold' while running and 'Hold expired' afterwards, never 'Booked'; an expired
     // one is not a neighbour that clashes with another event. Rejected rows remain unavailable for
     // planning because they require a replacement venue.

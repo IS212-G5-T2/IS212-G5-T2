@@ -10,7 +10,7 @@ import type { VenueCreateInput, VenueImage } from "@/types";
 import { readFileAsDataUrl } from "@/utils/uploads";
 import { FACILITY_OPTIONS, ROOM_LAYOUT_OPTIONS } from "@/features/venues/lib/venueOptions";
 
-type Field = Exclude<keyof VenueCreateInput, "accessibility" | "facilities" | "layouts" | "image">;
+type Field = Exclude<keyof VenueCreateInput, "accessibility" | "facilities" | "layouts" | "image" | "ownerId">;
 
 const accessibilityOptions = [
   "Wheelchair access",

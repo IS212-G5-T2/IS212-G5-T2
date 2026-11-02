@@ -5,7 +5,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api, ApiError } from "@/utils/api";
-import { formatDateTimeRange } from "@/utils/format";
+import { formatSgtDateTimeRange } from "@/utils/sgtDate";
 import type { VenueRecord } from "../venue-records";
 import { VenueUnavailabilityPanel } from "./VenueUnavailabilityPanel";
 import { useAppStore } from "@/store/useAppStore";
@@ -147,6 +147,14 @@ export function VenueRecordDetailPage() {
   const [cancelNeedsLastWarning, setCancelNeedsLastWarning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelledReference, setCancelledReference] = useState("");
+  const [convertingHoldId, setConvertingHoldId] = useState("");
+  const [releasingHoldId, setReleasingHoldId] = useState("");
+  const [holdActionError, setHoldActionError] = useState("");
+  const [convertPromptId, setConvertPromptId] = useState("");
+  const [releasePromptId, setReleasePromptId] = useState("");
+  const isVenueOwner = Boolean(
+    user && hasRole(user, "venue_staff") && venue?.ownerId === user.id,
+  );
   const activeEventVenueBooking =
     eventVenueBooking &&
     (eventVenueBooking.status === "pending" ||
@@ -283,12 +291,11 @@ export function VenueRecordDetailPage() {
   }, [canCoordinate, requestedEventId, venue?.id, bookingMode, revision, availabilityNow]);
 
   async function cancelEventVenueBooking(confirmed = false) {
-    if (!eventVenueBooking) return;
     setCancelling(true);
     setRequestError("");
     try {
       await api(
-        `/venues/bookings/${encodeURIComponent(eventVenueBooking.id)}/cancel`,
+        `/venues/bookings/${encodeURIComponent(eventVenueBooking!.id)}/cancel`,
         {
           method: "POST",
           body: JSON.stringify({ confirmed }),
@@ -313,6 +320,46 @@ export function VenueRecordDetailPage() {
         );
     } finally {
       setCancelling(false);
+    }
+  }
+
+  async function convertHoldToBooking(bookingId: string) {
+    setConvertingHoldId(bookingId);
+    setHoldActionError("");
+    try {
+      await api(`/venues/bookings/${encodeURIComponent(bookingId)}/convert`, {
+        method: "POST",
+      });
+      setConvertPromptId("");
+      setRevision((v) => v + 1);
+    } catch (failure) {
+      setHoldActionError(
+        failure instanceof Error
+          ? failure.message
+          : "Unable to convert this hold.",
+      );
+    } finally {
+      setConvertingHoldId("");
+    }
+  }
+
+  async function releaseHold(bookingId: string) {
+    setReleasingHoldId(bookingId);
+    setHoldActionError("");
+    try {
+      await api(`/venues/bookings/${encodeURIComponent(bookingId)}/release`, {
+        method: "POST",
+      });
+      setReleasePromptId("");
+      setRevision((v) => v + 1);
+    } catch (failure) {
+      setHoldActionError(
+        failure instanceof Error
+          ? failure.message
+          : "Unable to release this hold.",
+      );
+    } finally {
+      setReleasingHoldId("");
     }
   }
 
@@ -1239,28 +1286,68 @@ export function VenueRecordDetailPage() {
               </h2>
             </CardHeader>
             <CardBody>
+              {holdActionError && (
+                <p role="alert" className="mb-3 text-sm text-red-700 dark:text-red-300">
+                  {holdActionError}
+                </p>
+              )}
               {activeReservations.length === 0 ? (
                 <p>No upcoming bookings or active tentative holds.</p>
               ) : (
                 <ul className="space-y-3">
                   {activeReservations.map((reservation) => (
-                    <li key={reservation.id}>
-                      <strong>{reservation.eventName}</strong> ·{" "}
-                      {reservation.status === "booked"
-                        ? "Booked"
-                        : "Tentative hold"}
-                      <br />
-                      {formatDateTimeRange(reservation.start, reservation.end)}
-                      {reservation.status === "tentative" && reservation.holdExpiresAt && (
-                        <>
+                    <li key={reservation.id} className="rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <strong>{reservation.eventName}</strong> ·{" "}
+                          {reservation.status === "booked"
+                            ? "Confirmed booking"
+                            : "Tentative hold"}
                           <br />
-                          Hold expires {formatVenueInstant(reservation.holdExpiresAt)}
-                        </>
-                      )}
-                      {reservation.affectedByUnavailablePeriod && (
-                        <p className="text-danger-700 dark:text-danger-300">
-                          Affected by an unavailable period
-                        </p>
+                          {formatSgtDateTimeRange(reservation.start, reservation.end)}
+                          {reservation.status === "tentative" && reservation.holdExpiresAt && (
+                            <>
+                              <br />
+                              <span className="text-amber-700 dark:text-amber-300">
+                                Hold expires {formatVenueInstant(reservation.holdExpiresAt)}
+                              </span>
+                            </>
+                          )}
+                          {reservation.affectedByUnavailablePeriod && (
+                            <p className="text-danger-700 dark:text-danger-300">
+                              Affected by an unavailable period
+                            </p>
+                          )}
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            reservation.status === "booked"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                          }`}
+                        >
+                          {reservation.status === "booked" ? "Booked" : "Tentative"}
+                        </span>
+                      </div>
+                      {isVenueOwner && reservation.status === "tentative" && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="rounded-md bg-green-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-800 disabled:opacity-60"
+                            disabled={convertingHoldId === reservation.id}
+                            onClick={() => setConvertPromptId(reservation.id)}
+                          >
+                            Convert to Booking
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300"
+                            disabled={releasingHoldId === reservation.id}
+                            onClick={() => setReleasePromptId(reservation.id)}
+                          >
+                            Release Hold
+                          </button>
+                        </div>
                       )}
                     </li>
                   ))}
@@ -1270,6 +1357,66 @@ export function VenueRecordDetailPage() {
           </Card>
         </div>
       </div>
+      {convertPromptId && (
+        <Modal
+          open
+          onClose={() => { if (!convertingHoldId) setConvertPromptId(""); }}
+          title="Convert tentative hold to confirmed booking?"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                disabled={!!convertingHoldId}
+                onClick={() => setConvertPromptId("")}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!!convertingHoldId}
+                onClick={() => void convertHoldToBooking(convertPromptId)}
+              >
+                {convertingHoldId ? "Converting…" : "Confirm conversion"}
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm">
+            This will permanently convert the tentative hold into a confirmed
+            booking. The hold expiry will be removed and the calendar will show
+            it as a confirmed booking.
+          </p>
+        </Modal>
+      )}
+      {releasePromptId && (
+        <Modal
+          open
+          onClose={() => { if (!releasingHoldId) setReleasePromptId(""); }}
+          title="Release this tentative hold?"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                disabled={!!releasingHoldId}
+                onClick={() => setReleasePromptId("")}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                disabled={!!releasingHoldId}
+                onClick={() => void releaseHold(releasePromptId)}
+              >
+                {releasingHoldId ? "Releasing…" : "Release hold"}
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm">
+            The tentative hold will be released and the venue slot will become
+            available again. This cannot be undone.
+          </p>
+        </Modal>
+      )}
     </div>
   );
 }

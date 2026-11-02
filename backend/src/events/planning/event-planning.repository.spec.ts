@@ -585,10 +585,10 @@ describe('EventPlanningRepository row mapping', () => {
       ['bk-2', 'Hold expired'],
     ]);
     const sql = String(poolQuery.mock.calls[0][0]).replace(/\s+/g, ' ');
-    expect(sql).toContain("WHEN (b.status = 'approved' AND b.request_kind = 'tentative_hold' AND b.hold_expires_at IS NOT NULL AND b.hold_expires_at <= now()) THEN 'Hold expired'");
+    expect(sql).toContain("WHEN ((b.status = 'expired' AND b.request_kind = 'tentative_hold') OR (b.status = 'approved' AND b.request_kind = 'tentative_hold' AND b.hold_expires_at IS NOT NULL AND b.hold_expires_at <= now())) THEN 'Hold expired'");
     expect(sql).toContain("THEN 'Hold' ");
     expect(sql).toContain("WHEN (b.status = 'approved' AND b.request_kind <> 'tentative_hold') THEN 'Booked'");
-    expect(sql).toContain("((n.status = 'approved' AND NOT (n.status = 'approved' AND n.request_kind = 'tentative_hold' AND n.hold_expires_at IS NOT NULL AND n.hold_expires_at <= now())) AND n.event_id <> b.event_id) OR n.status = 'blocked'");
+    expect(sql).toContain("((n.status = 'approved' AND NOT ((n.status = 'expired' AND n.request_kind = 'tentative_hold') OR (n.status = 'approved' AND n.request_kind = 'tentative_hold' AND n.hold_expires_at IS NOT NULL AND n.hold_expires_at <= now()))) AND n.event_id <> b.event_id) OR n.status = 'blocked'");
   });
 
   /**

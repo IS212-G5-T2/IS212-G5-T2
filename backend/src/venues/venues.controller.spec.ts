@@ -139,6 +139,7 @@ describe('SPM-50 venue route wiring', () => {
     expect(routeArgs('rejectVenueBooking')[`${RouteParamtypes.PARAM}:1`]).toMatchObject({ index: 1, data: 'bookingId' });
     expect(routeArgs('rejectVenueBooking')[`${RouteParamtypes.BODY}:2`]).toMatchObject({ index: 2 });
     expect(routeArgs('rejectVenueBooking')[`${RouteParamtypes.BODY}:2`].data).toBeUndefined();
+    expect(routeArgs('listPendingVenueBookings')[`${RouteParamtypes.QUERY}:1`]).toMatchObject({ index: 1, data: 'includeDecided' });
 
     // Identity: each review route takes the whole request at index 0, so the verified session user is read from it,
     // never from a client-supplied body or parameter.
@@ -153,7 +154,15 @@ describe('SPM-50 venue route wiring', () => {
     service.listPendingVenueBookings.mockReturnValue(['pending']);
 
     expect(controller.listPendingVenueBookings(request)).toEqual(['pending']);
-    expect(service.listPendingVenueBookings).toHaveBeenCalledWith(identity);
+    expect(service.listPendingVenueBookings).toHaveBeenCalledWith(identity, false);
+  });
+
+  /** SPM-55 AC1: the explicit history filter includes decided requests for Venue Staff. */
+  it('SPM-55 forwards the explicit all-status request for Venue Staff', () => {
+    service.listPendingVenueBookings.mockReturnValue(['all-statuses']);
+
+    expect(controller.listPendingVenueBookings(request, 'true')).toEqual(['all-statuses']);
+    expect(service.listPendingVenueBookings).toHaveBeenCalledWith(identity, true);
   });
 
   /** VEN-REV-02-A: the approve route forwards the verified staff identity and the booking ID. */

@@ -12,7 +12,7 @@ export function BookingCard({
   booking: PendingBookingRequest;
   onReview: (b: PendingBookingRequest) => void;
 }) {
-  const decided = booking.status === "approved" || booking.status === "rejected";
+  const decided = booking.status !== "pending";
   return (
     <Card>
       <CardBody>
@@ -39,9 +39,9 @@ export function BookingCard({
             Venue setup changed. Reassess the occupied period before approval.
           </p>
         )}
-        {booking.requestKind === "tentative_hold" && booking.status === "approved" && booking.holdExpiresAt && (
+        {booking.requestKind === "tentative_hold" && (booking.status === "approved" || booking.status === "expired") && booking.holdExpiresAt && (
           <p className="mt-1 text-sm font-medium text-amber-700 dark:text-amber-300">
-            {booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until {formatSingaporeDateTime(booking.holdExpiresAt)}
+            {booking.status === "expired" || booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until {formatSingaporeDateTime(booking.holdExpiresAt)}
           </p>
         )}
         {booking.status === "rejected" && (

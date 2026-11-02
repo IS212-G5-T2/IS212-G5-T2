@@ -20,8 +20,8 @@ export interface VenueBookingFact {
   id: string;
   venueId: string;
   venueName: string;
-  /** released belongs to a cancelled event; cancelled is an individually cancelled venue request. */
-  status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
+  /** Released and cancelled requests are history only; neither satisfies a current venue arrangement. */
+  status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled' | 'expired';
   /** Pending bookings with a hold expiry are tentative holds (SPM-132/133); an approved hold carries its expiry too. */
   holdExpiresAt: Date | null;
   /**
@@ -55,6 +55,8 @@ export interface ReadinessSnapshot {
   venueBookings: VenueBookingFact[];
   equipment: EquipmentFact[];
   safety: SafetyFact | undefined;
+  /** Event lifecycle context: released history on a cancelled event is not a new venue request. */
+  eventCancelled?: boolean;
   /**
    * The coordinator confirmed that no equipment is needed (events.equipment_confirmed_at).
    * Without active equipment lines this is the only way equipment is satisfied.
@@ -107,7 +109,7 @@ function venueItem(
   booking: VenueBookingFact,
   now: Date,
 ): OutstandingItem | undefined {
-  if (booking.status === 'approved') {
+  if (booking.status === 'approved' || booking.status === 'expired') {
     // SPM-159: an approved hold does not satisfy the venue approval, whether it is running or has expired.
     const hold = approvedHoldState(booking, now);
     if (hold) {
@@ -208,16 +210,13 @@ export function evaluateReadiness(
 ): ReadinessResult {
   const outstanding: OutstandingItem[] = [];
 
-  // Zero bookings is outstanding, never vacuously approved (F6, M18).
+  // Active events with only released history still need an arrangement decision (SPM-132). A cancelled event has
+  // already ended its arrangement lifecycle, so released history does not become a fresh "None requested" item.
   const activeVenueBookings = snapshot.venueBookings.filter(
     (booking) =>
       booking.status !== 'released' && booking.status !== 'cancelled',
   );
-  if (
-    activeVenueBookings.length === 0 &&
-    (snapshot.venueBookings.length === 0 ||
-      snapshot.venueBookings.some((booking) => booking.status === 'cancelled'))
-  ) {
+  if (activeVenueBookings.length === 0 && !snapshot.eventCancelled) {
     outstanding.push({
       type: 'venue',
       label: VENUE_LABEL,

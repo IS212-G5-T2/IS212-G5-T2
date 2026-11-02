@@ -29,6 +29,7 @@ describe('SPM-136 RR-136-02: released venue bookings are inactive', () => {
       ],
       equipment: [],
       safety: { state: 'Approved' as const },
+      eventCancelled: true,
     };
 
     // Act

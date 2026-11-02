@@ -1257,3 +1257,45 @@ Id-shaped text in the tests that is not a test id (fixture labels, message codes
 | VS     | Venue Staff login labels in specs (SPM-48 VS-01)             |
 | H1     | Fixture hold label in specs (SPM-48 MONITOR-QUEUE-08-B)      |
 | SC-SPM48 | Spec-conflict register ids for SPM-48, named in test comments |
+
+## SPM-132
+
+| VEN-HOLD-DEC-01-A | PRIMARY | SPM-132 | AC1 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-01-B | PRIMARY | SPM-132 | AC1 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-01-SEC-1 | PRIMARY | SPM-132 | AC1 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-01-SEC-2 | PRIMARY | SPM-132 | AC1 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts, backend/src/venues/venues.service.spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-01-VAR-1 | PRIMARY | SPM-132 | AC1 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-02-A | PRIMARY | SPM-132 | AC2 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-02-B | PRIMARY | SPM-132 | AC2 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-03-A | PRIMARY | SPM-132 | AC3 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-03-B | PRIMARY | SPM-132 | AC3 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-03-C | PRIMARY | SPM-132 | AC3 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-04-A | PRIMARY | SPM-132 | AC4 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-04-BND-1 | PRIMARY | SPM-132 | AC4 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-04-BND-2 | PRIMARY | SPM-132 | AC4 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-05-A | PRIMARY | SPM-132 | AC5 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-05-B | PRIMARY | SPM-132 | AC5 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-06-A | PRIMARY | SPM-132 | AC6 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-06-B | PRIMARY | SPM-132 | AC6 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts, backend/src/venues/tentative-hold-expiry.scheduler.spec.ts, backend/src/venues/repository/venues.repository.spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-06-BND-1 | PRIMARY | SPM-132 | AC6 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-07-A | PRIMARY | SPM-132 | AC7 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-07-B | PRIMARY | SPM-132 | AC7 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-07-BND-1 | PRIMARY | SPM-132 | AC7 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-07-BND-2 | PRIMARY | SPM-132 | AC7 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-07-BND-3 | PRIMARY | SPM-132 | AC7 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-07-C | PRIMARY | SPM-132 | AC7 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-08-A | PRIMARY | SPM-132 | AC8 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts, frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-08-B | PRIMARY | SPM-132 | AC8 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-08-BND-1 | PRIMARY | SPM-132 | AC8 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-09-A | PRIMARY | SPM-132 | AC9 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-09-B | PRIMARY | SPM-132 | AC9 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts, backend/src/venues/repository/venues.repository.spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-09-PERF-1 | PRIMARY | SPM-132 | AC9 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-10-A | PRIMARY | SPM-132 | AC10 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-10-B | PRIMARY | SPM-132 | AC10 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts, backend/src/venues/repository/venues.repository.spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-11-B | PRIMARY | SPM-132 | AC11 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-11-C | PRIMARY | SPM-132 | AC11 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-11-PERF-1 | PRIMARY | SPM-132 | AC11 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-12-A | PRIMARY | SPM-132 | AC12 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-12-B | PRIMARY | SPM-132 | AC12 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-13-A | PRIMARY | SPM-132 | AC13 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |
+| VEN-HOLD-DEC-13-B | PRIMARY | SPM-132 | AC13 | Confluence matrix cycle-01 verified by Orchestrator | backend/test/tentative-hold-management.e2e-spec.ts | Matrix source verified by Orchestrator | Active |

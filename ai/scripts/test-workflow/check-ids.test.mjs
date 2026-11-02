@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { evaluate } from './check-ids.mjs';
+import { collectCodeIds, evaluate } from './check-ids.mjs';
 
 const row = (id, type, extra = {}) => ({ id, type, story: 'S', parent_ac: 'AC1', owning_test_file: 'a.spec.ts', status: 'Active', approved: 'yes', ...extra });
 const codeIds = (ids) => new Map(ids.map((id) => [id, new Set(['a.spec.ts'])]));
@@ -11,6 +11,12 @@ test('G1 passes when code, registry and matrix agree', () => {
   assert.deepEqual(result.findings, []);
   assert.equal(result.matrixUnverified, false);
   assert.equal(result.counts.primary, 1);
+});
+
+test('G1 excludes coverage-only companions from story ID traceability', () => {
+  const scope = { tests: { backend: [{ glob: 'backend/src/events/planning/event-planning.repository.spec.ts', coverageOnly: true }] } };
+  const ids = collectCodeIds(scope, new Set());
+  assert.equal(ids.size, 0);
 });
 
 test('G1 reports an id used in code but absent from the registry (invented)', () => {

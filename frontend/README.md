@@ -61,6 +61,12 @@ returns a booking reference only after the pending request is persisted.
 In My Bookings, Pending tentative holds are identified as not active, while
 approved holds show Active or expired state with the exact expiry returned by
 `GET /api/venues/bookings/mine`.
+Venue Staff can convert an active approved hold to a confirmed booking or
+release it before expiry. The server rechecks ownership and the expiry instant;
+the request list refreshes after either action. A hold remains visible as
+expired, with no active-hold actions, when its expiry flag is set or its status
+has been persisted as expired. Coordinators see the persisted expired or
+released state as read-only.
 When Search Venues is opened from an event, the catalogue includes a **Back to event** link.
 The view uses the credentialed backend API configured by
 `VITE_API_BASE_URL` (default `http://localhost:8080`). The backend database
@@ -133,6 +139,17 @@ Test files live alongside the code they cover (for example,
 `src/features/account/pages/login/LoginPage.test.tsx` next to its page).
 Feature-owned fixtures stay with their feature; `src/test/setup.ts` provides
 global setup.
+
+### SPM-132 tentative-hold lifecycle checks
+
+The hold lifecycle UI tests cover request review, expiry display, conversion,
+release, and the venue schedule. Run the focused checks and their mapped
+mutations from this directory:
+
+```sh
+npm test -- src/features/bookings/pages/requests/BookingsPage.test.tsx src/features/venues/pages/records/detail/VenueRecordDetailPage.hold.test.tsx
+node scripts/testing/mutation/run.mjs --mutants spm132.mutants.mjs
+```
 
 ### SPM-51 venue mutation checks
 

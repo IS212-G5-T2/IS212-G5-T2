@@ -193,7 +193,7 @@ export const MUTANTS = [
       'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-HOLD-09-SUP-API exposes hold kind and expiry state in staff list and expiry in approval response',
     ],
     edits: [[
-      '      status: row.status,\n      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === \'tentative_hold\' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,',
+      '      status: row.status,\n      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === \'tentative_hold\' && (row.status === \'expired\' || (row.hold_expires_at != null && row.hold_expires_at <= now)),\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,',
       '      status: row.status,\n      requestKind: undefined,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === \'tentative_hold\' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,',
     ]],
   },
@@ -219,8 +219,8 @@ export const MUTANTS = [
       'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-HOLD-09-SUP-API exposes hold kind and expiry state in staff list and expiry in approval response',
     ],
     edits: [[
-      "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
-      "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at > now,\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
+      "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && (row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
+      "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && (row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at > now)),\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
     ]],
   },
   {
@@ -232,8 +232,8 @@ export const MUTANTS = [
       'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-HOLD-09-SUP-API exposes hold kind and expiry state in staff list and expiry in approval response',
     ],
     edits: [[
-      "      status: row.status,\n      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
-      "      status: row.status,\n      requestKind: row.request_kind,\n      holdExpiresAt: undefined,\n      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
+      "      status: row.status,\n      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && (row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
+      "      status: row.status,\n      requestKind: row.request_kind,\n      holdExpiresAt: undefined,\n      holdExpired: row.request_kind === 'tentative_hold' && (row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
     ]],
   },
   {
@@ -245,7 +245,7 @@ export const MUTANTS = [
       'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-HOLD-09-SUP-API exposes hold kind and expiry state in staff list and expiry in approval response',
     ],
     edits: [[
-      "      status: row.status,\n      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
+      "      status: row.status,\n      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && (row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
       "      status: row.status,\n      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: false,\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired: row.reassessment_required,",
     ]],
   },
@@ -258,7 +258,7 @@ export const MUTANTS = [
       'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-HOLD-09-SUP-COORDINATOR exposes pending, active, and expired hold state through the coordinator API',
     ],
     edits: [[
-      "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      bookingReference: row.booking_reference,",
+      "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && (row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),\n      bookingReference: row.booking_reference,",
       "      requestKind: undefined,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      bookingReference: row.booking_reference,",
     ]],
   },
@@ -271,7 +271,7 @@ export const MUTANTS = [
       'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-HOLD-09-SUP-COORDINATOR exposes pending, active, and expired hold state through the coordinator API',
     ],
     edits: [[
-      "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      bookingReference: row.booking_reference,",
+      "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && (row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),\n      bookingReference: row.booking_reference,",
       "      requestKind: row.request_kind,\n      holdExpiresAt: undefined,\n      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      bookingReference: row.booking_reference,",
     ]],
   },
@@ -284,7 +284,7 @@ export const MUTANTS = [
       'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-HOLD-09-SUP-COORDINATOR exposes pending, active, and expired hold state through the coordinator API',
     ],
     edits: [[
-      "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,\n      bookingReference: row.booking_reference,",
+      "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: row.request_kind === 'tentative_hold' && (row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),\n      bookingReference: row.booking_reference,",
       "      requestKind: row.request_kind,\n      holdExpiresAt: row.hold_expires_at?.toISOString(),\n      holdExpired: false,\n      bookingReference: row.booking_reference,",
     ]],
   },
@@ -441,8 +441,8 @@ export const MUTANTS = [
       'backend/src/venues/repository/venues.repository.spec.ts :: VEN-HOLD-09-SUP-API and VEN-HOLD-09-SUP-COORDINATOR mark an approved hold expiring',
     ],
     edits: [[
-      "row.hold_expires_at <= now,\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired",
-      "row.hold_expires_at < now,\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired",
+      "row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired",
+      "row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at < now)),\n      rejectionReason: row.rejection_reason ?? undefined,\n      reassessmentRequired",
     ]],
   },
   {
@@ -454,8 +454,8 @@ export const MUTANTS = [
       'backend/src/venues/repository/venues.repository.spec.ts :: VEN-HOLD-09-SUP-API and VEN-HOLD-09-SUP-COORDINATOR mark an approved hold expiring',
     ],
     edits: [[
-      "row.hold_expires_at <= now,\n      bookingReference: row.booking_reference,",
-      "row.hold_expires_at < now,\n      bookingReference: row.booking_reference,",
+      "row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),\n      bookingReference: row.booking_reference,",
+      "row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at < now)),\n      bookingReference: row.booking_reference,",
     ]],
   },
   {

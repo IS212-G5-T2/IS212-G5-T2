@@ -26,6 +26,7 @@ export interface Queryable {
 export interface ArrangementsSnapshot {
   venueBookings: VenueBookingFact[];
   equipment: EquipmentFact[];
+  eventCancelled: boolean;
   /** The coordinator confirmed "no equipment needed" (events.equipment_confirmed_at). */
   equipmentNoneConfirmed: boolean;
 }
@@ -67,7 +68,7 @@ export class ArrangementsReader {
       id: string;
       venue_id: string;
       venue_name: string;
-      status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
+      status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled' | 'expired';
       hold_expires_at: Date | null;
       request_kind: 'booking' | 'tentative_hold';
       start_at: Date;
@@ -100,11 +101,13 @@ export class ArrangementsReader {
 
     const confirmation = await db.query<{
       equipment_confirmed_at: Date | null;
-    }>('SELECT equipment_confirmed_at FROM events WHERE id = $1', [eventId]);
+      status: string;
+    }>('SELECT equipment_confirmed_at, status FROM events WHERE id = $1', [eventId]);
 
     return {
       equipmentNoneConfirmed:
         confirmation.rows[0]?.equipment_confirmed_at != null,
+      eventCancelled: confirmation.rows[0]?.status === 'Cancelled',
       venueBookings: bookings.rows.map((row) => ({
         id: row.id,
         venueId: row.venue_id,

@@ -15,6 +15,7 @@ vi.mock("@fullcalendar/react", () => ({
     calendarSpies.lastProps = props;
     useImperativeHandle(ref, () => ({ getApi: () => ({ gotoDate: calendarSpies.gotoDate }) }));
     const [allowed, setAllowed] = useState("");
+    const [calendarEvents, setCalendarEvents] = useState<Array<{ id: string; title: string; start: string; end: string }>>([]);
     const start = sgtLocalDateTimeToDate("2030-01-07T10:00");
     const end = sgtLocalDateTimeToDate("2030-01-07T11:00");
     const otherDayStart = sgtLocalDateTimeToDate("2030-01-09T10:00");
@@ -43,6 +44,8 @@ vi.mock("@fullcalendar/react", () => ({
       createElement("output", { "aria-label": "Calendar minimum time" }, String(props.slotMinTime)),
       createElement("output", { "aria-label": "Calendar maximum time" }, String(props.slotMaxTime)),
       createElement("output", { "aria-label": "Calendar selectable" }, String(props.selectable)),
+      createElement("button", { onClick: () => (props.events as (range: { start: Date; end: Date }, success: (events: typeof calendarEvents) => void) => void)({ start: sgtLocalDateTimeToDate("2030-01-25T00:00"), end: sgtLocalDateTimeToDate("2030-01-26T00:00") }, setCalendarEvents) }, "Load calendar events"),
+      ...calendarEvents.map((event) => createElement("div", { key: event.id, "data-testid": "calendar-event", "data-id": event.id, "data-start": event.start, "data-end": event.end }, event.title)),
       createElement("button", { disabled: !props.select, onClick: () => (props.select as (range: { start: Date; end: Date }) => void)?.({ start, end }) }, "Emit selection"),
       createElement("button", { onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)({ event: { id: "selected-event-time" } }) }, "Click selected time"),
       createElement("button", { onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)({ event: { id: "booking-1" } }) }, "Click booking"),
@@ -208,6 +211,72 @@ describe("venue schedule occupancy", () => {
 
 describe("VenueScheduleCalendar interactions", () => {
   /** VEN-AVL-01-A (SPM-51): calendar selection accepts ranges without applying retired operating-hours rules. */
+  it("renders without a selected date for the initial calendar view", () => {
+    render(<VenueScheduleCalendar venue={venue} initialDate="" />);
+    expect(screen.getByLabelText("Schedule legend")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-08-A: the real calendar event source labels an approved hold and derives 30/45 minute buffers from its event core interval. */
+  it("VEN-HOLD-DEC-08-A renders the Tentative hold title and exact setup, event, and turnaround edges", () => {
+    const holdVenue: VenueRecord = {
+      ...venue,
+      setupTimeMinutes: 30,
+      turnaroundTimeMinutes: 45,
+      reservations: [{
+        id: "calendar-hold",
+        eventName: "Planning workshop",
+        // API reservation interval is the event core (10:00–12:00 SGT), not the occupied interval.
+        start: sgtLocalDateTimeToDate("2030-01-25T10:00").toISOString(),
+        end: sgtLocalDateTimeToDate("2030-01-25T12:00").toISOString(),
+        status: "tentative",
+        holdExpiresAt: "2030-02-08T04:00:00.000Z",
+        affectedByUnavailablePeriod: false,
+      }],
+    };
+    render(<VenueScheduleCalendar venue={holdVenue} initialDate="2030-01-25" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load calendar events" }));
+
+    const events = screen.getAllByTestId("calendar-event");
+    const hold = events.find((event) => event.textContent === "Tentative hold");
+    const setup = events.find((event) => event.textContent === "Setup buffer");
+    const turnaround = events.find((event) => event.textContent === "Turnaround buffer");
+    expect(hold).toHaveAttribute("data-start", "2030-01-25T02:00:00.000Z");
+    expect(hold).toHaveAttribute("data-end", "2030-01-25T04:00:00.000Z");
+    expect(setup).toHaveAttribute("data-start", "2030-01-25T01:30:00.000Z");
+    expect(setup).toHaveAttribute("data-end", "2030-01-25T02:00:00.000Z");
+    expect(turnaround).toHaveAttribute("data-start", "2030-01-25T04:00:00.000Z");
+    expect(turnaround).toHaveAttribute("data-end", "2030-01-25T04:45:00.000Z");
+  });
+
+  /** VEN-HOLD-DEC-12-A: the production calendar labels a converted reservation Confirmed booking and never Tentative hold. */
+  it("VEN-HOLD-DEC-12-A renders a booked reservation with the Confirmed booking title", () => {
+    const bookedVenue: VenueRecord = {
+      ...venue,
+      setupTimeMinutes: 30,
+      turnaroundTimeMinutes: 45,
+      reservations: [{
+        id: "calendar-converted-booking",
+        eventName: "Planning workshop",
+        start: "2030-01-25T02:00:00.000Z",
+        end: "2030-01-25T04:00:00.000Z",
+        status: "booked",
+        affectedByUnavailablePeriod: false,
+      }],
+    };
+    render(<VenueScheduleCalendar venue={bookedVenue} initialDate="2030-01-25" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load calendar events" }));
+
+    const events = screen.getAllByTestId("calendar-event");
+    const booking = events.find((event) => event.textContent === "Confirmed booking");
+    expect(booking).toHaveAttribute("data-id", "calendar-converted-booking");
+    expect(booking).toHaveAttribute("data-start", "2030-01-25T02:00:00.000Z");
+    expect(booking).toHaveAttribute("data-end", "2030-01-25T04:00:00.000Z");
+    expect(events.filter((event) => event.textContent === "Tentative hold")).toHaveLength(0);
+  });
+
+  /** SPM-51 calendar selection accepts ranges without applying retired operating-hours rules. */
   it("allows selections on any weekday through FullCalendar's selectAllow prop", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 

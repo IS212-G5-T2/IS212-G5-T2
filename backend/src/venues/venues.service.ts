@@ -28,6 +28,8 @@ import {
   type AffectedBooking,
   type VenueBookingDecision,
   type VenueBookingDecisionResult,
+  type ConvertHoldResult,
+  type ReleaseHoldResult,
 } from './repository/venues.repository.js';
 
 const REJECTION_REASON_MAX_LENGTH = 1000;
@@ -385,9 +387,12 @@ export class VenuesService {
   }
 
   /** SPM-55 AC1: lists pending requests for the venues the authenticated Venue Staff member owns. */
-  async listPendingVenueBookings(user: AuthenticatedUser | undefined) {
+  async listPendingVenueBookings(
+    user: AuthenticatedUser | undefined,
+    includeDecided = false,
+  ) {
     const staff = await this.authorizeStaff(user);
-    return this.repository.listPendingVenueBookings(staff.uid);
+    return this.repository.listPendingVenueBookings(staff.uid, includeDecided);
   }
 
   /** SPM-55 AC2, AC6: approves a pending request; a decided or cancelled request returns 409. */
@@ -416,6 +421,51 @@ export class VenuesService {
     return decisionOrThrow(
       await this.repository.rejectVenueBooking(staff.uid, bookingId, reason),
     );
+  }
+
+  /** SPM-132 AC9: converts an active tentative hold to a confirmed booking. */
+  async convertHoldToBooking(
+    user: AuthenticatedUser | undefined,
+    bookingId: string,
+  ) {
+    const staff = await this.authorizeStaff(user);
+    if (!UUID.test(bookingId))
+      throw new NotFoundException('Venue booking not found.');
+    const result: ConvertHoldResult =
+      await this.repository.convertHoldToBooking(staff.uid, bookingId);
+    if (result.kind === 'not-found')
+      throw new NotFoundException('Venue booking not found.');
+    if (result.kind === 'not-active-hold')
+      throw new ConflictException({
+        code: 'NOT_ACTIVE_HOLD',
+        message: 'Only an active tentative hold can be converted to a confirmed booking.',
+      });
+    if (result.kind === 'hold-expired')
+      throw new ConflictException({
+        code: 'HOLD_EXPIRED',
+        message: 'This tentative hold has expired and can no longer be converted.',
+      });
+    return result.booking;
+  }
+
+  /** SPM-132 AC10: releases an active tentative hold, freeing the venue slot. */
+  async releaseHold(
+    user: AuthenticatedUser | undefined,
+    bookingId: string,
+  ) {
+    const staff = await this.authorizeStaff(user);
+    if (!UUID.test(bookingId))
+      throw new NotFoundException('Venue booking not found.');
+    const result: ReleaseHoldResult =
+      await this.repository.releaseHold(staff.uid, bookingId);
+    if (result.kind === 'not-found')
+      throw new NotFoundException('Venue booking not found.');
+    if (result.kind === 'not-active-hold')
+      throw new ConflictException({
+        code: 'NOT_ACTIVE_HOLD',
+        message: 'Only an active tentative hold can be released.',
+      });
+    return { id: bookingId, status: 'released' as const };
   }
 
   /* v8 ignore start -- SPM-122 unavailable-period mutations are outside SPM-54; booking conflicts are tested through the read/submission API. */

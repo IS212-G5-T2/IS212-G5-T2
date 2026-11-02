@@ -77,7 +77,7 @@ describe('ArrangementsReader', () => {
         ],
       })
       .mockResolvedValueOnce({
-        rows: [{ equipment_confirmed_at: new Date('2030-01-01T00:00:00.000Z') }],
+        rows: [{ equipment_confirmed_at: new Date('2030-01-01T00:00:00.000Z'), status: 'Planning' }],
       });
     const reader = new ArrangementsReader({ read: vi.fn() });
 
@@ -85,6 +85,7 @@ describe('ArrangementsReader', () => {
 
     expect(result).toMatchObject({
       equipmentNoneConfirmed: true,
+      eventCancelled: false,
       venueBookings: [{ id: 'booking-1', status: 'cancelled', venueName: 'Main Hall' }],
       equipment: [{ id: 'equipment-1', name: 'Projector', quantity: 1 }],
     });
@@ -99,10 +100,23 @@ describe('ArrangementsReader', () => {
     const reader = new ArrangementsReader(new NoSafetyRecordSource());
     const result = await reader.read({ query } as unknown as Queryable, 'event-2', { lock: false });
 
-    expect(result).toEqual({ venueBookings: [], equipment: [], equipmentNoneConfirmed: false });
+    expect(result).toEqual({ venueBookings: [], equipment: [], equipmentNoneConfirmed: false, eventCancelled: false });
     expect(query.mock.calls[0][0]).not.toContain('FOR SHARE');
     expect(query.mock.calls[1][0]).not.toContain('FOR SHARE');
     await expect(new NoSafetyRecordSource().read('event-2')).resolves.toBeUndefined();
+  });
+
+  it('carries the event cancellation state into readiness snapshots', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ equipment_confirmed_at: null, status: 'Cancelled' }] });
+    const reader = new ArrangementsReader(new NoSafetyRecordSource());
+
+    const result = await reader.read({ query } as unknown as Queryable, 'event-cancelled', { lock: false });
+
+    expect(query.mock.calls[2][0]).toContain('status FROM events');
+    expect(result.eventCancelled).toBe(true);
   });
 });
 

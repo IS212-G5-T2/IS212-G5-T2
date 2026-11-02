@@ -122,6 +122,45 @@ describe('SPM-129 SAFETY-QUEUE-06: rejected venue history and Confirm readiness 
     expect(mismatch({ ...overlappingSlot, start: '2030-01-12T06:00:00.000Z', end: '2030-01-12T05:00:00.000Z' }).ready).toBe(false);
     expect(evaluateReadiness(ready({ venueBookings: [{ ...rejected, start: 'not-a-date' }, overlappingSlot] }), NOW).ready).toBe(false);
     expect(evaluateReadiness(ready({ venueBookings: [{ ...rejected, end: rejected.start }, overlappingSlot] }), NOW).ready).toBe(false);
+describe('SPM-132 AC13: released venue history does not satisfy the current arrangement', () => {
+  /** VEN-HOLD-DEC-13-A: an event with only a released hold remains not ready for confirmation. */
+  it('VEN-HOLD-DEC-13-A reports no active venue arrangement after the only hold is released', () => {
+    const result = evaluateReadiness(ready({
+      venueBookings: [{
+        id: 'released-hold',
+        venueName: 'Main Hall',
+        status: 'released',
+        holdExpiresAt: null,
+        venueUnavailable: false,
+      }],
+      equipment: [],
+      equipmentNoneConfirmed: true,
+    }), NOW);
+
+    expect(result).toEqual({
+      ready: false,
+      outstanding: [{
+        type: 'venue',
+        label: 'Venue booking approval',
+        detail: 'None requested',
+        state: 'None requested',
+      }],
+    });
+
+    // The same released history is no longer outstanding after the event itself is cancelled.
+    const cancelledResult = evaluateReadiness(ready({
+      venueBookings: [{
+        id: 'released-hold',
+        venueName: 'Main Hall',
+        status: 'released',
+        holdExpiresAt: null,
+        venueUnavailable: false,
+      }],
+      equipment: [],
+      equipmentNoneConfirmed: true,
+      eventCancelled: true,
+    }), NOW);
+    expect(cancelledResult.outstanding.filter((item) => item.type === 'venue')).toEqual([]);
   });
 });
 

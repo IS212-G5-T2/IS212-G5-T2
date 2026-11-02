@@ -38,8 +38,11 @@ function coordinatorHoldLabel(booking: CoordinatorBooking): string | null {
   if (booking.requestKind !== "tentative_hold") return null;
   if (booking.status === "pending")
     return "Tentative hold request pending Venue Staff approval. The hold is not active.";
-  if (booking.status !== "approved" || !booking.holdExpiresAt) return null;
-  return `${booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until ${formatSingaporeDateTime(booking.holdExpiresAt)}.`;
+  if (booking.status === "released") return "Tentative hold released.";
+  if (booking.status !== "approved" && booking.status !== "expired") return null;
+  if (!booking.holdExpiresAt)
+    return booking.status === "expired" || booking.holdExpired ? "Expired tentative hold." : null;
+  return `${booking.status === "expired" || booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until ${formatSingaporeDateTime(booking.holdExpiresAt)}.`;
 }
 
 export function BookingsPage() {
@@ -49,6 +52,7 @@ export function BookingsPage() {
   const [coordinatorStatusFilter, setCoordinatorStatusFilter] = useState("");
   const [selected, setSelected] = useState<PendingBookingRequest | null>(null);
   const [staffBookings, setStaffBookings] = useState<PendingBookingRequest[]>([]);
+  const [staffHistoryLoaded, setStaffHistoryLoaded] = useState(false);
   const [coordinatorBookings, setCoordinatorBookings] = useState<
     CoordinatorBooking[]
   >([]);
@@ -96,12 +100,16 @@ export function BookingsPage() {
     [setSearchParams],
   );
 
-  /** SPM-55 AC1: loads all pending/approved/rejected requests for the venues this Venue Staff member owns. */
-  const loadPendingRequests = useCallback(() => {
-    api<PendingBookingRequest[]>("/venues/bookings/pending")
+  /** Loads pending requests by default, or all decision states for the status-history filter. */
+  const loadPendingRequests = useCallback((includeDecided = false) => {
+    const path = includeDecided
+      ? "/venues/bookings/pending?includeDecided=true"
+      : "/venues/bookings/pending";
+    api<PendingBookingRequest[]>(path)
       .then((rows) => {
         setStaffError("");
         setStaffBookings(rows);
+        setStaffHistoryLoaded(includeDecided || rows.some((row) => row.status !== "pending"));
       })
       .catch(() => setStaffError("Unable to load pending booking requests."));
   }, []);
@@ -233,12 +241,19 @@ export function BookingsPage() {
             <Select
               label="Status filter"
               value={staffStatusFilter}
-              onChange={(e) => setStaffStatusFilter(e.target.value)}
+              onChange={(e) => {
+                const status = e.target.value;
+                setStaffStatusFilter(status);
+                if (status === "pending") loadPendingRequests();
+                else if (!staffHistoryLoaded) loadPendingRequests(true);
+              }}
               options={[
                 { value: "", label: "All statuses" },
                 { value: "pending", label: "Pending" },
                 { value: "approved", label: "Approved" },
                 { value: "rejected", label: "Rejected" },
+                { value: "expired", label: "Expired" },
+                { value: "released", label: "Released" },
               ]}
             />
           </div>
@@ -265,6 +280,8 @@ export function BookingsPage() {
                 { value: "pending", label: "Pending" },
                 { value: "approved", label: "Approved" },
                 { value: "rejected", label: "Rejected" },
+                { value: "expired", label: "Expired" },
+                { value: "released", label: "Released" },
                 { value: "cancelled", label: "Cancelled" },
               ]}
             />
@@ -396,20 +413,30 @@ export function BookingsPage() {
         onConflict={(message, conflicts) => setConflictAlert({ message, conflicts })}
         onDecided={(outcome) => {
           setConflictAlert(null);
-          setStaffBookings((prev) =>
-            prev.map((b) =>
-              b.id === outcome.id
-                ? { ...b, status: outcome.status, rejectionReason: outcome.reason, holdExpiresAt: outcome.holdExpiresAt, holdExpired: false }
-                : b,
-            ),
-          );
-          setCoordinatorBookings((prev) =>
-            prev.map((b) =>
-              b.id === outcome.id
-                ? { ...b, status: outcome.status, rejectionReason: outcome.reason, holdExpiresAt: outcome.holdExpiresAt, holdExpired: false }
-                : b,
-            ),
-          );
+          if (outcome.status === "converted" || outcome.status === "released") {
+            loadPendingRequests();
+            if (coordinator) {
+              api<CoordinatorBooking[]>("/venues/bookings/mine")
+                .then(setCoordinatorBookings)
+                .catch(() => setCoordError("Unable to reload your venue bookings."));
+            }
+          } else {
+            const decidedStatus = outcome.status as "approved" | "rejected";
+            setStaffBookings((prev) =>
+              prev.map((b) =>
+                b.id === outcome.id
+                  ? { ...b, status: decidedStatus, rejectionReason: outcome.reason, holdExpiresAt: outcome.holdExpiresAt, holdExpired: false }
+                  : b,
+              ),
+            );
+            setCoordinatorBookings((prev) =>
+              prev.map((b) =>
+                b.id === outcome.id
+                  ? { ...b, status: decidedStatus, rejectionReason: outcome.reason, holdExpiresAt: outcome.holdExpiresAt, holdExpired: false }
+                  : b,
+              ),
+            );
+          }
         }}
       />
       {confirmation && (

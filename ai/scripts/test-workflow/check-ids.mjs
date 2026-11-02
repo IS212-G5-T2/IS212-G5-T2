@@ -36,6 +36,7 @@ export function activeStoryIds(rows) {
 export function collectCodeIds(scope, ignoredFamilies, storyIds = new Set(), foreignIds = new Set()) {
   const byId = new Map();
   for (const entry of scopeTests(scope)) {
+    if (entry.coverageOnly) continue;
     const text = [];
     if (entry.titleMatch) for (const test of scopedTests(entry, storyIds)) text.push(test.title, test.comment, test.describes.join(' '));
     else text.push(readText(entry.file));

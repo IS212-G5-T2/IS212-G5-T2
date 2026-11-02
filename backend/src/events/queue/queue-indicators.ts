@@ -50,7 +50,7 @@ export interface QueueBookingFact {
   venueId: string;
   venueName: string;
   venueLocation: string;
-  status: 'pending' | 'approved';
+  status: 'pending' | 'approved' | 'expired';
   holdExpiresAt: Date | null;
   /** SPM-159: 'tentative_hold' marks a coordinator hold request; an approved one is a hold, not a confirmed booking. */
   requestKind?: 'booking' | 'tentative_hold';

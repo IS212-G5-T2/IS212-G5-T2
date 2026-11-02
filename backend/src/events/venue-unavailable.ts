@@ -22,7 +22,7 @@ export const VENUE_UNAVAILABLE_SQL = `EXISTS (
  * (label "Hold expired", exclusive: expiry == now is expired). Neither satisfies the "Venue booking approval"
  * readiness item, so neither is "confirmed" or "Booked". An active hold still occupies the venue; an expired one does
  * not. An approved hold with no recorded expiry is treated as active (fail closed). Ordinary approved bookings
- * (`request_kind` 'booking') are unaffected. Expired-hold status changes and notices belong to other stories.
+ * (`request_kind` 'booking') are unaffected. SPM-132 persists the expired state and audit row.
  */
 export type ApprovedHoldState = 'active' | 'expired';
 
@@ -31,14 +31,16 @@ export function approvedHoldState(
   booking: { status: string; requestKind?: string | null; holdExpiresAt: Date | null },
   now: Date,
 ): ApprovedHoldState | null {
-  if (booking.status !== 'approved' || booking.requestKind !== 'tentative_hold') return null;
+  if ((booking.status !== 'approved' && booking.status !== 'expired') || booking.requestKind !== 'tentative_hold') return null;
+  if (booking.status === 'expired') return 'expired';
   return booking.holdExpiresAt !== null && booking.holdExpiresAt.getTime() <= now.getTime() ? 'expired' : 'active';
 }
 
 /** SQL: row `alias` is an approved tentative hold whose expiry has passed (SQL clock `now()`). */
 export const expiredApprovedHoldSql = (alias = 'b') =>
-  `(${alias}.status = 'approved' AND ${alias}.request_kind = 'tentative_hold'
-     AND ${alias}.hold_expires_at IS NOT NULL AND ${alias}.hold_expires_at <= now())`;
+  `((${alias}.status = 'expired' AND ${alias}.request_kind = 'tentative_hold') OR
+    (${alias}.status = 'approved' AND ${alias}.request_kind = 'tentative_hold'
+     AND ${alias}.hold_expires_at IS NOT NULL AND ${alias}.hold_expires_at <= now()))`;
 
 /** SQL: row `alias` is an approved tentative hold that has not expired. */
 export const activeApprovedHoldSql = (alias = 'b') =>

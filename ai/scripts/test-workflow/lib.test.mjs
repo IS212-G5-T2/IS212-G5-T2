@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
-  REPO_ROOT, executionStatus, extractTests, globToRegExp, idFamily, idsIn, isMain, levelOf, missingFromResults, parseArgs, parseCsv, parseTables, playwrightRunProblem, playwrightToVitest, testIdOf, timezoneStatus, toCsv, worst,
+  REPO_ROOT, executionStatus, extractTests, globToRegExp, idFamily, idsIn, isMain, levelOf, missingFromResults, parseArgs, parseCsv, parseTables, playwrightRunProblem, playwrightToVitest, testIdOf, timezoneStatus, toCsv, worst, scopeTests, scopedTests,
 } from './lib.mjs';
 
 test('parseArgs reads flags, values, repeats and positionals', () => {
@@ -33,6 +33,13 @@ test('levelOf maps file names to runners', () => {
   assert.equal(levelOf('a.spec.ts'), 'Unit');
   assert.equal(levelOf('a.test.tsx'), 'Frontend');
   assert.equal(levelOf('a.playwright.spec.ts'), 'E2E');
+});
+
+test('coverage-only files remain in the scope suite but do not become story test records', () => {
+  const scope = { tests: { frontend: [{ glob: 'ai/scripts/test-workflow/lib.test.mjs', coverageOnly: true }] } };
+  const [entry] = scopeTests(scope);
+  assert.equal(entry.coverageOnly, true);
+  assert.deepEqual(scopedTests(entry), []);
 });
 
 test('parseTables normalises headers and tracks the heading', () => {

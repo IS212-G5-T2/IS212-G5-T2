@@ -418,16 +418,17 @@ export function loadScope(scopePath) {
   return scope;
 }
 
-/** Test file globs from a scope entry: strings, or { glob, titleMatch } objects. */
+/** Test file globs from a scope entry: strings, or { glob, titleMatch, coverageOnly } objects. */
 export function scopeTests(scope) {
   const files = new Map();
   for (const [suite, entries] of Object.entries(scope.tests)) {
     for (const entry of entries) {
       const glob = typeof entry === 'string' ? entry : entry.glob;
       const titleMatch = typeof entry === 'string' ? undefined : entry.titleMatch;
+      const coverageOnly = typeof entry === 'string' ? false : entry.coverageOnly === true;
       for (const file of expandGlobs([glob])) {
         const existing = files.get(file);
-        files.set(file, { file, suite, titleMatch: titleMatch ?? existing?.titleMatch });
+        files.set(file, { file, suite, titleMatch: titleMatch ?? existing?.titleMatch, coverageOnly: existing ? existing.coverageOnly && coverageOnly : coverageOnly });
       }
     }
   }
@@ -441,6 +442,7 @@ export function scopeTests(scope) {
  * the story, so a registered id whose test title does not repeat the story prefix is still traced and recorded.
  */
 export function scopedTests(entry, storyIds = new Set()) {
+  if (entry.coverageOnly) return [];
   const tests = extractTests(readText(entry.file));
   if (!entry.titleMatch) return tests;
   const pattern = new RegExp(entry.titleMatch);

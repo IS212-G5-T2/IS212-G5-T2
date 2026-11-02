@@ -41,6 +41,7 @@ const VENUE_ID = "00000000-0000-4000-8000-000000000159";
 const EVENT_ID = "00000000-0000-4000-8000-000000000158";
 const venue: VenueRecord = {
   id: VENUE_ID,
+  ownerId: "venue-staff-1",
   name: "Main Hall",
   location: "North Wing",
   capacity: 200,
@@ -97,13 +98,13 @@ function existingBooking(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function renderPage(strictMode = false) {
+function renderPage(strictMode = false, role: "coordinator" | "venue_staff" = "coordinator") {
   useAppStore.setState({
     currentUser: {
-      id: "coordinator-1",
-      name: "Coordinator",
-      email: "coordinator@example.test",
-      role: "coordinator",
+      id: role === "venue_staff" ? "venue-staff-1" : "coordinator-1",
+      name: role === "venue_staff" ? "Venue Staff" : "Coordinator",
+      email: role === "venue_staff" ? "staff@example.test" : "coordinator@example.test",
+      role,
     },
     events: [event],
   });
@@ -631,5 +632,277 @@ describe("SPM-159 Coordinator tentative hold request", () => {
     expect(screen.getByRole("dialog", { name: "Confirm tentative hold request" })).toBeInTheDocument();
     releaseSubmission?.();
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Confirm tentative hold request" })).not.toBeInTheDocument());
+  });
+
+  /** VEN-HOLD-DEC-08-A: the venue schedule labels the occupied interval as a tentative hold for its full setup and turnaround range. */
+  it("VEN-HOLD-DEC-08-A renders the tentative hold label and occupied interval in the schedule", async () => {
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      return {
+        ...venue,
+        reservations: [{
+          id: "active-hold",
+          eventName: "Showcase",
+          start: "2030-11-20T01:30:00.000Z",
+          end: "2030-11-20T04:45:00.000Z",
+          status: "tentative",
+          holdExpiresAt: "2030-11-15T01:00:00.000Z",
+          affectedByUnavailablePeriod: false,
+        }],
+      } as never;
+    });
+    renderPage(false, "venue_staff");
+    const calendar = await screen.findByRole("region", { name: "Venue schedule calendar" });
+    expect(within(calendar).getByText("Tentative hold: Showcase · hold expires 2030-11-15T01:00:00.000Z")).toBeInTheDocument();
+    const row = screen.getByRole("listitem");
+    expect(row).toHaveTextContent("20 Nov 2030, 9:30 am – 12:45 pm");
+    expect(row).toHaveTextContent("Tentative hold");
+  });
+
+  /** VEN-HOLD-DEC-08-B: a pending request without an approved hold is absent from the blocking schedule. */
+  it("VEN-HOLD-DEC-08-B does not render a Pending request as a calendar hold", async () => {
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      return { ...venue, reservations: [] } as never;
+    });
+    renderPage(false, "venue_staff");
+    const calendar = await screen.findByRole("region", { name: "Venue schedule calendar" });
+    expect(within(calendar).queryByText(/Tentative hold/)).not.toBeInTheDocument();
+    expect(screen.getByText("No upcoming bookings or active tentative holds.")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-08-BND-1: a hold spanning the setup or turnaround edge remains a blocking calendar interval. */
+  it("VEN-HOLD-DEC-08-BND-1 blocks the complete setup-through-turnaround interval", async () => {
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      return {
+        ...venue,
+        reservations: [{
+          id: "edge-hold",
+          eventName: "Edge rehearsal",
+          start: "2030-11-20T01:30:00.000Z",
+          end: "2030-11-20T04:45:00.000Z",
+          status: "tentative",
+          holdExpiresAt: "2030-11-15T01:00:00.000Z",
+          affectedByUnavailablePeriod: false,
+        }],
+      } as never;
+    });
+    renderPage(false, "venue_staff");
+    expect(await screen.findByText("Edge rehearsal")).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveTextContent("20 Nov 2030, 9:30 am – 12:45 pm");
+  });
+
+  /** A reservation flagged by the API as overlapping an unavailable period displays that impact in the venue record. */
+  it("shows when a reservation is affected by an unavailable period", async () => {
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      return {
+        ...venue,
+        reservations: [{
+          id: "affected-booking",
+          eventName: "Affected rehearsal",
+          start: "2030-11-20T02:00:00.000Z",
+          end: "2030-11-20T04:00:00.000Z",
+          status: "booked",
+          affectedByUnavailablePeriod: true,
+        }],
+      } as never;
+    });
+    renderPage(false, "venue_staff");
+
+    const reservation = await screen.findByRole("listitem");
+    expect(within(reservation).getByText("Affected rehearsal")).toBeInTheDocument();
+    expect(within(reservation).getByText("Affected by an unavailable period")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-12-A: conversion refreshes the visible schedule as a confirmed booking. */
+  it("VEN-HOLD-DEC-12-A converts the active hold to a confirmed calendar booking", async () => {
+    const user = userEvent.setup();
+    let reservations: Array<Record<string, unknown>> = [{
+      id: "convert-hold",
+      eventName: "Converted showcase",
+      start: "2030-11-20T01:30:00.000Z",
+      end: "2030-11-20T04:45:00.000Z",
+      status: "tentative",
+      holdExpiresAt: "2030-11-15T01:00:00.000Z",
+      affectedByUnavailablePeriod: false,
+    }];
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      if (path.endsWith("/convert")) {
+        reservations = [{ ...reservations[0], status: "booked" }];
+        return {} as never;
+      }
+      return { ...venue, reservations } as never;
+    });
+    renderPage(false, "venue_staff");
+    expect(await screen.findByRole("button", { name: "Convert to Booking" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Convert to Booking" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Convert tentative hold to confirmed booking?")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Convert to Booking" }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByText("Convert tentative hold to confirmed booking?")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Convert to Booking" }));
+    await user.click(screen.getByRole("button", { name: "Confirm conversion" }));
+    await waitFor(() => expect(screen.getByRole("listitem")).toHaveTextContent("Confirmed booking"));
+    expect(screen.queryByRole("button", { name: "Convert to Booking" })).not.toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledWith(`/venues/bookings/${encodeURIComponent("convert-hold")}/convert`, { method: "POST" });
+  });
+
+  /** VEN-HOLD-DEC-13-A: releasing a hold removes its active calendar block while retaining unrelated reservations. */
+  it("VEN-HOLD-DEC-13-A releases only the selected hold and refreshes the schedule", async () => {
+    const user = userEvent.setup();
+    let reservations: Array<Record<string, unknown>> = [
+      { id: "release-hold", eventName: "Released showcase", start: "2030-11-20T01:30:00.000Z", end: "2030-11-20T04:45:00.000Z", status: "tentative", holdExpiresAt: "2030-11-15T01:00:00.000Z", affectedByUnavailablePeriod: false },
+      { id: "other-booking", eventName: "Other confirmed event", start: "2030-11-21T01:30:00.000Z", end: "2030-11-21T04:00:00.000Z", status: "booked", affectedByUnavailablePeriod: false },
+    ];
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      if (path.endsWith("/release")) {
+        reservations = reservations.filter((row) => row.id !== "release-hold");
+        return { id: "release-hold", status: "released" } as never;
+      }
+      return { ...venue, reservations } as never;
+    });
+    renderPage(false, "venue_staff");
+    await user.click(await screen.findByRole("button", { name: "Release Hold" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Release this tentative hold?")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Release Hold" }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByText("Release this tentative hold?")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Release Hold" }));
+    await user.click(screen.getByRole("button", { name: "Release hold" }));
+    await waitFor(() => expect(screen.queryByText("Released showcase")).not.toBeInTheDocument());
+    expect(screen.getAllByText("Other confirmed event", { exact: false }).length).toBeGreaterThan(0);
+    expect(apiMock).toHaveBeenCalledWith(`/venues/bookings/${encodeURIComponent("release-hold")}/release`, { method: "POST" });
+  });
+
+  /** VEN-HOLD-DEC-12-B: a failed calendar conversion leaves the active hold visible and reports the service error. */
+  it("VEN-HOLD-DEC-12-B keeps the active schedule hold when conversion fails", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      if (path.endsWith("/convert")) throw new Error("Conversion refused by server.");
+      return { ...venue, reservations: [{
+        id: "convert-error-hold", eventName: "Conversion error rehearsal",
+        start: "2030-11-20T01:30:00.000Z", end: "2030-11-20T04:45:00.000Z",
+        status: "tentative", holdExpiresAt: "2030-11-15T01:00:00.000Z", affectedByUnavailablePeriod: false,
+      }] } as never;
+    });
+    renderPage(false, "venue_staff");
+    await user.click(await screen.findByRole("button", { name: "Convert to Booking" }));
+    await user.click(screen.getByRole("button", { name: "Confirm conversion" }));
+    expect(await screen.findByText("Conversion refused by server.")).toBeInTheDocument();
+    expect(screen.getByText("Conversion error rehearsal")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-13-B: a failed calendar release leaves the active hold visible and reports the service error. */
+  it("VEN-HOLD-DEC-13-B keeps the active schedule hold when release fails", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      if (path.endsWith("/release")) throw new Error("Release refused by server.");
+      return { ...venue, reservations: [{
+        id: "release-error-hold", eventName: "Release error rehearsal",
+        start: "2030-11-20T01:30:00.000Z", end: "2030-11-20T04:45:00.000Z",
+        status: "tentative", holdExpiresAt: "2030-11-15T01:00:00.000Z", affectedByUnavailablePeriod: false,
+      }] } as never;
+    });
+    renderPage(false, "venue_staff");
+    await user.click(await screen.findByRole("button", { name: "Release Hold" }));
+    await user.click(screen.getByRole("button", { name: "Release hold" }));
+    expect(await screen.findByText("Release refused by server.")).toBeInTheDocument();
+    expect(screen.getByText("Release error rehearsal")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-13-B: a non-Error release rejection displays the page fallback and leaves the hold in the schedule. */
+  it("VEN-HOLD-DEC-13-B reports the release fallback for a non-Error rejection", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      if (path.endsWith("/release")) throw { code: "RELEASE_FAILED" };
+      return { ...venue, reservations: [{
+        id: "release-fallback-hold", eventName: "Release fallback rehearsal",
+        start: "2030-11-20T01:30:00.000Z", end: "2030-11-20T04:45:00.000Z",
+        status: "tentative", holdExpiresAt: "2030-11-15T01:00:00.000Z", affectedByUnavailablePeriod: false,
+      }] } as never;
+    });
+    renderPage(false, "venue_staff");
+    await user.click(await screen.findByRole("button", { name: "Release Hold" }));
+    await user.click(screen.getByRole("button", { name: "Release hold" }));
+
+    expect(await screen.findByText("Unable to release this hold.")).toBeInTheDocument();
+    expect(screen.getByText("Release fallback rehearsal")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-12-B: a non-Error conversion rejection displays the page fallback and retains the active hold. */
+  it("VEN-HOLD-DEC-12-B reports the conversion fallback for a non-Error rejection", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      if (path.endsWith("/convert")) throw { code: "CONVERSION_FAILED" };
+      return { ...venue, reservations: [{
+        id: "convert-fallback-hold", eventName: "Conversion fallback rehearsal",
+        start: "2030-11-20T01:30:00.000Z", end: "2030-11-20T04:45:00.000Z",
+        status: "tentative", holdExpiresAt: "2030-11-15T01:00:00.000Z", affectedByUnavailablePeriod: false,
+      }] } as never;
+    });
+    renderPage(false, "venue_staff");
+    await user.click(await screen.findByRole("button", { name: "Convert to Booking" }));
+    await user.click(screen.getByRole("button", { name: "Confirm conversion" }));
+
+    expect(await screen.findByText("Unable to convert this hold.")).toBeInTheDocument();
+    expect(screen.getByText("Conversion fallback rehearsal")).toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-DEC-12-A: the confirmation cannot be dismissed while conversion is in flight. */
+  it("VEN-HOLD-DEC-12-A keeps conversion confirmation open until the request settles", async () => {
+    const user = userEvent.setup();
+    let resolveConversion: ((value: unknown) => void) | undefined;
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      if (path.endsWith("/convert")) return await new Promise<unknown>((resolve) => { resolveConversion = resolve; }) as never;
+      return { ...venue, reservations: [{
+        id: "convert-close-guard", eventName: "Close guard rehearsal",
+        start: "2030-11-20T01:30:00.000Z", end: "2030-11-20T04:45:00.000Z",
+        status: "tentative", holdExpiresAt: "2030-11-15T01:00:00.000Z", affectedByUnavailablePeriod: false,
+      }] } as never;
+    });
+    renderPage(false, "venue_staff");
+    await user.click(await screen.findByRole("button", { name: "Convert to Booking" }));
+    await user.click(screen.getByRole("button", { name: "Confirm conversion" }));
+    expect(await screen.findByRole("button", { name: "Converting…" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Close dialog" }));
+    expect(screen.getByRole("dialog", { name: "Convert tentative hold to confirmed booking?" })).toBeInTheDocument();
+
+    resolveConversion?.({ id: "convert-close-guard", status: "converted" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Convert tentative hold to confirmed booking?" })).not.toBeInTheDocument());
+  });
+
+  /** VEN-HOLD-DEC-13-A: the release confirmation cannot be dismissed while release is in flight. */
+  it("VEN-HOLD-DEC-13-A keeps release confirmation open until the request settles", async () => {
+    const user = userEvent.setup();
+    let resolveRelease: ((value: unknown) => void) | undefined;
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      if (path.endsWith("/release")) return await new Promise<unknown>((resolve) => { resolveRelease = resolve; }) as never;
+      return { ...venue, reservations: [{
+        id: "release-close-guard", eventName: "Release close guard rehearsal",
+        start: "2030-11-20T01:30:00.000Z", end: "2030-11-20T04:45:00.000Z",
+        status: "tentative", holdExpiresAt: "2030-11-15T01:00:00.000Z", affectedByUnavailablePeriod: false,
+      }] } as never;
+    });
+    renderPage(false, "venue_staff");
+    await user.click(await screen.findByRole("button", { name: "Release Hold" }));
+    await user.click(screen.getByRole("button", { name: "Release hold" }));
+    expect(await screen.findByRole("button", { name: "Releasing…" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Close dialog" }));
+    expect(screen.getByRole("dialog", { name: "Release this tentative hold?" })).toBeInTheDocument();
+
+    resolveRelease?.({ id: "release-close-guard", status: "released" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Release this tentative hold?" })).not.toBeInTheDocument());
   });
 });

@@ -1,0 +1,73 @@
+{
+  "story": "SPM-132",
+  "title": "Manage tentative venue holds",
+  "note": "All 39 primary Confluence cases are exercised by the PostgreSQL API suite; frontend cases add observable queue and calendar UI coverage. The scheduler uses a 30-second default polling target; direct expiry checks stop holds blocking bookings at the exact expiry instant.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": {"statements": 100, "branches": 100, "functions": 100, "lines": 100},
+  "tests": {
+    "backend-unit": [
+      {"glob":"backend/src/venues/tentative-hold-expiry.scheduler.spec.ts"},
+      {"glob":"backend/src/venues/repository/venues.repository.spec.ts","titleMatch":"VEN-HOLD-DEC-(09-B refuses conversion|10-B refuses release) when an approved hold has no expiry|VEN-HOLD-DEC-06-B falls back to returned rows when expiry rowCount is null"},
+      {"glob":"backend/src/venues/repository/venues.repository.spec.ts","coverageOnly":true},
+      {"glob":"backend/src/venues/venues.service.spec.ts","titleMatch":"VEN-HOLD-DEC-01-SEC-2 rejects unauthenticated convert and release requests|VEN-HOLD-DEC-09-B and VEN-HOLD-DEC-10-B reject malformed lifecycle booking ids"},
+      {"glob":"backend/src/venues/venues.service.spec.ts","coverageOnly":true},
+      {"glob":"backend/src/events/status/readiness.spec.ts","titleMatch":"VEN-HOLD-DEC-13-A reports no active venue arrangement after the only hold is released"},
+      {"glob":"backend/src/events/planning/event-planning.repository.spec.ts","coverageOnly":true},
+      {"glob":"backend/src/events/queue/coordinator-queue.service.spec.ts","coverageOnly":true},
+      {"glob":"backend/src/events/queue/queue-indicators.spec.ts","coverageOnly":true},
+      {"glob":"backend/src/events/status/arrangements.reader.spec.ts","coverageOnly":true},
+      {"glob":"backend/src/events/venue-unavailable.spec.ts","coverageOnly":true},
+      {"glob":"backend/src/events/venue-summary.spec.ts","coverageOnly":true},
+      {"glob":"backend/src/venues/venues.controller.spec.ts","coverageOnly":true},
+      {"glob":"backend/src/venues/venues.service.coverage.spec.ts","coverageOnly":true},
+      {"glob":"backend/src/venues/repository/venues.repository.coverage.spec.ts","coverageOnly":true}
+    ],
+    "backend-e2e": [
+      {"glob":"backend/test/tentative-hold-management.e2e-spec.ts"},
+      {"glob":"backend/test/venues-booking-requests.e2e-spec.ts","coverageOnly":true}
+    ],
+    "frontend": [
+      {"glob":"frontend/src/components/ui/StatusBadge.test.tsx","titleMatch":"VEN-HOLD-DEC-"},
+      {"glob":"frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx","titleMatch":"VEN-HOLD-DEC-"},
+      {"glob":"frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.hold.test.tsx","titleMatch":"VEN-HOLD-DEC-"},
+      {"glob":"frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx","titleMatch":"VEN-HOLD-DEC-(08-A|12-A)"},
+      {"glob":"frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx","coverageOnly":true},
+      {"glob":"frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.calendar.test.tsx","coverageOnly":true},
+      {"glob":"frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.planning.test.tsx","coverageOnly":true},
+      {"glob":"frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx","coverageOnly":true}
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/venues/repository/venues.repository.ts",
+      "backend/src/venues/venues.service.ts",
+      "backend/src/venues/venues.controller.ts",
+      "backend/src/venues/venues.module.ts",
+      "backend/src/venues/tentative-hold-expiry.scheduler.ts",
+      "backend/src/events/venue-unavailable.ts",
+      "backend/src/events/status/readiness.ts",
+      "backend/src/events/status/arrangements.reader.ts",
+      "backend/src/events/queue/queue-indicators.ts",
+      "backend/src/events/queue/coordinator-queue.service.ts",
+      "backend/src/events/planning/event-planning.repository.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/bookings/pages/requests/BookingDetailModal.tsx",
+      "frontend/src/features/bookings/pages/requests/BookingCard.tsx",
+      "frontend/src/features/bookings/pages/requests/BookingsPage.tsx",
+      "frontend/src/components/ui/StatusBadge.tsx",
+      "frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.tsx",
+      "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx",
+      "frontend/src/types/index.ts"
+    ]
+  },
+  "suites": [
+    {"id":"backend-unit","cwd":"backend","tests":"backend-unit","config":null,"coverage":"backend","env":[]},
+    {"id":"backend-e2e","cwd":"backend","tests":"backend-e2e","config":"vitest.config.e2e.ts","coverage":"backend","env":["DATABASE_URL"]},
+    {"id":"frontend","cwd":"frontend","tests":"frontend","config":null,"coverage":"frontend","env":[]}
+  ],
+  "mutation": [
+    {"id":"backend-spm132-hold-lifecycle","cwd":"backend","command":["node","scripts/mutation/run.mjs","--mutants","spm132.mutants.mjs"],"mutantsFile":"backend/scripts/mutation/spm132.mutants.mjs","export":"MUTANTS","env":["DATABASE_URL"]},
+    {"id":"frontend-spm132-hold-lifecycle","cwd":"frontend","command":["node","scripts/testing/mutation/run.mjs","--mutants","spm132.mutants.mjs"],"mutantsFile":"frontend/scripts/testing/mutation/spm132.mutants.mjs","export":"MUTANTS","env":[]}
+  ]
+}

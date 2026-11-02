@@ -8,6 +8,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { CLOCK } from '../src/common/clock.js';
+import { DatabaseService } from '../src/database/database.service.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const fixedNow = new Date('2030-01-10T12:00:00.000Z');
@@ -91,10 +92,33 @@ describe.skipIf(!databaseUrl)(
       );
       const id = result.rows[0].id;
       userIds.push(id);
-      await pool.query(
-        'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
+      const assignedRole = await pool.query<{ role_id: number }>(
+        'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2 RETURNING role_id',
         [id, role],
       );
+      const poolDatabase = await pool.query<{ database_name: string }>(
+        'SELECT current_database() AS database_name',
+      );
+      const appAccount = await app.get(DatabaseService).query<{
+        database_name: string;
+        is_active: boolean;
+        password_matches: boolean;
+        roles: string[];
+      }>(
+        `SELECT current_database() AS database_name, u.is_active,
+                u.password_hash = crypt('password123', u.password_hash) AS password_matches,
+                array_agg(r.name ORDER BY r.id)::text[] AS roles
+           FROM users u
+           JOIN user_roles ur ON ur.user_id = u.id
+           JOIN roles r ON r.id = ur.role_id
+          WHERE u.id = $1
+          GROUP BY u.id`,
+        [id],
+      );
+      const account = appAccount.rows[0];
+      if (assignedRole.rowCount !== 1 || !account || !account.is_active || !account.password_matches || !account.roles.includes(role) || account.database_name !== poolDatabase.rows[0]?.database_name) {
+        throw new Error(`SPM-51 auth fixture mismatch for ${email}: pool DB=${poolDatabase.rows[0]?.database_name ?? 'missing'}, app DB=${account?.database_name ?? 'account not visible'}, assigned roles=${JSON.stringify(account?.roles ?? [])}, role insert rows=${assignedRole.rowCount}`);
+      }
       const login = await request(app.getHttpServer())
         .post('/api/auth/login')
         .send({ email, password: 'password123' })
@@ -104,7 +128,12 @@ describe.skipIf(!databaseUrl)(
       );
       if (!cookie)
         throw new Error('Expected an authenticated test session cookie');
-      return { id, cookie: cookie.split(';', 1)[0] };
+      const sessionCookie = cookie.split(';', 1)[0];
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', sessionCookie)
+        .expect(200);
+      return { id, cookie: sessionCookie };
     }
 
     async function createVenue(
@@ -2421,7 +2450,7 @@ describe.skipIf(!databaseUrl)(
         [venueId, expiredEvent, new Date('2030-01-26T06:00:00Z'), new Date('2030-01-26T07:00:00Z'), expiredAt],
       );
       const approvedRows = await request(app.getHttpServer())
-        .get('/api/venues/bookings/pending')
+        .get('/api/venues/bookings/pending?includeDecided=true')
         .set('Cookie', owner.cookie)
         .expect(200);
       expect(approvedRows.body).toEqual(expect.arrayContaining([

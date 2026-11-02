@@ -50,7 +50,7 @@ All under `docs/test-cases/workflow/`, one set per repository, keyed by story.
 
 | File | Holds | Written by |
 |---|---|---|
-| `scopes/<story>.json` | The test files (with an optional `titleMatch` for shared files), source files, suites, timezones, coverage floor, mutation runners and the optional `linesFrom` of the story (`"changed-lines"` measures G5 only on the lines `story-lines.mjs` derives for the story) | Implementation |
+| `scopes/<story>.json` | The test files (with optional `titleMatch` for shared files or `coverageOnly` companions), source files, suites, timezones, coverage floor, mutation runners and optional `linesFrom` for changed-line G5 measurement | Implementation |
 | `test-id-registry.md` | Every test ID with type, story, parent AC, source, owning files and approval; the non-test token families | Implementation |
 | `spec-conflicts.md` | Spec conflicts with sources, decision, status and confirmation | Implementation |
 | `tier-matrix.md` | One table per story: AC by tier | Implementation |

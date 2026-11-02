@@ -30,6 +30,7 @@ describe('VEN-HOLD-04-SUP-EVENTS approvedHoldState', () => {
   /** SPM-159: fail closed, an approved hold with no recorded expiry is active and never confirmed. */
   it('treats an approved hold with no expiry as active', () => {
     expect(approvedHoldState(hold(null), NOW)).toBe('active');
+    expect(approvedHoldState(hold(null, { status: 'expired' }), NOW)).toBe('expired');
   });
 
   /** SPM-159: only approved tentative holds have a hold state; everything else is null. */
@@ -47,7 +48,7 @@ describe('VEN-HOLD-04-SUP-EVENTS hold SQL fragments', () => {
   /** SPM-159: the fragments take the row alias and compare the expiry with the SQL clock, exclusive at the expiry. */
   it('builds the expired, active, confirmed and occupying predicates for an alias', () => {
     expect(normalize(expiredApprovedHoldSql('n'))).toBe(
-      "(n.status = 'approved' AND n.request_kind = 'tentative_hold' AND n.hold_expires_at IS NOT NULL AND n.hold_expires_at <= now())",
+      "((n.status = 'expired' AND n.request_kind = 'tentative_hold') OR (n.status = 'approved' AND n.request_kind = 'tentative_hold' AND n.hold_expires_at IS NOT NULL AND n.hold_expires_at <= now()))",
     );
     expect(normalize(activeApprovedHoldSql('n'))).toBe(
       "(n.status = 'approved' AND n.request_kind = 'tentative_hold' AND (n.hold_expires_at IS NULL OR n.hold_expires_at > now()))",
