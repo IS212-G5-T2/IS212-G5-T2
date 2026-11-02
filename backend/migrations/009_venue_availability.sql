@@ -17,18 +17,30 @@ CREATE TABLE IF NOT EXISTS venue_bookings (
 ALTER TABLE venue_bookings
     ALTER COLUMN event_id DROP NOT NULL,
     ADD COLUMN IF NOT EXISTS reason text;
-ALTER TABLE venue_bookings
-    DROP CONSTRAINT IF EXISTS venue_bookings_status_check,
-    DROP CONSTRAINT IF EXISTS venue_bookings_kind_check,
-    ADD CONSTRAINT venue_bookings_status_check
-        CHECK (status IN ('pending', 'approved', 'rejected', 'blocked')),
-    ADD CONSTRAINT venue_bookings_kind_check CHECK (
-        (status = 'blocked' AND event_id IS NULL
-            AND reason IS NOT NULL AND length(btrim(reason)) BETWEEN 1 AND 500
-            AND hold_expires_at IS NULL)
-        OR (status IN ('pending', 'approved', 'rejected')
-            AND event_id IS NOT NULL AND reason IS NULL)
-    );
+-- Order-safe (SPM-170): migrations 011 and 019 later widen these checks ('released', 'cancelled'). Re-running this
+-- file must not narrow a check that is already wide, which would fail on existing released or cancelled rows.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'venue_bookings'::regclass
+          AND conname = 'venue_bookings_status_check'
+          AND pg_get_constraintdef(oid) LIKE '%released%'
+    ) THEN
+        ALTER TABLE venue_bookings
+            DROP CONSTRAINT IF EXISTS venue_bookings_status_check,
+            DROP CONSTRAINT IF EXISTS venue_bookings_kind_check,
+            ADD CONSTRAINT venue_bookings_status_check
+                CHECK (status IN ('pending', 'approved', 'rejected', 'blocked')),
+            ADD CONSTRAINT venue_bookings_kind_check CHECK (
+                (status = 'blocked' AND event_id IS NULL
+                    AND reason IS NOT NULL AND length(btrim(reason)) BETWEEN 1 AND 500
+                    AND hold_expires_at IS NULL)
+                OR (status IN ('pending', 'approved', 'rejected')
+                    AND event_id IS NOT NULL AND reason IS NULL)
+            );
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS venue_bookings_venue_end_idx
     ON venue_bookings (venue_id, end_at, start_at);

@@ -234,8 +234,8 @@ describe.skipIf(!databaseUrl)(
           'utf8',
         ),
       );
-      // Re-running 009 restores its older booking constraint (no 'released' or 'cancelled'); 019 puts the current
-      // one back so suites that run after this file can still insert those bookings.
+      // Replaying 009 no longer narrows the booking check (SPM-170), so 019 is kept as a safeguard: it
+      // restores the current constraint so suites that run after this file can still insert those bookings.
       await pool.query(
         await readFile(
           new URL(
