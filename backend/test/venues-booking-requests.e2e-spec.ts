@@ -3608,7 +3608,7 @@ describe.skipIf(!databaseUrl)(
     async function notesInBothLists(owner: { cookie: string }, coordinator: { cookie: string }) {
       const lists = [];
       for (const [path, cookie] of [
-        ['/api/venues/bookings/pending', owner.cookie],
+        ['/api/venues/bookings/pending?includeDecided=true', owner.cookie],
         ['/api/venues/bookings/mine', coordinator.cookie],
       ]) {
         const response = await request(app.getHttpServer()).get(path).set('Cookie', cookie).expect(200);
