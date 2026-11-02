@@ -170,6 +170,7 @@ export class ChangeRequestsService {
         const event = await this.lockEvent(client, eventId);
         if (!event || event.organiser_id !== user.uid) throw new NotFoundException(MESSAGES.notFound);
         // SPM-153 AC6: a Completed event's date, time, venue and equipment cannot be changed by request either.
+        // Only Completed is checked here so Cancelled keeps its existing 'change_request_closed' answer below.
         if (event.status === 'Completed') assertArrangementsEditable(event.status);
         if (!(CHANGE_REQUEST_OPEN_STATUSES as readonly string[]).includes(event.status))
           throw new ConflictException({ message: MESSAGES.closed, code: 'change_request_closed' });
