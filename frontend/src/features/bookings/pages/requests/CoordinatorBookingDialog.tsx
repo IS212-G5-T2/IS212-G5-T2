@@ -1,6 +1,6 @@
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { formatSingaporeRange } from "@/utils/format";
+import { formatSingaporeDateTime, formatSingaporeRange } from "@/utils/format";
 
 /** The parts of a Coordinator's own booking the details dialog shows (a subset of the /venues/bookings/mine row). */
 export interface CoordinatorBookingDetails {
@@ -13,6 +13,10 @@ export interface CoordinatorBookingDetails {
   bookingReference: string;
   specialRequest?: string;
   rejectionReason?: string;
+  /** SPM-165 AC3: a tentative hold request shows that it is a hold and, once approved, when the hold expires. */
+  requestKind?: "booking" | "tentative_hold";
+  holdExpiresAt?: string;
+  holdExpired?: boolean;
   /** SPM-125 AC7: the event the booking is for, so the dialog can offer a replacement venue search. */
   eventId?: string;
   /** SPM-125 AC7: an unavailable period or setup/turnaround change affects the booking (SPM-122 AC7, SPM-121 AC8). */
@@ -21,7 +25,8 @@ export interface CoordinatorBookingDetails {
 
 /**
  * Read-only details of one of the Coordinator's venue bookings, opened from a venue booking decision notification
- * (SPM-137 AC3): the booking's current status and, if rejected, the rejection reason (SPM-55 AC4). It has no decision
+ * (SPM-137 AC3): the booking's current status and, if rejected, the rejection reason (SPM-55 AC4). For a tentative hold
+ * (SPM-165 AC3) it also says so and, when the hold is approved, shows when the hold expires (SPM-159). It has no decision
  * controls: only Venue Staff decide (BookingDetailModal). SPM-125 AC7: the same dialog opens from a notice that a venue
  * change affects the booking; it then says so and offers the same "Find a replacement venue" search as the booking's
  * card (SPM-54 AC5).
@@ -73,6 +78,18 @@ export function CoordinatorBookingDialog({ booking, onClose }: { booking: Coordi
           <dt className="text-gray-400 dark:text-gray-500">Status</dt>
           <dd className="font-medium capitalize text-gray-900 dark:text-gray-100">{booking.status}</dd>
         </div>
+        {booking.requestKind === "tentative_hold" && (
+          <div>
+            <dt className="text-gray-400 dark:text-gray-500">Request type</dt>
+            <dd className="font-medium text-gray-900 dark:text-gray-100">Tentative hold</dd>
+          </div>
+        )}
+        {booking.requestKind === "tentative_hold" && booking.status === "approved" && booking.holdExpiresAt && (
+          <div>
+            <dt className="text-gray-400 dark:text-gray-500">{booking.holdExpired ? "Hold expired" : "Hold expires"}</dt>
+            <dd className="font-medium text-gray-900 dark:text-gray-100">{formatSingaporeDateTime(booking.holdExpiresAt)}</dd>
+          </div>
+        )}
         {booking.specialRequest && (
           <div className="sm:col-span-2">
             <dt className="text-gray-400 dark:text-gray-500">Special request</dt>

@@ -55,7 +55,7 @@ const VALID_REASON = 'Venue unavailable for the requested date.';
 // SPM-136 adds EventCancelled for coordinators (assigned coordinator is notified of a cancellation).
 // SPM-64 AC3 adds the organiser's change request notice to the coordinator's feed.
 // SPM-131 adds the Safety Officer's response notice to the coordinator's feed.
-// SPM-137 adds the two venue booking decision notices (approved, rejected).
+// SPM-137 adds the two venue booking decision notices (approved, rejected); SPM-165 the two tentative hold ones.
 const COORDINATOR_NOTIFICATION_TYPES = [
   'coordinator_assignment',
   'coordinator_reassignment',
@@ -65,6 +65,8 @@ const COORDINATOR_NOTIFICATION_TYPES = [
   'coordinator_safety_response',
   'venue_booking_approved',
   'venue_booking_rejected',
+  'tentative_hold_approved',
+  'tentative_hold_rejected',
   // SPM-125 AC6 to AC9: a venue change affects one of the Coordinator's bookings.
   'venue_unavailable_impact',
   'venue_timing_impact',

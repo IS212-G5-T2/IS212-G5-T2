@@ -1367,3 +1367,68 @@ describe("SPM-125 affected booking opened from a notification", () => {
     expect(within(dialog).queryByRole("link", { name: "Find a replacement venue" })).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-165 AC3: the bell's link for a tentative hold decision opens the same read-only details dialog (SPM-137), which for
+// a hold also shows that it is a tentative hold and, once approved, when the hold expires (SPM-159), and for a
+// rejected hold the rejection reason. Unit tests of the page with the API stubbed; the user is a store fixture.
+// ---------------------------------------------------------------------------------------------------------
+describe("Coordinator tentative hold opened from a notification (SPM-165 AC3)", () => {
+  const hold = { ...booking, id: "hold-1", requestKind: "tentative_hold" as const, holdExpired: false };
+  const detailsDialog = () => screen.findByRole("dialog", { name: /Booking details/ });
+
+  /**
+   * VENUE-HOLD-NOTIF-03-D (SPM-165 AC3): /bookings?booking=hold-1 opens an approved hold's details with its status and
+   * the hold expiry time (Singapore time), and no decision controls.
+   * Kills: no expiry for an approved hold, a wrong time zone, decision controls shown to a Coordinator.
+   */
+  it("VENUE-HOLD-NOTIF-03-D opens an approved hold's details with its status and hold expiry", async () => {
+    apiMock.mockResolvedValueOnce([{ ...hold, status: "approved", holdExpiresAt: "2030-01-24T12:00:00.000Z" }] as never);
+
+    renderPage("/bookings?booking=hold-1");
+
+    const dialog = await detailsDialog();
+    expect(within(dialog).getByText("approved")).toBeInTheDocument();
+    expect(within(dialog).getByText("Tentative hold")).toBeInTheDocument();
+    expect(within(dialog).getByText("Hold expires")).toBeInTheDocument();
+    expect(within(dialog).getByText("24 Jan 2030, 20:00 SGT")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Submit Decision|Approve|Reject/ })).toBeNull();
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-03-E (SPM-165 AC3): a rejected hold's details show its status and the rejection reason and no hold expiry.
+   * Kills: dropping the rejection reason, showing an expiry for a hold that was never active.
+   */
+  it("VENUE-HOLD-NOTIF-03-E shows the rejection reason and no expiry in the details of a rejected hold", async () => {
+    // A rejected hold carries a stale expiry in the data on purpose: it must still not be shown.
+    apiMock.mockResolvedValueOnce([{ ...hold, status: "rejected", rejectionReason: "Clashes with maintenance", holdExpiresAt: "2030-01-24T12:00:00.000Z" }] as never);
+
+    renderPage("/bookings?booking=hold-1");
+
+    const dialog = await detailsDialog();
+    expect(within(dialog).getByText("rejected")).toBeInTheDocument();
+    expect(within(dialog).getByText("Rejection reason: Clashes with maintenance")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Hold expires")).toBeNull();
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-03-F (SPM-165 AC3, boundary): an approved hold whose expiry time is no longer in the future (the
+   * hold expired since the decision) is shown as expired, and an ordinary booking never shows a hold line.
+   * Kills: labelling an expired hold as active, hold lines on a normal booking.
+   */
+  it("VENUE-HOLD-NOTIF-03-F labels an expired hold as expired and a normal booking shows no hold line", async () => {
+    apiMock.mockResolvedValueOnce([{ ...hold, status: "approved", holdExpiresAt: "2030-01-09T12:00:00.000Z", holdExpired: true }] as never);
+
+    const view = renderPage("/bookings?booking=hold-1");
+
+    const dialog = await detailsDialog();
+    expect(within(dialog).getByText("Hold expired")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Hold expires")).toBeNull();
+
+    view.unmount();
+    apiMock.mockResolvedValueOnce([{ ...booking, requestKind: "booking", status: "approved" }] as never);
+    renderPage("/bookings?booking=booking-1");
+    const normal = await detailsDialog();
+    expect(within(normal).queryByText(/Tentative hold|Hold expire/)).toBeNull();
+  });
+});

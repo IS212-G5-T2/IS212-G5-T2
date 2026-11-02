@@ -33,7 +33,12 @@ const EQUIPMENT_STATUSES = `(SELECT COALESCE(array_agg(r.status ORDER BY r.creat
 import { settleIfDue } from '../registrations/waitlist/settle.js';
 import { runRegistrationCloseJob } from '../registrations/waitlist/close-job.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
-import { BOOKING_APPROVED_NOTICE, BOOKING_REJECTED_NOTICE } from '../venues/review/booking-decision-notice.js';
+import {
+  BOOKING_APPROVED_NOTICE,
+  BOOKING_REJECTED_NOTICE,
+  HOLD_APPROVED_NOTICE,
+  HOLD_REJECTED_NOTICE,
+} from '../venues/review/booking-decision-notice.js';
 import { COORDINATOR_NOTIFICATION_TYPES } from './coordinator-notification-types.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,
@@ -85,6 +90,8 @@ function audienceRoleFor(row: AudienceRow) {
   if (row.type.startsWith('coordinator_')) return 'coordinator';
   // SPM-137: the venue booking decision notices are the assigned coordinator's.
   if (row.type === BOOKING_APPROVED_NOTICE || row.type === BOOKING_REJECTED_NOTICE) return 'coordinator';
+  // SPM-165: so are the tentative hold decision notices.
+  if (row.type === HOLD_APPROVED_NOTICE || row.type === HOLD_REJECTED_NOTICE) return 'coordinator';
   // SPM-125: the Coordinator's notices that a venue change affects their booking.
   if ((VENUE_IMPACT_COORDINATOR_TYPES as readonly string[]).includes(row.type)) return 'coordinator';
   return 'organiser';
@@ -477,6 +484,9 @@ export class EventsService {
             // SPM-137: Venue Staff approved or rejected a booking for an event assigned to them.
             BOOKING_APPROVED_NOTICE,
             BOOKING_REJECTED_NOTICE,
+            // SPM-165: Venue Staff approved or rejected a tentative hold for an event assigned to them.
+            HOLD_APPROVED_NOTICE,
+            HOLD_REJECTED_NOTICE,
             // SPM-125 AC6 to AC9: a venue change (unavailability, setup or turnaround, capacity) affects a booking.
             ...VENUE_IMPACT_COORDINATOR_TYPES,
           ]
