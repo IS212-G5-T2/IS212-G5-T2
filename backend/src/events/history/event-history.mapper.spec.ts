@@ -214,7 +214,10 @@ describe('SPM-157 event history mapper', () => {
     expect(declined[1].summary).toBe('Cancellation request declined');
   });
 
-  /** AUDIT-HISTORY-01-F / 02-A to 02-C / 03-A to 03-C / 04-A to 04-C: the wording of every recorded action. */
+  /**
+   * AUDIT-HISTORY-01-F, AUDIT-HISTORY-02-A to AUDIT-HISTORY-02-C, AUDIT-HISTORY-03-A to AUDIT-HISTORY-03-C,
+   * AUDIT-HISTORY-04-A to AUDIT-HISTORY-04-C: the wording of every recorded action.
+   */
   it.each([
     ['safety_check_requested', 'Safety check requested'],
     ['safety_check_approved', 'Safety check approved'],

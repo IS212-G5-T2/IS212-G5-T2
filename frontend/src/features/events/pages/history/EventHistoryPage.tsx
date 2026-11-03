@@ -68,7 +68,7 @@ export function EventHistoryPage() {
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">{SECTION_TITLES[section]}</h2>
           </CardHeader>
           <CardBody>
-            <HistoryList entries={history.sections[section] ?? []} label={SECTION_TITLES[section]} />
+            <HistoryList entries={history.sections[section]!} label={SECTION_TITLES[section]} />
           </CardBody>
         </Card>
       ))}

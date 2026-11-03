@@ -1,5 +1,6 @@
 // Story: SPM-157 Audit History of Important Actions
-// Test cases: AUDIT-HISTORY-01-G, 05-E, 06-C, 08-B, 09-C, 10-C (the history page)
+// Test cases: AUDIT-HISTORY-01-G, AUDIT-HISTORY-05-E, AUDIT-HISTORY-06-C, AUDIT-HISTORY-08-B, AUDIT-HISTORY-09-C,
+// AUDIT-HISTORY-10-C (the history page)
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -80,7 +81,10 @@ describe("SPM-157 EventHistoryPage", () => {
     expect(screen.getByRole("link", { name: "Back To Event" })).toHaveAttribute("href", "/events/event-1");
   });
 
-  /** AUDIT-HISTORY-05-E, 06-C: each entry has what happened, when (SGT), who, each change as one line and the reason, in order. */
+  /**
+   * AUDIT-HISTORY-05-E, AUDIT-HISTORY-06-C: each entry has what happened, when (SGT), who, each change as one line
+   * and the reason, in order.
+   */
   it("AUDIT-HISTORY-05-E / 06-C shows each entry's change, author, time and reason in order", async () => {
     fetchMock.mockResolvedValue(coordinatorHistory);
     renderPage();
@@ -178,7 +182,7 @@ describe("SPM-157 EventHistoryPage", () => {
   });
 
   /** A response that arrives after leaving the page is ignored. */
-  it("ignores a response that arrives after unmounting", async () => {
+  it("AUDIT-HISTORY-01-G ignores a response that arrives after unmounting", async () => {
     let resolve: (value: EventHistory) => void = () => undefined;
     fetchMock.mockReturnValue(new Promise((done) => { resolve = done; }));
     const view = renderPage();
@@ -186,5 +190,36 @@ describe("SPM-157 EventHistoryPage", () => {
     resolve(coordinatorHistory);
     await Promise.resolve();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  /** A failure that arrives after leaving the page is ignored too. */
+  it("AUDIT-HISTORY-09-C ignores a refusal that arrives after unmounting", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    fetchMock.mockRejectedValueOnce(new Error("You cannot view this event's history."));
+    const view = renderPage();
+    view.unmount();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  /** AUDIT-HISTORY-05-E: a value that was removed reads as the old value struck through and "removed". */
+  it("AUDIT-HISTORY-05-E shows a removed value as removed", async () => {
+    fetchMock.mockResolvedValue({
+      ...coordinatorHistory,
+      sections: {
+        event: [entry({
+          id: "x", summary: "Venue booking removed", reason: undefined,
+          changes: [{ field: "status", label: "Status", from: "Pending", to: null }],
+        })],
+      },
+    });
+    renderPage();
+    const list = await screen.findByRole("group", { name: "Event Changes" });
+    const line = within(list).getByText("Pending").closest("li");
+    expect(line).toHaveTextContent("Status: Pending removed");
   });
 });

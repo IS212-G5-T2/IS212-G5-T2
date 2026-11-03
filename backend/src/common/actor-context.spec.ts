@@ -1,16 +1,26 @@
 /* SPM-157 AC5: the acting user follows the request through awaited work and ends with it. */
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { currentActorId, runAsActor } from './actor-context.js';
 
 describe('SPM-157 actor context', () => {
+  // Fake timers: the waits below only move work to a later turn of the event loop, so no real time passes.
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   /** AUDIT-HISTORY-05-C: the signed-in user is known in everything the request awaits. */
   it('AUDIT-HISTORY-05-C keeps the actor across awaits and clears it afterwards', async () => {
     expect(currentActorId()).toBeUndefined();
-    const seen = await runAsActor('user-1', async () => {
+    const pending = runAsActor('user-1', async () => {
       await new Promise((resolve) => setTimeout(resolve, 1));
       return currentActorId();
     });
-    expect(seen).toBe('user-1');
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(pending).resolves.toBe('user-1');
     expect(currentActorId()).toBeUndefined();
   });
 
@@ -20,6 +30,9 @@ describe('SPM-157 actor context', () => {
       await new Promise((resolve) => setTimeout(resolve, delay));
       return currentActorId();
     });
-    await expect(Promise.all([read('a', 5), read('b', 1)])).resolves.toEqual(['a', 'b']);
+    // 'b' resumes first, while 'a' is still waiting, so each read happens with the other request in flight.
+    const both = Promise.all([read('a', 5), read('b', 1)]);
+    await vi.advanceTimersByTimeAsync(5);
+    await expect(both).resolves.toEqual(['a', 'b']);
   });
 });

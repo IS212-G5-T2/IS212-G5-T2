@@ -40,7 +40,7 @@ function setup(event: Record<string, unknown> | null = {
 }
 
 describe('SPM-157 EventHistoryService', () => {
-  /** AUDIT-HISTORY-01-A to 04-A: the assigned coordinator reads all four sections. */
+  /** AUDIT-HISTORY-01-A to AUDIT-HISTORY-04-A: the assigned coordinator reads all four sections. */
   it('AUDIT-HISTORY-01-A gives the assigned coordinator all four sections, read with the injected clock', async () => {
     const { repository, service } = setup();
     const result = await service.history(coordinator, EVENT_ID);

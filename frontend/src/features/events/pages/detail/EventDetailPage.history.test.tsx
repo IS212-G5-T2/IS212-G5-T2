@@ -1,6 +1,6 @@
 // Story: SPM-157 Audit History of Important Actions
 // ACs: AC1 (assigned coordinator), AC8 (owning organiser), AC9 (no link for anyone else)
-// Test cases: AUDIT-HISTORY-01-G, 08-B, 09-C (the event page's View History button)
+// Test cases: AUDIT-HISTORY-01-G, AUDIT-HISTORY-08-B, AUDIT-HISTORY-09-C (the event page's View History button)
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";

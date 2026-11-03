@@ -15,7 +15,8 @@ import { CLOCK } from '../src/common/clock.js';
  * Needs TEST_DATABASE_URL (or DATABASE_URL) with database/postgresql/init 001 to 031 applied; the suite
  * re-applies migrations/019 (booking lifecycle) and applies migrations/032_spm157_event_audit_log.sql itself (idempotent).
  *
- * Test cases: AUDIT-HISTORY-01-A to 11-A (Confluence, SPM-157 Audit History of Important Actions Test Cases).
+ * Test cases: AUDIT-HISTORY-01-A to AUDIT-HISTORY-11-A (Confluence, SPM-157 Audit History of Important Actions Test
+ * Cases).
  * Oracles are the SPM-157 AC text (revised 2 Nov 2026) and the Confluence expected results: the entry
  * wording, the author names (the fixture users' display names, 'System', 'Not recorded') and the order.
  *
@@ -164,7 +165,8 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
 
   const brief = (entries: Entry[]) => entries.map((entry) => [entry.summary, entry.actor.name]);
 
-  // AUDIT-HISTORY-01-A, 01-B, 05-C, 06-A, 07-A, 09-A: actions taken through the API carry the signed-in user, and the
+  // AUDIT-HISTORY-01-A, AUDIT-HISTORY-01-B, AUDIT-HISTORY-05-C, AUDIT-HISTORY-06-A, AUDIT-HISTORY-07-A,
+  // AUDIT-HISTORY-09-A: actions taken through the API carry the signed-in user, and the
   // Coordinator the event is reassigned to sees everything from before the reassignment; the previous one is refused.
   it('AUDIT-HISTORY-01-B / 07-A records assignment, approval and reassignment through the API with their authors', async () => {
     const app = await startApp();
@@ -202,7 +204,8 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(refused.body.message).toBe('You can only view the history of events assigned to you or that you own.');
   });
 
-  // AUDIT-HISTORY-01-A, 05-A: a rejection decision shows the old and new status, the coordinator and the reason.
+  // AUDIT-HISTORY-01-A, AUDIT-HISTORY-05-A: a rejection decision shows the old and new status, the coordinator and
+  // the reason.
   it('AUDIT-HISTORY-01-A records a rejection with its reason', async () => {
     const app = await startApp();
     const organiser = await createUser(app, 'ORGANISER', 'SPM157 Organiser');
@@ -221,7 +224,8 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     });
   });
 
-  // AUDIT-HISTORY-01-C, 01-D, 01-E, 06-A: the histories other stories keep are part of the event history, in time order.
+  // AUDIT-HISTORY-01-C, AUDIT-HISTORY-01-D, AUDIT-HISTORY-01-E, AUDIT-HISTORY-06-A: the histories other stories keep
+  // are part of the event history, in time order.
   it('AUDIT-HISTORY-01-C / 01-D / 01-E reads flagged changes, change requests and cancellation requests in order', async () => {
     const app = await startApp();
     const organiser = await createUser(app, 'ORGANISER', 'SPM157 Organiser');
@@ -278,7 +282,8 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(later[5].reason).toBe('Speaker unavailable');
   });
 
-  // AUDIT-HISTORY-01-F, 05-B: safety check request, the Safety Officer's outcome with every feedback item as the
+  // AUDIT-HISTORY-01-F, AUDIT-HISTORY-05-B: safety check request, the Safety Officer's outcome with every feedback
+  // item as the
   // reason, and the reset caused by an event change shown as the system's with its reason.
   it('AUDIT-HISTORY-01-F records the safety check request, outcome and reset', async () => {
     const app = await startApp();
@@ -317,7 +322,8 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     ]);
   });
 
-  // AUDIT-HISTORY-02-A, 02-B, 02-C, 05-B: venue bookings and holds; a hold cancelled because the event time changed is the system's.
+  // AUDIT-HISTORY-02-A, AUDIT-HISTORY-02-B, AUDIT-HISTORY-02-C, AUDIT-HISTORY-05-B: venue bookings and holds; a hold
+  // cancelled because the event time changed is the system's.
   it('AUDIT-HISTORY-02-A / 02-B / 02-C records the venue booking and tentative hold lifecycle', async () => {
     const app = await startApp();
     const organiser = await createUser(app, 'ORGANISER', 'SPM157 Organiser');
@@ -333,6 +339,8 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
       [venueId, eventId, kind])).rows[0].id);
     const booking = await insertBooking(hall, 'booking');
     await asUser(staff, (client) => client.query("UPDATE venue_bookings SET status = 'approved' WHERE id = $1", [booking]));
+    // SPM-130: a change that needs the venue re-approved sends the booking back to Pending.
+    await asUser(coordinator, (client) => client.query("UPDATE venue_bookings SET status = 'pending' WHERE id = $1", [booking]));
     const rejected = await insertBooking(room, 'booking');
     await asUser(staff, (client) => client.query(
       "UPDATE venue_bookings SET status = 'rejected', rejection_reason = 'Room closed for repairs' WHERE id = $1", [rejected]));
@@ -355,6 +363,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(entries.map((entry) => [entry.summary, entry.subject, entry.actor.name])).toEqual([
       ['Venue booking requested', 'SPM157 Hall', 'SPM157 Coordinator'],
       ['Venue booking approved', 'SPM157 Hall', 'SPM157 Venue Staff'],
+      ['Venue booking returned for review', 'SPM157 Hall', 'SPM157 Coordinator'],
       ['Venue booking requested', 'SPM157 Room', 'SPM157 Coordinator'],
       ['Venue booking rejected', 'SPM157 Room', 'SPM157 Venue Staff'],
       ['Venue booking cancelled', 'SPM157 Hall', 'SPM157 Coordinator'],
@@ -372,12 +381,13 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
       { field: 'start', label: 'Start', from: null, to: '2027-03-01T10:00:00.000Z' },
       { field: 'end', label: 'End', from: null, to: '2027-03-01T12:00:00.000Z' },
     ]);
-    expect(entries[3].reason).toBe('Room closed for repairs');
-    expect(entries[6].changes).toEqual([
+    expect(entries[2].changes).toEqual([{ field: 'status', label: 'Status', from: 'Approved', to: 'Pending' }]);
+    expect(entries[4].reason).toBe('Room closed for repairs');
+    expect(entries[7].changes).toEqual([
       { field: 'status', label: 'Status', from: 'Pending', to: 'Approved' },
       { field: 'holdExpiresAt', label: 'Hold expires', from: null, to: '2027-02-01T02:00:00.000Z' },
     ]);
-    expect(entries[7].changes).toEqual([{ field: 'requestKind', label: 'Request type', from: 'Tentative hold', to: 'Booking' }]);
+    expect(entries[8].changes).toEqual([{ field: 'requestKind', label: 'Request type', from: 'Tentative hold', to: 'Booking' }]);
     expect(pendingHold).toBeTruthy();
   });
 
@@ -409,7 +419,8 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     });
   });
 
-  // AUDIT-HISTORY-03-A, 03-B, 03-C: equipment request (recorded with its items when saved), decisions and release.
+  // AUDIT-HISTORY-03-A, AUDIT-HISTORY-03-B, AUDIT-HISTORY-03-C: equipment request (recorded with its items when
+  // saved), decisions and release.
   it('AUDIT-HISTORY-03-A / 03-B / 03-C records the equipment request lifecycle', async () => {
     const app = await startApp();
     const organiser = await createUser(app, 'ORGANISER', 'SPM157 Organiser');
@@ -446,7 +457,8 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(entries[1].changes).toEqual([{ field: 'status', label: 'Status', from: 'Pending Review', to: 'Reserved' }]);
   });
 
-  // AUDIT-HISTORY-04-A, 04-B, 04-C, 05-B, 08-A: registrations; promotion and removal are the system's; the owning
+  // AUDIT-HISTORY-04-A, AUDIT-HISTORY-04-B, AUDIT-HISTORY-04-C, AUDIT-HISTORY-05-B, AUDIT-HISTORY-08-A:
+  // registrations; promotion and removal are the system's; the owning
   // Organiser sees event and registration history only.
   it('AUDIT-HISTORY-04-A / 04-B / 04-C / 08-A records registrations and waiting list changes', async () => {
     const app = await startApp();
@@ -508,12 +520,15 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
       [eventId, ann.uid, ann.name])).rows[0].id);
     await asUser(ann, (client) => client.query("UPDATE event_registrations SET status = 'Withdrawn', withdrawn_at = now() WHERE id = $1", [rowId]));
     await asUser(ann, (client) => client.query("UPDATE event_registrations SET status = 'Registered', registered_at = now() WHERE id = $1", [rowId]));
+    // Withdrawing is always the attendee's own action, even when the write carries no signed-in user.
+    await asUser(null, (client) => client.query("UPDATE event_registrations SET status = 'Withdrawn', withdrawn_at = now() WHERE id = $1", [rowId]));
 
     const entries = (await history(app, coordinator, eventId)).body.sections.registrations as Entry[];
     expect(entries.map((entry) => [entry.summary, entry.actor.name])).toEqual([
       ['Joined the waiting list', 'SPM157 Ann'],
       ['Left the waiting list', 'SPM157 Ann'],
       ['Registered', 'SPM157 Ann'],
+      ['Registration withdrawn', 'SPM157 Ann'],
     ]);
     expect(entries[2].changes).toEqual([{ field: 'status', label: 'Status', from: 'Withdrawn', to: 'Registered' }]);
   });
@@ -731,7 +746,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     }
   });
 
-  // AUDIT-HISTORY-09-A, 09-B: nobody else can read the history.
+  // AUDIT-HISTORY-09-A, AUDIT-HISTORY-09-B: nobody else can read the history.
   it('AUDIT-HISTORY-09-A / 09-B refuses everyone but the assigned coordinator and the owner', async () => {
     const app = await startApp();
     const organiser = await createUser(app, 'ORGANISER', 'SPM157 Organiser');
@@ -755,7 +770,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     await history(app, null, eventId, 401);
   });
 
-  // AUDIT-HISTORY-10-A, 10-B: entries cannot be changed through the API or in the database.
+  // AUDIT-HISTORY-10-A, AUDIT-HISTORY-10-B: entries cannot be changed through the API or in the database.
   it('AUDIT-HISTORY-10-A / 10-B keeps entries unchangeable', async () => {
     const app = await startApp();
     const organiser = await createUser(app, 'ORGANISER', 'SPM157 Organiser');

@@ -1,0 +1,136 @@
+{
+  "story": "SPM-157",
+  "title": "Audit History of Important Actions",
+  "note": "41 AUDIT-HISTORY ids, all PRIMARY, matching the Confluence SPM-157 matrix (page 39813204). Shared files use titleMatch ^AUDIT-HISTORY- so the other stories' tests in database.service.spec.ts and authentication.middleware.spec.ts are not in scope. The repository (event-history.repository.ts) and the event_audit_log triggers (migration 032) are exercised only by the real-database suite, so backend-e2e contributes to backend coverage. Spec conflict SC-SPM157-01 (what the Organiser's event section contains, AC8) is DECIDED pending PO confirmation. G5 measured on the lines the SPM-157 commits introduced.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/history/event-history.mapper.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/history/event-history.service.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/history/event-history.controller.spec.ts"
+      },
+      {
+        "glob": "backend/src/common/actor-context.spec.ts"
+      },
+      {
+        "glob": "backend/src/database/database.service.spec.ts",
+        "titleMatch": "^AUDIT-HISTORY-"
+      },
+      {
+        "glob": "backend/src/auth/authentication/authentication.middleware.spec.ts",
+        "titleMatch": "^AUDIT-HISTORY-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/event-history.e2e-spec.ts"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/events/api/event-history-api.test.ts"
+      },
+      {
+        "glob": "frontend/src/features/events/lib/eventHistory.test.ts"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/history/EventHistoryPage.test.tsx"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.history.test.tsx"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/history/event-history.mapper.ts",
+      "backend/src/events/history/event-history.service.ts",
+      "backend/src/events/history/event-history.controller.ts",
+      "backend/src/events/history/event-history.repository.ts",
+      "backend/src/events/history/event-history.messages.ts",
+      "backend/src/common/actor-context.ts",
+      "backend/src/database/database.service.ts",
+      "backend/src/auth/authentication/authentication.middleware.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/lib/eventHistory.ts",
+      "frontend/src/features/events/pages/history/EventHistoryPage.tsx",
+      "frontend/src/features/events/api/event-history-api.ts",
+      "frontend/src/features/events/pages/detail/EventDetailPage.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm157",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm157.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm157.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm157",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm157.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm157.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}
