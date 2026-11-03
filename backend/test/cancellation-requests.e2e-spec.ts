@@ -346,7 +346,8 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       pool.query('SELECT * FROM event_registrations WHERE event_id = $1 ORDER BY id', [eventId]),
       pool.query('SELECT * FROM event_status_history WHERE event_id = $1 ORDER BY id', [eventId]),
       // SPM-162: the Organiser's request-outcome notice is the decision's own output, so it is not part of what a request leaves alone.
-      pool.query(`SELECT * FROM notifications WHERE related_event_id = $1 AND type NOT IN ('cancellation_request_accepted', 'cancellation_request_declined') ORDER BY id`, [eventId]),
+      // SPM-171: so is the assigned Coordinator's own "requested to cancel" notice; the same notice for anyone else still counts.
+      pool.query(`SELECT * FROM notifications WHERE related_event_id = $1 AND type NOT IN ('cancellation_request_accepted', 'cancellation_request_declined') AND NOT (type = 'cancellation_request_submitted' AND recipient_id = (SELECT coordinator_id FROM events WHERE id = $1)) ORDER BY id`, [eventId]),
       pool.query('SELECT * FROM event_safety_checks WHERE event_id = $1', [eventId]),
     ]);
     return {
@@ -1272,7 +1273,8 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       // The waiting-list entry (ATT-04) is Cancelled too (SPM-138 releaser; it carries no reason)
       expect(registrations.rows.find((r) => r.attendee_id === att4.uid)?.status).toBe('Cancelled');
       // Assert: ORG-01, COO-01 and ATT-01 to ATT-04 are each notified exactly once, with the SPM-136 notice (the Organiser with the SPM-162 outcome notice instead) and nothing else
-      const notices = await pool.query('SELECT recipient_id, type, message FROM notifications WHERE related_event_id = $1 ORDER BY recipient_id', [eventId]);
+      // SPM-171: the Coordinator's earlier "requested to cancel" notice is left out; it was written when the request was filed.
+      const notices = await pool.query(`SELECT recipient_id, type, message FROM notifications WHERE related_event_id = $1 AND type <> 'cancellation_request_submitted' ORDER BY recipient_id`, [eventId]);
       expect(notices.rows).toHaveLength(6);
       expect(notices.rows.map((row) => row.recipient_id).sort()).toEqual([org1.uid, coo1.uid, att1.uid, att2.uid, att3.uid, att4.uid].sort());
       for (const row of notices.rows) {
@@ -1442,7 +1444,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       // Arrange: EVT-1105 clone, attendees with zero notifications
       const { eventId } = await seedGala();
       const requestId = (await postRequest(org1, eventId).expect(201)).body.request.id as string;
-      // Assert 0: filing the request notified nobody either (S7: nothing is sent for a request)
+      // Assert 0: filing the request notified nobody but the assigned Coordinator (S7 amended by SPM-171: the snapshot leaves out their "requested to cancel" notice)
       expect((await snapshot(eventId)).notifications).toHaveLength(0);
 
       // Act
@@ -1451,7 +1453,8 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       // Assert: no other notification related to the event, none for any attendee or the coordinator, only the SPM-162 Organiser notice for the organiser, and no history row
       const after = await snapshot(eventId);
       expect(after.notifications).toHaveLength(0);
-      const forPeople = await pool.query('SELECT 1 FROM notifications WHERE recipient_id = ANY($1::text[])', [[att1.uid, att2.uid, att3.uid, att4.uid, coo1.uid]]);
+      // SPM-171: the decline adds nothing for the Coordinator beyond the notice they got when the request was filed.
+      const forPeople = await pool.query(`SELECT 1 FROM notifications WHERE recipient_id = ANY($1::text[]) AND NOT (recipient_id = $2 AND type = 'cancellation_request_submitted')`, [[att1.uid, att2.uid, att3.uid, att4.uid, coo1.uid], coo1.uid]);
       expect(forPeople.rowCount).toBe(0);
       const organiserNotices = await pool.query('SELECT type FROM notifications WHERE recipient_id = $1', [org1.uid]);
       expect(organiserNotices.rows).toEqual([{ type: 'cancellation_request_declined' }]);

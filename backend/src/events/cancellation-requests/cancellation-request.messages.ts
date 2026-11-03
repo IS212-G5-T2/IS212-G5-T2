@@ -32,6 +32,8 @@ export const CANCELLATION_REQUEST_MESSAGES = {
   /** SPM-162 AC2: the Organiser's bell notice when the Coordinator declines. */
   outcomeDeclined: (eventName: string) =>
     `Your cancellation request for "${eventName}" was declined. The event keeps its current status.`,
+  /** SPM-171 AC2: the assigned Coordinator's bell notice when the Organiser submits a request. */
+  requestedNotice: (requestedBy: string, eventName: string) => `${requestedBy} requested to cancel "${eventName}".`,
   /** MSG-CR-06 */
   decided: 'This request has already been decided.',
   /** MSG-08 (existing catalogue entry) */

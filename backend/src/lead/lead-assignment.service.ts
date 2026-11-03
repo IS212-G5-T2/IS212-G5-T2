@@ -14,6 +14,10 @@ import { UUID_PATTERN as UUID } from '../common/uuid.js';
 import { ACTIVE_WORKLOAD_STATUSES } from '../events/types/event-status.js';
 import { formatSgtDate } from '../registrations/helpers/messages.js';
 import { CHANGE_REQUEST_NOTICE, notifyPendingChangeRequest } from '../events/change-requests/change-request-notice.js';
+import {
+  CANCELLATION_REQUESTED_NOTICE,
+  notifyPendingCancellationRequest,
+} from '../events/cancellation-requests/cancellation-request-notice.js';
 import { BOOKING_APPROVED_NOTICE, BOOKING_REJECTED_NOTICE } from '../venues/review/booking-decision-notice.js';
 import { VENUE_IMPACT_COORDINATOR_TYPES } from '../venues/notifications/venue-impact-notifications.js';
 
@@ -172,6 +176,8 @@ export class LeadAssignmentService {
       );
       // SPM-64 AC3: a change request made before assignment reaches the coordinator now.
       await notifyPendingChangeRequest(client, eventId, event.event_name, coordinator.id);
+      // SPM-171 AC6: so does a cancellation request made before assignment.
+      await notifyPendingCancellationRequest(client, eventId, event.event_name, coordinator.id);
       return {
         event: {
           id: eventId,
@@ -268,6 +274,7 @@ export class LeadAssignmentService {
         `UPDATE notifications SET read = true
           WHERE recipient_id = $1 AND related_event_id = $2
             AND type IN ('coordinator_assignment', 'coordinator_reassignment', '${CHANGE_REQUEST_NOTICE}',
+                         '${CANCELLATION_REQUESTED_NOTICE}',
                          '${BOOKING_APPROVED_NOTICE}', '${BOOKING_REJECTED_NOTICE}',
                          ${VENUE_IMPACT_COORDINATOR_TYPES.map((type) => `'${type}'`).join(', ')}) AND read = false`,
         [event.coordinator_id, eventId],
@@ -289,6 +296,8 @@ export class LeadAssignmentService {
       );
       // SPM-64 AC3: a pending change request follows the event to the new coordinator.
       await notifyPendingChangeRequest(client, eventId, event.event_name, coordinator.id);
+      // SPM-171 AC6: and so does a pending cancellation request.
+      await notifyPendingCancellationRequest(client, eventId, event.event_name, coordinator.id);
       return {
         event: {
           id: eventId,

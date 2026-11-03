@@ -33,6 +33,7 @@ const ACCEPTED = 'cancellation_request_accepted';
 const DECLINED = 'cancellation_request_declined';
 const MSG_ACCEPTED = 'Your cancellation request for "Autumn Gala" was accepted. The event is cancelled.';
 const MSG_DECLINED = 'Your cancellation request for "Autumn Gala" was declined. The event keeps its current status.';
+const SUBMITTED = 'cancellation_request_submitted'; // SPM-171: the Coordinator's notice when the request was filed; not part of the outcome
 const EVENT_NAME = 'Autumn Gala';
 
 type Session = { uid: string; cookie: string };
@@ -248,7 +249,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
 
     expect((await storedFor(eventId, org.uid)).map((row) => row.type)).toEqual([ACCEPTED]);
     expect((await storedFor(eventId, att.uid)).map((row) => row.type)).toEqual(['EventCancelled']);
-    expect((await storedFor(eventId, coo.uid)).map((row) => row.type)).toEqual(['EventCancelled']);
+    expect((await storedFor(eventId, coo.uid)).map((row) => row.type)).toEqual(['EventCancelled', SUBMITTED]);
     expect((await feed(org)).filter((n) => n.type === 'EventCancelled')).toEqual([]);
   });
 
@@ -394,7 +395,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
 
     await decide(coo, requestId, { decision: 'accept' }).expect(500);
 
-    expect(await stored(eventId)).toEqual([]);
+    expect((await stored(eventId)).filter((row) => row.type !== SUBMITTED)).toEqual([]);
     expect(await requestStatus(requestId)).toBe('pending');
     expect((await pool.query('SELECT status FROM events WHERE id = $1', [eventId])).rows[0].status).toBe('Confirmed');
 
