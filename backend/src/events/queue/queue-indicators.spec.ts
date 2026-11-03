@@ -70,6 +70,12 @@ describe('SPM-48 AC6, AC7: one safety state per event', () => {
 });
 
 describe('SPM-48 AC8: tentative holds', () => {
+  /** VEN-HOLD-DEC-06-B: persisted expiry remains visible without treating the hold as an active affected venue. */
+  it('VEN-HOLD-DEC-06-B preserves persisted expired hold state in the coordinator queue', () => {
+    const expired = booking({ status: 'expired', requestKind: 'tentative_hold', holdExpiresAt: H1_EXPIRY, venueUnavailable: true });
+    expect(deriveHolds([expired], NOW)).toEqual([expect.objectContaining({ state: 'EXPIRED' })]);
+    expect(deriveUnavailableVenues([expired], NOW)).toEqual([]);
+  });
   /** MONITOR-QUEUE-08-B subtests A and B: active one second before expiry, expired exactly at it. */
   it('MONITOR-QUEUE-08-B flips a hold to expired exactly at its expiry instant', () => {
     expect(holdIsActive(H1_EXPIRY, new Date('2026-11-10T03:59:59.000Z'))).toBe(true);

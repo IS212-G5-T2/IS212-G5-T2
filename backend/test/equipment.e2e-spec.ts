@@ -28,6 +28,7 @@ describe('Equipment records (SPM-111 e2e)', () => {
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
 
   afterAll(async () => {

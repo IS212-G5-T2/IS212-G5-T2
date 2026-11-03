@@ -16,6 +16,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     // Fresh SPM-119 databases may predate the SPM-123 Lead migration; create
     // the role only for this test and remove it after the suite if we created it.
     const result = await pool.query(

@@ -850,3 +850,57 @@ describe('SPM-125 venue history service', () => {
     expect(endUnavailable).toHaveBeenCalledWith(venue.id, periodId, staff.uid);
   });
 });
+
+/** SPM-132 AC9/10: service boundaries preserve not-found, lifecycle and Completed-event refusals. */
+describe('VEN-HOLD-DEC-09-B service refusal mapping', () => {
+  const bookingId = '00000000-0000-4000-8000-000000000132';
+  /** VEN-HOLD-DEC-09-B: conversion and release refuse malformed IDs before accessing persistence. */
+  it.each(['convertTentativeHold', 'releaseTentativeHold'] as const)('VEN-HOLD-DEC-09-B rejects malformed IDs for %s', async (method) => {
+    const action = vi.fn();
+    const service = new VenuesService({ [method]: action } as never, { hasPermission: vi.fn().mockResolvedValue(true) } as never);
+    await expect(service[method](staff, 'malformed')).rejects.toBeInstanceOf(NotFoundException);
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  /** VEN-HOLD-DEC-09-B: repository outcomes become stable HTTP status codes, with no successful action returned. */
+  it.each([
+    ['not-found', 404, undefined],
+    ['event-completed', 409, 'EVENT_COMPLETED'],
+    ['expired', 409, 'TENTATIVE_HOLD_EXPIRED'],
+    ['not-active', 409, 'TENTATIVE_HOLD_NOT_ACTIVE'],
+  ] as const)('VEN-HOLD-DEC-09-B maps %s to %s for either staff hold action', async (kind, status, code) => {
+    for (const method of ['convertTentativeHold', 'releaseTentativeHold'] as const) {
+      const action = vi.fn().mockResolvedValue({ kind });
+      const service = new VenuesService({ [method]: action } as never, { hasPermission: vi.fn().mockResolvedValue(true) } as never);
+      await expect(service[method](staff, bookingId)).rejects.toMatchObject({ status, ...(code ? { response: { code } } : {}) });
+      expect(action).toHaveBeenCalledWith(staff.uid, bookingId);
+    }
+  });
+
+  /** VEN-HOLD-DEC-10-A: a successful hold action returns the persisted outcome to the caller. */
+  it('VEN-HOLD-DEC-10-A returns a successful release unchanged', async () => {
+    const outcome = { kind: 'updated', id: bookingId, status: 'released', requestKind: 'tentative_hold' };
+    const service = new VenuesService({ releaseTentativeHold: vi.fn().mockResolvedValue(outcome) } as never, { hasPermission: vi.fn().mockResolvedValue(true) } as never);
+    await expect(service.releaseTentativeHold(staff, bookingId)).resolves.toEqual(outcome);
+  });
+});
+
+describe('Venue unavailable-period service success', () => {
+  /** SPM-122 AC5: a successful early end returns the saved period with the verified actor and IDs. */
+  it('returns the ended period without changing its persisted interval', async () => {
+    const periodId = '00000000-0000-4000-8000-000000000122';
+    const period = { id: periodId, start: '2030-01-12T04:00:00.000Z', end: '2030-01-12T04:30:00.000Z', reason: 'Maintenance' };
+    const endUnavailable = vi.fn().mockResolvedValue(period);
+    const service = new VenuesService({ endUnavailable } as never, { hasPermission: vi.fn().mockResolvedValue(true) } as never);
+    await expect(service.endUnavailable(staff, venue.id, periodId)).resolves.toEqual({ period });
+    expect(endUnavailable).toHaveBeenCalledWith(venue.id, periodId, staff.uid);
+  });
+
+  /** SPM-122 AC1: a valid blockout for an absent venue answers 404 after validation rather than returning success. */
+  it('refuses a blockout when the venue no longer exists', async () => {
+    const markUnavailable = vi.fn().mockResolvedValue(undefined);
+    const service = new VenuesService({ markUnavailable } as never, { hasPermission: vi.fn().mockResolvedValue(true) } as never, { now: () => new Date('2030-01-10T00:00:00.000Z') });
+    await expect(service.markUnavailable(staff, venue.id, { start: '2030-01-12T04:00:00.000Z', end: '2030-01-12T05:00:00.000Z', reason: 'Maintenance' })).rejects.toBeInstanceOf(NotFoundException);
+    expect(markUnavailable).toHaveBeenCalledOnce();
+  });
+});

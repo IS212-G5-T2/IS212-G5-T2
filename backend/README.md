@@ -541,6 +541,27 @@ from an Active approved hold and an expired approved hold after a fresh list
 fetch. `holdExpired` is computed against the service clock when the list is
 read.
 
+### Venue Staff hold decisions and expiry processing (SPM-132)
+
+Venue Staff can reject a Pending tentative hold with a trimmed 1–1,000
+character reason, convert an approved unexpired hold to a confirmed booking,
+or release that hold. Conversion and release lock the owned venue and hold;
+the persisted state is rechecked at decision time. The expiry processor marks
+each approved tentative hold expired once when `hold_expires_at <= now`; calendar and
+conflict reads continue to derive whether the hold is active from that expiry.
+The Nest scheduler interval is configurable through
+`TENTATIVE_HOLD_EXPIRY_INTERVAL_MS` (default 60000 ms). The product
+specification does not define an acceptable maximum processing lag, so the
+default is an implementation setting, not a product SLA.
+
+Existing databases apply `backend/migrations/032_spm132_tentative_hold_expiry_processing.sql`
+after the current venue migrations. Fresh databases apply the matching
+`database/postgresql/init/032_spm132_tentative_hold_expiry_processing.sql`.
+The expiry marker is nullable, processed rows carry stored status `expired`, and the migration is safe to rerun. The SPM-132
+integration cases are in `test/venues-booking-requests.e2e-spec.ts` and require
+`DATABASE_URL`; scheduler unit cases are in
+`src/venues/tentative-hold-expiry.scheduler.spec.ts`.
+
 Approval rechecks eligibility and conflicts: the 336-hour lead time is
 evaluated again on every hold approval (not only after a venue setup change)
 and a refusal returns `409 BOOKING_SLOT_CONFLICT` with the booking still
@@ -551,9 +572,9 @@ hold reads "Hold" and from the expiry instant "Hold expired" (venue summary
 `(hold)` / `(hold expired)`, planning status `Hold` / `Hold expired`, event
 record `venueHoldState`); neither satisfies the Confirm readiness "Venue
 booking approval" item, and an expired hold no longer occupies the venue, counts
-as a clashing neighbour, or flags the queue venue-unavailable indicator. Moving
-an expired hold to a terminal status and notifying about it belong to related
-stories. `test/events-approved-hold.e2e-spec.ts` proves this against PostgreSQL
+as a clashing neighbour, or flags the queue venue-unavailable indicator. The
+scheduler persists the terminal `expired` status; expiry notifications belong
+to a related story. `test/events-approved-hold.e2e-spec.ts` proves this against PostgreSQL
 (`DATABASE_URL` with `database/postgresql/init` 001 to 024).
 
 Migration `024_spm159_tentative_hold_requests.sql` adds `request_kind` and
