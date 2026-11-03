@@ -44,12 +44,20 @@ describe.skipIf(!database)('SPM-159 approved tentative holds across the events m
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
+    const currentSchema = await pool.query<{ supports_expired: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'venue_bookings'::regclass
+        AND conname = 'venue_bookings_status_check' AND pg_get_constraintdef(oid) LIKE '%expired%') AS supports_expired`,
+    );
     for (const file of [
       '019_spm54_venue_booking_lifecycle.sql',
       '024_spm159_tentative_hold_requests.sql',
       '025_spm159_approved_hold_expiry.sql',
-    ])
+    ]) {
+      // Migration 019 narrows the lifecycle and must not be replayed over 032's expired rows.
+      if (currentSchema.rows[0].supports_expired && file === '019_spm54_venue_booking_lifecycle.sql') continue;
       await pool.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
+    }
   });
   afterAll(async () => {
     await pool.end();
@@ -81,14 +89,20 @@ describe.skipIf(!database)('SPM-159 approved tentative holds across the events m
 
   async function createUser(role: string): Promise<User> {
     const email = `spm159-events-${randomUUID()}@example.test`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
        VALUES ($1, 'SPM-159 Events User', crypt($2, gen_salt('bf', 4))) RETURNING id`,
-      [email, PASSWORD],
-    );
-    const uid = created.rows[0].id;
-    userIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+        [email, PASSWORD],
+      );
+      uid = result.rows[0].id;
+      userIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     const login = await request(http()).post('/api/auth/login').send({ email, password: PASSWORD }).expect(201);
     const cookie = (login.headers['set-cookie'] as unknown as string[]).find((value) =>
       value.startsWith('connectsphere_session='),

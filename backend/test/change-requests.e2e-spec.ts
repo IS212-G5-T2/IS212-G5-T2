@@ -36,6 +36,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
 
   afterAll(async () => {
@@ -411,15 +412,20 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
 
   async function seedEvent(organiserId: string, coordinatorId: string | null, status: string) {
     const id = randomUUID();
-    await pool.query(
-      `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
-         start_date_time, end_date_time, expected_attendance, preferred_room_layout, required_facilities,
-         accessibility_needs, equipment_needs, status, coordinator_id, coordinator_name, submission_key)
-       VALUES ($1,$2,'CR Organiser','organiser@example.test','CR Welcome Evening','Purpose','Description',
-               $3,$4,80,'Banquet',ARRAY['Catering'],ARRAY['Wheelchair ramps'],'Two microphones',
-               $5,$6,CASE WHEN $6::text IS NULL THEN NULL ELSE 'CR Coordinator' END,$7)`,
-      [id, organiserId, START, END, status, coordinatorId, randomUUID()],
-    );
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
+           start_date_time, end_date_time, expected_attendance, preferred_room_layout, required_facilities,
+           accessibility_needs, equipment_needs, status, coordinator_id, coordinator_name, submission_key)
+         VALUES ($1,$2,'CR Organiser','organiser@example.test','CR Welcome Evening','Purpose','Description',
+                 $3,$4,80,'Banquet',ARRAY['Catering'],ARRAY['Wheelchair ramps'],'Two microphones',
+                 $5,$6,CASE WHEN $6::text IS NULL THEN NULL ELSE 'CR Coordinator' END,$7)`,
+        [id, organiserId, START, END, status, coordinatorId, randomUUID()],
+      );
+    } finally {
+      client.release();
+    }
     createdEventIds.push(id);
     return id;
   }
@@ -427,14 +433,20 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
   async function createDatabaseUser(role: string, name: string): Promise<DatabaseUser> {
     const email = `e2e-change-request-${randomUUID()}@example.com`;
     const password = 'password123';
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
        VALUES ($1, $2, crypt($3, gen_salt('bf', 4))) RETURNING id`,
-      [email, name, password],
-    );
-    const uid = created.rows[0].id;
-    createdUserIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+        [email, name, password],
+      );
+      uid = result.rows[0].id;
+      createdUserIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     const response = await request(app.getHttpServer()).post('/api/auth/login').send({ email, password }).expect(201);
     const cookie = response.headers['set-cookie']?.find((value: string) => value.startsWith('connectsphere_session='));
     if (!cookie) throw new Error('Expected a PostgreSQL authentication session cookie');

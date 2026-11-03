@@ -78,10 +78,18 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     // Idempotent migrations this suite relies on, so it can run first on a fresh database. 019 restores the
     // 'cancelled' booking status after suites that re-apply migration 011 (as venues-booking-requests does).
-    for (const file of ['001_event_drafts.sql', '019_spm54_venue_booking_lifecycle.sql', '023_spm48_safety_rejected.sql'])
+    const currentSchema = await pool.query<{ supports_expired: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'venue_bookings'::regclass
+        AND conname = 'venue_bookings_status_check' AND pg_get_constraintdef(oid) LIKE '%expired%') AS supports_expired`,
+    );
+    for (const file of ['001_event_drafts.sql', '019_spm54_venue_booking_lifecycle.sql', '023_spm48_safety_rejected.sql']) {
+      // Migration 019 narrows the lifecycle and must not be replayed over 032's expired rows.
+      if (currentSchema.rows[0].supports_expired && file === '019_spm54_venue_booking_lifecycle.sql') continue;
       await pool.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
+    }
   });
 
   afterAll(async () => {
@@ -130,14 +138,20 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
 
   async function createUser(role: string, name: string): Promise<User> {
     const email = `spm48-${randomUUID()}@example.com`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
        VALUES ($1, $2, crypt($3, gen_salt('bf', 4))) RETURNING id`, // cost 4: fixtures only
-      [email, name, PASSWORD],
-    );
-    const uid = created.rows[0].id;
-    createdUserIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+        [email, name, PASSWORD],
+      );
+      uid = result.rows[0].id;
+      createdUserIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     const response = await request(http()).post('/api/auth/login').send({ email, password: PASSWORD }).expect(201);
     const cookie = (response.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) =>
       value.startsWith('connectsphere_session='),

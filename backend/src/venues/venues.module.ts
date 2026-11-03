@@ -5,12 +5,14 @@ import { CLOCK, systemClock } from '../common/clock.js';
 import { VenuesController } from './venues.controller.js';
 import { VenuesService } from './venues.service.js';
 import { VenuesRepository } from './repository/venues.repository.js';
+import { TentativeHoldExpiryScheduler } from './tentative-hold-expiry.scheduler.js';
 
 @Module({
   imports: [DatabaseModule],
   controllers: [VenuesController],
   providers: [
     VenuesRepository,
+    TentativeHoldExpiryScheduler,
     VenuesService,
     RbacRepository,
     { provide: CLOCK, useValue: systemClock },

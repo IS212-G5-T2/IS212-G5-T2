@@ -2172,7 +2172,7 @@ describe('SPM-55 venue booking review repository', () => {
     const [sql, params] = query.mock.calls[0] as [string, unknown[]];
     // The whole staff-list statement: its FROM/JOIN block, the owner filter with pending/approved/rejected statuses, and the ordering.
     expect(normalizeSql(sql).trim()).toBe(
-      "SELECT b.id, b.event_id, e.event_name, e.start_date_time AS event_start, e.end_date_time AS event_end, coordinator_user.display_name AS coordinator_name, v.name AS venue_name, 'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference, b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason, b.request_kind, b.hold_expires_at, b.reassessment_required FROM venue_bookings b JOIN venues v ON v.id = b.venue_id JOIN events e ON e.id = b.event_id JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected') ORDER BY b.start_at ASC, b.id",
+      "SELECT b.id, b.event_id, e.event_name, e.start_date_time AS event_start, e.end_date_time AS event_end, coordinator_user.display_name AS coordinator_name, v.name AS venue_name, 'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference, b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason, b.request_kind, b.hold_expires_at, b.reassessment_required FROM venue_bookings b JOIN venues v ON v.id = b.venue_id JOIN events e ON e.id = b.event_id JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected', 'expired') ORDER BY b.start_at ASC, b.id",
     );
     expect(params).toEqual([staffId]);
   });
@@ -2221,7 +2221,7 @@ describe('SPM-55 venue booking review repository', () => {
     );
     expect(calls[1][1]).toEqual([venue.id]);
     expect(normalizeSql(calls[2][0])).toBe(
-      'SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at, b.rejection_reason, b.request_kind, b.reassessment_required, e.start_date_time AS event_start, e.status AS event_status FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id WHERE b.id = $1::uuid FOR UPDATE OF b',
+      'SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at, b.rejection_reason, b.request_kind, b.hold_expires_at, b.reassessment_required, e.start_date_time AS event_start, e.status AS event_status FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id WHERE b.id = $1::uuid FOR UPDATE OF b',
     );
     expect(calls[2][1]).toEqual([bookingId]);
     expect(calls[3][1]).toEqual([
@@ -2599,7 +2599,7 @@ describe('SPM-55 venue booking review repository', () => {
     );
     expect(calls[1][1]).toEqual([venue.id]);
     expect(normalizeSql(calls[2][0])).toBe(
-      'SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at, b.rejection_reason, b.request_kind, b.reassessment_required, e.start_date_time AS event_start, e.status AS event_status FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id WHERE b.id = $1::uuid FOR UPDATE OF b',
+      'SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at, b.rejection_reason, b.request_kind, b.hold_expires_at, b.reassessment_required, e.start_date_time AS event_start, e.status AS event_status FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id WHERE b.id = $1::uuid FOR UPDATE OF b',
     );
     expect(calls[2][1]).toEqual([bookingId]);
     // The rejection UPDATE sets exactly the rejected status and the reason, on exactly the one booking id.
@@ -2611,6 +2611,50 @@ describe('SPM-55 venue booking review repository', () => {
       "INSERT INTO booking_review_log (booking_id, actor_user_id, action, reason) VALUES ($1::uuid, $2::uuid, 'rejected', $3)",
     );
     expect(calls[4][1]).toEqual([bookingId, staffId, 'Clashes with maintenance']);
+  });
+
+  /** VEN-HOLD-DEC-09-A: an active approved hold converts to an ordinary approved booking. */
+  it('VEN-HOLD-DEC-09-A converts an active approved tentative hold', async () => {
+    const active = { ...pendingRow, status: 'approved', request_kind: 'tentative_hold', hold_expires_at: new Date('2030-01-24T12:00:00.000Z') };
+    const { repository, clientQuery, poolQuery } = createSplitReviewRepository(
+      ownedRow, venueLockRow, { rows: [active] }, { rows: [{ id: bookingId }] },
+    );
+
+    await expect(repository.convertTentativeHold(staffId, bookingId)).resolves.toEqual({
+      kind: 'updated', id: bookingId, status: 'approved', requestKind: 'booking',
+    });
+    expect(normalizeSql(clientQuery.mock.calls[3][0] as string)).toContain("SET request_kind = 'booking', hold_expires_at = NULL");
+    expect(poolQuery).not.toHaveBeenCalled();
+  });
+
+  /** VEN-HOLD-DEC-09-B: an approved hold at its expiry cannot be converted. */
+  it('VEN-HOLD-DEC-09-B refuses conversion at exact expiry without writing', async () => {
+    const expired = { ...pendingRow, status: 'approved', request_kind: 'tentative_hold', hold_expires_at: new Date('2030-01-10T12:00:00.000Z') };
+    const { repository, clientQuery } = createSplitReviewRepository(ownedRow, venueLockRow, { rows: [expired] });
+
+    await expect(repository.convertTentativeHold(staffId, bookingId)).resolves.toEqual({ kind: 'expired' });
+    expect(clientQuery).toHaveBeenCalledTimes(3);
+  });
+
+  /** VEN-HOLD-DEC-10-A/13-A: release records the instant and marks only the hold released. */
+  it('VEN-HOLD-DEC-10-A releases an active hold and records released_at', async () => {
+    const active = { ...pendingRow, status: 'approved', request_kind: 'tentative_hold', hold_expires_at: new Date('2030-01-24T12:00:00.000Z') };
+    const { repository, clientQuery } = createSplitReviewRepository(
+      ownedRow, venueLockRow, { rows: [active] }, { rows: [{ id: bookingId }] },
+    );
+
+    await expect(repository.releaseTentativeHold(staffId, bookingId)).resolves.toEqual({
+      kind: 'updated', id: bookingId, status: 'released', requestKind: 'tentative_hold',
+    });
+    expect(normalizeSql(clientQuery.mock.calls[3][0] as string)).toContain("SET status = 'released', released_at = $2::timestamptz");
+    expect(clientQuery.mock.calls[3][1]).toEqual([bookingId, new Date('2030-01-10T12:00:00.000Z')]);
+  });
+
+  /** Rows outside an owned, active tentative hold cannot be converted or released. */
+  it('VEN-HOLD-DEC-09-A refuses conversion when the booking is not owned', async () => {
+    const { repository, clientQuery } = createSplitReviewRepository({ rows: [] });
+    await expect(repository.convertTentativeHold(staffId, bookingId)).resolves.toEqual({ kind: 'not-found' });
+    expect(clientQuery).toHaveBeenCalledTimes(1);
   });
 
   /** VEN-REV-05-A: a rejection writes exactly one audit row that keeps the stored reason and the rejecting staff member. */

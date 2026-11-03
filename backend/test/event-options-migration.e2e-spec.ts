@@ -36,6 +36,7 @@ describe.skipIf(!database)(
 
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
       await pool.query(
         await readFile(
           new URL('../migrations/001_event_drafts.sql', import.meta.url),

@@ -14,6 +14,8 @@ Defines shared assignments, evidence, permissions, review results, and verificat
 
 **Configuration:** `AGENTS.md` defines repository rules and routing; `CLAUDE.md` supplies Claude-specific entry instructions. Native sub-agents use `.codex/agents/*.toml` (Codex) or `.claude/agents/*.md` (Claude Code). Codex discovers repository skills directly in `.agents/skills/*/SKILL.md`.
 
+**Codex model selection:** Keep `model` and `model_reasoning_effort` unset in Codex agent definitions so they do not lock a role to one model or effort. The Orchestrator selects each at launch and follow-up based on task complexity and risk, preferring the least costly available setting that can do the work. Codex launch-time selection support is runtime-dependent; if unavailable, report that the inherited/default model was used.
+
 Playbooks do not automatically register native agents. Skills provide reusable procedures, not agent identities or permissions. Use only available, relevant skills.
 
 ## 1. Workflow and Authority

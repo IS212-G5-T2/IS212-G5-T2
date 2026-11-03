@@ -23,6 +23,7 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
 
   afterAll(async () => {
@@ -364,13 +365,20 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
 
   async function createUser(role: 'TECH_SUPPORT' | 'ORGANISER') {
     const email = `spm118-${randomUUID()}@example.test`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
        VALUES ($1, 'SPM-118 test user', crypt('password123', gen_salt('bf', 12))) RETURNING id`,
-      [email],
-    );
-    userIds.push(created.rows[0].id);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [created.rows[0].id, role]);
+        [email],
+      );
+      uid = result.rows[0].id;
+      userIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email, password: 'password123' }).expect(201);
     const cookie = login.headers['set-cookie']?.find((value) => value.startsWith('connectsphere_session='));
     if (!cookie) throw new Error('Expected an authenticated SPM-118 test session.');

@@ -254,3 +254,24 @@ describe('SPM-50 venue route wiring', () => {
     expect(Reflect.getMetadata(METHOD_METADATA, proto.bookingHistory)).toBe(RequestMethod.GET);
   });
 });
+
+describe('Staff venue route delegation', () => {
+  /** VEN-HOLD-DEC-09-A/VEN-HOLD-DEC-10-A: the hold routes forward verified identity and booking ID and preserve the service result. */
+  it.each(['convertTentativeHold', 'releaseTentativeHold'] as const)('VEN-HOLD-DEC-09-A forwards %s to the service', (method) => {
+    const user = { uid: 'staff-route', roles: ['VENUE_STAFF'] };
+    const action = vi.fn().mockReturnValue({ id: 'held-booking', status: 'approved' });
+    const controller = new VenuesController({ [method]: action } as never);
+    expect(controller[method]({ currentUser: user } as never, 'held-booking')).toEqual({ id: 'held-booking', status: 'approved' });
+    expect(action).toHaveBeenCalledWith(user, 'held-booking');
+  });
+
+  /** SPM-121: venue updates use the same verified identity and payload as the public update route. */
+  it('forwards venue updates with the verified caller', () => {
+    const user = { uid: 'staff-route', roles: ['VENUE_STAFF'] };
+    const update = vi.fn().mockReturnValue({ message: 'Venue updated successfully.' });
+    const controller = new VenuesController({ update } as never);
+    const body = { name: 'Updated Hall' };
+    expect(controller.update({ currentUser: user } as never, 'venue-id', body)).toEqual({ message: 'Venue updated successfully.' });
+    expect(update).toHaveBeenCalledWith(user, 'venue-id', body);
+  });
+});

@@ -23,8 +23,11 @@ function selectVenueForAllChanges(dialog: HTMLElement) {
 }
 
 describe("SPM-129 SafetyCheckQueuePage", () => {
-  beforeEach(() => vi.stubGlobal("fetch", vi.fn()));
-  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost:8080");
+  });
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
   /** SAFETY-QUEUE-01, SAFETY-QUEUE-02, SAFETY-QUEUE-03, SAFETY-QUEUE-04: an eligible event is visible and all required event, venue, and technical details can be inspected. */
   it("SAFETY-QUEUE-01 lists an eligible event and opens its details", async () => {

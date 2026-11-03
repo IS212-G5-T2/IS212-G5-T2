@@ -161,6 +161,7 @@ describe.skipIf(!databaseUrl)(
 
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: databaseUrl });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
       // Other suites re-apply older venue migrations that narrow the booking statuses; restore the SPM-54 statuses
       // (init 019) and make sure the SPM-137 booking link (init 029) and the SPM-125 schema (init 030) are present. All
       // three files are idempotent.
