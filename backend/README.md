@@ -201,6 +201,20 @@ npx vitest run src/events/queue
 DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/coordinator-queue.e2e-spec.ts
 ```
 
+### Real-database (e2e) suites
+
+The `test/*.e2e-spec.ts` suites run against a real PostgreSQL database and are skipped when `DATABASE_URL` is not set. Many of them replay migrations from `migrations/` in `beforeAll`, so they run DDL against whatever database `DATABASE_URL` points at. Use a dedicated, disposable test database rather than your working `spm` database:
+
+```sh
+# Create a test database and build it like a fresh volume (the files in database/postgresql/init, in order).
+psql postgresql://spm:<password>@localhost:5432/postgres -c 'CREATE DATABASE spm_test'
+for f in ../database/postgresql/init/*.sql; do psql postgresql://spm:<password>@localhost:5432/spm_test -q -v ON_ERROR_STOP=1 -f "$f"; done
+
+DATABASE_URL=postgresql://spm:<password>@localhost:5432/spm_test npm run test:e2e -- test/venues.e2e-spec.ts
+```
+
+Use `localhost:5432` normally. If you also have PostgreSQL installed on your machine, it can take over `localhost:5432` from the Docker `spm-local` container (you'll see `role "spm" does not exist`); in that case, use your machine's LAN IP (`ipconfig getifaddr en0` on macOS) or stop the local PostgreSQL. The venue migrations 009 and 011 are order-safe (SPM-170): replaying them never narrows the `venue_bookings_status_check` or `venue_bookings_kind_check` that migration 019 widened, so the venue suites also run on a database that already holds `released` or `cancelled` bookings. A new migration that rewrites a constraint a later migration widens should follow the same pattern.
+
 ## Checks
 
 Run local checks from this directory:
