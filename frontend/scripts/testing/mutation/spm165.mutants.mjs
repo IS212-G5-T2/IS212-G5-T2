@@ -63,7 +63,7 @@ export const MUTANTS = [
     file: DIALOG,
     suites: ['holdNotices'],
     testMappings: page('03-D', '03-F'),
-    edits: [['booking.requestKind === "tentative_hold" && booking.status === "approved" && booking.holdExpiresAt', 'false']],
+    edits: [['booking.requestKind === "tentative_hold" && (booking.status === "approved" || booking.status === "expired") && booking.holdExpiresAt', 'false']],
   },
   {
     id: 'SPM165-FE-07',
@@ -71,7 +71,7 @@ export const MUTANTS = [
     file: DIALOG,
     suites: ['holdNotices'],
     testMappings: page('03-E'),
-    edits: [['booking.requestKind === "tentative_hold" && booking.status === "approved" && booking.holdExpiresAt', 'booking.requestKind === "tentative_hold" && booking.holdExpiresAt']],
+    edits: [['booking.requestKind === "tentative_hold" && (booking.status === "approved" || booking.status === "expired") && booking.holdExpiresAt', 'booking.requestKind === "tentative_hold" && booking.holdExpiresAt']],
   },
   {
     id: 'SPM165-FE-08',

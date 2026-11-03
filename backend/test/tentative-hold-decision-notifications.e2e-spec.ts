@@ -15,6 +15,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { CLOCK } from '../src/common/clock.js';
+import { VenuesRepository } from '../src/venues/repository/venues.repository.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 // The injected clock: every decision in this suite is made at this instant.
@@ -58,6 +59,8 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
       '024_spm159_tentative_hold_requests.sql',
       '025_spm159_approved_hold_expiry.sql',
       '029_spm137_booking_decision_notification.sql',
+      '032_spm132_tentative_hold_expiry_processing.sql',
+      '033_fix_venue_trigger_bypass.sql',
     ])
       await pool.query(await readFile(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'));
     // Only the schema half of migration 022 (the init copy has no backfill), as in the other venue suites.
@@ -304,6 +307,41 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
     expect(approved).toMatchObject({ status: 'approved', requestKind: 'tentative_hold' });
     expect(approved.holdExpiresAt).toBeTruthy();
     expect(mine.find((b) => b.id === rejectedHold)).toMatchObject({ status: 'rejected', requestKind: 'tentative_hold', rejectionReason: 'Clashes with maintenance' });
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-03-H (SPM-165 AC3 with SPM-132): after the hold decision, converting, releasing or expiring a hold
+   * (SPM-132) writes no further notification; the original notice's booking still opens from the Coordinator's list with
+   * the current status and type (converted: a booking with no hold expiry; released; expired with holdExpired true).
+   * Kills: a hold lifecycle action writing an SPM-165 notice, a converted hold still reported as a hold, an expired hold
+   * not reported as expired, the notice's booking dropping out of the Coordinator's list.
+   */
+  it('VENUE-HOLD-NOTIF-03-H convert, release and expiry of an approved hold write no notice and keep the link openable', async () => {
+    const w = await world();
+    const releasable = await addPending(w.venue.id, w.eventId, '2030-03-02T06:00:00.000Z', '2030-03-02T07:00:00.000Z', 'tentative_hold');
+    const expiring = await addPending(w.venue.id, w.eventId, '2030-03-03T06:00:00.000Z', '2030-03-03T07:00:00.000Z', 'tentative_hold');
+    for (const id of [w.holdId, releasable, expiring]) await approve(id, w.staff).expect(201);
+    expect((await feed(w.coordinator)).length).toBe(3);
+
+    await request(baseUrl).post(`/api/venues/bookings/${w.holdId}/convert-hold`).set('Cookie', w.staff.cookie).expect(201);
+    await request(baseUrl).post(`/api/venues/bookings/${releasable}/release-hold`).set('Cookie', w.staff.cookie).expect(201);
+    // The scheduler's own method, one instant after the 14-day hold lapses.
+    const lapse = new Date(fixedNow.getTime() + 15 * 24 * 60 * 60 * 1000);
+    expect(await app.get(VenuesRepository).processExpiredTentativeHolds(lapse)).toContain(expiring);
+
+    const notices = await feed(w.coordinator);
+    expect(notices.map((n) => n.type)).toEqual(['tentative_hold_approved', 'tentative_hold_approved', 'tentative_hold_approved']);
+    expect(await storedFor(w.holdId)).toHaveLength(1);
+    expect(await storedFor(releasable)).toHaveLength(1);
+    expect(await storedFor(expiring)).toHaveLength(1);
+
+    const mine = (await request(baseUrl).get('/api/venues/bookings/mine').set('Cookie', w.coordinator.cookie).expect(200)).body as Array<{
+      id: string; status: string; requestKind: string; holdExpiresAt?: string; holdExpired: boolean;
+    }>;
+    expect(mine.find((b) => b.id === w.holdId)).toMatchObject({ status: 'approved', requestKind: 'booking', holdExpired: false });
+    expect(mine.find((b) => b.id === w.holdId)!.holdExpiresAt).toBeUndefined();
+    expect(mine.find((b) => b.id === releasable)).toMatchObject({ status: 'released', requestKind: 'tentative_hold' });
+    expect(mine.find((b) => b.id === expiring)).toMatchObject({ status: 'expired', requestKind: 'tentative_hold', holdExpired: true });
   });
 
   // ---- AC4 ---------------------------------------------------------------------------------------------------------

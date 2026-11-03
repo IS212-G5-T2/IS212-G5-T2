@@ -84,7 +84,7 @@ export function CoordinatorBookingDialog({ booking, onClose }: { booking: Coordi
             <dd className="font-medium text-gray-900 dark:text-gray-100">Tentative hold</dd>
           </div>
         )}
-        {booking.requestKind === "tentative_hold" && booking.status === "approved" && booking.holdExpiresAt && (
+        {booking.requestKind === "tentative_hold" && (booking.status === "approved" || booking.status === "expired") && booking.holdExpiresAt && (
           <div>
             <dt className="text-gray-400 dark:text-gray-500">{booking.holdExpired ? "Hold expired" : "Hold expires"}</dt>
             <dd className="font-medium text-gray-900 dark:text-gray-100">{formatSingaporeDateTime(booking.holdExpiresAt)}</dd>
