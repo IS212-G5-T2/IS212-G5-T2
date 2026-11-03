@@ -70,7 +70,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
   const submit = (user: DatabaseUser, body: unknown, id = eventId) =>
     request(app.getHttpServer()).post(url(id)).set('Cookie', user.cookie).send(body as object);
 
-  /** REQ-CHANGE-01-A, 04-A: the owner submits; the request is stored Pending with original and proposed values. */
+  /** REQ-CHANGE-01-A, REQ-CHANGE-04-A: the owner submits; the request is stored Pending with original and proposed values. */
   it('REQ-CHANGE-01-A stores a pending request with original and proposed values', async () => {
     const response = await submit(organiser, {
       changes: { expectedAttendance: 140, layout: 'Theatre' },
@@ -112,7 +112,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(safety.rows).toEqual([{ status: 'approved' }]);
   });
 
-  /** REQ-CHANGE-02-B, 06-A: a request naming the event name is refused whole, with a message per field. */
+  /** REQ-CHANGE-02-B, REQ-CHANGE-06-A: a request naming the event name is refused whole, with a message per field. */
   it('REQ-CHANGE-02-B refuses a change to the event name and stores nothing', async () => {
     const response = await submit(organiser, {
       changes: { name: 'Renamed', organiserId: otherOrganiser.uid, description: 'New text' },
@@ -271,7 +271,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(await changeNotices(otherCoordinator)).toEqual([]);
   });
 
-  /** REQ-CHANGE-05-A, 05-D: the dashboard list shows the pending request from the server, filterable by status. */
+  /** REQ-CHANGE-05-A, REQ-CHANGE-05-D: the dashboard list shows the pending request from the server, filterable by status. */
   it('REQ-CHANGE-05-A lists the organiser\'s pending request on the dashboard endpoint', async () => {
     const created = await submit(organiser, { changes: { description: 'New' } }).expect(201);
     const pending = await request(app.getHttpServer())
@@ -391,7 +391,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(await requestCount()).toBe(0);
   });
 
-  /** The database refuses a second pending row even if the service check were bypassed. */
+  /** REQ-CHANGE-01-H: The database refuses a second pending row even if the service check were bypassed. */
   it('enforces one pending request per event in the schema', async () => {
     const insert = () =>
       pool.query(

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { PendingChangeRequests } from "@/features/events/pages/list/PendingChangeRequests";
 import type { ChangeRequest } from "@/types";
 
-/** SPM-65 AC1 — the coordinator's pending change requests (REVIEW-CHANGE-01-A, 01-D). */
+/** SPM-65 AC1 — the coordinator's pending change requests (REVIEW-CHANGE-01-A, REVIEW-CHANGE-01-D). */
 function pending(id: string, createdAt: string, overrides: Partial<ChangeRequest> = {}): ChangeRequest {
   return {
     id,

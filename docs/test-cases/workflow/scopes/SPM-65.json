@@ -1,7 +1,7 @@
 {
   "story": "SPM-65",
   "title": "Review and Approve/Deny a Change Request (Coordinator)",
-  "note": "Draft scope created 3 Nov 2026 under SPM-175 (Sprint 3 audit); not yet reviewed by the story owner. Jira SPM-65 is the AC source; the Confluence matrix (page 28016830) is the PRIMARY oracle. Sources are the files containing lines whose origin commit names SPM-65 (line-origin replay, so files moved by SPM-140 are attributed), measured on owned lines only (linesFrom changed-lines). Not measured: READMEs, AGENTS.md, app.module.ts and App.tsx (wiring), types/index.ts (type declarations). Shared test files are narrowed with titleMatch REVIEW-CHANGE-. change-requests.controller.spec.ts and change-requests-api.test.ts exercise SPM-65 code but carry no test IDs; they are included whole so G1 and G3 report them. No mutant file exists yet for this story, so G6 is NOT RUN until one is written.",
+  "note": "Draft scope created 3 Nov 2026 under SPM-175 (Sprint 3 audit); not yet reviewed by the story owner. Jira SPM-65 is the AC source; the Confluence matrix (page 28016830) is the PRIMARY oracle. Sources are the files containing lines whose origin commit names SPM-65 (line-origin replay, so files moved by SPM-140 are attributed), measured on owned lines only (linesFrom changed-lines). Not measured: READMEs, AGENTS.md, app.module.ts and App.tsx (wiring), types/index.ts (type declarations). Shared test files are narrowed with titleMatch REVIEW-CHANGE-. change-requests.controller.spec.ts and change-requests-api.test.ts carry both stories' tests and are narrowed with titleMatch like the other shared files (their tests were tagged under SPM-175). SPM-175 (4 Nov 2026): IDs registered, tier table, records and mutant files added; SPM-64 shared planning lines excluded by story-line-corrections.json with reasons.",
   "tz": [
     "UTC",
     "Asia/Singapore",
@@ -36,7 +36,14 @@
         "glob": "backend/src/events/change-requests/review/change-request-review.service.spec.ts",
         "titleMatch": "REVIEW-CHANGE-"
       },
-      "backend/src/events/change-requests/change-requests.controller.spec.ts"
+      {
+        "glob": "backend/src/events/change-requests/change-requests.controller.spec.ts",
+        "titleMatch": "REVIEW-CHANGE-"
+      },
+      {
+        "glob": "backend/src/events/change-requests/change-request-notification-types.spec.ts",
+        "titleMatch": "REVIEW-CHANGE-"
+      }
     ],
     "backend-e2e": [
       {
@@ -89,7 +96,14 @@
         "glob": "frontend/src/features/events/pages/list/PendingChangeRequests.test.tsx",
         "titleMatch": "REVIEW-CHANGE-"
       },
-      "frontend/src/features/events/api/change-requests-api.test.ts"
+      {
+        "glob": "frontend/src/features/events/api/change-requests-api.test.ts",
+        "titleMatch": "REVIEW-CHANGE-"
+      },
+      {
+        "glob": "frontend/src/components/notifications/NotificationItem.test.tsx",
+        "titleMatch": "REVIEW-CHANGE-"
+      }
     ]
   },
   "sources": {
@@ -148,5 +162,34 @@
       "env": []
     }
   ],
-  "mutation": []
+  "mutation": [
+    {
+      "id": "backend",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm65.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm65.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm65.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm65.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
 }

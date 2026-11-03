@@ -266,7 +266,14 @@ describe("EventListPage", () => {
         </Routes>
       </MemoryRouter>,
     );
-    const section = await screen.findByRole("region", { name: "Pending change requests" });
+    await screen.findByRole("region", { name: "Pending change requests" });
+    // Let the rejected New-tag lookup settle before checking the list is still shown.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(vi.mocked(fetchNewChangeRequestEventIds)).toHaveBeenCalled();
+    const section = screen.getByRole("region", { name: "Pending change requests" });
+    expect(within(section).getByText(/Welcome Evening/)).toBeTruthy();
     expect(within(section).queryByText("New")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
     // A result that arrives after leaving the page changes nothing: no console error is raised by the late result.
@@ -307,25 +314,39 @@ describe("EventListPage", () => {
     expect(await screen.findByText("No pending change requests.")).toBeTruthy();
   });
 
-  /** REQ-CHANGE-05-F: a failure that arrives after leaving My Events shows nothing. */
-  it("REQ-CHANGE-05-F ignores a pending change request failure after unmounting", async () => {
-    apiMock.mockResolvedValue([submittedEvent()]);
-    let reject!: (error: unknown) => void;
-    pendingRequestsMock.mockImplementation(() => new Promise((_, r) => (reject = r)));
-    const view = render(
+  /**
+   * REQ-CHANGE-05-F: a pending-requests load superseded by a Retry that then fails late shows no notice once the
+   * newer load has succeeded. Replaces an unmount-only test that could not fail (React ignores state updates after
+   * unmount; SPM-175, mutant K23). Kills: EventListPage.tsx dropping the `active` guard on the failure path.
+   */
+  it("REQ-CHANGE-05-F ignores a superseded pending change request failure", async () => {
+    // Only the first events load fails; the organiser's drafts read (/requests) succeeds with none.
+    let eventLoads = 0;
+    apiMock.mockImplementation(((path: string) =>
+      path === "/events"
+        ? eventLoads++ === 0
+          ? Promise.reject(new Error("Events are unavailable."))
+          : Promise.resolve([submittedEvent()])
+        : Promise.resolve([])) as never);
+    let rejectOld!: (error: unknown) => void;
+    pendingRequestsMock
+      .mockImplementationOnce(() => new Promise((_, r) => (rejectOld = r)))
+      .mockResolvedValueOnce([]);
+    render(
       <MemoryRouter initialEntries={["/events"]}>
         <Routes>
           <Route path="/events" element={<EventListPage />} />
         </Routes>
       </MemoryRouter>,
     );
-    expect(pendingRequestsMock).toHaveBeenCalledTimes(1);
-    view.unmount();
-    await act(async () => {
-      reject(new Error("late"));
-    });
-    // After unmount the DOM is gone, so only the pending-request mock is observable: the late failure must not refetch.
-    expect(pendingRequestsMock).toHaveBeenCalledTimes(1);
+    const eventsError = await screen.findByRole("alert");
+    expect(eventsError.textContent).toContain("Events are unavailable.");
+    await userEvent.setup().click(within(eventsError).getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(pendingRequestsMock).toHaveBeenCalledTimes(2);
+    // act() flushes the state update the superseded load makes, so a missing guard would show the notice here.
+    await act(async () => rejectOld(new Error("late")));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   // Kills: a pending-request failure without a message not showing the notice.

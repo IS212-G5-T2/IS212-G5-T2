@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,7 +55,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ChangeRequestSummary", () => {
-  /** REQ-CHANGE-05-A, 05-B: the newest request's status, fields, date and any denial reason, with a link. */
+  /** REQ-CHANGE-05-A, REQ-CHANGE-05-B: the newest request's status, fields, date and any denial reason, with a link. */
   it("REQ-CHANGE-05-B shows the latest request's status and a link to all requests", async () => {
     fetchMock.mockResolvedValue([LATEST, { ...LATEST, id: "cr-1", status: "Approved" }]);
     renderSummary();
@@ -75,37 +75,70 @@ describe("ChangeRequestSummary", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  /** A load failure is reported instead of silently hiding a pending request. */
+  /** REQ-CHANGE-05-SUP-LOAD: A load failure is reported instead of silently hiding a pending request. */
   it("shows an error when the requests cannot be loaded", async () => {
     fetchMock.mockImplementation(() => Promise.reject(new Error("down")));
     renderSummary();
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your change requests.");
   });
 
-  /** A load that finishes after leaving the event page changes nothing. */
-  it("ignores a load that settles after unmounting", async () => {
-    let resolve!: (requests: ChangeRequest[]) => void;
-    let reject!: (error: unknown) => void;
+  /**
+   * REQ-CHANGE-05-SUP-LOAD: when the summary moves to another event while the first load is still pending, the older
+   * load never replaces the newer status. Replaces an unmount-only test that could not fail (React ignores state
+   * updates after unmount; SPM-175, mutant K21). Kills: ChangeRequestSummary.tsx dropping the `active` guard.
+   */
+  it("REQ-CHANGE-05-SUP-LOAD keeps the newer status when an older load settles after it", async () => {
+    let resolveOld!: (requests: ChangeRequest[]) => void;
     fetchMock
-      .mockImplementationOnce(() => new Promise((r) => (resolve = r)))
-      .mockImplementationOnce(() => new Promise((_, r) => (reject = r)));
-    renderSummary().unmount();
-    renderSummary().unmount();
-    resolve([LATEST]);
-    reject(new Error("late"));
-    await Promise.resolve();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByText("View Change Requests")).not.toBeInTheDocument();
+      .mockImplementationOnce(() => new Promise((r) => (resolveOld = r)))
+      .mockImplementationOnce(() => Promise.resolve([{ ...LATEST, status: "Approved", decisionReason: undefined }]));
+    const { rerender } = render(
+      <MemoryRouter>
+        <ChangeRequestSummary eventId="evt-1" />
+      </MemoryRouter>,
+    );
+    rerender(
+      <MemoryRouter>
+        <ChangeRequestSummary eventId="evt-2" />
+      </MemoryRouter>,
+    );
+    const section = await screen.findByRole("region", { name: "Change request status" });
+    expect(section).toHaveTextContent("Change request Approved");
+    // act() flushes the state update the older load makes, so a missing guard would show here.
+    await act(async () => resolveOld([LATEST]));
+    expect(screen.getByRole("region", { name: "Change request status" })).toHaveTextContent("Change request Approved");
+    expect(screen.queryByText("Coordinator’s reason: “Not possible at this venue.”")).not.toBeInTheDocument();
   });
 
-  /** A failure that is not an Error shows the plain message. */
+  /** REQ-CHANGE-05-SUP-LOAD: an older load that fails after the newer one loaded shows no error. Kills: the failure-path guard dropped. */
+  it("REQ-CHANGE-05-SUP-LOAD shows no error when an older load fails after a newer one", async () => {
+    let rejectOld!: (error: unknown) => void;
+    fetchMock
+      .mockImplementationOnce(() => new Promise((_, r) => (rejectOld = r)))
+      .mockImplementationOnce(() => Promise.resolve([{ ...LATEST, status: "Approved", decisionReason: undefined }]));
+    const { rerender } = render(
+      <MemoryRouter>
+        <ChangeRequestSummary eventId="evt-1" />
+      </MemoryRouter>,
+    );
+    rerender(
+      <MemoryRouter>
+        <ChangeRequestSummary eventId="evt-2" />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("region", { name: "Change request status" })).toHaveTextContent("Change request Approved");
+    await act(async () => rejectOld(new Error("late")));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  /** REQ-CHANGE-05-SUP-LOAD: A failure that is not an Error shows the plain message. */
   it("shows the plain message for a non-Error failure", async () => {
     fetchMock.mockRejectedValue("offline");
     renderSummary();
     expect(await screen.findByRole("alert")).toHaveTextContent(/^Could not load your change requests\.$/);
   });
 
-  /** REVIEW-CHANGE-02-A, 02-C: the assigned coordinator reviews a pending request on the event page. */
+  /** REVIEW-CHANGE-02-A, REVIEW-CHANGE-02-C: the assigned coordinator reviews a pending request on the event page. */
   it("REVIEW-CHANGE-02-A shows the requested changes and the review actions to the coordinator", async () => {
     previewMock.mockResolvedValue({ requestId: "cr-2", venueBookings: [], equipment: [], registrations: { registered: 0, waitlisted: 0, details: [] }, hasConflicts: false });
     fetchMock.mockResolvedValue([
@@ -182,10 +215,33 @@ describe("ChangeRequestSummary", () => {
     expect(screen.getByText("Change Requested by Organiser")).toBeInTheDocument();
   });
 
-  it("keeps the plain label for the coordinator once the request is decided", async () => {
+  /**
+   * REVIEW-CHANGE-02-D (case page 28180526): the review panel is only for the assigned coordinator while the request
+   * is pending. Once decided, the coordinator sees the plain status and no review actions.
+   * Kills: ChangeRequestSummary.tsx showing the review panel for a decided request.
+   */
+  it("REVIEW-CHANGE-02-D keeps the plain label for the coordinator once the request is decided", async () => {
     fetchMock.mockResolvedValue([LATEST]);
     renderSummary(true);
     expect(await screen.findByRole("link", { name: "View Change Requests" })).toBeInTheDocument();
     expect(screen.queryByText("Change Requested by Organiser")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve Change" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deny Change" })).not.toBeInTheDocument();
+  });
+
+  /**
+   * REVIEW-CHANGE-02-D (case page 28180526): the organiser sees the status of their pending request (REQ-CHANGE-05-A),
+   * not the coordinator's Approve/Deny panel.
+   * Kills: ChangeRequestSummary.tsx offering the review panel to a viewer who is not the reviewer.
+   */
+  it("REVIEW-CHANGE-02-D shows the organiser the pending status without the review panel", async () => {
+    fetchMock.mockResolvedValue([{ ...LATEST, status: "Pending", decisionReason: undefined }]);
+    renderSummary(false);
+    const section = await screen.findByRole("region", { name: "Change request status" });
+    expect(section).toHaveTextContent("Change request Pending review");
+    expect(screen.queryByText("Change Requested by Organiser")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve Change" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deny Change" })).not.toBeInTheDocument();
+    expect(previewMock).not.toHaveBeenCalled();
   });
 });
