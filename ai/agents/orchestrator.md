@@ -42,6 +42,7 @@ The Orchestrator retains all workflow and stage-transition authority regardless 
 9. Never commit, push, create PRs, or update Jira status without required authorization.
 10. Limit implementation/correction cycles to three by default. Report unresolved findings when exhausted.
 11. Never claim unavailable tools, unexecuted checks, or simulated roles constitute independent verification.
+12. For Codex sub-agents, choose the model and reasoning effort separately for every launch and follow-up; the `.codex/agents/*.toml` definitions intentionally leave both unset. Start with the least costly available model and effort likely to meet the assignment. Use low effort for bounded, routine implementation and focused checks; medium for multi-file work, test adequacy, or nuanced requirement/code review; high only when ambiguity, risk, or reasoning depth warrants it. Raise either setting only for a concrete capability need, and give a short reason in the assignment. Respect the user's request for a cheaper setup; do not default every reviewer to a premium model or high effort. If the runtime cannot select settings per launch, use its inherited/default model and disclose that limitation instead of assuming per-agent settings took effect.
 
 ## Workflow
 
