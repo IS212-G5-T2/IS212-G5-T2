@@ -94,18 +94,24 @@ describe.skipIf(!databaseUrl)(
 
     async function createUser(role: 'COORDINATOR' | 'VENUE_STAFF') {
       const email = `spm51-${randomUUID()}@example.test`;
-      const result = await pool.query<{ id: string }>(
-        `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, 'SPM-51 Integration User', crypt('password123', gen_salt('bf', 4)))
-       RETURNING id`,
-        [email],
-      );
-      const id = result.rows[0].id;
-      userIds.push(id);
-      await pool.query(
-        'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
-        [id, role],
-      );
+      const client = await pool.connect();
+      let id!: string;
+      try {
+        const result = await client.query<{ id: string }>(
+          `INSERT INTO users (email, display_name, password_hash)
+         VALUES ($1, 'SPM-51 Integration User', crypt('password123', gen_salt('bf', 4)))
+         RETURNING id`,
+          [email],
+        );
+        id = result.rows[0].id;
+        userIds.push(id);
+        await client.query(
+          'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
+          [id, role],
+        );
+      } finally {
+        client.release();
+      }
       const login = await request(app.getHttpServer())
         .post('/api/auth/login')
         .send({ email, password: 'password123' })
