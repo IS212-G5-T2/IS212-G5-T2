@@ -61,7 +61,9 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     await pool.query("UPDATE venue_bookings SET hold_expires_at = '2000-01-01T00:00:00Z' WHERE event_id = $1", [expiredTentativeHoldOnly.eventId]);
     await pool.query(
       `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by)
-       VALUES ($1, 'pending', '2031-06-02T00:00:00.000Z', 'spm129-coordinator')`,
+       VALUES ($1, 'pending', '2031-06-02T00:00:00.000Z', 'spm129-coordinator')
+       ON CONFLICT (event_id) DO UPDATE SET status = 'pending',
+         requested_at = EXCLUDED.requested_at, requested_by = EXCLUDED.requested_by`,
       [expiredTentativeHoldOnly.eventId],
     );
     mixedVenueBookings = await createSafetyEvent('Approved And Pending Venue Requests', true, 'approved', 'Reserved', 'booking', 'pending');
