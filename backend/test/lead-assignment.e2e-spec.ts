@@ -1034,22 +1034,29 @@ describe('Lead assignment (SPM-123 e2e)', () => {
   async function createDatabaseUser(role: string, name: string, extraRoles: string[] = []): Promise<TestUser> {
     const email = `lead-e2e-${randomUUID()}@example.com`;
     const password = 'password123';
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
        VALUES ($1, $2, crypt($3, gen_salt('bf', 12))) RETURNING id`,
-      [email, name, password],
-    );
-    createdUserIds.push(created.rows[0].id);
-    // Grant the main role plus any extra roles before signing in, so the session carries them all.
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = ANY($2::text[])', [
-      created.rows[0].id,
-      [role, ...extraRoles],
-    ]);
+        [email, name, password],
+      );
+      uid = result.rows[0].id;
+      createdUserIds.push(uid);
+      // Grant the main role plus any extra roles before signing in, so the session carries them all.
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = ANY($2::text[])', [
+        uid,
+        [role, ...extraRoles],
+      ]);
+    } finally {
+      client.release();
+    }
     const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email, password }).expect(201);
     // supertest types set-cookie as a string, but it is a list of header values.
     const setCookie = login.headers['set-cookie'] as unknown as string[] | undefined;
     const cookie = setCookie?.find((value) => value.startsWith('connectsphere_session='));
     if (!cookie) throw new Error('Expected a PostgreSQL authentication session cookie');
-    return { id: created.rows[0].id, name, cookie: cookie.split(';', 1)[0], email, password };
+    return { id: uid, name, cookie: cookie.split(';', 1)[0], email, password };
   }
 });

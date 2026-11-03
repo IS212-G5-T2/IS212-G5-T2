@@ -73,17 +73,23 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
 
   async function user(roles: string[], name: string): Promise<Who> {
     const email = `spm139-${randomUUID()}@example.com`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (id, email, display_name, password_hash)
-       VALUES (gen_random_uuid(), $1, $2, crypt($3, gen_salt('bf', 4))) RETURNING id`,
-      [email, name, PASSWORD],
-    );
-    const uid = created.rows[0].id;
-    userIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = ANY($2::text[])', [
-      uid,
-      roles,
-    ]);
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO users (id, email, display_name, password_hash)
+         VALUES (gen_random_uuid(), $1, $2, crypt($3, gen_salt('bf', 4))) RETURNING id`,
+        [email, name, PASSWORD],
+      );
+      uid = created.rows[0].id;
+      userIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = ANY($2::text[])', [
+        uid,
+        roles,
+      ]);
+    } finally {
+      client.release();
+    }
     const res = await request(app.getHttpServer()).post('/api/auth/login').send({ email, password: PASSWORD }).expect(201);
     const cookie = (res.headers['set-cookie'] as unknown as string[]).find((c) => c.startsWith('connectsphere_session='))!;
     return { uid, cookie: cookie.split(';', 1)[0] };

@@ -427,14 +427,20 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
   async function createDatabaseUser(role: string, name: string): Promise<DatabaseUser> {
     const email = `e2e-change-request-${randomUUID()}@example.com`;
     const password = 'password123';
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
        VALUES ($1, $2, crypt($3, gen_salt('bf', 4))) RETURNING id`,
-      [email, name, password],
-    );
-    const uid = created.rows[0].id;
-    createdUserIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+        [email, name, password],
+      );
+      uid = result.rows[0].id;
+      createdUserIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     const response = await request(app.getHttpServer()).post('/api/auth/login').send({ email, password }).expect(201);
     const cookie = response.headers['set-cookie']?.find((value: string) => value.startsWith('connectsphere_session='));
     if (!cookie) throw new Error('Expected a PostgreSQL authentication session cookie');

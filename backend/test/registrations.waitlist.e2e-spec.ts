@@ -125,14 +125,20 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
    * fixed per fixture label (see fixtureId), so every run builds the same users, and the ids sort by label.
    */
   async function createUser(roles: string[], name: string, id: string, email: string): Promise<Who> {
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (id, email, display_name, password_hash)
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (id, email, display_name, password_hash)
        VALUES ($1, $2, $3, crypt($4, gen_salt('bf', 4))) RETURNING id`,
-      [id, email, name, PASSWORD],
-    );
-    const uid = created.rows[0].id;
-    userIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = ANY($2::text[])', [uid, roles]);
+        [id, email, name, PASSWORD],
+      );
+      uid = result.rows[0].id;
+      userIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = ANY($2::text[])', [uid, roles]);
+    } finally {
+      client.release();
+    }
     return { uid, email, cookie: await login(email) };
   }
 

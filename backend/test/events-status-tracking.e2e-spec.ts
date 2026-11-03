@@ -114,17 +114,23 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
 
   async function createDatabaseUser(role: string, name: string): Promise<{ uid: string; cookie: string }> {
     const email = `spm94-${randomUUID()}@example.com`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, $2, crypt($3, gen_salt('bf', 4))) RETURNING id`, // cost 4: fixtures only, keeps each test inside its timeout
-      [email, name, PASSWORD],
-    );
-    const uid = created.rows[0].id;
-    createdUserIds.push(uid);
-    await pool.query(
-      'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
-      [uid, role],
-    );
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
+         VALUES ($1, $2, crypt($3, gen_salt('bf', 4))) RETURNING id`, // cost 4: fixtures only, keeps each test inside its timeout
+        [email, name, PASSWORD],
+      );
+      uid = created.rows[0].id;
+      createdUserIds.push(uid);
+      await client.query(
+        'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
+        [uid, role],
+      );
+    } finally {
+      client.release();
+    }
     const response = await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ email, password: PASSWORD })

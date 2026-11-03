@@ -99,14 +99,20 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
 
   async function createUser(role: 'COORDINATOR' | 'VENUE_STAFF' | 'ORGANISER' | 'COORDINATOR_LEAD', name = 'SPM-137 User'): Promise<TestUser> {
     const email = `spm137-${randomUUID()}@example.test`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
-      [email, name],
-    );
-    const id = created.rows[0].id;
-    userIds.push(id);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [id, role]);
+    const client = await pool.connect();
+    let id!: string;
+    try {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
+         VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
+        [email, name],
+      );
+      id = created.rows[0].id;
+      userIds.push(id);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [id, role]);
+    } finally {
+      client.release();
+    }
     return { id, email, cookie: await login(email) };
   }
 

@@ -143,14 +143,20 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
   async function createSession(role: string, name: string): Promise<Session> {
     const email = `e2e-cancel-${randomUUID()}@example.com`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
        VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
-      [email, name],
-    );
-    const uid = created.rows[0].id;
-    createdUserIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+        [email, name],
+      );
+      uid = result.rows[0].id;
+      createdUserIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     // A non-201 keeps its body in the message so a rare failure is diagnosable (TR-136-08).
     const attempt = await http().post('/api/auth/login').send({ email, password: 'password123' });
     if (attempt.status !== 201) throw new Error(`login for ${role} returned ${attempt.status}: ${JSON.stringify(attempt.body)}`);

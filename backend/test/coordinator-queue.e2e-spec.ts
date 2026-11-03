@@ -137,14 +137,20 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
 
   async function createUser(role: string, name: string): Promise<User> {
     const email = `spm48-${randomUUID()}@example.com`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
        VALUES ($1, $2, crypt($3, gen_salt('bf', 4))) RETURNING id`, // cost 4: fixtures only
-      [email, name, PASSWORD],
-    );
-    const uid = created.rows[0].id;
-    createdUserIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+        [email, name, PASSWORD],
+      );
+      uid = result.rows[0].id;
+      createdUserIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     const response = await request(http()).post('/api/auth/login').send({ email, password: PASSWORD }).expect(201);
     const cookie = (response.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) =>
       value.startsWith('connectsphere_session='),
