@@ -14,6 +14,7 @@
  */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
 import type { Server } from 'node:http';
@@ -660,7 +661,7 @@ describe('Clarifications (e2e)', () => {
     role: string,
     displayName: string,
   ): Promise<{ email: string; cookie: string; uid: string }> {
-    const email = `e2e-fixture-${String(++fixtureSeq).padStart(4, '0')}@example.com`;
+    const email = `e2e-fixture-${randomUUID()}@example.com`;
     const password = 'password123';
     const client = await pool.connect();
     let uid!: string;

@@ -412,15 +412,20 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
 
   async function seedEvent(organiserId: string, coordinatorId: string | null, status: string) {
     const id = randomUUID();
-    await pool.query(
-      `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
-         start_date_time, end_date_time, expected_attendance, preferred_room_layout, required_facilities,
-         accessibility_needs, equipment_needs, status, coordinator_id, coordinator_name, submission_key)
-       VALUES ($1,$2,'CR Organiser','organiser@example.test','CR Welcome Evening','Purpose','Description',
-               $3,$4,80,'Banquet',ARRAY['Catering'],ARRAY['Wheelchair ramps'],'Two microphones',
-               $5,$6,CASE WHEN $6::text IS NULL THEN NULL ELSE 'CR Coordinator' END,$7)`,
-      [id, organiserId, START, END, status, coordinatorId, randomUUID()],
-    );
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
+           start_date_time, end_date_time, expected_attendance, preferred_room_layout, required_facilities,
+           accessibility_needs, equipment_needs, status, coordinator_id, coordinator_name, submission_key)
+         VALUES ($1,$2,'CR Organiser','organiser@example.test','CR Welcome Evening','Purpose','Description',
+                 $3,$4,80,'Banquet',ARRAY['Catering'],ARRAY['Wheelchair ramps'],'Two microphones',
+                 $5,$6,CASE WHEN $6::text IS NULL THEN NULL ELSE 'CR Coordinator' END,$7)`,
+        [id, organiserId, START, END, status, coordinatorId, randomUUID()],
+      );
+    } finally {
+      client.release();
+    }
     createdEventIds.push(id);
     return id;
   }
