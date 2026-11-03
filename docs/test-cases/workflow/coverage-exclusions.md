@@ -10,6 +10,7 @@ See `ai/docs/test-workflow.md` section 7 (G5).
 
 | File | Kind | Reason |
 | --- | --- | --- |
+| backend/src/venues/tentative-hold-expiry.scheduler.ts:7 | line | Nest/TypeScript generated decorator metadata fallback at `@Injectable()`, not an application behavior branch; scheduler lifecycle and processor behavior remain covered by unit and database tests. |
 | backend/src/equipment/equipment.controller.ts | ignore-comment | Nest decorator metadata is generated framework metadata, not executable controller behavior; the ignore boundaries are scoped to metadata only and controller behavior is exercised through unit tests and the dedicated HTTP suite. |
 | backend/src/equipment/equipment.service.ts | ignore-comment | Nest injectable decorator metadata is generated framework metadata, not executable service behavior; service behavior remains measured and tested. |
 | backend/src/lead/lead-assignment.service.ts | ignore-comment | Lines 78 and 80 (`/* v8 ignore start/stop */`) wrap the `@Injectable()` class declaration. The ignored branch is the TypeScript `emitDecoratorMetadata` paramtype fallback, which is generated decorator metadata, not project logic; the assignment and notification logic stays measured and tested. |

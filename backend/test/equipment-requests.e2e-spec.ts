@@ -20,6 +20,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: databaseUrl });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     await pool.query(await readFile(new URL('../../database/postgresql/init/001_schema.sql', import.meta.url), 'utf8'));
     await pool.query(await readFile(new URL('../../database/postgresql/init/002_seed_data.sql', import.meta.url), 'utf8'));
     for (const file of ['010_spm135_confirm_event.sql', '012_spm57_equipment_requests.sql', '014_spm57_request_reservations.sql', '020_spm58_cannot_provide.sql'])
@@ -40,12 +41,18 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
 
   async function createUser(role: 'COORDINATOR' | 'TECH_SUPPORT') {
     const email = `spm57-${randomUUID()}@example.test`;
-    const saved = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, 'SPM-57 Test User', crypt('password123', gen_salt('bf', 4))) RETURNING id`, [email]);
-    const id = saved.rows[0].id;
-    userIds.push(id);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [id, role]);
+    const client = await pool.connect();
+    let id!: string;
+    try {
+      const saved = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
+         VALUES ($1, 'SPM-57 Test User', crypt('password123', gen_salt('bf', 4))) RETURNING id`, [email]);
+      id = saved.rows[0].id;
+      userIds.push(id);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [id, role]);
+    } finally {
+      client.release();
+    }
     const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email, password: 'password123' }).expect(201);
     const cookie = login.headers['set-cookie']?.find((value) => value.startsWith('connectsphere_session='));
     if (!cookie) throw new Error('Expected an authenticated test session cookie');

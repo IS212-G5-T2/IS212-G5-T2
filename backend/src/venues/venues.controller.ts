@@ -67,6 +67,30 @@ export class VenuesController {
     );
   }
 
+  /** SPM-132 AC9: converts an active tentative hold into a confirmed booking. */
+  @Post('bookings/:bookingId/convert-hold')
+  convertTentativeHold(
+    @Req() request: AuthenticatedRequest,
+    @Param('bookingId') bookingId: string,
+  ) {
+    return this.venues.convertTentativeHold(
+      request[CURRENT_USER_REQUEST_KEY],
+      bookingId,
+    );
+  }
+
+  /** SPM-132 AC10: Venue Staff releases an active tentative hold. */
+  @Post('bookings/:bookingId/release-hold')
+  releaseTentativeHold(
+    @Req() request: AuthenticatedRequest,
+    @Param('bookingId') bookingId: string,
+  ) {
+    return this.venues.releaseTentativeHold(
+      request[CURRENT_USER_REQUEST_KEY],
+      bookingId,
+    );
+  }
+
   @Post('bookings/:bookingId/cancel')
   cancelCoordinatorBooking(
     @Req() request: AuthenticatedRequest,

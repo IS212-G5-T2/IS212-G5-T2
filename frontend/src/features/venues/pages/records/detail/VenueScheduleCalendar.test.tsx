@@ -1,4 +1,4 @@
-import { createElement, forwardRef, useImperativeHandle, useState } from "react";
+import { type ReactNode, createElement, forwardRef, useImperativeHandle, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { sgtDayKey, sgtLocalDateTimeToDate } from "@/utils/sgtDate";
@@ -96,6 +96,47 @@ describe("isValidVenueSelection", () => {
 });
 
 describe("venue schedule occupancy", () => {
+  /** VEN-HOLD-DEC-08-A: an active hold receives the exact Tentative hold label and blocks setup/event/turnaround. */
+  it("VEN-HOLD-DEC-08-A labels the hold and blocks its complete occupied interval", () => {
+    const heldVenue: VenueRecord = {
+      ...venue,
+      setupTimeMinutes: 30,
+      turnaroundTimeMinutes: 45,
+      reservations: [{
+        id: "dec-08-active-hold", eventName: "Held workshop", start: "2030-01-07T02:00:00.000Z",
+        end: "2030-01-07T03:00:00.000Z", status: "tentative", holdExpiresAt: "2030-01-24T12:00:00.000Z",
+        affectedByUnavailablePeriod: false,
+      }],
+    };
+    const entries = getVenueScheduleEntries(heldVenue, sgtLocalDateTimeToDate("2030-01-07T00:00"), sgtLocalDateTimeToDate("2030-01-08T00:00"));
+    const hold = entries.find((entry) => entry.id === "dec-08-active-hold");
+    const setup = entries.find((entry) => entry.id === "dec-08-active-hold-setup-buffer");
+    const turnaround = entries.find((entry) => entry.id === "dec-08-active-hold-turnaround-buffer");
+    const free = entries.filter((entry) => entry.extendedProps.category === "free");
+
+    expect(hold).toMatchObject({ title: "Tentative hold", start: "2030-01-07T02:00:00.000Z", end: "2030-01-07T03:00:00.000Z", extendedProps: { category: "hold" } });
+    expect(setup).toMatchObject({ start: "2030-01-07T01:30:00.000Z", end: "2030-01-07T02:00:00.000Z" });
+    expect(turnaround).toMatchObject({ start: "2030-01-07T03:00:00.000Z", end: "2030-01-07T03:45:00.000Z" });
+    expect(free.map(({ start, end }) => [start, end])).toEqual([
+      ["2030-01-06T16:00:00.000Z", "2030-01-07T01:30:00.000Z"],
+      ["2030-01-07T03:45:00.000Z", "2030-01-07T16:00:00.000Z"],
+    ]);
+  });
+
+  /** VEN-HOLD-DEC-08-BND-1: the calendar's setup end and turnaround start meet the event interval exactly. */
+  it("VEN-HOLD-DEC-08-BND-1 places buffers at the exact event boundaries", () => {
+    const heldVenue: VenueRecord = {
+      ...venue,
+      setupTimeMinutes: 15,
+      turnaroundTimeMinutes: 20,
+      reservations: [{ id: "dec-08-edge", eventName: "Boundary hold", start: "2030-01-07T02:00:00.000Z", end: "2030-01-07T03:00:00.000Z", status: "tentative", holdExpiresAt: "2030-01-24T12:00:00.000Z", affectedByUnavailablePeriod: false }],
+    };
+    const entries = getVenueScheduleEntries(heldVenue, sgtLocalDateTimeToDate("2030-01-07T00:00"), sgtLocalDateTimeToDate("2030-01-08T00:00"));
+
+    expect(entries.find((entry) => entry.id === "dec-08-edge-setup-buffer")).toMatchObject({ start: "2030-01-07T01:45:00.000Z", end: "2030-01-07T02:00:00.000Z" });
+    expect(entries.find((entry) => entry.id === "dec-08-edge-turnaround-buffer")).toMatchObject({ start: "2030-01-07T03:00:00.000Z", end: "2030-01-07T03:20:00.000Z" });
+  });
+
   /** VEN-AVL-02-B: clear shading covers the entire SGT date without declaring the venue open 24 hours. */
   it("shades clear periods over a full SGT day without an operating-hours label", () => {
     const entries = getVenueScheduleEntries(
@@ -330,5 +371,33 @@ describe("SPM-125 unavailable periods in the availability calendar", () => {
       end: period.end,
       extendedProps: { detail: "Audio system maintenance", category: "unavailable" },
     });
+  });
+});
+
+/** SPM-132 AC8/AC12: FullCalendar renders hold, booking, buffer and selected interval content distinctly. */
+describe("VEN-HOLD-DEC-08-A calendar rendering", () => {
+  /** VEN-HOLD-DEC-08-A: holds retain their exact label, buffers suppress duplicate detail, and selections explain clearing. */
+  it("VEN-HOLD-DEC-08-A renders the event content and category class supplied to FullCalendar", () => {
+    render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
+    const loadEvents = calendarSpies.lastProps!.events as (range: { start: Date; end: Date }, success: (events: unknown[]) => void) => void;
+    const success = vi.fn();
+    loadEvents({ start: sgtLocalDateTimeToDate("2030-01-07T00:00"), end: sgtLocalDateTimeToDate("2030-01-08T00:00") }, success);
+    expect(success).toHaveBeenCalledOnce();
+    expect(success.mock.calls[0][0]).toEqual(expect.arrayContaining([expect.objectContaining({ extendedProps: expect.objectContaining({ category: "free" }) })]));
+    expect(success.mock.calls[0][0]).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: "selected-event-time" })]));
+    const content = calendarSpies.lastProps!.eventContent as (info: { event: { title: string; extendedProps: { category: string; detail: string } }; timeText: string }) => ReactNode;
+    const eventClass = calendarSpies.lastProps!.eventClass as (info: { event: { extendedProps: { category: string } } }) => string;
+    const { container, rerender } = render(<>{content({ event: { title: "Tentative hold", extendedProps: { category: "hold", detail: "Held workshop" } }, timeText: "10:00–11:00" })}</>);
+    expect(container).toHaveTextContent("Tentative hold");
+    expect(container).toHaveTextContent("Held workshop");
+    expect(container.querySelector(".venue-schedule-event-time")).toHaveTextContent("10:00–11:00");
+    expect(eventClass({ event: { extendedProps: { category: "hold" } } })).toBe("venue-schedule-hold");
+    rerender(<>{content({ event: { title: "Setup buffer", extendedProps: { category: "buffer", detail: "Hidden duplicate detail" } }, timeText: "" })}</>);
+    expect(container).toHaveTextContent("Setup buffer");
+    expect(container).not.toHaveTextContent("Hidden duplicate detail");
+    expect(container.querySelector(".venue-schedule-event-time")).toBeNull();
+    rerender(<>{content({ event: { title: "Selected event time", extendedProps: { category: "selected", detail: "Requested event time" } }, timeText: "12:00–13:00" })}</>);
+    expect(container.querySelector('[title="Click to clear the selected event time"]')).toHaveTextContent("12:00–13:00");
+    fireEvent.click(screen.getByRole("button", { name: "Click selected time" }));
   });
 });

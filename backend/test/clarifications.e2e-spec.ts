@@ -14,6 +14,7 @@
  */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
 import type { Server } from 'node:http';
@@ -29,6 +30,7 @@ describe('Clarifications (e2e)', () => {
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
 
   afterAll(async () => {
@@ -659,19 +661,25 @@ describe('Clarifications (e2e)', () => {
     role: string,
     displayName: string,
   ): Promise<{ email: string; cookie: string; uid: string }> {
-    const email = `e2e-fixture-${String(++fixtureSeq).padStart(4, '0')}@example.com`;
+    const email = `e2e-fixture-${randomUUID()}@example.com`;
     const password = 'password123';
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, $2, crypt($3, gen_salt('bf', 12))) RETURNING id`,
-      [email, displayName, password],
-    );
-    const uid = created.rows[0].id;
-    createdUserIds.push(uid);
-    await pool.query(
-      'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
-      [uid, role],
-    );
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
+         VALUES ($1, $2, crypt($3, gen_salt('bf', 12))) RETURNING id`,
+        [email, displayName, password],
+      );
+      uid = created.rows[0].id;
+      createdUserIds.push(uid);
+      await client.query(
+        'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
+        [uid, role],
+      );
+    } finally {
+      client.release();
+    }
     const response = await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ email, password })

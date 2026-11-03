@@ -1332,6 +1332,50 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | VEN-IMPACT-02-B | PRIMARY | SPM-125 | AC2 | Manual Confluence case of 7 Oct 2026 (page 21037560). Retired 1 Nov 2026: the rule moved to AC3, see VEN-IMPACT-03-A | none | retired by taneishakaur, 1 Nov 2026 | Retired |
 | VEN-IMPACT-02-C | PRIMARY | SPM-125 | AC2 | Manual Confluence case of 7 Oct 2026 (page 21037560). Retired 1 Nov 2026: the rule moved to AC4, see VEN-IMPACT-04-A | none | retired by taneishakaur, 1 Nov 2026 | Retired |
 
+## SPM-132
+
+| ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |
+|---|---|---|---|---|---|---|---|
+| VEN-HOLD-DEC-01-A | PRIMARY | SPM-132 | AC1 | Confluence matrix 39125047; case page 39125072 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-01-B | PRIMARY | SPM-132 | AC1 | Confluence matrix 39125047; case page 39125072 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-01-SEC-1 | PRIMARY | SPM-132 | AC1 | Confluence matrix 39125047; case page 39125072 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-01-SEC-2 | PRIMARY | SPM-132 | AC1 | Confluence matrix 39125047; case page 39125072 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-01-VAR-1 | PRIMARY | SPM-132 | AC1 | Confluence matrix 39125047; case page 39125072 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-02-A | PRIMARY | SPM-132 | AC2 | Confluence matrix 39125047; case page 39190594 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-02-B | PRIMARY | SPM-132 | AC2 | Confluence matrix 39125047; case page 39190594 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-03-A | PRIMARY | SPM-132 | AC3 | Confluence matrix 39125047; case page 39223367 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-03-B | PRIMARY | SPM-132 | AC3 | Confluence matrix 39125047; case page 39223367 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-03-C | PRIMARY | SPM-132 | AC3 | Confluence matrix 39125047; case page 39223367 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-04-A | PRIMARY | SPM-132 | AC4 | Confluence matrix 39125047; case page 39190612 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-04-BND-1 | PRIMARY | SPM-132 | AC4 | Confluence matrix 39125047; case page 39190612 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-04-BND-2 | PRIMARY | SPM-132 | AC4 | Confluence matrix 39125047; case page 39190612 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-05-A | PRIMARY | SPM-132 | AC5 | Confluence matrix 39125047; case page 39223385 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-05-B | PRIMARY | SPM-132 | AC5 | Confluence matrix 39125047; case page 39223385 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-06-A | PRIMARY | SPM-132 | AC6 | Confluence matrix 39125047; case page 39190630 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-06-BND-1 | PRIMARY | SPM-132 | AC6 | Confluence matrix 39125047; case page 39190630 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-06-B | PRIMARY | SPM-132 | AC6 | Confluence matrix 39125047; case page 39190630 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-07-A | PRIMARY | SPM-132 | AC7 | Confluence matrix 39125047; case page 39223403 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-07-B | PRIMARY | SPM-132 | AC7 | Confluence matrix 39125047; case page 39223403 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-07-C | PRIMARY | SPM-132 | AC7 | Confluence matrix 39125047; case page 39223403 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-07-BND-1 | PRIMARY | SPM-132 | AC7 | Confluence matrix 39125047; case page 39223403 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-07-BND-2 | PRIMARY | SPM-132 | AC7 | Confluence matrix 39125047; case page 39223403 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-07-BND-3 | PRIMARY | SPM-132 | AC7 | Confluence matrix 39125047; case page 39223403 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-08-A | PRIMARY | SPM-132 | AC8 | Confluence matrix 39125047; case page 39157823 | frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-08-B | PRIMARY | SPM-132 | AC8 | Confluence matrix 39125047; case page 39157823 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-08-BND-1 | PRIMARY | SPM-132 | AC8 | Confluence matrix 39125047; case page 39157823 | frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-09-A | PRIMARY | SPM-132 | AC9 | Confluence matrix 39125047; case page 39125091 | backend/src/venues/repository/venues.repository.spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-09-B | PRIMARY | SPM-132 | AC9 | Confluence matrix 39125047; case page 39125091 | backend/test/venues-booking-requests.e2e-spec.ts, backend/src/venues/repository/venues.repository.spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-09-PERF-1 | PRIMARY | SPM-132 | AC9 | Confluence matrix 39125047; case page 39125091 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-10-A | PRIMARY | SPM-132 | AC10 | Confluence matrix 39125047; case page 39125109 | backend/src/venues/repository/venues.repository.spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-10-B | PRIMARY | SPM-132 | AC10 | Confluence matrix 39125047; case page 39125109 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-11-B | PRIMARY | SPM-132 | AC11 | Confluence matrix 39125047; case page 39190648 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-11-C | PRIMARY | SPM-132 | AC11 | Confluence matrix 39125047; case page 39190648 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-11-PERF-1 | PRIMARY | SPM-132 | AC11 | Confluence matrix 39125047; case page 39190648 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-12-A | PRIMARY | SPM-132 | AC12 | Confluence matrix 39125047; case page 39223421 | backend/test/venues-booking-requests.e2e-spec.ts, frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-12-B | PRIMARY | SPM-132 | AC12 | Confluence matrix 39125047; case page 39223421 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-13-A | PRIMARY | SPM-132 | AC13 | Confluence matrix 39125047; case page 39125127 | backend/test/venues-booking-requests.e2e-spec.ts, frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | Matrix ID verified; case page says team review required | Active |
+| VEN-HOLD-DEC-13-B | PRIMARY | SPM-132 | AC13 | Confluence matrix 39125047; case page 39125127 | backend/test/venues-booking-requests.e2e-spec.ts | Matrix ID verified; case page says team review required | Active |
+
 ## Notes
 
 - `CONFIRM-EVENT-03-D` is used by a confirm panel test but has no Confluence case, so it is registered as SUPPORTING. Its name reads like a matrix row; renaming it to a supporting id is a follow-up.

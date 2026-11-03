@@ -38,7 +38,7 @@ function coordinatorHoldLabel(booking: CoordinatorBooking): string | null {
   if (booking.requestKind !== "tentative_hold") return null;
   if (booking.status === "pending")
     return "Tentative hold request pending Venue Staff approval. The hold is not active.";
-  if (booking.status !== "approved" || !booking.holdExpiresAt) return null;
+  if ((booking.status !== "approved" && booking.status !== "expired") || !booking.holdExpiresAt) return null;
   return `${booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until ${formatSingaporeDateTime(booking.holdExpiresAt)}.`;
 }
 
@@ -238,6 +238,7 @@ export function BookingsPage() {
                 { value: "", label: "All statuses" },
                 { value: "pending", label: "Pending" },
                 { value: "approved", label: "Approved" },
+                { value: "expired", label: "Expired" },
                 { value: "rejected", label: "Rejected" },
               ]}
             />
@@ -264,6 +265,7 @@ export function BookingsPage() {
                 { value: "", label: "All statuses" },
                 { value: "pending", label: "Pending" },
                 { value: "approved", label: "Approved" },
+                { value: "expired", label: "Expired" },
                 { value: "rejected", label: "Rejected" },
                 { value: "cancelled", label: "Cancelled" },
               ]}
@@ -394,6 +396,15 @@ export function BookingsPage() {
         booking={selected}
         onClose={() => setSelected(null)}
         onConflict={(message, conflicts) => setConflictAlert({ message, conflicts })}
+        onHoldUpdated={({ id, action }) => {
+          if (action === "released") {
+            setStaffBookings((rows) => rows.filter((row) => row.id !== id));
+            return;
+          }
+          setStaffBookings((rows) => rows.map((row) => row.id === id
+            ? { ...row, requestKind: "booking", holdExpiresAt: undefined, holdExpired: false }
+            : row));
+        }}
         onDecided={(outcome) => {
           setConflictAlert(null);
           setStaffBookings((prev) =>

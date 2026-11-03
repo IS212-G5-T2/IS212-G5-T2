@@ -21,7 +21,7 @@ export interface VenueBookingFact {
   venueId: string;
   venueName: string;
   /** released belongs to a cancelled event; cancelled is an individually cancelled venue request. */
-  status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
+  status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled' | 'expired';
   /** Pending bookings with a hold expiry are tentative holds (SPM-132/133); an approved hold carries its expiry too. */
   holdExpiresAt: Date | null;
   /**

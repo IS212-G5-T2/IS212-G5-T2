@@ -7,7 +7,7 @@ export interface VenueBookingHistoryEntry {
   coordinatorName: string | null;
   start: string;
   end: string;
-  status: "pending" | "approved" | "rejected" | "released" | "cancelled";
+  status: "pending" | "approved" | "rejected" | "released" | "cancelled" | "expired";
   requestKind: "booking" | "tentative_hold";
   holdExpiresAt?: string;
   affectedByUnavailablePeriod: boolean;
@@ -17,6 +17,7 @@ export interface VenueBookingHistoryEntry {
 /** The status shown for an entry; an approved hold is a tentative hold until it expires, never a confirmed booking. */
 export function bookingHistoryStatus(entry: VenueBookingHistoryEntry, now: number): string {
   const hold = entry.requestKind === "tentative_hold";
+  if (entry.status === "expired") return "Hold expired";
   if (entry.status === "pending") return hold ? "Hold requested" : "Pending";
   if (entry.status === "approved") {
     if (!hold) return "Confirmed";

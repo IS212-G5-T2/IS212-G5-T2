@@ -284,7 +284,7 @@ export type VenueCreateInput = Omit<
   "id" | "ownerId"
 >;
 
-export type BookingStatus = "pending" | "approved" | "rejected";
+export type BookingStatus = "pending" | "approved" | "rejected" | "expired";
 
 export interface BookingConflict {
   withBookingId: string;

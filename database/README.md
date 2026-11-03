@@ -215,6 +215,8 @@ SPM-159 (`024_spm159_tentative_hold_requests.sql`) adds `venue_bookings.request_
 
 SPM-159 migration `backend/migrations/025_spm159_approved_hold_expiry.sql` adds a validated conditional check: approved tentative holds require `hold_expires_at`, while pending holds and ordinary approved bookings may keep NULL. It fails with a clear count if existing approved tentative holds lack expiry; review those rows explicitly without assigning guessed dates, then rerun. Fresh volumes get the mirrored `025_spm159_approved_hold_expiry.sql` from `database/postgresql/init/`.
 
+SPM-132 adds nullable `venue_bookings.hold_expiry_processed_at` and the `expired` tentative-hold status through `backend/migrations/032_spm132_tentative_hold_expiry_processing.sql`; fresh databases apply `database/postgresql/init/032_spm132_tentative_hold_expiry_processing.sql`. Existing databases apply the backend migration after the current venue migrations. The scheduled worker changes each elapsed approved tentative hold to `expired` once, while availability remains based on `hold_expires_at` before processing. `TENTATIVE_HOLD_EXPIRY_INTERVAL_MS` controls scheduler cadence and defaults to 60000 ms; no maximum permitted expiry-processing lag is defined by the product specification.
+
 `002_seed_data.sql` adds two clearly named local sample venues, small
 illustrative images, and one short blockout booking so the Venue Staff
 catalogue has records on a fresh development database. It is idempotent and
