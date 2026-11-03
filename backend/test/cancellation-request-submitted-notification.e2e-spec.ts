@@ -108,13 +108,19 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
 
   async function createSession(role: string): Promise<Session> {
     const email = `e2e-cancel-notif-${randomUUID()}@example.com`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
-      [email, `SPM-171 ${role}`],
-    );
-    const uid = created.rows[0].id;
-    userIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
+        [email, `SPM-171 ${role}`],
+      );
+      uid = created.rows[0].id;
+      userIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     return { uid, cookie: await loginCookie(email) };
   }
 
