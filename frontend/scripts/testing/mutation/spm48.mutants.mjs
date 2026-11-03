@@ -63,7 +63,8 @@ export const MUTANTS = [
     edits: [['      <span className="sr-only">{`: ${reasons}`}</span>\n', '']], suites: s },
   // F16 and F17 come from the PR #80 review: event list filters never outlive a session.
   { id: 'F16', name: 'event list filters kept on logout (01-A)', file: STORE,
-    edits: [['        events: [],\n        eventListFilters: { ...DEFAULT_EVENT_LIST_FILTERS },\n', '        events: [],\n']], suites: s },
+    // SPM-175: logout now resets state through clearSessionState() (SPM-94); the edit tracks its text.
+    edits: [['    events: [] as EventRecord[],\n    eventListFilters: { ...DEFAULT_EVENT_LIST_FILTERS },\n    venues: [] as Venue[],', '    events: [] as EventRecord[],\n    venues: [] as Venue[],']], suites: s },
   { id: 'F17', name: 'event list filters kept on a new login (01-A)', file: STORE,
     edits: [['authLoading: false, eventListFilters: { ...DEFAULT_EVENT_LIST_FILTERS } });', 'authLoading: false });']], suites: s },
 ];
