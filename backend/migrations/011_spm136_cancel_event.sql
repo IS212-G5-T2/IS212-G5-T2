@@ -11,18 +11,29 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS cancelled_at timestamptz;
 -- Venue bookings and holds can be released. A released row keeps its event so the cancelled
 -- event's history stays traceable; it no longer occupies the venue (availability reads ignore it).
 ALTER TABLE venue_bookings ADD COLUMN IF NOT EXISTS released_at timestamptz;
-ALTER TABLE venue_bookings
-    DROP CONSTRAINT IF EXISTS venue_bookings_status_check,
-    DROP CONSTRAINT IF EXISTS venue_bookings_kind_check,
-    ADD CONSTRAINT venue_bookings_status_check
-        CHECK (status IN ('pending', 'approved', 'rejected', 'blocked', 'released')),
-    ADD CONSTRAINT venue_bookings_kind_check CHECK (
-        (status = 'blocked' AND event_id IS NULL
-            AND reason IS NOT NULL AND length(btrim(reason)) BETWEEN 1 AND 500
-            AND hold_expires_at IS NULL)
-        OR (status IN ('pending', 'approved', 'rejected', 'released')
-            AND event_id IS NOT NULL AND reason IS NULL)
-    );
+-- Order-safe (SPM-170): migration 019 later adds 'cancelled'; re-running this file must not narrow that check.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'venue_bookings'::regclass
+          AND conname = 'venue_bookings_status_check'
+          AND pg_get_constraintdef(oid) LIKE '%cancelled%'
+    ) THEN
+        ALTER TABLE venue_bookings
+            DROP CONSTRAINT IF EXISTS venue_bookings_status_check,
+            DROP CONSTRAINT IF EXISTS venue_bookings_kind_check,
+            ADD CONSTRAINT venue_bookings_status_check
+                CHECK (status IN ('pending', 'approved', 'rejected', 'blocked', 'released')),
+            ADD CONSTRAINT venue_bookings_kind_check CHECK (
+                (status = 'blocked' AND event_id IS NULL
+                    AND reason IS NOT NULL AND length(btrim(reason)) BETWEEN 1 AND 500
+                    AND hold_expires_at IS NULL)
+                OR (status IN ('pending', 'approved', 'rejected', 'released')
+                    AND event_id IS NOT NULL AND reason IS NULL)
+            );
+    END IF;
+END $$;
 
 -- Equipment reservations already allow 'Released'; record when it happened.
 ALTER TABLE equipment_reservations ADD COLUMN IF NOT EXISTS released_at timestamptz;
