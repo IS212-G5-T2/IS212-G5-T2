@@ -142,6 +142,7 @@ describe.skipIf(!database)(
       // DatabaseService reads DATABASE_URL; point it at the same database as this suite.
       process.env.DATABASE_URL = database;
       db = new pg.Pool({ connectionString: database });
+      db.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
       for (const file of [
         '001_schema.sql',
         // SPM-156: direct updates are recorded in event_flagged_changes.

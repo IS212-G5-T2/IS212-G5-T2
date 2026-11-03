@@ -87,6 +87,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     // Drafts live in event_drafts, a backend-owned migration the Compose stack mounts as 004 (idempotent).
     await pool.query(await readFile(new URL('../migrations/001_event_drafts.sql', import.meta.url), 'utf8'));
     // The venues suites re-apply older venue_bookings migrations (009) to this shared database, which removes the

@@ -37,6 +37,7 @@ describe.skipIf(!database)('SPM-135 Confirm gate against the real safety source 
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
 
   afterAll(async () => {

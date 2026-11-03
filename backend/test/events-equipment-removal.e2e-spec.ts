@@ -31,6 +31,7 @@ describe.skipIf(!database)('EQUIPMENT-REMOVE: coordinator removes an unavailable
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
   afterAll(async () => {
     await pool.end();

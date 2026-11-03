@@ -41,6 +41,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     // Use only the explicitly configured test database, never the application URL by default.
     process.env.DATABASE_URL = database;
     db = new pg.Pool({ connectionString: database });
+    db.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     await db.query(
       await readFile(
         new URL(

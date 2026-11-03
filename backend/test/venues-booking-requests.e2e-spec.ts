@@ -30,6 +30,7 @@ describe.skipIf(!databaseUrl)(
 
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: databaseUrl });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
       // Older constraint migrations narrow the lifecycle; never reapply them over a database already upgraded to 032.
       const currentSchema = await pool.query<{ supports_expired: boolean }>(
         `SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'venue_bookings'::regclass

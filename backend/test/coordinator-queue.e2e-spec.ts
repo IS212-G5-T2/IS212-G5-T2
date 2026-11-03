@@ -78,6 +78,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     // Idempotent migrations this suite relies on, so it can run first on a fresh database. 019 restores the
     // 'cancelled' booking status after suites that re-apply migration 011 (as venues-booking-requests does).
     const currentSchema = await pool.query<{ supports_expired: boolean }>(

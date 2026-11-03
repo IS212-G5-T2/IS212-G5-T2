@@ -40,6 +40,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     // Drafts are read and written here, so the table must exist even when this file runs first on a fresh database.
     // The migration is idempotent (CREATE TABLE IF NOT EXISTS).
     await pool.query(

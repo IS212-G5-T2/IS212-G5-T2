@@ -26,6 +26,7 @@ describe.skipIf(!database)('SPM-99 attendee availability (PostgreSQL)', () => {
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     service = new EventsService({
       query: <T extends pg.QueryResultRow>(text: string, values?: unknown[]) =>
         pool.query<T>(text, values),

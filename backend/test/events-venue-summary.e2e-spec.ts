@@ -40,6 +40,7 @@ describe.skipIf(!database)('VENUE-SUMMARY: the venue text on event list and deta
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
   afterAll(async () => {
     await pool.end();

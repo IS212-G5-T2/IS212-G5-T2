@@ -86,6 +86,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   let seq = 0;
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     // Deterministic ids and emails would collide with rows a crashed earlier run left behind, so clear them first.
     await pool.query('DELETE FROM events WHERE id::text LIKE $1', [`${EVENT_PREFIX}-%`]);
     await pool.query("DELETE FROM users WHERE email LIKE 'spm63-%@example.com'");

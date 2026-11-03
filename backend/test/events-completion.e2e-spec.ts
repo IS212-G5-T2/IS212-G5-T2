@@ -52,6 +52,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
 
   afterAll(async () => {

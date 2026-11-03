@@ -44,6 +44,7 @@ describe.skipIf(!database)('SPM-159 approved tentative holds across the events m
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     const currentSchema = await pool.query<{ supports_expired: boolean }>(
       `SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'venue_bookings'::regclass
         AND conname = 'venue_bookings_status_check' AND pg_get_constraintdef(oid) LIKE '%expired%') AS supports_expired`,

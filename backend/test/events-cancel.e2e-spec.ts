@@ -71,6 +71,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     // The venues suite re-applies migration 009 to this shared database, which restores the older
     // venue_bookings constraints. Re-applying 011 (idempotent) makes this suite independent of that order.
     await pool.query(await readFile(new URL('../migrations/011_spm136_cancel_event.sql', import.meta.url), 'utf8'));

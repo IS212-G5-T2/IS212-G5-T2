@@ -38,6 +38,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
   beforeAll(() => {
     process.env.DATABASE_URL = database;
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
 
   afterAll(async () => {

@@ -53,6 +53,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
   afterAll(async () => {
     await pool.end();
