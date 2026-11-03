@@ -47,6 +47,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: databaseUrl });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     for (const migration of [
       '005_venues.sql',
       '006_venue_operating_information.sql',
