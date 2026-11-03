@@ -45,6 +45,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: databaseUrl });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     await pool.query(await readFile(new URL('../../database/postgresql/init/001_schema.sql', import.meta.url), 'utf8'));
     await pool.query(await readFile(new URL('../../database/postgresql/init/002_seed_data.sql', import.meta.url), 'utf8'));
     for (const file of [
