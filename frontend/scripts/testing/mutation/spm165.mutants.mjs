@@ -78,7 +78,7 @@ export const MUTANTS = [
     name: 'an expired hold is labelled as still expiring',
     file: DIALOG,
     suites: ['holdNotices'],
-    testMappings: page('03-F'),
+    testMappings: page('03-F', '03-I'),
     edits: [['{booking.holdExpired ? "Hold expired" : "Hold expires"}', '{"Hold expires"}']],
   },
   {
@@ -86,7 +86,7 @@ export const MUTANTS = [
     name: 'an ordinary booking is shown as a tentative hold',
     file: DIALOG,
     suites: ['holdNotices'],
-    testMappings: page('03-F'),
+    testMappings: page('03-F', '03-I'),
     edits: [['booking.requestKind === "tentative_hold" && (\n          <div>\n            <dt className="text-gray-400 dark:text-gray-500">Request type', 'booking.requestKind !== undefined && (\n          <div>\n            <dt className="text-gray-400 dark:text-gray-500">Request type']],
   },
 ];

@@ -97,7 +97,7 @@ export const MUTANTS = [
     name: 'hold notification written without the hold link',
     file: NOTICE,
     suites: ['backendUnit', 'backendE2E'],
-    testMappings: [...repo('01-A', '05-A'), ...e2e('03-H', '05-B')],
+    testMappings: [...repo('01-A', '05-A'), ...e2e('03-H', '03-J', '05-B')],
     edits: [['      bookingId,\n      decidedAt,', '      null,\n      decidedAt,']],
   },
   {

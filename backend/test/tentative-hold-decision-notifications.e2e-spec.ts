@@ -2,7 +2,7 @@
  * SPM-165 integration coverage (tentative hold decision notification, Coordinator) through the real Nest HTTP pipeline,
  * session middleware and PostgreSQL: Venue Staff approve or reject a tentative hold request and the event's Coordinator
  * receives one notification in the bell feed. Every user signs in through the real login route.
- * Test cases: VENUE-HOLD-NOTIF-01-C, 01-D, 01-H, 01-SEC-1, 02-D, 02-E, 03-H, 04-A, 04-C, 05-B, 06-B, 06-C, 07-E, 07-F.
+ * Test cases: VENUE-HOLD-NOTIF-01-C, 01-D, 01-H, 01-SEC-1, 02-D, 02-E, 03-H, 03-J, 04-A, 04-C, 05-B, 06-B, 06-C, 07-E, 07-F.
  * Needs DATABASE_URL with database/postgresql/init 001 to 024 (the venue migrations and 029 are applied here).
  */
 import { randomUUID } from 'node:crypto';
@@ -317,13 +317,13 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
   });
 
   /**
-   * VENUE-HOLD-NOTIF-03-H (SPM-165 AC3 with SPM-132): after the hold decision, converting, releasing or expiring a hold
+   * VENUE-HOLD-NOTIF-03-J (SPM-165 AC3 with SPM-132): after the hold decision, converting, releasing or expiring a hold
    * (SPM-132) writes no further notification; the original notice's booking still opens from the Coordinator's list with
    * the current status and type (converted: a booking with no hold expiry; released; expired with holdExpired true).
    * Kills: a hold lifecycle action writing an SPM-165 notice, a converted hold still reported as a hold, an expired hold
    * not reported as expired, the notice's booking dropping out of the Coordinator's list.
    */
-  it('VENUE-HOLD-NOTIF-03-H convert, release and expiry of an approved hold write no notice and keep the link openable', async () => {
+  it('VENUE-HOLD-NOTIF-03-J convert, release and expiry of an approved hold write no notice and keep the link openable', async () => {
     const w = await world();
     const releasable = await addPending(w.venue.id, w.eventId, '2030-03-02T06:00:00.000Z', '2030-03-02T07:00:00.000Z', 'tentative_hold');
     const expiring = await addPending(w.venue.id, w.eventId, '2030-03-03T06:00:00.000Z', '2030-03-03T07:00:00.000Z', 'tentative_hold');

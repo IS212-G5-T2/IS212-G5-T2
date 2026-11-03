@@ -1531,12 +1531,12 @@ describe("Coordinator tentative hold opened from a notification (SPM-165 AC3)", 
   });
 
   /**
-   * VENUE-HOLD-NOTIF-03-F (SPM-165 AC3, SPM-132 integration): a hold the SPM-132 scheduler has persisted as expired
+   * VENUE-HOLD-NOTIF-03-I (SPM-165 AC3, SPM-132 integration): a hold the SPM-132 scheduler has persisted as expired
    * (status 'expired') still shows "Hold expired" with its expiry in Singapore time; a released hold shows no expiry
    * line; a converted hold (now a booking) shows no hold lines.
    * Kills: hiding the expiry once the status is 'expired', showing an expiry for a released hold, hold lines after conversion.
    */
-  it("VENUE-HOLD-NOTIF-03-F shows Hold expired for a persisted expired hold, none for released or converted", async () => {
+  it("VENUE-HOLD-NOTIF-03-I shows Hold expired for a persisted expired hold, none for released or converted", async () => {
     apiMock.mockResolvedValueOnce([{ ...hold, status: "expired", holdExpiresAt: "2030-01-09T12:00:00.000Z", holdExpired: true }] as never);
     const first = renderPage("/bookings?booking=hold-1");
     const expired = await detailsDialog();
