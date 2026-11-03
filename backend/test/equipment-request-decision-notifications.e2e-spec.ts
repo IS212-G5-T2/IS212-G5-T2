@@ -3,7 +3,7 @@
  * pipeline, session middleware and PostgreSQL: Technical Support reserve a request or mark it cannot be provided, and
  * the event's Coordinator receives one notification in the bell feed. Every user signs in through the real login route.
  * Test cases: EQUIP-REQ-NOTIF-01-E, 01-F, 02-E, 03-B, 04-B, 05-A, 05-B, 05-C, 06-B, 06-C, 07-C.
- * Needs DATABASE_URL with database/postgresql/init 001 and 002 (the equipment migrations and 032 are applied here).
+ * Needs DATABASE_URL with database/postgresql/init 001 and 002 (the equipment migrations and 034 are applied here).
  */
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
@@ -78,14 +78,20 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
 
   async function createUser(role: 'COORDINATOR' | 'TECH_SUPPORT' | 'COORDINATOR_LEAD' | 'ORGANISER'): Promise<TestUser> {
     const email = `spm172-${randomUUID()}@example.test`;
-    const saved = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, 'SPM-172 Test User', crypt('password123', gen_salt('bf', 4))) RETURNING id`,
-      [email],
-    );
-    const id = saved.rows[0].id;
-    userIds.push(id);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [id, role]);
+    const client = await pool.connect();
+    let id!: string;
+    try {
+      const saved = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
+         VALUES ($1, 'SPM-172 Test User', crypt('password123', gen_salt('bf', 4))) RETURNING id`,
+        [email],
+      );
+      id = saved.rows[0].id;
+      userIds.push(id);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [id, role]);
+    } finally {
+      client.release();
+    }
     const login = await request(baseUrl).post('/api/auth/login').send({ email, password: 'password123' }).expect(201);
     const cookie = (login.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) => value.startsWith('connectsphere_session='));
     if (!cookie) throw new Error('Expected an authenticated test session cookie');
