@@ -104,7 +104,7 @@ export interface VenueBookingHistoryEntry {
   coordinatorName: string | null;
   start: string;
   end: string;
-  status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
+  status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled' | 'expired';
   requestKind: 'booking' | 'tentative_hold';
   holdExpiresAt?: string;
   /** Its occupied period (setup to turnaround) overlaps an unavailable period, current, ended or scheduled. */
@@ -125,7 +125,7 @@ export interface PendingVenueBooking {
   specialRequest?: string;
   start: string;
   end: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'expired';
   requestKind: 'booking' | 'tentative_hold';
   holdExpiresAt?: string;
   holdExpired: boolean;
@@ -153,6 +153,14 @@ export type VenueBookingDecisionResult =
   | { kind: 'conflict'; reason: string; conflicts: VenueBookingConflict[] }
   | { kind: 'event-completed' }
   | { kind: 'decided'; booking: VenueBookingDecision };
+
+/** The result of a Venue Staff conversion or release of one tentative hold (SPM-132). */
+export type TentativeHoldActionResult =
+  | { kind: 'not-found' }
+  | { kind: 'not-active' }
+  | { kind: 'expired' }
+  | { kind: 'event-completed' }
+  | { kind: 'updated'; id: string; status: 'approved' | 'released'; requestKind: 'booking' | 'tentative_hold'; holdExpiresAt?: string };
 
 /** An occupied venue interval that prevents a pending booking from being approved. */
 export interface VenueBookingConflict {
@@ -568,7 +576,7 @@ export class VenuesRepository {
       status: row.status,
       requestKind: row.request_kind,
       holdExpiresAt: row.hold_expires_at?.toISOString(),
-      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,
+      holdExpired: row.request_kind === 'tentative_hold' && (row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),
       bookingReference: row.booking_reference,
       specialRequest: row.special_request ?? undefined,
       affected: row.affected,
@@ -593,7 +601,7 @@ export class VenuesRepository {
       special_request: string | null;
       start_at: Date;
       end_at: Date;
-      status: 'pending' | 'approved' | 'rejected';
+      status: 'pending' | 'approved' | 'rejected' | 'expired';
       request_kind: 'booking' | 'tentative_hold';
       hold_expires_at: Date | null;
       rejection_reason: string | null;
@@ -610,7 +618,7 @@ export class VenuesRepository {
          JOIN venues v ON v.id = b.venue_id
          JOIN events e ON e.id = b.event_id
          JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id
-        WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected')
+        WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected', 'expired')
         ORDER BY b.start_at ASC, b.id`,
       [staffId],
     );
@@ -630,7 +638,7 @@ export class VenuesRepository {
       status: row.status,
       requestKind: row.request_kind,
       holdExpiresAt: row.hold_expires_at?.toISOString(),
-      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,
+      holdExpired: row.request_kind === 'tentative_hold' && (row.status === 'expired' || (row.hold_expires_at != null && row.hold_expires_at <= now)),
       rejectionReason: row.rejection_reason ?? undefined,
       reassessmentRequired: row.reassessment_required,
     }));
@@ -816,6 +824,70 @@ export class VenuesRepository {
     });
   }
 
+  /** Converts an active hold to a confirmed booking after checking its authoritative expiry. */
+  async convertTentativeHold(staffId: string, bookingId: string): Promise<TentativeHoldActionResult> {
+    return this.updateTentativeHold(staffId, bookingId, 'convert');
+  }
+
+  /** Releases an active hold immediately and retains its booking history row. */
+  async releaseTentativeHold(staffId: string, bookingId: string): Promise<TentativeHoldActionResult> {
+    return this.updateTentativeHold(staffId, bookingId, 'release');
+  }
+
+  /** Persists elapsed approved holds as expired once; logical expiry remains based on hold_expires_at. */
+  async processExpiredTentativeHolds(now: Date = this.clock.now()): Promise<string[]> {
+    const result = await this.database.query<{ id: string }>(
+      `UPDATE venue_bookings
+          SET status = 'expired', hold_expiry_processed_at = $1::timestamptz
+        WHERE request_kind = 'tentative_hold' AND status = 'approved'
+          AND hold_expires_at <= $1::timestamptz AND hold_expiry_processed_at IS NULL
+        RETURNING id`,
+      [now],
+    );
+    return result.rows.map((row) => row.id);
+  }
+
+  private async updateTentativeHold(
+    staffId: string,
+    bookingId: string,
+    action: 'convert' | 'release',
+  ): Promise<TentativeHoldActionResult> {
+    return this.database.transaction(async (client) => {
+      const locked = await this.lockOwnedBooking(client, staffId, bookingId);
+      if (!locked) return { kind: 'not-found' as const };
+      const { booking } = locked;
+      if (booking.event_status === 'Completed') return { kind: 'event-completed' as const };
+      if (booking.status === 'expired' && booking.request_kind === 'tentative_hold')
+        return { kind: 'expired' as const };
+      if (booking.status !== 'approved' || booking.request_kind !== 'tentative_hold')
+        return { kind: 'not-active' as const };
+
+      const now = this.clock.now();
+      const expiry = booking.hold_expires_at;
+      if (!expiry || expiry.getTime() <= now.getTime())
+        return { kind: 'expired' as const };
+
+      if (action === 'convert') {
+        const result = await client.query<{ id: string; status: 'approved'; request_kind: 'booking'; hold_expires_at: null }>(
+          `UPDATE venue_bookings
+              SET request_kind = 'booking', hold_expires_at = NULL
+            WHERE id = $1::uuid AND status = 'approved' AND request_kind = 'tentative_hold'
+            RETURNING id, status, request_kind, hold_expires_at`,
+          [bookingId],
+        );
+        return { kind: 'updated' as const, id: result.rows[0].id, status: 'approved' as const, requestKind: 'booking' as const };
+      }
+
+      const result = await client.query<{ id: string }>(
+        `UPDATE venue_bookings SET status = 'released', released_at = $2::timestamptz
+          WHERE id = $1::uuid AND status = 'approved' AND request_kind = 'tentative_hold'
+          RETURNING id`,
+        [bookingId, now],
+      );
+      return { kind: 'updated' as const, id: result.rows[0].id, status: 'released' as const, requestKind: 'tentative_hold' as const };
+    });
+  }
+
   /**
    * Locks the venue, then the booking, and returns them only when the booking's venue belongs to the staff member.
    * Locking the venue first matches submission, so approvals for one venue run one at a time.
@@ -843,7 +915,7 @@ export class VenuesRepository {
     );
     const booking = await client.query<BookingLockRow>(
       `SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at,
-              b.rejection_reason, b.request_kind, b.reassessment_required,
+              b.rejection_reason, b.request_kind, b.hold_expires_at, b.reassessment_required,
               e.start_date_time AS event_start, e.status AS event_status
          FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id
         WHERE b.id = $1::uuid FOR UPDATE OF b`,

@@ -15,11 +15,13 @@ export function BookingDetailModal({
   onClose,
   onDecided,
   onConflict,
+  onHoldUpdated,
 }: {
   booking: PendingBookingRequest | null;
   onClose: () => void;
   onDecided: (outcome: { id: string; status: "approved" | "rejected"; reason?: string; holdExpiresAt?: string }) => void;
   onConflict?: (message: string, conflicts?: VenueBookingConflict[]) => void;
+  onHoldUpdated?: (outcome: { id: string; action: "converted" | "released" }) => void;
 }) {
   const [decision, setDecision] = useState<"approved" | "rejected" | "">("");
   const [reason, setReason] = useState("");
@@ -70,6 +72,20 @@ export function BookingDetailModal({
     }
   };
 
+  const updateHold = async (action: "converted" | "released") => {
+    setSubmitting(true);
+    setError("");
+    try {
+      await api(`/venues/bookings/${encodeURIComponent(booking.id)}/${action === "converted" ? "convert-hold" : "release-hold"}`, { method: "POST" });
+      onHoldUpdated?.({ id: booking.id, action });
+      onClose();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Unable to update this tentative hold.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Modal
       open={!!booking}
@@ -93,6 +109,12 @@ export function BookingDetailModal({
             >
               Submit Decision
             </Button>
+          </>
+        ) : isTentativeHold && booking.status === "approved" && booking.holdExpiresAt && !booking.holdExpired ? (
+          <>
+            <Button variant="secondary" onClick={onClose}>Close</Button>
+            <Button variant="secondary" disabled={submitting} onClick={() => void updateHold("released")}>Release hold</Button>
+            <Button disabled={submitting} onClick={() => void updateHold("converted")}>Convert to confirmed booking</Button>
           </>
         ) : (
           <Button variant="secondary" onClick={onClose}>
@@ -145,11 +167,13 @@ export function BookingDetailModal({
         </p>
       )}
 
-      {isTentativeHold && booking.status === "approved" && booking.holdExpiresAt && (
+      {isTentativeHold && (booking.status === "approved" || booking.status === "expired") && booking.holdExpiresAt && (
         <p role="status" className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
           {booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until {formatSingaporeDateTime(booking.holdExpiresAt)}.
         </p>
       )}
+
+      {error && booking.status !== "pending" && <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">{error}</p>}
 
       {booking.status === "pending" ? (
         <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">

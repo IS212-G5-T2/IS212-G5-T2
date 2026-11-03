@@ -23,7 +23,7 @@ function completedRepository() {
     if (sql.includes('SELECT setup_time_minutes, turnaround_time_minutes FROM venues')) return { rows: [{ setup_time_minutes: 0, turnaround_time_minutes: 0 }], rowCount: 1 };
     if (sql.includes('SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at')) {
       return {
-        rows: [{ id: BOOKING, event_id: EVENT, venue_id: VENUE, status: 'pending', start_at: new Date(), end_at: new Date(), event_status: 'Completed' }],
+        rows: [{ id: BOOKING, event_id: EVENT, venue_id: VENUE, status: 'pending', start_at: new Date('2030-01-12T04:00:00.000Z'), end_at: new Date('2030-01-12T05:00:00.000Z'), event_status: 'Completed' }],
         rowCount: 1,
       };
     }

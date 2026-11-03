@@ -100,6 +100,11 @@ describe("SPM-125 venue booking history", () => {
     expect(bookingHistoryStatus(entry(overrides), NOW)).toBe(label);
   });
 
+  /** VEN-HOLD-DEC-06-B: persisted expiry remains visible in venue booking history. */
+  it('VEN-HOLD-DEC-06-B labels a persisted expired hold in venue history', () => {
+    expect(bookingHistoryStatus(entry({ status: 'expired', requestKind: 'tentative_hold', holdExpiresAt: '2030-01-10T12:00:00.000Z' }), NOW)).toBe('Hold expired');
+  });
+
   /** VEN-IMPACT-05-E (AC5): read only when opened; says when the venue has had no bookings; can be hidden. */
   it("VEN-IMPACT-05-E loads only when opened and says when there are no bookings", async () => {
     const pending = deferred<never>();

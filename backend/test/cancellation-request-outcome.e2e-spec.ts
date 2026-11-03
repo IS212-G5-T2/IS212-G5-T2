@@ -54,6 +54,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
   afterAll(async () => {
     await pool.end();
@@ -112,13 +113,19 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
 
   async function createSession(role: string): Promise<Session> {
     const email = `e2e-cancel-outcome-${randomUUID()}@example.com`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
-      [email, `SPM-162 ${role}`],
-    );
-    const uid = created.rows[0].id;
-    userIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
+        [email, `SPM-162 ${role}`],
+      );
+      uid = result.rows[0].id;
+      userIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     return { uid, cookie: await loginCookie(email) };
   }
 

@@ -141,6 +141,60 @@ function mockVenueApi() {
 }
 
 describe("VenueRecordDetailPage calendar range handoff", () => {
+  /** VEN-HOLD-DEC-12-A: a fresh venue-calendar response after conversion renders Confirmed booking and removes Tentative hold. */
+  it("VEN-HOLD-DEC-12-A refreshes the calendar with the converted booking label", async () => {
+    const tentative = {
+      ...venue,
+      reservations: [{
+        id: "converted-hold",
+        eventName: "Converted workshop",
+        start: "2030-01-12T04:00:00.000Z",
+        end: "2030-01-12T05:00:00.000Z",
+        status: "tentative" as const,
+        holdExpiresAt: "2030-01-24T12:00:00.000Z",
+        affectedByUnavailablePeriod: false,
+      }],
+    };
+    const confirmed = {
+      ...tentative,
+      reservations: [{
+        id: "converted-hold",
+        eventName: "Converted workshop",
+        start: "2030-01-12T04:00:00.000Z",
+        end: "2030-01-12T05:00:00.000Z",
+        status: "booked" as const,
+        affectedByUnavailablePeriod: false,
+      }],
+    };
+    let venueReads = 0;
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/bookings/mine") return [] as never;
+      if (path === `/venues/${venueId}`) {
+        venueReads += 1;
+        return (venueReads === 1 ? tentative : confirmed) as never;
+      }
+      return venue as never;
+    });
+
+    renderPage();
+    await screen.findByRole("heading", { name: "Conference Room" });
+    await waitFor(() => expect(venueReads).toBe(1));
+    const calendarEvents = () => {
+      const load = mockCalendarApi.latestProps?.events as (
+        range: { start: Date; end: Date },
+        success: (entries: Array<{ id: string; title: string; extendedProps: { category: string } }>) => void,
+      ) => void;
+      let entries: Array<{ id: string; title: string; extendedProps: { category: string } }> = [];
+      load({ start: new Date("2030-01-12T00:00:00Z"), end: new Date("2030-01-13T00:00:00Z") }, (result) => { entries = result; });
+      return entries.filter((entry) => entry.id === "converted-hold").map(({ id, title, extendedProps }) => ({ id, title, category: extendedProps.category }));
+    };
+
+    expect(calendarEvents()).toEqual([{ id: "converted-hold", title: "Tentative hold", category: "hold" }]);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh schedule" }));
+    await waitFor(() => expect(venueReads).toBe(2));
+    expect(calendarEvents()).toEqual([{ id: "converted-hold", title: "Confirmed booking", category: "booking" }]);
+  });
+
   /** SPM54-UI-MODE-01: the venue page starts in the compact List view on phones but preserves explicit mode switching. */
   it("starts in List mode at phone width and keeps the user's Calendar choice", async () => {
     vi.stubGlobal(

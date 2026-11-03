@@ -59,6 +59,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: databaseUrl });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     // Leftovers from an aborted run would collide on the fixed ids (fixedId below), so clear this suite's prefix first.
     await pool.query("DELETE FROM venues WHERE id::text LIKE '00000148-%'");
     await pool.query("DELETE FROM events WHERE id::text LIKE '00000148-%'");
@@ -93,17 +94,23 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
   async function account(role: Role, name = `SPM-148 ${role}`): Promise<Account> {
     const email = `spm148-${randomUUID()}@example.test`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
-      [email, name],
-    );
-    const id = created.rows[0].id;
-    userIds.push(id);
-    await pool.query(
-      'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
-      [id, role],
-    );
+    const client = await pool.connect();
+    let id!: string;
+    try {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
+         VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
+        [email, name],
+      );
+      id = created.rows[0].id;
+      userIds.push(id);
+      await client.query(
+        'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
+        [id, role],
+      );
+    } finally {
+      client.release();
+    }
     const login = await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ email, password: 'password123' })

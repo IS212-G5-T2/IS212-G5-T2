@@ -1,0 +1,172 @@
+{
+  "story": "SPM-132",
+  "title": "Place, Reject, or Convert a Tentative Hold on a Venue (Venue Staff)",
+  "note": "All 39 PRIMARY cases from current Confluence matrix 39125047 now have dedicated DEC-tagged test definitions. The E2E cases use an isolated PostgreSQL database; frontend cases verify calendar labeling/buffers and staff conversion/release controls. AC6 expiry processing persists expired status once and is scheduled with a configurable interval (default 60 seconds); Confluence specifies no production maximum lag. Whole-file coverage correction also executes existing owning-module regression suites; titleMatch keeps maintained SPM-132 record selection limited to its verified cases. Source scope and floor unchanged.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/venues/repository/venues.repository.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-(09-A|09-B|10-A)"
+      },
+      {
+        "glob": "backend/src/venues/tentative-hold-expiry.scheduler.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-06-B"
+      },
+      {
+        "glob": "backend/src/events/venue-unavailable.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-06-B"
+      },
+      {
+        "glob": "backend/src/events/queue/queue-indicators.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-06-B"
+      },
+      {
+        "glob": "backend/src/venues/venues.service.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-"
+      },
+      {
+        "glob": "backend/src/venues/venues.controller.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-"
+      },
+      {
+        "glob": "backend/src/events/status/readiness.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-"
+      },
+      {
+        "glob": "backend/src/events/status/arrangements.reader.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-"
+      },
+      {
+        "glob": "backend/src/events/queue/coordinator-queue.service.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-"
+      },
+      {
+        "glob": "backend/src/venues/venues.completed.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-"
+      },
+      {
+        "glob": "backend/src/venues/availability/booking-request.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-"
+      },
+      {
+        "glob": "backend/src/venues/availability/tentative-hold-request.spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/venues-booking-requests.e2e-spec.ts",
+        "titleMatch": "^VEN-HOLD-DEC-"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx",
+        "titleMatch": "^VEN-HOLD-DEC-(02-A|06-B|09-B|12-A|13-A)"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx",
+        "titleMatch": "^VEN-HOLD-DEC-08-"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.calendar.test.tsx",
+        "titleMatch": "^VEN-HOLD-DEC-12-A"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueBookingHistory.test.tsx",
+        "titleMatch": "^VEN-HOLD-DEC-06-B"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/venues/repository/venues.repository.ts",
+      "backend/src/venues/venues.controller.ts",
+      "backend/src/venues/venues.service.ts",
+      "backend/src/venues/venues.module.ts",
+      "backend/src/venues/tentative-hold-expiry.scheduler.ts",
+      "backend/src/events/venue-unavailable.ts",
+      "backend/src/events/queue/queue-indicators.ts",
+      "backend/src/events/queue/coordinator-queue.service.ts",
+      "backend/src/events/status/readiness.ts",
+      "backend/src/events/status/arrangements.reader.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/bookings/pages/requests/BookingDetailModal.tsx",
+      "frontend/src/features/bookings/pages/requests/BookingCard.tsx",
+      "frontend/src/features/bookings/pages/requests/BookingsPage.tsx",
+      "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx",
+      "frontend/src/features/venues/pages/records/detail/bookingHistory.ts",
+      "frontend/src/components/ui/StatusBadge.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm132",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm132.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm132.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm132",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm132.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm132.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

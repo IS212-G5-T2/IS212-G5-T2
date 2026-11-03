@@ -33,7 +33,7 @@ interface BookingRow {
   venue_id: string;
   venue_name: string;
   venue_location: string;
-  status: 'pending' | 'approved';
+  status: 'pending' | 'approved' | 'expired';
   hold_expires_at: Date | null;
   request_kind: 'booking' | 'tentative_hold';
   venue_unavailable: boolean;
@@ -45,7 +45,7 @@ const QUEUE_BOOKINGS_SQL = `SELECT b.event_id, v.id AS venue_id, v.name AS venue
          ${VENUE_UNAVAILABLE_SQL} AS venue_unavailable
     FROM venue_bookings b
     JOIN venues v ON v.id = b.venue_id
-   WHERE b.event_id = ANY($1::uuid[]) AND b.status IN ('pending', 'approved')
+   WHERE b.event_id = ANY($1::uuid[]) AND b.status IN ('pending', 'approved', 'expired')
    ORDER BY b.start_at, v.name, v.location, b.id`;
 
 const QUEUE_SAFETY_SQL = `SELECT e.id, s.status AS safety_state, (r.event_id IS NOT NULL) AS safety_reset

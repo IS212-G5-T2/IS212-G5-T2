@@ -32,6 +32,12 @@ describe('VEN-HOLD-04-SUP-EVENTS approvedHoldState', () => {
     expect(approvedHoldState(hold(null), NOW)).toBe('active');
   });
 
+  /** SPM-132 AC6: a stored expired hold stays expired in event readiness and queue projections. */
+  it('VEN-HOLD-DEC-06-B recognises a persisted expired tentative hold', () => {
+    expect(approvedHoldState(hold(new Date(NOW.getTime() - 1), { status: 'expired' }), NOW)).toBe('expired');
+    expect(approvedHoldState(hold(null, { status: 'expired', requestKind: 'booking' }), NOW)).toBeNull();
+  });
+
   /** SPM-159: only approved tentative holds have a hold state; everything else is null. */
   it('is null for ordinary, pending, rejected and unflagged bookings', () => {
     const future = new Date(NOW.getTime() + 1000);
@@ -47,7 +53,7 @@ describe('VEN-HOLD-04-SUP-EVENTS hold SQL fragments', () => {
   /** SPM-159: the fragments take the row alias and compare the expiry with the SQL clock, exclusive at the expiry. */
   it('builds the expired, active, confirmed and occupying predicates for an alias', () => {
     expect(normalize(expiredApprovedHoldSql('n'))).toBe(
-      "(n.status = 'approved' AND n.request_kind = 'tentative_hold' AND n.hold_expires_at IS NOT NULL AND n.hold_expires_at <= now())",
+      "(n.request_kind = 'tentative_hold' AND (n.status = 'expired' OR (n.status = 'approved' AND n.hold_expires_at IS NOT NULL AND n.hold_expires_at <= now())))",
     );
     expect(normalize(activeApprovedHoldSql('n'))).toBe(
       "(n.status = 'approved' AND n.request_kind = 'tentative_hold' AND (n.hold_expires_at IS NULL OR n.hold_expires_at > now()))",

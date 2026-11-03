@@ -29,6 +29,7 @@ import {
   type AffectedBooking,
   type VenueBookingDecision,
   type VenueBookingDecisionResult,
+  type TentativeHoldActionResult,
 } from './repository/venues.repository.js';
 
 const REJECTION_REASON_MAX_LENGTH = 1000;
@@ -93,6 +94,17 @@ function arrangementsLocked() {
     code: COMPLETION_CODES.arrangementsLocked,
     message: COMPLETION_MESSAGES.arrangementsLocked,
   });
+}
+
+/** Maps a hold action outcome to its HTTP response. */
+function holdActionOrThrow(result: TentativeHoldActionResult) {
+  if (result.kind === 'not-found') throw new NotFoundException('Tentative hold not found.');
+  if (result.kind === 'event-completed') throw arrangementsLocked();
+  if (result.kind === 'expired')
+    throw new ConflictException({ code: 'TENTATIVE_HOLD_EXPIRED', message: 'This tentative hold has expired.' });
+  if (result.kind === 'not-active')
+    throw new ConflictException({ code: 'TENTATIVE_HOLD_NOT_ACTIVE', message: 'Only an active tentative hold can be converted or released.' });
+  return result;
 }
 
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';
@@ -427,6 +439,20 @@ export class VenuesService {
     return decisionOrThrow(
       await this.repository.rejectVenueBooking(staff.uid, bookingId, reason),
     );
+  }
+
+  /** SPM-132 AC9: converts a Venue Staff member's active tentative hold before its expiry. */
+  async convertTentativeHold(user: AuthenticatedUser | undefined, bookingId: string) {
+    const staff = await this.authorizeStaff(user);
+    if (!UUID.test(bookingId)) throw new NotFoundException('Tentative hold not found.');
+    return holdActionOrThrow(await this.repository.convertTentativeHold(staff.uid, bookingId));
+  }
+
+  /** SPM-132 AC10: releases a Venue Staff member's active tentative hold at any time before expiry. */
+  async releaseTentativeHold(user: AuthenticatedUser | undefined, bookingId: string) {
+    const staff = await this.authorizeStaff(user);
+    if (!UUID.test(bookingId)) throw new NotFoundException('Tentative hold not found.');
+    return holdActionOrThrow(await this.repository.releaseTentativeHold(staff.uid, bookingId));
   }
 
   /**

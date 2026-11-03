@@ -38,6 +38,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
   beforeAll(() => {
     process.env.DATABASE_URL = database;
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
 
   afterAll(async () => {
@@ -96,14 +97,20 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
 
   async function createSession(role: string, name: string): Promise<Session> {
     const email = `spm129-${role.toLowerCase()}-${randomUUID()}@example.test`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
-      [email, name],
-    );
-    const uid = created.rows[0].id;
-    userIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
+         VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
+        [email, name],
+      );
+      uid = created.rows[0].id;
+      userIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     const login = await http().post('/api/auth/login').send({ email, password: 'password123' }).expect(201);
     const cookie = (login.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) => value.startsWith('connectsphere_session='));
     if (!cookie) throw new Error('Expected an authenticated PostgreSQL session cookie.');
@@ -111,54 +118,67 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
   }
 
   async function createVenue(ownerId: string) {
-    const inserted = await pool.query<{ id: string }>(
-      `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information, setup_time_minutes, turnaround_time_minutes)
-       VALUES ($1, $2, 'Level 2', 120, 'No open flames', 15, 10) RETURNING id`,
-      [ownerId, `SPM-129 Hall ${randomUUID()}`],
-    );
-    const id = inserted.rows[0].id;
-    venueIds.push(id);
-    await pool.query('INSERT INTO venue_facilities (venue_id, facility_id) SELECT $1, id FROM facilities WHERE name = $2', [id, 'AV System']);
-    await pool.query('INSERT INTO venue_accessibility (venue_id, accessibility_id) SELECT $1, id FROM accessibility_features WHERE label = $2', [id, 'Wheelchair access']);
-    await pool.query('INSERT INTO venue_layouts (venue_id, layout_id) SELECT $1, id FROM room_layouts WHERE name = $2', [id, 'Theatre']);
+    const client = await pool.connect();
+    let id!: string;
+    try {
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information, setup_time_minutes, turnaround_time_minutes)
+         VALUES ($1, $2, 'Level 2', 120, 'No open flames', 15, 10) RETURNING id`,
+        [ownerId, `SPM-129 Hall ${randomUUID()}`],
+      );
+      id = inserted.rows[0].id;
+      venueIds.push(id);
+      await client.query('INSERT INTO venue_facilities (venue_id, facility_id) SELECT $1, id FROM facilities WHERE name = $2', [id, 'AV System']);
+      await client.query('INSERT INTO venue_accessibility (venue_id, accessibility_id) SELECT $1, id FROM accessibility_features WHERE label = $2', [id, 'Wheelchair access']);
+      await client.query('INSERT INTO venue_layouts (venue_id, layout_id) SELECT $1, id FROM room_layouts WHERE name = $2', [id, 'Theatre']);
+    } finally {
+      client.release();
+    }
     return { id };
   }
 
   async function createSafetyEvent(name: string, equipmentConfirmed: boolean, bookingStatus: string, equipmentStatus: string, requestKind = 'booking', additionalBookingStatus?: string): Promise<Seeded> {
     const eventId = randomUUID();
-    await pool.query(
-      `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
-         start_date_time, end_date_time, expected_attendance, preferred_room_layout, required_facilities, accessibility_needs,
-         equipment_needs, equipment_confirmed_at, status, submission_key)
-       VALUES ($1, 'spm129-organiser', 'Fixture Organiser', 'organiser@example.test', $2, 'Safety review fixture', 'Fixture description',
-         $3, $4, 80, 'Theatre', ARRAY['AV System'], ARRAY['Wheelchair access'], 'Wireless microphone', $5, 'Planning', $6)`,
-      [eventId, name, SLOT_START, SLOT_END, equipmentConfirmed ? new Date('2031-06-01T00:00:00.000Z') : null, randomUUID()],
-    );
-    eventIds.push(eventId);
-    const holdExpiresAt = requestKind === 'tentative_hold' ? '2031-06-09T00:00:00.000Z' : null;
-    const booking = await pool.query<{ id: string }>(
-      `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status, request_kind, hold_expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [eventId, venue.id, SLOT_START, SLOT_END, bookingStatus, requestKind, holdExpiresAt],
-    );
-    if (additionalBookingStatus)
-      await pool.query(
-        `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status, request_kind)
-         VALUES ($1, $2, $3, $4, $5, 'booking')`,
-        [eventId, venue.id, SLOT_START, SLOT_END, additionalBookingStatus],
-      );
+    const client = await pool.connect();
+    let venueBookingId!: string;
     let equipmentId: string | undefined;
-    if (equipmentStatus)
-      equipmentId = (await pool.query<{ id: string }>(
-        'INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status) VALUES ($1, $2, 2, $3) RETURNING id',
-        [eventId, 'Microphone', equipmentStatus],
-      )).rows[0].id;
-    await pool.query(
-      `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by)
-       VALUES ($1, 'pending', '2031-06-02T00:00:00.000Z', 'spm129-coordinator')`,
-      [eventId],
-    );
-    return { eventId, venueId: venue.id, venueBookingId: booking.rows[0].id, equipmentId };
+    try {
+      await client.query(
+        `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
+           start_date_time, end_date_time, expected_attendance, preferred_room_layout, required_facilities, accessibility_needs,
+           equipment_needs, equipment_confirmed_at, status, submission_key)
+         VALUES ($1, 'spm129-organiser', 'Fixture Organiser', 'organiser@example.test', $2, 'Safety review fixture', 'Fixture description',
+           $3, $4, 80, 'Theatre', ARRAY['AV System'], ARRAY['Wheelchair access'], 'Wireless microphone', $5, 'Planning', $6)`,
+        [eventId, name, SLOT_START, SLOT_END, equipmentConfirmed ? new Date('2031-06-01T00:00:00.000Z') : null, randomUUID()],
+      );
+      eventIds.push(eventId);
+      const holdExpiresAt = requestKind === 'tentative_hold' ? '2031-06-09T00:00:00.000Z' : null;
+      const booking = await client.query<{ id: string }>(
+        `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status, request_kind, hold_expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [eventId, venue.id, SLOT_START, SLOT_END, bookingStatus, requestKind, holdExpiresAt],
+      );
+      venueBookingId = booking.rows[0].id;
+      if (additionalBookingStatus)
+        await client.query(
+          `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status, request_kind)
+           VALUES ($1, $2, $3, $4, $5, 'booking')`,
+          [eventId, venue.id, SLOT_START, SLOT_END, additionalBookingStatus],
+        );
+      if (equipmentStatus)
+        equipmentId = (await client.query<{ id: string }>(
+          'INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status) VALUES ($1, $2, 2, $3) RETURNING id',
+          [eventId, 'Microphone', equipmentStatus],
+        )).rows[0].id;
+      await client.query(
+        `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by)
+         VALUES ($1, 'pending', '2031-06-02T00:00:00.000Z', 'spm129-coordinator')`,
+        [eventId],
+      );
+    } finally {
+      client.release();
+    }
+    return { eventId, venueId: venue.id, venueBookingId, equipmentId };
   }
 
   /** SAFETY-QUEUE-01: an eligible confirmed event is returned to an authenticated Safety Officer over HTTP. */

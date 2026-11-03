@@ -86,6 +86,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   let seq = 0;
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     // Deterministic ids and emails would collide with rows a crashed earlier run left behind, so clear them first.
     await pool.query('DELETE FROM events WHERE id::text LIKE $1', [`${EVENT_PREFIX}-%`]);
     await pool.query("DELETE FROM users WHERE email LIKE 'spm63-%@example.com'");
@@ -114,14 +115,20 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   async function createUser(role: string, name: string, options: { login?: boolean } = {}) {
     seq += 1;
     const email = `spm63-${seq}@example.com`;
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (id, email, display_name, password_hash)
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO users (id, email, display_name, password_hash)
        VALUES ($1, $2, $3, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
-      [uuid('63b00000', seq), email, name],
-    );
-    const uid = created.rows[0].id;
-    userIds.push(uid);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+        [uuid('63b00000', seq), email, name],
+      );
+      uid = result.rows[0].id;
+      userIds.push(uid);
+      await client.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
+    } finally {
+      client.release();
+    }
     if (options.login === false) return { uid, cookie: '' };
     const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email, password: 'password123' }).expect(201);
     const cookie = (login.headers['set-cookie'] as unknown as string[]).find((c) => c.startsWith('connectsphere_session='))!;
@@ -140,30 +147,35 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   }) {
     const id = uuid(EVENT_PREFIX, ++seq);
     eventIds.push(id);
-    await pool.query(
-      `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
-         start_date_time, end_date_time, expected_attendance, registration_enabled, registration_limit,
-         status, coordinator_id, coordinator_name, equipment_needs, submission_key)
-       VALUES ($1,$2,'Organiser','org-sentinel@example.com',$3,$4::varchar,$4::text,$5,$6,50,true,$7,$8,$9,'Coordinator Sentinel',$4::text,$10)`,
-      [
-        id,
-        options.organiserId,
-        options.name,
-        SENTINEL,
-        new Date(options.start ?? EVT_101_START),
-        new Date(options.end ?? EVT_101_END),
-        options.limit ?? 50,
-        options.status ?? 'Confirmed',
-        options.coordinatorId ?? null,
-        uuid('63d00000', ++seq),
-      ],
-    );
-    // A coordinator clarification note stands for "coordinator notes": it must never reach the report.
-    await pool.query(
-      `INSERT INTO event_comments (id, event_id, type, author_id, author_name, author_role, message)
-       VALUES ($1, $2, 'clarification', $3, 'Coordinator Sentinel', 'coordinator', $4)`,
-      [uuid('63c00000', ++seq), id, options.coordinatorId ?? options.organiserId, SENTINEL],
-    );
+    const evtClient = await pool.connect();
+    try {
+      await evtClient.query(
+        `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
+           start_date_time, end_date_time, expected_attendance, registration_enabled, registration_limit,
+           status, coordinator_id, coordinator_name, equipment_needs, submission_key)
+         VALUES ($1,$2,'Organiser','org-sentinel@example.com',$3,$4::varchar,$4::text,$5,$6,50,true,$7,$8,$9,'Coordinator Sentinel',$4::text,$10)`,
+        [
+          id,
+          options.organiserId,
+          options.name,
+          SENTINEL,
+          new Date(options.start ?? EVT_101_START),
+          new Date(options.end ?? EVT_101_END),
+          options.limit ?? 50,
+          options.status ?? 'Confirmed',
+          options.coordinatorId ?? null,
+          uuid('63d00000', ++seq),
+        ],
+      );
+      // A coordinator clarification note stands for "coordinator notes": it must never reach the report.
+      await evtClient.query(
+        `INSERT INTO event_comments (id, event_id, type, author_id, author_name, author_role, message)
+         VALUES ($1, $2, 'clarification', $3, 'Coordinator Sentinel', 'coordinator', $4)`,
+        [uuid('63c00000', ++seq), id, options.coordinatorId ?? options.organiserId, SENTINEL],
+      );
+    } finally {
+      evtClient.release();
+    }
     return id;
   }
 
@@ -185,25 +197,32 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       updatedAt?: string;
     },
   ) {
-    const result = await pool.query<{ id: string }>(
-      `INSERT INTO event_registrations (id, event_id, attendee_id, status, full_name, email, contact_number, created_at, updated_at,
-                                        joined_at, waitlist_seq)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-      [
-        options.id ?? uuid('63a00000', 4095 - ++seq),
-        eventId,
-        attendeeId,
-        options.status ?? 'Registered',
-        options.fullName,
-        options.email,
-        options.contact === undefined ? '98765432' : options.contact,
-        new Date(options.at),
-        new Date(options.updatedAt ?? options.at),
-        options.joinedAt ? new Date(options.joinedAt) : null,
-        options.waitlistSeq ?? null,
-      ],
-    );
-    return result.rows[0].id;
+    const regClient = await pool.connect();
+    let regId!: string;
+    try {
+      const result = await regClient.query<{ id: string }>(
+        `INSERT INTO event_registrations (id, event_id, attendee_id, status, full_name, email, contact_number, created_at, updated_at,
+                                          joined_at, waitlist_seq)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+        [
+          options.id ?? uuid('63a00000', 4095 - ++seq),
+          eventId,
+          attendeeId,
+          options.status ?? 'Registered',
+          options.fullName,
+          options.email,
+          options.contact === undefined ? '98765432' : options.contact,
+          new Date(options.at),
+          new Date(options.updatedAt ?? options.at),
+          options.joinedAt ? new Date(options.joinedAt) : null,
+          options.waitlistSeq ?? null,
+        ],
+      );
+      regId = result.rows[0].id;
+    } finally {
+      regClient.release();
+    }
+    return regId;
   }
 
   /** One attendee account (no login) plus a registration row for it. */

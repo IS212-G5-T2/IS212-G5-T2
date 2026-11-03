@@ -104,7 +104,7 @@ describe('SPM-48 CoordinatorQueueService', () => {
       },
     ]);
     expect(query).toHaveBeenCalledWith(expect.stringContaining('e.coordinator_id = $2'), [['e1', 'e2'], 'coo-1']);
-    expect(query).toHaveBeenCalledWith(expect.stringContaining("b.status IN ('pending', 'approved')"), [['e1', 'e2']]);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("b.status IN ('pending', 'approved', 'expired')"), [['e1', 'e2']]);
   });
 
   /** MONITOR-QUEUE-01-A: with no filter every listed event is kept; one reassigned away between the reads is dropped (AC1). */

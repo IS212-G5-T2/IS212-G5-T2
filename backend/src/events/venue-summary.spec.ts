@@ -14,7 +14,7 @@ describe('VEN-HOLD-04-SUP-EVENTS VENUE_SUMMARY_SQL', () => {
     expect(expired).toBeGreaterThan(-1);
     expect(active).toBeGreaterThan(expired);
     expect(confirmed).toBeGreaterThan(active);
-    expect(sql).toContain("b.status = 'approved' AND b.request_kind = 'tentative_hold' AND b.hold_expires_at IS NOT NULL AND b.hold_expires_at <= now()");
+    expect(sql).toContain("b.request_kind = 'tentative_hold' AND (b.status = 'expired' OR (b.status = 'approved' AND b.hold_expires_at IS NOT NULL AND b.hold_expires_at <= now()))");
     expect(sql).toContain("b.status = 'approved' AND b.request_kind = 'tentative_hold' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > now())");
   });
 
