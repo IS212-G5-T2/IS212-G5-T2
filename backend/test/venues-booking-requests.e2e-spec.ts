@@ -5,12 +5,15 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import pg from 'pg';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { CLOCK } from '../src/common/clock.js';
+import { VenuesRepository } from '../src/venues/repository/venues.repository.js';
+import { TentativeHoldExpiryScheduler } from '../src/venues/tentative-hold-expiry.scheduler.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const fixedNow = new Date('2030-01-10T12:00:00.000Z');
+let testNow = fixedNow;
 if (!databaseUrl && process.env.CI)
   throw new Error(
     'SPM-51 venue booking PostgreSQL tests must run in CI: set DATABASE_URL.',
@@ -27,6 +30,11 @@ describe.skipIf(!databaseUrl)(
 
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: databaseUrl });
+      // Older constraint migrations narrow the lifecycle; never reapply them over a database already upgraded to 032.
+      const currentSchema = await pool.query<{ supports_expired: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'venue_bookings'::regclass
+          AND conname = 'venue_bookings_status_check' AND pg_get_constraintdef(oid) LIKE '%expired%') AS supports_expired`,
+      );
       for (const migration of [
         '005_venues.sql',
         '006_venue_operating_information.sql',
@@ -38,13 +46,16 @@ describe.skipIf(!databaseUrl)(
         '021_spm55_booking_review.sql',
         '024_spm159_tentative_hold_requests.sql',
         '025_spm159_approved_hold_expiry.sql',
-      ])
+        '032_spm132_tentative_hold_expiry_processing.sql',
+      ]) {
+        if (currentSchema.rows[0].supports_expired && (migration === '009_venue_availability.sql' || migration === '019_spm54_venue_booking_lifecycle.sql')) continue;
         await pool.query(
           await readFile(
             new URL(`../migrations/${migration}`, import.meta.url),
             'utf8',
           ),
         );
+      }
       // Migration 022 adds venue_bookings.special_request and backfills it across every row. Only its schema half
       // runs here (the init copy has no backfill, as in the CI database), so neither the real backfill nor a mutated
       // one (VEN-REV-M55) can rewrite other suites' shared rows. VEN-REV-11-A runs the full file in isolation.
@@ -57,7 +68,7 @@ describe.skipIf(!databaseUrl)(
 
       const module = await Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(CLOCK)
-        .useValue({ now: () => fixedNow })
+        .useValue({ now: () => testNow })
         .compile();
       app = module.createNestApplication();
       await app.init();
@@ -161,9 +172,9 @@ describe.skipIf(!databaseUrl)(
         requestKind?: 'booking' | 'tentative_hold';
       },
     ) {
-      await pool.query(
+      const result = await pool.query<{ id: string }>(
         `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, hold_expires_at, request_kind)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         [
           venueId,
           eventId,
@@ -174,6 +185,71 @@ describe.skipIf(!databaseUrl)(
           options.requestKind ?? 'booking',
         ],
       );
+      return result.rows[0].id;
+    }
+
+    /** SPM-132: seeds a staff-approved active tentative hold with an explicit server expiry. */
+    async function addActiveHold(venueId: string, eventId: string, expires: string) {
+      const result = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, request_kind, hold_expires_at)
+         VALUES ($1, $2, '2030-03-04T10:00:00Z', '2030-03-04T11:00:00Z', 'approved', 'tentative_hold', $3)
+         RETURNING id`,
+        [venueId, eventId, new Date(expires)],
+      );
+      return result.rows[0].id;
+    }
+
+    async function createPendingHold(label: string) {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, label, '2030-01-24T13:00:00Z', '2030-01-24T14:00:00Z');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-24T13:00:00Z', end: '2030-01-24T14:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+      return { staff, coordinator, venueId, eventId, holdId };
+    }
+
+    async function exerciseApprovalLeadBoundary(
+      label: string,
+      occupiedLeadOffsetMs: number,
+      expectedStatus: 201 | 409,
+    ) {
+      const previousNow = testNow;
+      const approvalAt = new Date('2030-01-10T12:00:00.000Z');
+      try {
+        testNow = new Date(approvalAt.getTime() - 60_000);
+        const staff = await createUser('VENUE_STAFF');
+        const coordinator = await createUser('COORDINATOR');
+        const venueId = await createVenue(staff.id, { setupTimeMinutes: 30, turnaroundTimeMinutes: 0 });
+        const occupiedStart = approvalAt.getTime() + 336 * 60 * 60_000 + occupiedLeadOffsetMs;
+        const eventStart = new Date(occupiedStart + 30 * 60_000);
+        const eventEnd = new Date(eventStart.getTime() + 60 * 60_000);
+        const eventId = await createAssignedEvent(coordinator.id, label, eventStart.toISOString(), eventEnd.toISOString());
+        const submitted = await request(app.getHttpServer())
+          .post(`/api/venues/${venueId}/booking-requests`)
+          .set('Cookie', coordinator.cookie)
+          .send({ eventId, request_kind: 'tentative_hold' })
+          .expect(201);
+
+        testNow = approvalAt;
+        const decision = await request(app.getHttpServer())
+          .post(`/api/venues/bookings/${submitted.body.id}/approve`)
+          .set('Cookie', staff.cookie);
+        expect(decision.status).toBe(expectedStatus);
+        const persisted = await pool.query<{ status: string; hold_expires_at: Date | null }>(
+          'SELECT status, hold_expires_at FROM venue_bookings WHERE id = $1', [submitted.body.id],
+        );
+        if (expectedStatus === 201) {
+          expect(decision.body).toMatchObject({ id: submitted.body.id, status: 'approved', requestKind: 'tentative_hold' });
+          expect(persisted.rows[0].status).toBe('approved');
+          expect(persisted.rows[0].hold_expires_at?.toISOString()).toBe(new Date(approvalAt.getTime() + 336 * 60 * 60_000).toISOString());
+        } else {
+          expect(decision.body.code).toBe('BOOKING_SLOT_CONFLICT');
+          expect(decision.body.message).toContain('336-hour lead-time minimum');
+          expect(persisted.rows[0]).toEqual({ status: 'pending', hold_expires_at: null });
+        }
+      } finally {
+        testNow = previousNow;
+      }
     }
 
     async function addBlockout(
@@ -3619,6 +3695,753 @@ describe.skipIf(!databaseUrl)(
         // Absent or null both mean "no note"; only a borrowed string is a failure.
         expect(rows.find((row) => row.id === bookingA)?.specialRequest ?? null).toBeNull();
         expect(rows.find((row) => row.id === bookingB)?.specialRequest).toBe('Need a ramp');
+      }
+    });
+
+    /** VEN-HOLD-DEC-09-A and VEN-HOLD-DEC-12-A: Venue Staff converts a live hold and it is stored as a confirmed booking. */
+    it('VEN-HOLD-DEC-12-A converts an active tentative hold to a confirmed booking', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'SPM-132 conversion', '2030-03-04T10:00:00Z', '2030-03-04T11:00:00Z');
+      const bookingId = await addActiveHold(venueId, eventId, '2030-01-24T12:00:00Z');
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${bookingId}/convert-hold`)
+        .set('Cookie', owner.cookie)
+        .expect(201);
+
+      expect(response.body).toMatchObject({ id: bookingId, status: 'approved', requestKind: 'booking' });
+      const stored = await pool.query<{ status: string; request_kind: string; hold_expires_at: Date | null }>(
+        'SELECT status, request_kind, hold_expires_at FROM venue_bookings WHERE id = $1', [bookingId],
+      );
+      expect(stored.rows[0]).toMatchObject({ status: 'approved', request_kind: 'booking', hold_expires_at: null });
+      const venue = await request(app.getHttpServer()).get(`/api/venues/${venueId}`).set('Cookie', owner.cookie).expect(200);
+      expect(venue.body.reservations.filter((reservation: { id: string }) => reservation.id === bookingId)).toEqual([{
+        id: bookingId,
+        eventName: 'SPM-132 conversion',
+        start: '2030-03-04T10:00:00.000Z',
+        end: '2030-03-04T11:00:00.000Z',
+        affectedByUnavailablePeriod: false,
+        status: 'booked',
+      }]);
+    });
+
+    /** VEN-HOLD-DEC-09-B: missing and completed-event holds cannot be converted or released. */
+    it('VEN-HOLD-DEC-09-B refuses missing and completed-event hold decisions', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-09-B completed event');
+      const holdId = await addActiveHold(venueId, eventId, '2030-01-24T12:00:00Z');
+      await pool.query("UPDATE events SET status = 'Completed' WHERE id = $1::uuid", [eventId]);
+      const missingId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+      const missing = await pool.query('SELECT id FROM venue_bookings WHERE id = $1::uuid', [missingId]);
+      expect(missing.rows).toHaveLength(0);
+      for (const action of ['convert-hold', 'release-hold']) {
+        await request(app.getHttpServer()).post(`/api/venues/bookings/${missingId}/${action}`).set('Cookie', staff.cookie).expect(404);
+        const response = await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/${action}`).set('Cookie', staff.cookie).expect(409);
+        expect(response.body.code).toBe('EVENT_COMPLETED');
+      }
+      const stored = await pool.query('SELECT status, request_kind FROM venue_bookings WHERE id = $1::uuid', [holdId]);
+      expect(stored.rows[0]).toEqual({ status: 'approved', request_kind: 'tentative_hold' });
+    });
+
+    /** VEN-HOLD-DEC-09-B: conversion is refused at the exact expiry instant using the server clock. */
+    it('VEN-HOLD-DEC-09-B refuses conversion at the expiry instant without changing the hold', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'SPM-132 expired conversion');
+      const bookingId = await addActiveHold(venueId, eventId, fixedNow.toISOString());
+
+      // A malformed route id is rejected before looking up a persisted hold; the real hold remains eligible for its expiry decision below.
+      await request(app.getHttpServer())
+        .post('/api/venues/bookings/not-a-uuid/convert-hold')
+        .set('Cookie', owner.cookie)
+        .expect(404);
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${bookingId}/convert-hold`)
+        .set('Cookie', owner.cookie)
+        .expect(409);
+
+      expect(response.body.code).toBe('TENTATIVE_HOLD_EXPIRED');
+      const stored = await pool.query<{ status: string; request_kind: string; hold_expires_at: Date }>(
+        'SELECT status, request_kind, hold_expires_at FROM venue_bookings WHERE id = $1', [bookingId],
+      );
+      expect(stored.rows[0]).toMatchObject({ status: 'approved', request_kind: 'tentative_hold' });
+      expect(stored.rows[0].hold_expires_at.toISOString()).toBe(fixedNow.toISOString());
+    });
+
+    /** VEN-HOLD-DEC-10-A and VEN-HOLD-DEC-13-A: releasing an active hold frees the calendar interval. */
+    it('VEN-HOLD-DEC-13-A releases an active hold and removes it from the calendar', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'SPM-132 release');
+      const bookingId = await addActiveHold(venueId, eventId, '2030-01-24T12:00:00Z');
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${bookingId}/release-hold`)
+        .set('Cookie', owner.cookie)
+        .expect(201);
+
+      expect(response.body).toMatchObject({ id: bookingId, status: 'released' });
+      const stored = await pool.query<{ status: string; released_at: Date | null }>(
+        'SELECT status, released_at FROM venue_bookings WHERE id = $1', [bookingId],
+      );
+      expect(stored.rows[0].status).toBe('released');
+      expect(stored.rows[0].released_at.toISOString()).toBe(fixedNow.toISOString());
+      const venue = await request(app.getHttpServer()).get(`/api/venues/${venueId}`).set('Cookie', owner.cookie).expect(200);
+      expect(venue.body.reservations).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: bookingId })]));
+    });
+
+    /** VEN-HOLD-DEC-01-SEC-2: Coordinator cannot convert or release a Venue Staff hold. */
+    it('VEN-HOLD-DEC-01-SEC-2 denies approve, reject, convert, and release to a Coordinator', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const pendingEventId = await createAssignedEvent(coordinator.id, 'SPM-132 authorization pending');
+      const pendingId = await addBooking(venueId, pendingEventId, { start: '2030-01-24T12:00:00Z', end: '2030-01-24T13:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+      const activeEventId = await createAssignedEvent(coordinator.id, 'SPM-132 authorization active');
+      const activeId = await addActiveHold(venueId, activeEventId, '2030-01-24T12:00:00Z');
+
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${pendingId}/approve`).set('Cookie', coordinator.cookie).expect(403);
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${pendingId}/reject`).set('Cookie', coordinator.cookie).send({ reason: 'not staff' }).expect(403);
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${activeId}/convert-hold`).set('Cookie', coordinator.cookie).expect(403);
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${activeId}/release-hold`).set('Cookie', coordinator.cookie).expect(403);
+      const stored = await pool.query<{ id: string; status: string; request_kind: string; rejection_reason: string | null; hold_expires_at: Date | null }>(
+        'SELECT id, status, request_kind, rejection_reason, hold_expires_at FROM venue_bookings WHERE id = ANY($1::uuid[]) ORDER BY id', [[pendingId, activeId]],
+      );
+      expect(stored.rows).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: pendingId, status: 'pending', request_kind: 'tentative_hold', rejection_reason: null, hold_expires_at: null }),
+        expect.objectContaining({ id: activeId, status: 'approved', request_kind: 'tentative_hold', hold_expires_at: new Date('2030-01-24T12:00:00.000Z') }),
+      ]));
+    });
+
+    /** VEN-HOLD-DEC-01-A: the staff queue contains only Pending tentative holds for that staff member's venues. */
+    it('VEN-HOLD-DEC-01-A scopes the pending hold queue to managed venues', async () => {
+      const staffA = await createUser('VENUE_STAFF');
+      const staffB = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueA = await createVenue(staffA.id);
+      const venueB = await createVenue(staffB.id);
+      const eventA = await createAssignedEvent(coordinator.id, 'DEC-01-A local hold');
+      const eventB = await createAssignedEvent(coordinator.id, 'DEC-01-A foreign hold');
+      const local = await addBooking(venueA, eventA, { start: '2030-01-12T06:00:00Z', end: '2030-01-12T07:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+      const foreign = await addBooking(venueB, eventB, { start: '2030-01-12T06:00:00Z', end: '2030-01-12T07:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const response = await request(app.getHttpServer()).get('/api/venues/bookings/pending').set('Cookie', staffA.cookie).expect(200);
+      const rows = response.body as Array<{ id: string; eventId: string }>;
+      expect(rows.filter((row) => [local, foreign].includes(row.id))).toEqual([expect.objectContaining({ id: local, eventId: eventA })]);
+    });
+
+    /** VEN-HOLD-DEC-01-B: no Pending hold for managed venues produces an empty queue. */
+    it('VEN-HOLD-DEC-01-B returns an empty queue when no pending holds exist', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      await createVenue(staff.id);
+      const response = await request(app.getHttpServer()).get('/api/venues/bookings/pending').set('Cookie', staff.cookie).expect(200);
+      expect(response.body).toEqual([]);
+    });
+
+    /** VEN-HOLD-DEC-01-SEC-1: a Coordinator sees only their own tentative-hold request, not another event's. */
+    it('VEN-HOLD-DEC-01-SEC-1 hides another Coordinator event hold from the caller list', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const otherStaff = await createUser('VENUE_STAFF');
+      const owner = await createUser('COORDINATOR');
+      const unrelated = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const ownEvent = await createAssignedEvent(owner.id, 'DEC-01-SEC-1 own event');
+      const otherEvent = await createAssignedEvent(unrelated.id, 'DEC-01-SEC-1 other event');
+      const ownHold = await addBooking(venueId, ownEvent, { start: '2030-01-12T06:00:00Z', end: '2030-01-12T07:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+      const otherHold = await addBooking(venueId, otherEvent, { start: '2030-01-12T08:00:00Z', end: '2030-01-12T09:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const response = await request(app.getHttpServer()).get('/api/venues/bookings/mine').set('Cookie', owner.cookie).expect(200);
+      const ids = (response.body as Array<{ id: string }>).map((row) => row.id);
+      expect(ids).toContain(ownHold);
+      expect(ids).not.toContain(otherHold);
+      const foreignStaffQueue = await request(app.getHttpServer()).get('/api/venues/bookings/pending').set('Cookie', otherStaff.cookie).expect(200);
+      expect(foreignStaffQueue.body).toEqual([]);
+      const activeEvent = await createAssignedEvent(owner.id, 'DEC-01-SEC-1 active foreign hold');
+      const activeHold = await addActiveHold(venueId, activeEvent, '2030-01-24T12:00:00Z');
+      for (const action of ['approve', 'reject', 'convert-hold', 'release-hold']) {
+        const target = action === 'approve' || action === 'reject' ? ownHold : activeHold;
+        const attempt = request(app.getHttpServer()).post(`/api/venues/bookings/${target}/${action}`).set('Cookie', otherStaff.cookie);
+        if (action === 'reject') attempt.send({ reason: 'Unauthorised decision' });
+        await attempt.expect(404);
+      }
+      const foreignRows = await pool.query<{ id: string; status: string; hold_expires_at: Date | null; released_at: Date | null }>(
+        'SELECT id, status, hold_expires_at, released_at FROM venue_bookings WHERE id = ANY($1::uuid[])', [[ownHold, activeHold]],
+      );
+      expect(foreignRows.rows).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: ownHold, status: 'pending', hold_expires_at: null, released_at: null }),
+        expect.objectContaining({ id: activeHold, status: 'approved', hold_expires_at: new Date('2030-01-24T12:00:00Z'), released_at: null }),
+      ]));
+      const audit = await pool.query('SELECT id FROM booking_review_log WHERE booking_id = ANY($1::uuid[])', [[ownHold, activeHold]]);
+      expect(audit.rows).toHaveLength(0);
+      const unchanged = await pool.query<{ status: string; hold_expires_at: Date | null }>(
+        'SELECT status, hold_expires_at FROM venue_bookings WHERE id = $1', [otherHold],
+      );
+      expect(unchanged.rows[0]).toEqual({ status: 'pending', hold_expires_at: null });
+    });
+
+    /** VEN-HOLD-DEC-01-VAR-1: the assigned Coordinator can see their own pending tentative hold in My Bookings. */
+    it('VEN-HOLD-DEC-01-VAR-1 shows the assigned Coordinator their own pending hold', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-01-VAR-1 own hold');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-12T06:00:00Z', end: '2030-01-12T07:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const response = await request(app.getHttpServer()).get('/api/venues/bookings/mine').set('Cookie', coordinator.cookie).expect(200);
+      expect(response.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, status: 'pending', requestKind: 'tentative_hold' })]));
+    });
+
+    /** VEN-HOLD-DEC-02-A: queue details include the venue, requested slot, Coordinator and approval-based duration. */
+    it('VEN-HOLD-DEC-02-A returns pending hold details and its 336-hour duration', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-02-A detail fixture');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-12T06:00:00Z', end: '2030-01-12T07:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const response = await request(app.getHttpServer()).get('/api/venues/bookings/pending').set('Cookie', staff.cookie).expect(200);
+      const venueRow = await pool.query<{ name: string }>('SELECT name FROM venues WHERE id = $1', [venueId]);
+      expect(response.body).toEqual(expect.arrayContaining([expect.objectContaining({
+        id: holdId, eventId, venueName: venueRow.rows[0].name, eventName: 'DEC-02-A detail fixture',
+        eventStart: '2030-01-12T06:00:00.000Z', eventEnd: '2030-01-12T07:00:00.000Z',
+        coordinatorName: 'SPM-51 Integration User', start: '2030-01-12T06:00:00.000Z', end: '2030-01-12T07:00:00.000Z',
+      })]));
+    });
+
+    /** VEN-HOLD-DEC-02-B: a Pending request has no running expiry before approval. */
+    it('VEN-HOLD-DEC-02-B keeps expiry unset until staff approval', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-02-B no countdown');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-12T06:00:00Z', end: '2030-01-12T07:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const stored = await pool.query<{ status: string; hold_expires_at: Date | null }>('SELECT status, hold_expires_at FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(stored.rows[0]).toEqual({ status: 'pending', hold_expires_at: null });
+    });
+
+    /** VEN-HOLD-DEC-03-A: an eligible Pending hold is approved and receives the approval-time expiry. */
+    it('VEN-HOLD-DEC-03-A approves an eligible hold with no new conflicts', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-03-A eligible approval', '2030-01-24T13:00:00Z', '2030-01-24T14:00:00Z');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-24T13:00:00Z', end: '2030-01-24T14:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const response = await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/approve`).set('Cookie', staff.cookie).expect(201);
+      expect(response.body).toMatchObject({ id: holdId, status: 'approved', requestKind: 'tentative_hold', holdExpiresAt: '2030-01-24T12:00:00.000Z' });
+      const stored = await pool.query<{ status: string; hold_expires_at: Date }>('SELECT status, hold_expires_at FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(stored.rows[0]).toMatchObject({ status: 'approved' });
+      expect(stored.rows[0].hold_expires_at.toISOString()).toBe('2030-01-24T12:00:00.000Z');
+    });
+
+    /** VEN-HOLD-DEC-03-B: a closure added after submission blocks decision-time approval. */
+    it('VEN-HOLD-DEC-03-B refuses approval after a conflicting closure is added', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-03-B closure conflict', '2030-01-24T13:00:00Z', '2030-01-24T14:00:00Z');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-24T13:00:00Z', end: '2030-01-24T14:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+      await addBlockout(venueId, '2030-01-24T13:00:00Z', '2030-01-24T14:00:00Z', 'Maintenance');
+
+      const response = await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/approve`).set('Cookie', staff.cookie).expect(409);
+      expect(response.body.code).toBe('BOOKING_SLOT_CONFLICT');
+      const stored = await pool.query<{ status: string; hold_expires_at: Date | null }>('SELECT status, hold_expires_at FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(stored.rows[0]).toEqual({ status: 'pending', hold_expires_at: null });
+    });
+
+    /** VEN-HOLD-DEC-03-C: a confirmed booking added after submission blocks decision-time approval. */
+    it('VEN-HOLD-DEC-03-C refuses approval after a conflicting confirmed booking is added', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const blockerEvent = await createAssignedEvent(coordinator.id, 'DEC-03-C confirmed blocker', '2030-01-24T13:00:00Z', '2030-01-24T14:00:00Z');
+      await addBooking(venueId, blockerEvent, { start: '2030-01-24T13:00:00Z', end: '2030-01-24T14:00:00Z', status: 'approved' });
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-03-C candidate', '2030-01-24T13:30:00Z', '2030-01-24T14:30:00Z');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-24T13:30:00Z', end: '2030-01-24T14:30:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const response = await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/approve`).set('Cookie', staff.cookie).expect(409);
+      expect(response.body.code).toBe('BOOKING_SLOT_CONFLICT');
+      const stored = await pool.query<{ status: string }>('SELECT status FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(stored.rows[0].status).toBe('pending');
+    });
+
+    /** VEN-HOLD-DEC-04-A: a setup-adjusted event start beyond 336 hours is eligible for submission. */
+    it('VEN-HOLD-DEC-04-A accepts a hold whose setup-adjusted start is beyond 336 hours', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id, { setupTimeMinutes: 30, turnaroundTimeMinutes: 45 });
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-04-A over the lead threshold', '2030-01-24T12:31:00Z', '2030-01-24T13:31:00Z');
+
+      const response = await request(app.getHttpServer()).post(`/api/venues/${venueId}/booking-requests`).set('Cookie', coordinator.cookie).send({ eventId, request_kind: 'tentative_hold' }).expect(201);
+      expect(response.body).toMatchObject({ status: 'pending', requestKind: 'tentative_hold' });
+    });
+
+    /** VEN-HOLD-DEC-04-BND-1: setup-adjusted occupied start exactly 336 hours away is permitted. */
+    it('VEN-HOLD-DEC-04-BND-1 permits the exact 336-hour setup-adjusted lead boundary', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id, { setupTimeMinutes: 60, turnaroundTimeMinutes: 0 });
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-04-BND-1 equality', '2030-01-24T13:00:00Z', '2030-01-24T14:00:00Z');
+
+      const response = await request(app.getHttpServer()).post(`/api/venues/${venueId}/booking-requests`).set('Cookie', coordinator.cookie).send({ eventId, request_kind: 'tentative_hold' }).expect(201);
+      expect(response.body).toMatchObject({ status: 'pending', holdDurationHours: 336, holdStartsAt: 'venue-staff-approval' });
+    });
+
+    /** VEN-HOLD-DEC-04-BND-2: one second inside the cutoff is rejected when setup time is included. */
+    it('VEN-HOLD-DEC-04-BND-2 rejects a setup-adjusted start one second inside 336 hours', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id, { setupTimeMinutes: 60, turnaroundTimeMinutes: 0 });
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-04-BND-2 one second short', '2030-01-24T11:59:59Z', '2030-01-24T12:59:59Z');
+
+      const response = await request(app.getHttpServer()).post(`/api/venues/${venueId}/booking-requests`).set('Cookie', coordinator.cookie).send({ eventId, request_kind: 'tentative_hold' }).expect(409);
+      expect(response.body.code).toBe('TENTATIVE_HOLD_LEAD_TIME');
+      const stored = await pool.query('SELECT id FROM venue_bookings WHERE event_id = $1 AND venue_id = $2', [eventId, venueId]);
+      expect(stored.rows).toHaveLength(0);
+    });
+
+    /** VEN-HOLD-DEC-04-A: after submission, Venue Staff approval is allowed when the occupied start is 336 hours and one second away. */
+    it('VEN-HOLD-DEC-04-A approves a pending request one second beyond the 336-hour decision boundary', async () => {
+      await exerciseApprovalLeadBoundary('DEC-04-A approval lead above threshold', 1_000, 201);
+    });
+
+    /** VEN-HOLD-DEC-04-BND-1: after submission, approval at exactly 336 hours remains permitted. */
+    it('VEN-HOLD-DEC-04-BND-1 permits a pending request at the exact 336-hour approval boundary', async () => {
+      await exerciseApprovalLeadBoundary('DEC-04-BND-1 approval equality', 0, 201);
+    });
+
+    /** VEN-HOLD-DEC-04-BND-2: after submission, approval one second inside 336 hours is refused and leaves the request Pending. */
+    it('VEN-HOLD-DEC-04-BND-2 refuses a pending request one second inside the approval boundary', async () => {
+      await exerciseApprovalLeadBoundary('DEC-04-BND-2 approval shortfall', -1_000, 409);
+    });
+
+    /** VEN-HOLD-DEC-05-A: the approved response and persisted row expose an expiry exactly 336h from approval. */
+    it('VEN-HOLD-DEC-05-A exposes the expiry after staff approval', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-05-A expiry display', '2030-01-24T13:00:00Z', '2030-01-24T14:00:00Z');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-24T13:00:00Z', end: '2030-01-24T14:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const response = await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/approve`).set('Cookie', staff.cookie).expect(201);
+      expect(response.body.holdExpiresAt).toBe('2030-01-24T12:00:00.000Z');
+      const listing = await request(app.getHttpServer()).get('/api/venues/bookings/pending').set('Cookie', staff.cookie).expect(200);
+      expect(listing.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, holdExpiresAt: '2030-01-24T12:00:00.000Z' })]));
+    });
+
+    /** VEN-HOLD-DEC-05-B: Pending hold data has no expiry value before the approval decision. */
+    it('VEN-HOLD-DEC-05-B shows no expiry before approval', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-05-B pending hold', '2030-01-24T13:00:00Z', '2030-01-24T14:00:00Z');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-24T13:00:00Z', end: '2030-01-24T14:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const response = await request(app.getHttpServer()).get('/api/venues/bookings/pending').set('Cookie', staff.cookie).expect(200);
+      const row = (response.body as Array<Record<string, unknown>>).find((item) => item.id === holdId);
+      expect(row).toMatchObject({ id: holdId, status: 'pending' });
+      expect(row).not.toHaveProperty('holdExpiresAt');
+    });
+
+    /** VEN-HOLD-DEC-06-A: expiry is computed from approval time as exactly 336 hours. */
+    it('VEN-HOLD-DEC-06-A expires 336 hours after the approval instant', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-06-A approval-time expiry', '2030-01-24T13:00:00Z', '2030-01-24T14:00:00Z');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-24T13:00:00Z', end: '2030-01-24T14:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const approved = await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/approve`).set('Cookie', staff.cookie).expect(201);
+      const saved = await pool.query<{ hold_expires_at: Date }>('SELECT hold_expires_at FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(Date.parse(saved.rows[0].hold_expires_at.toISOString()) - Date.parse(fixedNow.toISOString())).toBe(336 * 60 * 60 * 1000);
+      expect(approved.body.holdExpiresAt).toBe(saved.rows[0].hold_expires_at.toISOString());
+    });
+
+    /** VEN-HOLD-DEC-06-BND-1: the hold is expired at equality with its expiry, not one instant later. */
+    it('VEN-HOLD-DEC-06-BND-1 is active one second before expiry and expired at equality', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-06-BND-1 equality');
+      const expiry = fixedNow;
+      const holdId = await addActiveHold(venueId, eventId, expiry.toISOString());
+
+      testNow = new Date(expiry.getTime() - 1_000);
+      const activeList = await request(app.getHttpServer()).get('/api/venues/bookings/pending').set('Cookie', staff.cookie).expect(200);
+      expect(activeList.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, holdExpired: false })]));
+      const activeCalendar = await request(app.getHttpServer()).get(`/api/venues/${venueId}`).set('Cookie', staff.cookie).expect(200);
+      expect(activeCalendar.body.reservations).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, status: 'tentative' })]));
+
+      testNow = expiry;
+      const list = await request(app.getHttpServer()).get('/api/venues/bookings/pending').set('Cookie', staff.cookie).expect(200);
+      expect(list.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, holdExpired: true })]));
+      const venue = await request(app.getHttpServer()).get(`/api/venues/${venueId}`).set('Cookie', staff.cookie).expect(200);
+      expect(venue.body.reservations).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId })]));
+      const stored = await pool.query<{ status: string; hold_expiry_processed_at: Date | null }>(
+        'SELECT status, hold_expiry_processed_at FROM venue_bookings WHERE id = $1', [holdId],
+      );
+      expect(stored.rows[0]).toEqual({ status: 'approved', hold_expiry_processed_at: null });
+    });
+
+    /** VEN-HOLD-DEC-06-B: repeated expiry processing records one transition and creates no duplicate booking. */
+    it('VEN-HOLD-DEC-06-B processes an expired hold idempotently', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-06-B idempotent processing');
+      const holdId = await addActiveHold(venueId, eventId, fixedNow.toISOString());
+      const venues = app.get(VenuesRepository);
+
+      expect(await venues.processExpiredTentativeHolds()).toContain(holdId);
+      expect(await venues.processExpiredTentativeHolds()).toEqual([]);
+      const stored = await pool.query<{ status: string; request_kind: string; hold_expiry_processed_at: Date | null }>(
+        'SELECT status, request_kind, hold_expiry_processed_at FROM venue_bookings WHERE id = $1', [holdId],
+      );
+      expect(stored.rows[0]).toMatchObject({ status: 'expired', request_kind: 'tentative_hold' });
+      expect(stored.rows[0].hold_expiry_processed_at.toISOString()).toBe(fixedNow.toISOString());
+      const staffList = await request(app.getHttpServer()).get('/api/venues/bookings/pending').set('Cookie', staff.cookie).expect(200);
+      expect(staffList.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, status: 'expired', holdExpired: true })]));
+      const coordinatorList = await request(app.getHttpServer()).get('/api/venues/bookings/mine').set('Cookie', coordinator.cookie).expect(200);
+      expect(coordinatorList.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, status: 'expired', holdExpired: true })]));
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/convert-hold`).set('Cookie', staff.cookie).expect(409);
+      const schedule = await request(app.getHttpServer()).get(`/api/venues/${venueId}`).set('Cookie', staff.cookie).expect(200);
+      expect(schedule.body.reservations).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId })]));
+      const queue = await request(app.getHttpServer()).get('/api/coordinator/queue').set('Cookie', coordinator.cookie).expect(200);
+      const eventRow = queue.body.find((item: { id: string }) => item.id === eventId);
+      expect(eventRow.queue.holds).toEqual(expect.arrayContaining([expect.objectContaining({ state: 'EXPIRED' })]));
+      const readiness = await request(app.getHttpServer()).get(`/api/events/${eventId}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+      expect(readiness.body.checklist.venue.items).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, status: 'unavailable', holdState: 'Hold expired' })]));
+      const eventList = await request(app.getHttpServer()).get('/api/events').set('Cookie', coordinator.cookie).expect(200);
+      const event = eventList.body.find((item: { id: string }) => item.id === eventId);
+      expect(event).toMatchObject({ venueRequestStatus: 'expired', venueHoldState: 'Hold expired' });
+      expect(event.venueName).toContain('(hold expired)');
+      const planning = await request(app.getHttpServer()).get(`/api/events/${eventId}/planning`).set('Cookie', coordinator.cookie).expect(200);
+      expect(planning.body.venueBookings).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, status: 'Hold expired', requestStatus: 'expired' })]));
+      const duplicateCount = await pool.query<{ count: string }>(
+        'SELECT count(*) FROM venue_bookings WHERE event_id = $1 AND venue_id = $2 AND request_kind = \'booking\'',
+        [eventId, venueId],
+      );
+      expect(duplicateCount.rows[0].count).toBe('0');
+    });
+
+    /** VEN-HOLD-DEC-06-B: upgrading an existing processed marker preserves history and allows only expired holds. */
+    it('VEN-HOLD-DEC-06-B upgrades legacy processed markers idempotently', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-06-B migration upgrade');
+      const holdId = await addActiveHold(venueId, eventId, fixedNow.toISOString());
+      await pool.query('UPDATE venue_bookings SET hold_expiry_processed_at = $2 WHERE id = $1', [holdId, fixedNow]);
+      const migration = await readFile(new URL('../migrations/032_spm132_tentative_hold_expiry_processing.sql', import.meta.url), 'utf8');
+      await pool.query(migration);
+      await pool.query(migration);
+      const upgraded = await pool.query('SELECT status, request_kind, hold_expires_at, hold_expiry_processed_at FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(upgraded.rows[0]).toEqual({ status: 'expired', request_kind: 'tentative_hold', hold_expires_at: fixedNow, hold_expiry_processed_at: fixedNow });
+      await expect(pool.query("UPDATE venue_bookings SET request_kind = 'booking' WHERE id = $1", [holdId])).rejects.toMatchObject({ code: '23514' });
+      const after = await pool.query('SELECT status, request_kind FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(after.rows[0]).toEqual({ status: 'expired', request_kind: 'tentative_hold' });
+    });
+
+    /** VEN-HOLD-DEC-07-A: Venue Staff rejects a Pending hold and the supplied reason is persisted. */
+    it('VEN-HOLD-DEC-07-A rejects a pending hold with a nonempty reason', async () => {
+      const { staff, holdId } = await createPendingHold('DEC-07-A rejection reason');
+      const response = await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/reject`).set('Cookie', staff.cookie).send({ reason: 'Venue unavailable' }).expect(201);
+      expect(response.body).toMatchObject({ id: holdId, status: 'rejected', rejectionReason: 'Venue unavailable' });
+      const stored = await pool.query<{ status: string; rejection_reason: string }>('SELECT status, rejection_reason FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(stored.rows[0]).toEqual({ status: 'rejected', rejection_reason: 'Venue unavailable' });
+    });
+
+    /** VEN-HOLD-DEC-07-B: rejection without a reason is invalid and leaves the request pending. */
+    it('VEN-HOLD-DEC-07-B refuses rejection when the reason is missing', async () => {
+      const { staff, holdId } = await createPendingHold('DEC-07-B missing reason');
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/reject`).set('Cookie', staff.cookie).send({}).expect(400);
+      const stored = await pool.query<{ status: string; rejection_reason: string | null }>('SELECT status, rejection_reason FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(stored.rows[0]).toEqual({ status: 'pending', rejection_reason: null });
+    });
+
+    /** VEN-HOLD-DEC-07-C: whitespace-only rejection reason is invalid and leaves the request pending. */
+    it('VEN-HOLD-DEC-07-C refuses a whitespace-only rejection reason', async () => {
+      const { staff, holdId } = await createPendingHold('DEC-07-C whitespace reason');
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/reject`).set('Cookie', staff.cookie).send({ reason: ' \t  ' }).expect(400);
+      const stored = await pool.query<{ status: string; rejection_reason: string | null }>('SELECT status, rejection_reason FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(stored.rows[0]).toEqual({ status: 'pending', rejection_reason: null });
+    });
+
+    /** VEN-HOLD-DEC-07-BND-1: a one-character reason is the accepted minimum. */
+    it('VEN-HOLD-DEC-07-BND-1 accepts a one-character rejection reason', async () => {
+      const { staff, holdId } = await createPendingHold('DEC-07-BND-1 minimum reason');
+      const response = await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/reject`).set('Cookie', staff.cookie).send({ reason: 'x' }).expect(201);
+      expect(response.body.rejectionReason).toBe('x');
+    });
+
+    /** VEN-HOLD-DEC-07-BND-2: the maximum 1,000-character reason is accepted and persisted intact. */
+    it('VEN-HOLD-DEC-07-BND-2 accepts a 1000-character rejection reason', async () => {
+      const { staff, holdId } = await createPendingHold('DEC-07-BND-2 maximum reason');
+      const reason = 'x'.repeat(1000);
+      const response = await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/reject`).set('Cookie', staff.cookie).send({ reason }).expect(201);
+      expect(response.body.rejectionReason).toBe(reason);
+      const stored = await pool.query<{ rejection_reason: string }>('SELECT rejection_reason FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(stored.rows[0].rejection_reason).toBe(reason);
+    });
+
+    /** VEN-HOLD-DEC-07-BND-3: a 1,001-character reason is refused without changing the request. */
+    it('VEN-HOLD-DEC-07-BND-3 refuses a 1001-character rejection reason', async () => {
+      const { staff, holdId } = await createPendingHold('DEC-07-BND-3 excessive reason');
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/reject`).set('Cookie', staff.cookie).send({ reason: 'x'.repeat(1001) }).expect(400);
+      const stored = await pool.query<{ status: string; rejection_reason: string | null }>('SELECT status, rejection_reason FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(stored.rows[0]).toEqual({ status: 'pending', rejection_reason: null });
+    });
+
+    /** VEN-HOLD-DEC-08-B: a Pending tentative hold is not an active calendar reservation. */
+    it('VEN-HOLD-DEC-08-B omits a pending hold from the active venue calendar', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-08-B pending does not block');
+      const holdId = await addBooking(venueId, eventId, { start: '2030-01-12T06:00:00Z', end: '2030-01-12T07:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const venue = await request(app.getHttpServer()).get(`/api/venues/${venueId}`).set('Cookie', staff.cookie).expect(200);
+      expect(venue.body.reservations).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId })]));
+    });
+
+    /** VEN-HOLD-DEC-08-BND-1: closure and confirmed-booking buffers separately prevent approval and preserve the pending hold. */
+    it('VEN-HOLD-DEC-08-BND-1 refuses setup-only and turnaround-only approval conflicts', async () => {
+      for (const [label, kind, blockerStart, blockerEnd] of [
+        ['setup closure', 'blocked', '2030-01-25T09:29:00Z', '2030-01-25T09:31:00Z'],
+        ['turnaround closure', 'blocked', '2030-01-25T11:29:00Z', '2030-01-25T11:31:00Z'],
+        ['setup booking', 'booking', '2030-01-25T11:59:00Z', '2030-01-25T12:01:00Z'],
+        ['turnaround booking', 'booking', '2030-01-25T08:59:00Z', '2030-01-25T09:01:00Z'],
+      ]) {
+        const staff = await createUser('VENUE_STAFF');
+        const coordinator = await createUser('COORDINATOR');
+        const venueId = await createVenue(staff.id, { setupTimeMinutes: 30, turnaroundTimeMinutes: 30 });
+        const eventId = await createAssignedEvent(coordinator.id, `DEC-08-BND-1 ${label}`, '2030-01-25T10:00:00Z', '2030-01-25T11:00:00Z');
+        const holdId = await addBooking(venueId, eventId, { start: '2030-01-25T10:00:00Z', end: '2030-01-25T11:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+        if (kind === 'blocked') {
+          await addBlockout(venueId, blockerStart, blockerEnd, `${label} edge maintenance`);
+        } else {
+          const blockerEvent = await createAssignedEvent(coordinator.id, `DEC-08-BND-1 ${label} blocker`, blockerStart, blockerEnd);
+          await addBooking(venueId, blockerEvent, { start: blockerStart, end: blockerEnd, status: 'approved', requestKind: 'booking' });
+        }
+
+        const decision = await request(app.getHttpServer())
+          .post(`/api/venues/bookings/${holdId}/approve`)
+          .set('Cookie', staff.cookie)
+          .expect(409);
+        expect(decision.body.code).toBe('BOOKING_SLOT_CONFLICT');
+        const state = await pool.query<{ status: string; hold_expires_at: Date | null }>(
+          'SELECT status, hold_expires_at FROM venue_bookings WHERE id = $1', [holdId],
+        );
+        expect(state.rows[0]).toEqual({ status: 'pending', hold_expires_at: null });
+      }
+    });
+
+    /** VEN-HOLD-DEC-10-B: releasing one event/venue hold leaves another venue's active hold unchanged. */
+    it('VEN-HOLD-DEC-10-B releases only the selected venue hold', async () => {
+      const staffA = await createUser('VENUE_STAFF');
+      const staffB = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueA = await createVenue(staffA.id);
+      const venueB = await createVenue(staffB.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-10-B independent venue holds');
+      const holdA = await addActiveHold(venueA, eventId, '2030-01-24T12:00:00Z');
+      const holdB = await addActiveHold(venueB, eventId, '2030-01-24T12:00:00Z');
+
+      // Malformed ids are rejected before a hold lookup; releasing the valid selected hold must still preserve the other venue.
+      await request(app.getHttpServer()).post('/api/venues/bookings/not-a-uuid/release-hold').set('Cookie', staffA.cookie).expect(404);
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${holdA}/release-hold`).set('Cookie', staffA.cookie).expect(201);
+      const rows = await pool.query<{ id: string; status: string }>('SELECT id, status FROM venue_bookings WHERE id = ANY($1::uuid[]) ORDER BY id', [[holdA, holdB]]);
+      expect(rows.rows).toEqual(expect.arrayContaining([{ id: holdA, status: 'released' }, { id: holdB, status: 'approved' }]));
+      const otherVenue = await request(app.getHttpServer()).get(`/api/venues/${venueB}`).set('Cookie', staffB.cookie).expect(200);
+      expect(otherVenue.body.reservations).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdB, status: 'tentative' })]));
+    });
+
+    /** VEN-HOLD-DEC-11-B: a confirmed booking prevents a new overlapping tentative hold. */
+    it('VEN-HOLD-DEC-11-B blocks a tentative hold that overlaps confirmed occupancy', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const blockerEvent = await createAssignedEvent(coordinator.id, 'DEC-11-B confirmed blocker', '2030-01-25T10:00:00Z', '2030-01-25T11:00:00Z');
+      await addBooking(venueId, blockerEvent, { start: '2030-01-25T10:00:00Z', end: '2030-01-25T11:00:00Z', status: 'approved' });
+      const candidate = await createAssignedEvent(coordinator.id, 'DEC-11-B candidate', '2030-01-25T10:30:00Z', '2030-01-25T11:30:00Z');
+
+      const response = await request(app.getHttpServer()).post(`/api/venues/${venueId}/booking-requests`).set('Cookie', coordinator.cookie).send({ eventId: candidate, request_kind: 'tentative_hold' }).expect(409);
+      expect(response.body.message).toMatch(/conflict/i);
+      const rows = await pool.query('SELECT id FROM venue_bookings WHERE event_id = $1 AND venue_id = $2', [candidate, venueId]);
+      expect(rows.rows).toHaveLength(0);
+    });
+
+    /** VEN-HOLD-DEC-11-C: another unexpired approved tentative hold prevents an overlapping hold. */
+    it('VEN-HOLD-DEC-11-C blocks a new hold that overlaps another active hold', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const blockerEvent = await createAssignedEvent(coordinator.id, 'DEC-11-C active blocker', '2030-01-25T10:00:00Z', '2030-01-25T11:00:00Z');
+      await addBooking(venueId, blockerEvent, { start: '2030-01-25T10:00:00Z', end: '2030-01-25T11:00:00Z', status: 'approved', expires: new Date('2030-01-24T12:00:00Z'), requestKind: 'tentative_hold' });
+      const candidate = await createAssignedEvent(coordinator.id, 'DEC-11-C candidate', '2030-01-25T10:30:00Z', '2030-01-25T11:30:00Z');
+
+      const response = await request(app.getHttpServer()).post(`/api/venues/${venueId}/booking-requests`).set('Cookie', coordinator.cookie).send({ eventId: candidate, request_kind: 'tentative_hold' }).expect(409);
+      expect(response.body.message).toContain('DEC-11-C active blocker');
+    });
+
+    /** VEN-HOLD-DEC-11-PERF-1: competing overlapping approvals cannot both become Active. */
+    it('VEN-HOLD-DEC-11-PERF-1 allows only one of two conflicting hold approvals', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventA = await createAssignedEvent(coordinator.id, 'DEC-11-PERF-1 approval A', '2030-01-25T10:00:00Z', '2030-01-25T11:00:00Z');
+      const eventB = await createAssignedEvent(coordinator.id, 'DEC-11-PERF-1 approval B', '2030-01-25T10:30:00Z', '2030-01-25T11:30:00Z');
+      const holdA = await addBooking(venueId, eventA, { start: '2030-01-25T10:00:00Z', end: '2030-01-25T11:00:00Z', status: 'pending', requestKind: 'tentative_hold' });
+      const holdB = await addBooking(venueId, eventB, { start: '2030-01-25T10:30:00Z', end: '2030-01-25T11:30:00Z', status: 'pending', requestKind: 'tentative_hold' });
+
+      const responses = await Promise.all([holdA, holdB].map((id) => request(app.getHttpServer()).post(`/api/venues/bookings/${id}/approve`).set('Cookie', staff.cookie)));
+      expect(responses.map(({ status }) => status).sort()).toEqual([201, 409]);
+      const rows = await pool.query<{ status: string }>('SELECT status FROM venue_bookings WHERE id = ANY($1::uuid[])', [[holdA, holdB]]);
+      expect(rows.rows.filter(({ status }) => status === 'approved')).toHaveLength(1);
+      expect(rows.rows.filter(({ status }) => status === 'pending')).toHaveLength(1);
+    });
+
+    /** VEN-HOLD-DEC-12-B: conversion remains a confirmed booking after a fresh venue-calendar read. */
+    it('VEN-HOLD-DEC-12-B persists conversion across a calendar reload', async () => {
+      const staff = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(staff.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-12-B reload conversion');
+      const holdId = await addActiveHold(venueId, eventId, '2030-01-24T12:00:00Z');
+
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${holdId}/convert-hold`).set('Cookie', staff.cookie).expect(201);
+      const refreshed = await request(app.getHttpServer()).get(`/api/venues/${venueId}`).set('Cookie', staff.cookie).expect(200);
+      expect(refreshed.body.reservations).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, status: 'booked', eventName: 'DEC-12-B reload conversion' })]));
+      const history = await request(app.getHttpServer()).get(`/api/venues/${venueId}/booking-history`).set('Cookie', staff.cookie).expect(200);
+      expect(history.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, status: 'approved', requestKind: 'booking' })]));
+    });
+
+    /** VEN-HOLD-DEC-13-B: release keeps the historical row and does not alter unrelated confirmed venue bookings. */
+    it('VEN-HOLD-DEC-13-B retains released history and leaves unrelated bookings untouched', async () => {
+      const staffA = await createUser('VENUE_STAFF');
+      const staffB = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueA = await createVenue(staffA.id);
+      const venueB = await createVenue(staffB.id);
+      const event = await createAssignedEvent(coordinator.id, 'DEC-13-B history fixtures');
+      const releasedHold = await addActiveHold(venueA, event, '2030-01-24T12:00:00Z');
+      const confirmedEvent = await createAssignedEvent(coordinator.id, 'DEC-13-B unrelated confirmed');
+      const confirmedBooking = await addBooking(venueB, confirmedEvent, { start: '2030-03-04T10:00:00Z', end: '2030-03-04T11:00:00Z', status: 'approved' });
+
+      await request(app.getHttpServer()).post(`/api/venues/bookings/${releasedHold}/release-hold`).set('Cookie', staffA.cookie).expect(201);
+      const history = await request(app.getHttpServer()).get(`/api/venues/${venueA}/booking-history`).set('Cookie', staffA.cookie).expect(200);
+      expect(history.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: releasedHold, status: 'released', requestKind: 'tentative_hold' })]));
+      const unrelated = await pool.query<{ id: string; status: string }>('SELECT id, status FROM venue_bookings WHERE id = $1', [confirmedBooking]);
+      expect(unrelated.rows).toEqual([{ id: confirmedBooking, status: 'approved' }]);
+      const secondCalendar = await request(app.getHttpServer()).get(`/api/venues/${venueB}`).set('Cookie', staffB.cookie).expect(200);
+      expect(secondCalendar.body.reservations).toEqual(expect.arrayContaining([expect.objectContaining({ id: confirmedBooking, status: 'booked' })]));
+    });
+
+    /** VEN-HOLD-DEC-09-PERF-1: a held venue lock blocks lifecycle decisions until the transaction releases it. */
+    it('VEN-HOLD-DEC-09-PERF-1 waits for the venue lock before converting a hold', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'SPM-132 held venue lock');
+      const bookingId = await addActiveHold(venueId, eventId, '2030-01-24T12:00:00Z');
+      const blocker = await pool.connect();
+      let decision: Promise<request.Response> | undefined;
+      try {
+        await blocker.query('BEGIN');
+        await blocker.query('SELECT id FROM venues WHERE id = $1::uuid FOR UPDATE', [venueId]);
+        decision = request(app.getHttpServer()).post(`/api/venues/bookings/${bookingId}/convert-hold`).set('Cookie', owner.cookie).then((response) => response);
+        const waiting = await waitForLockWaiters('SELECT setup_time_minutes, turnaround_time_minutes FROM venues', 1);
+        expect(waiting).toBeGreaterThanOrEqual(1);
+      } finally {
+        await blocker.query('ROLLBACK');
+        blocker.release();
+        await decision;
+      }
+      expect((await decision)?.status).toBe(201);
+    }, 10_000);
+
+    /** VEN-HOLD-DEC-09-PERF-1: conversion and release race on one active hold; exactly one transition may win. */
+    it('VEN-HOLD-DEC-09-PERF-1 serializes concurrent conversion and release of one active hold', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'SPM-132 concurrent lifecycle');
+      const bookingId = await addActiveHold(venueId, eventId, '2030-01-24T12:00:00Z');
+
+      const [converted, released] = await Promise.all([
+        request(app.getHttpServer()).post(`/api/venues/bookings/${bookingId}/convert-hold`).set('Cookie', owner.cookie),
+        request(app.getHttpServer()).post(`/api/venues/bookings/${bookingId}/release-hold`).set('Cookie', owner.cookie),
+      ]);
+
+      expect([converted.status, released.status].sort()).toEqual([201, 409]);
+      const stored = await pool.query<{ status: string; request_kind: string; hold_expires_at: Date | null }>(
+        'SELECT status, request_kind, hold_expires_at FROM venue_bookings WHERE id = $1', [bookingId],
+      );
+      expect(stored.rows).toHaveLength(1);
+      expect(
+        stored.rows[0].status === 'released' && stored.rows[0].request_kind === 'tentative_hold' && stored.rows[0].hold_expires_at !== null
+        || stored.rows[0].status === 'approved' && stored.rows[0].request_kind === 'booking' && stored.rows[0].hold_expires_at === null,
+      ).toBe(true);
+    });
+
+    /** VEN-HOLD-DEC-06-B: the Nest scheduled tick, without a manual processor call, persists the first due expiry to PostgreSQL. */
+    it('VEN-HOLD-DEC-06-B persists expiry on the first scheduled database-backed tick', async () => {
+      const previousNow = testNow;
+      const previousInterval = process.env.TENTATIVE_HOLD_EXPIRY_INTERVAL_MS;
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'DEC-06-B scheduled persistence');
+      const expiry = new Date('2030-01-24T12:00:00.000Z');
+      const holdId = await addActiveHold(venueId, eventId, expiry.toISOString());
+      let scheduledApp: INestApplication | undefined;
+      const scheduledRuns: Promise<void>[] = [];
+      const originalProcess = TentativeHoldExpiryScheduler.prototype.process;
+      const processSpy = vi.spyOn(TentativeHoldExpiryScheduler.prototype, 'process').mockImplementation(function (this: TentativeHoldExpiryScheduler) {
+        const run = originalProcess.call(this);
+        scheduledRuns.push(run);
+        return run;
+      });
+
+      try {
+        testNow = expiry;
+        process.env.TENTATIVE_HOLD_EXPIRY_INTERVAL_MS = '1000';
+        vi.useFakeTimers();
+        const scheduledModule = await Test.createTestingModule({ imports: [AppModule] })
+          .overrideProvider(CLOCK)
+          .useValue({ now: () => testNow })
+          .compile();
+        scheduledApp = scheduledModule.createNestApplication();
+        await scheduledApp.init();
+
+        await vi.advanceTimersByTimeAsync(999);
+        const beforeDue = await pool.query<{ hold_expiry_processed_at: Date | null }>(
+          'SELECT hold_expiry_processed_at FROM venue_bookings WHERE id = $1', [holdId],
+        );
+        expect(beforeDue.rows[0].hold_expiry_processed_at).toBeNull();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(processSpy).toHaveBeenCalledOnce();
+        await scheduledRuns[0];
+        const persisted = await pool.query<{ status: string; hold_expiry_processed_at: Date | null }>(
+          'SELECT status, hold_expiry_processed_at FROM venue_bookings WHERE id = $1', [holdId],
+        );
+        expect(persisted.rows[0]).toEqual({ status: 'expired', hold_expiry_processed_at: expiry });
+      } finally {
+        await scheduledApp?.close();
+        processSpy.mockRestore();
+        vi.useRealTimers();
+        testNow = previousNow;
+        if (previousInterval === undefined) delete process.env.TENTATIVE_HOLD_EXPIRY_INTERVAL_MS;
+        else process.env.TENTATIVE_HOLD_EXPIRY_INTERVAL_MS = previousInterval;
       }
     });
   },

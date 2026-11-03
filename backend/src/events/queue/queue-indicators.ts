@@ -50,7 +50,7 @@ export interface QueueBookingFact {
   venueId: string;
   venueName: string;
   venueLocation: string;
-  status: 'pending' | 'approved';
+  status: 'pending' | 'approved' | 'expired';
   holdExpiresAt: Date | null;
   /** SPM-159: 'tentative_hold' marks a coordinator hold request; an approved one is a hold, not a confirmed booking. */
   requestKind?: 'booking' | 'tentative_hold';
@@ -121,7 +121,7 @@ export function deriveHolds(bookings: QueueBookingFact[], now: Date): QueueHold[
     .map((booking) => ({
       venueName: venueLabel(booking, bookings),
       expiresAt: booking.holdExpiresAt!.toISOString(),
-      state: holdIsActive(booking.holdExpiresAt!, now) ? 'ACTIVE' : 'EXPIRED',
+      state: approvedHoldState(booking, now) === 'expired' || !holdIsActive(booking.holdExpiresAt!, now) ? 'EXPIRED' : 'ACTIVE',
     }));
 }
 
@@ -135,7 +135,7 @@ export function deriveHolds(bookings: QueueBookingFact[], now: Date): QueueHold[
  */
 export function deriveUnavailableVenues(bookings: QueueBookingFact[], now: Date): string[] {
   const isActive = (booking: QueueBookingFact) =>
-    booking.status === 'approved'
+    booking.status === 'expired' ? false : booking.status === 'approved'
       ? approvedHoldState(booking, now) !== 'expired'
       : booking.holdExpiresAt === null || holdIsActive(booking.holdExpiresAt, now);
   const affected = bookings.filter((booking) => booking.venueUnavailable && isActive(booking));

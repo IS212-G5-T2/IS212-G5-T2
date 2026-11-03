@@ -67,7 +67,7 @@ export class ArrangementsReader {
       id: string;
       venue_id: string;
       venue_name: string;
-      status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
+      status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled' | 'expired';
       hold_expires_at: Date | null;
       request_kind: 'booking' | 'tentative_hold';
       start_at: Date;

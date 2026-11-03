@@ -44,12 +44,19 @@ describe.skipIf(!database)('SPM-159 approved tentative holds across the events m
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    const currentSchema = await pool.query<{ supports_expired: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'venue_bookings'::regclass
+        AND conname = 'venue_bookings_status_check' AND pg_get_constraintdef(oid) LIKE '%expired%') AS supports_expired`,
+    );
     for (const file of [
       '019_spm54_venue_booking_lifecycle.sql',
       '024_spm159_tentative_hold_requests.sql',
       '025_spm159_approved_hold_expiry.sql',
-    ])
+    ]) {
+      // Migration 019 narrows the lifecycle and must not be replayed over 032's expired rows.
+      if (currentSchema.rows[0].supports_expired && file === '019_spm54_venue_booking_lifecycle.sql') continue;
       await pool.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
+    }
   });
   afterAll(async () => {
     await pool.end();
