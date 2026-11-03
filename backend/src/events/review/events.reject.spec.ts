@@ -65,6 +65,9 @@ const COORDINATOR_NOTIFICATION_TYPES = [
   'coordinator_safety_response',
   'venue_booking_approved',
   'venue_booking_rejected',
+  // SPM-172: Technical Support reserved or could not provide the Coordinator's equipment request.
+  'equipment_request_reserved',
+  'equipment_request_cannot_provide',
   // SPM-125 AC6 to AC9: a venue change affects one of the Coordinator's bookings.
   'venue_unavailable_impact',
   'venue_timing_impact',

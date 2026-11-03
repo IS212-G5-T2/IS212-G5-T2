@@ -459,6 +459,9 @@ export type NotificationType =
   /** SPM-137: Venue Staff approved or rejected a venue booking for the coordinator's event. */
   | "venue_booking_approved"
   | "venue_booking_rejected"
+  /** SPM-172: Technical Support reserved or could not provide the Coordinator's equipment request. */
+  | "equipment_request_reserved"
+  | "equipment_request_cannot_provide"
   | "event_change"
   | "registration"
   | "confirmation"
@@ -485,6 +488,8 @@ export interface Notification {
   relatedEventName?: string | null;
   /** SPM-137 and SPM-125 AC7: the booking a venue booking notice is about (the bell links to it); null or absent otherwise. */
   relatedBookingId?: string | null;
+  /** SPM-172: the equipment request an equipment decision notice is about (the bell links to it); null or absent otherwise. */
+  relatedEquipmentRequestId?: string | null;
   read: boolean;
   createdAt: string;
 }

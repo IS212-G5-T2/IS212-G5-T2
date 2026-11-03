@@ -56,6 +56,14 @@ export function venueBookingDecisionMessage(
   return `Your booking of ${venueName} for "${eventName}" has been ${decision}.`;
 }
 
+/**
+ * SPM-172 AC2: the notification the event's Coordinator receives when Technical Support reserve an equipment request or
+ * mark it cannot be provided. The cannot-provide reason is not part of it; the request page shows it.
+ */
+export function equipmentRequestDecisionMessage(eventName: string, decision: 'reserved' | 'cannot-provide'): string {
+  return `Your equipment request for "${eventName}" ${decision === 'reserved' ? 'has been reserved' : 'cannot be provided'}.`;
+}
+
 /** Formats an instant in Singapore time for user-facing messages. */
 export function formatSgt(value: Date): string {
   return `${SGT_FORMAT.format(value)} SGT`;

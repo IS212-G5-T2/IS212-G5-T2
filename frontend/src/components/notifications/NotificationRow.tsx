@@ -33,6 +33,15 @@ const BOOKING_NOTICES = new Set<Notification["type"]>([
   "venue_capacity_impact",
 ]);
 
+// SPM-172: an equipment request decision opens the Coordinator's equipment requests page with that request highlighted.
+// A notice with no request id (older data) still opens /equipment/requests, just without a request selected.
+const EQUIPMENT_NOTICES = new Set<Notification["type"]>(["equipment_request_reserved", "equipment_request_cannot_provide"]);
+function equipmentLinkTarget(n: Notification) {
+  return n.relatedEquipmentRequestId
+    ? `/equipment/requests?request=${encodeURIComponent(n.relatedEquipmentRequestId)}`
+    : "/equipment/requests";
+}
+
 /**
  * One unread notification inside the top-bar bell dropdown (SPM-88, SC-SPM88-10). Every type uses the same
  * style so other roles' notifications can reuse the row later; only the link target depends on the type.
@@ -52,6 +61,7 @@ export function NotificationRow({
   const headline = headlineOf(n.message, n.type, n.relatedEventName);
   const isChangeRequest = CHANGE_REQUEST_DECISIONS.has(n.type);
   const isBooking = BOOKING_NOTICES.has(n.type);
+  const isEquipment = EQUIPMENT_NOTICES.has(n.type);
   // A notice with no booking id (older data) still opens the Bookings page, just without a booking selected.
   const linkTarget = isBooking
     ? n.relatedBookingId
@@ -59,7 +69,9 @@ export function NotificationRow({
       : "/bookings"
     : isChangeRequest
       ? `/events/${n.relatedEventId}/change-requests`
-      : `/events/${n.relatedEventId}`;
+      : isEquipment
+        ? equipmentLinkTarget(n)
+        : `/events/${n.relatedEventId}`;
   const linkLabel = isBooking ? "View Booking" : isChangeRequest ? "View Change Request" : "View Request";
   // SPM-47 AC8: an unassignment has no link, the event now belongs to another coordinator.
   const hasLink = n.type !== "coordinator_unassignment";

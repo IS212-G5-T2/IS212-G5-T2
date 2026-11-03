@@ -183,3 +183,10 @@ Remapped again on 30 Oct 2026 for the SPM-156 PR #87 review corrections: `EventE
 | frontend/src/features/events/pages/detail/planning/CompletionRecordForm.tsx:57 | LOW-VALUE | `if (pending) return;` guards a second save click; the disabled button prevents it, as for the panel above. |
 | frontend/src/features/events/pages/detail/planning/CompletionRecordForm.tsx:63 | UNREACHABLE | The fallback message applies only to a rejection that is neither ApiError nor Error; `api()` rejects only with Error instances. |
 | frontend/src/features/events/pages/detail/planning/CompletionRecordForm.tsx:73 | OPEN | One branch of the attendance mapping is reported uncovered by the merged coverage although COMPLETE-EVENT-05-D (typed) sends a non-whole attendance as typed. Not resolved; investigate the branch mapping in the next cycle. |
+
+## SPM-172
+
+| File:line | Status | Note |
+| --- | --- | --- |
+| frontend/src/components/notifications/NotificationItem.tsx:24 | LOW-VALUE | The `equipment_request_reserved` icon entry in `iconByType`. NotificationItem is not used by the app (the bell renders NotificationRow), so the line is never executed; the icon is cosmetic. By the standing owner decision (chaw678, as for SPM-165 and SPM-171) the icon is not tested. |
+| frontend/src/components/notifications/NotificationItem.tsx:25 | LOW-VALUE | The `equipment_request_cannot_provide` icon entry in `iconByType`; same reason as line 24. |
