@@ -177,6 +177,28 @@ describe('SPM-157 event history mapper', () => {
     expect(outcome('Closed')).toMatchObject({ summary: 'Change request closed', actor: { kind: 'system', name: 'System' } });
   });
 
+  /** AUDIT-HISTORY-01-D: a requested change with no stored original or proposed value shows it as empty. */
+  it('AUDIT-HISTORY-01-D shows a missing original or proposed value of a requested change as empty', () => {
+    const submitted = fromChangeRequest({
+      id: 'c2', requested_by: 'Organiser One', reason: null, created_at: at('2026-11-01T01:00:00.000Z'),
+      changes: [{ field: 'expectedAttendance', proposedValue: 150 }, { field: 'name', originalValue: 'Old' }],
+    });
+    expect(submitted.changes).toEqual([
+      { field: 'expectedAttendance', label: 'Expected attendance', from: null, to: 150 },
+      { field: 'name', label: 'Event name', from: 'Old', to: null },
+    ]);
+  });
+
+  /** AUDIT-HISTORY-11-A: an earlier flagged-change decision whose decider was not stored says so. */
+  it('AUDIT-HISTORY-11-A names an unrecorded decider of an earlier flagged change as Not recorded', () => {
+    const [, decision] = fromFlaggedChange({
+      id: 'f5', kind: 'booking_conflict', field: 'venue', original_value: 'Hall A', proposed_value: 'Hall B',
+      status: 'Rejected', proposed_by: 'Coordinator One', created_at: at('2026-11-01T01:00:00.000Z'),
+      resolved_by: null, resolved_at: at('2026-11-01T02:00:00.000Z'),
+    });
+    expect(decision).toMatchObject({ summary: 'Flagged change rejected', actor: { kind: 'unrecorded', name: 'Not recorded' } });
+  });
+
   /** AUDIT-HISTORY-01-E: cancellation requests and decisions. */
   it('AUDIT-HISTORY-01-E maps a cancellation request and its decision', () => {
     const base = { id: 'x1', requested_by: 'Organiser One', reason: 'Speaker unavailable', requested_at: at('2026-11-01T01:00:00.000Z') };

@@ -228,7 +228,7 @@ function entry(
 }
 
 export function fromAuditLog(row: AuditLogRow): HistoryEntry {
-  const changes = (row.changes ?? []).map((change) => toChange(change.field, change.from, change.to));
+  const changes = row.changes.map((change) => toChange(change.field, change.from, change.to));
   return entry(`log-${row.id}`, SECTION_OF[row.section], row.action, changes, actorOf(row.actor_kind, row.actor_name),
     row.occurred_at, { subject: row.subject_label, reason: row.reason });
 }
@@ -251,7 +251,7 @@ export function fromFlaggedChange(row: FlaggedChangeRow): HistoryEntry[] {
 }
 
 function requestChanges(changes: ChangeRequestRow['changes']): HistoryChange[] {
-  return (changes ?? []).map((change) => toChange(change.field, change.originalValue ?? null, change.proposedValue ?? null));
+  return changes.map((change) => toChange(change.field, change.originalValue ?? null, change.proposedValue ?? null));
 }
 
 export function fromChangeRequest(row: ChangeRequestRow): HistoryEntry {
