@@ -22,8 +22,8 @@ export const MUTANTS = [
     // (<=0 branch), calls setIsExpired(true), and both state updates are committed before assertions run.
     // In a real browser there would be a one-frame flash of "Active" before the effect fires; that
     // frame is unobservable in the jsdom/Vitest test harness, so the mutant is indistinguishable
-    // from the original. Boundary correctness is enforced by VEN-HOLD-EXP-01-BND-1 (useState path)
-    // and by M2 equivalence argument (useEffect path).
+    // from the original. The equality boundary is not pinned by any unit test for this specific
+    // path; the equivalence case is structural.
     equivalent: true },
   { id: 'M2', name: 'equality boundary weakened: <=0 to <0 in useEffect early-return (equivalent: dead branch at equality — useState initializer catches it with >= first so effect exits early)', file: HOOK,
     edits: [['if (msUntilExpiry <= 0) {', 'if (msUntilExpiry < 0) {']],
