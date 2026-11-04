@@ -6,7 +6,7 @@ import { formatSgtDateTime, formatSgtDateTimeRange, formatSgtTime, toSgtLocalInp
  * Expectations are literal SGT text, so they hold under any process time zone.
  */
 describe("Singapore am/pm formatting", () => {
-  /** A UTC instant reads 8 hours later, with lowercase am/pm; midnight and noon use 12. */
+  /** REQ-CHANGE-01-SUP-SGT: A UTC instant reads 8 hours later, with lowercase am/pm; midnight and noon use 12. */
   it("formats times in Singapore with am/pm", () => {
     expect(formatSgtTime("2026-11-10T10:30:00.000Z")).toBe("6:30 pm");
     expect(formatSgtTime("2026-11-10T16:00:00.000Z")).toBe("12:00 am");
@@ -14,7 +14,7 @@ describe("Singapore am/pm formatting", () => {
     expect(formatSgtDateTime("2026-11-10T01:00:00.000Z")).toBe("10 Nov 2026, 9:00 am");
   });
 
-  /** The date is named once on one Singapore day and twice across Singapore midnight. */
+  /** REQ-CHANGE-01-SUP-SGT: The date is named once on one Singapore day and twice across Singapore midnight. */
   it("formats a same-day range once and a range crossing midnight in full", () => {
     expect(formatSgtDateTimeRange("2026-11-10T10:00:00.000Z", "2026-11-10T14:00:00.000Z")).toBe(
       "10 Nov 2026, 6:00 pm – 10:00 pm",
@@ -24,7 +24,7 @@ describe("Singapore am/pm formatting", () => {
     );
   });
 
-  /** Date inputs are filled in Singapore wall time; an unreadable value leaves the input empty. */
+  /** REQ-CHANGE-01-SUP-SGT: Date inputs are filled in Singapore wall time; an unreadable value leaves the input empty. */
   it("converts an instant to a Singapore datetime-local value", () => {
     expect(toSgtLocalInput("2030-02-05T10:30:00.000Z")).toBe("2030-02-05T18:30");
     expect(toSgtLocalInput("2030-02-05T16:30:00.000Z")).toBe("2030-02-06T00:30");

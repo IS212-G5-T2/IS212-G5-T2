@@ -791,7 +791,7 @@ describe('VenuesRepository', () => {
       });
       expect(String(query.mock.calls[2][0])).toContain("status = 'pending' OR (status = 'approved' AND");
       expect(String(query.mock.calls[2][0])).toContain("request_kind <> 'tentative_hold' OR hold_expires_at IS NULL OR hold_expires_at > $3::timestamptz");
-      expect(query.mock.calls[2][1]).toEqual([
+      expect((query.mock.calls[2] as unknown[])[1]).toEqual([
         '00000000-0000-4000-8000-000000000099',
         venue.id,
         expect.any(Date),
@@ -1757,7 +1757,7 @@ describe('SPM-124 venue reads', () => {
     expect(query.mock.calls[2][0].replace(/\s+/g, ' ')).toContain(
       "((b.status = 'approved' AND b.request_kind <> 'tentative_hold') OR (b.status = 'approved' AND b.request_kind = 'tentative_hold' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > $3::timestamptz)) OR (b.status = 'pending' AND b.hold_expires_at > $3::timestamptz))",
     );
-    expect(result.affectedBookings).toContainEqual(
+    expect(result?.affectedBookings).toContainEqual(
       expect.objectContaining({ id: 'hold-null-expiry', status: 'tentative' }),
     );
     expect(query.mock.calls[2][1]).toEqual([
@@ -4343,7 +4343,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
 
     await expect(repository.processTentativeHoldReminders()).resolves.toEqual([holdId, 'hold-2']);
 
-    const [mark, markParams] = (clientQuery.mock.calls as Array<[string, unknown[]]>)[1];
+    const [mark, markParams] = (clientQuery.mock.calls as unknown as Array<[string, unknown[]]>)[1];
     const sql = norm(mark);
     expect(sql).toContain('UPDATE venue_bookings b SET hold_reminder_sent_at = $1::timestamptz');
     for (const guard of [
@@ -4542,7 +4542,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(marks[0]).toContain('type = $2');
     expect(marks[0]).toContain('read = false');
     expect(sqls.some((sql) => sql.startsWith('DELETE FROM notifications'))).toBe(false);
-    const call = (clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => norm(sql).startsWith('UPDATE notifications'))!;
+    const call = (clientQuery.mock.calls as unknown as Array<[string, unknown[]]>).find(([sql]) => norm(sql).startsWith('UPDATE notifications'))!;
     // The reminder type is the exported constant, bound as the second parameter (not a SQL literal).
     expect(call[1]).toEqual([holdId, 'tentative_hold_expiry_reminder']);
     const at = (needle: string) => sqls.findIndex((sql) => sql.includes(needle));
@@ -4566,7 +4566,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(marks[0]).toContain('type = $2');
     expect(marks[0]).toContain('related_booking_id = $1::uuid');
     expect(marks[0]).toContain('read = false');
-    const markCall = (clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => norm(sql).startsWith('UPDATE notifications'))!;
+    const markCall = (clientQuery.mock.calls as unknown as Array<[string, unknown[]]>).find(([sql]) => norm(sql).startsWith('UPDATE notifications'))!;
     expect(markCall[1]).toEqual([holdId, 'tentative_hold_expiry_reminder']);
     const sqls = sqlsOf(clientQuery);
     expect(sqls.findIndex((sql) => sql.includes("SET status = 'released'"))).toBeLessThan(sqls.findIndex((sql) => sql.startsWith('UPDATE notifications')));

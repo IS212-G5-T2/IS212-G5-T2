@@ -1,6 +1,6 @@
 /*
  * SPM-64 AC3: the change request notice shared by the request and the Lead's
- * assignment and reassignment. Test IDs: REQ-CHANGE-03-A, 03-C, 03-D.
+ * assignment and reassignment. Test IDs: REQ-CHANGE-03-A, REQ-CHANGE-03-C, REQ-CHANGE-03-D.
  */
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -36,7 +36,7 @@ describe('change request notice', () => {
     expect(params.slice(1)).toEqual(['coord-1', 'Message', EVENT_ID]);
   });
 
-  /** REQ-CHANGE-03-C, 03-D: a newly assigned coordinator is told about the pending request. */
+  /** REQ-CHANGE-03-C, REQ-CHANGE-03-D: a newly assigned coordinator is told about the pending request. */
   it('REQ-CHANGE-03-D notifies the new coordinator of a pending request', async () => {
     const db = client([{ requested_by: 'Organiser 1', changes: [{ field: 'description' }] }]);
     await expect(notifyPendingChangeRequest(db, EVENT_ID, 'Alumni Night', 'coord-2')).resolves.toBe(true);

@@ -54,7 +54,12 @@ describe('assessChangeRequest', () => {
   it('REVIEW-CHANGE-03-B reports no conflicts for a description or an unchanged value', () => {
     expect(
       assessChangeRequest(
-        { description: 'New', expectedAttendance: 80 },
+        {
+          description: 'New',
+          expectedAttendance: 80,
+          startDateTime: event.startDateTime,
+          endDateTime: event.endDateTime,
+        },
         event,
         [booking()],
         [projector],
@@ -71,7 +76,7 @@ describe('assessChangeRequest', () => {
     });
   });
 
-  /** REVIEW-CHANGE-03-A, 03-E: a move outside the held window lists the venue once with every reason and moves equipment. */
+  /** REVIEW-CHANGE-03-A, REVIEW-CHANGE-03-E: a move outside the held window lists the venue once with every reason and moves equipment. */
   it('REVIEW-CHANGE-03-A merges every reason per venue and lists equipment once', () => {
     const result = assessChangeRequest(
       {

@@ -1,6 +1,6 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventChangeRequestsPage } from "@/features/events/pages/EventChangeRequestsPage";
 import {
@@ -127,7 +127,7 @@ afterEach(cleanup);
 
 describe("EventChangeRequestsPage", () => {
   /**
-   * REQ-CHANGE-01-A, 04-A, 05-A: the organiser opens the form, submits a change,
+   * REQ-CHANGE-01-A, REQ-CHANGE-04-A, REQ-CHANGE-05-A: the organiser opens the form, submits a change,
    * sees the confirmation message and the new request as Pending, and cannot open
    * a second request while it is pending.
    */
@@ -244,43 +244,73 @@ describe("EventChangeRequestsPage", () => {
     expect(screen.getByRole("article")).toHaveTextContent("Pending review");
   });
 
-  /** A load that finishes after leaving the page changes nothing. */
-  it("ignores a load that settles after unmounting", async () => {
-    let resolveEvent!: (event: EventRecord) => void;
-    apiMock.mockImplementationOnce(() => new Promise((r) => (resolveEvent = r)) as never);
+  /**
+   * REQ-CHANGE-05-SUP-LOAD: moving to another event while the first event's load is still pending never shows the
+   * first event once the second has loaded. Replaces an unmount-only test that could not fail (React ignores state
+   * updates after unmount; SPM-175, mutant K22). Kills: EventChangeRequestsPage.tsx dropping the `active` guard.
+   */
+  it("REQ-CHANGE-05-SUP-LOAD keeps the newer event when an older load settles after it", async () => {
+    let resolveOld!: (event: EventRecord) => void;
+    apiMock
+      .mockImplementationOnce(() => new Promise((r) => (resolveOld = r)) as never)
+      .mockImplementationOnce(() => Promise.resolve(eventRecord({ id: "evt-2", name: "Newer Event" })) as never);
+    listMock.mockResolvedValue([]);
     useAppStore.setState({ currentUser: ORGANISER, isAuthenticated: true, authLoading: false });
-    const first = render(
+    function GoToNewer() {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate("/events/evt-2/change-requests")}>Go to newer</button>;
+    }
+    render(
       <MemoryRouter initialEntries={["/events/evt-1/change-requests"]}>
+        <GoToNewer />
         <Routes>
           <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
         </Routes>
       </MemoryRouter>,
     );
-    first.unmount();
-    resolveEvent(eventRecord());
-    let rejectEvent!: (error: unknown) => void;
-    apiMock.mockImplementationOnce(() => new Promise((_, r) => (rejectEvent = r)) as never);
-    const second = render(
-      <MemoryRouter initialEntries={["/events/evt-1/change-requests"]}>
-        <Routes>
-          <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-    second.unmount();
-    rejectEvent(new Error("late"));
-    await Promise.resolve();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Go to newer" }));
+    expect(await screen.findByText(/Newer Event/)).toBeInTheDocument();
+    // act() flushes the state update the older load makes, so a missing guard would show here.
+    await act(async () => resolveOld(eventRecord({ name: "Older Event" })));
+    expect(screen.queryByText(/Older Event/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Newer Event/)).toBeInTheDocument();
   });
 
-  /** An empty event response shows "Event not found." with a way back. */
+  /** REQ-CHANGE-05-SUP-LOAD: an older load that fails after the newer event loaded shows no error. Kills: the failure-path guard dropped. */
+  it("REQ-CHANGE-05-SUP-LOAD shows no error when an older load fails after a newer one", async () => {
+    let rejectOld!: (error: unknown) => void;
+    apiMock
+      .mockImplementationOnce(() => new Promise((_, r) => (rejectOld = r)) as never)
+      .mockImplementationOnce(() => Promise.resolve(eventRecord({ id: "evt-2", name: "Newer Event" })) as never);
+    listMock.mockResolvedValue([]);
+    useAppStore.setState({ currentUser: ORGANISER, isAuthenticated: true, authLoading: false });
+    function GoToNewer() {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate("/events/evt-2/change-requests")}>Go to newer</button>;
+    }
+    render(
+      <MemoryRouter initialEntries={["/events/evt-1/change-requests"]}>
+        <GoToNewer />
+        <Routes>
+          <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Go to newer" }));
+    expect(await screen.findByText(/Newer Event/)).toBeInTheDocument();
+    await act(async () => rejectOld(new Error("Older load failed.")));
+    expect(screen.queryByText("Older load failed.")).not.toBeInTheDocument();
+    expect(screen.getByText(/Newer Event/)).toBeInTheDocument();
+  });
+
+  /** REQ-CHANGE-05-SUP-LOAD: An empty event response shows "Event not found." with a way back. */
   it("shows Event not found when the event is missing", async () => {
     apiMock.mockResolvedValue(undefined as never);
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent("Event not found.");
   });
 
-  /** A non-Error failure still shows a readable message. */
+  /** REQ-CHANGE-05-SUP-LOAD: A non-Error failure still shows a readable message. */
   it("shows a generic message when loading fails without an Error", async () => {
     listMock.mockRejectedValue("offline");
     renderPage();
@@ -289,7 +319,7 @@ describe("EventChangeRequestsPage", () => {
 
   // ------------------------------------------------------------------ SPM-65
 
-  /** REVIEW-CHANGE-04-A, 06-A, 08-A, 09-A, 10-A: approving updates the list, confirms it and reloads the audit log. */
+  /** REVIEW-CHANGE-04-A, REVIEW-CHANGE-06-A, REVIEW-CHANGE-08-A, REVIEW-CHANGE-09-A, REVIEW-CHANGE-10-A: approving updates the list, confirms it and reloads the audit log. */
   it("REVIEW-CHANGE-06-A confirms an approval, says the safety check was reset and lists the re-checks", async () => {
     listMock.mockResolvedValue([changeRequest()]);
     const approved = changeRequest({
@@ -315,6 +345,7 @@ describe("EventChangeRequestsPage", () => {
     expect(recheckMock).toHaveBeenCalledWith("evt-1", "cr-1", "i1");
   });
 
+  /** REVIEW-CHANGE-06-A: the approval confirmation without a safety reset or re-check list. */
   it("confirms an approval without a reset or re-checks", async () => {
     // An older decided request stays as it was.
     listMock.mockResolvedValue([changeRequest(), changeRequest({ id: "cr-0", status: "Denied", decisionReason: "Earlier reason." })]);
@@ -326,7 +357,7 @@ describe("EventChangeRequestsPage", () => {
     expect(screen.getAllByRole("article")[1]).toHaveTextContent("Earlier reason.");
   });
 
-  /** REVIEW-CHANGE-05-A, 06-B: denying confirms it and shows the reason in the list. */
+  /** REVIEW-CHANGE-05-A, REVIEW-CHANGE-06-B: denying confirms it and shows the reason in the list. */
   it("REVIEW-CHANGE-06-B confirms a denial", async () => {
     listMock.mockResolvedValue([changeRequest()]);
     denyMock.mockResolvedValue({
@@ -355,6 +386,7 @@ describe("EventChangeRequestsPage", () => {
     expect(listMock).toHaveBeenCalledTimes(2);
   });
 
+  /** REVIEW-CHANGE-12-C: a failed reload after a stale decision keeps the request shown. */
   it("still shows the request when the reload after a stale decision fails", async () => {
     listMock.mockResolvedValueOnce([changeRequest()]).mockRejectedValueOnce(new Error("offline"));
     approveMock.mockRejectedValue(new ApiError("This change request has already been decided.", undefined, "change_request_decided", 409));

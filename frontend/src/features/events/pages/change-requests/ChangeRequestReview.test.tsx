@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChangeRequestReview } from "@/features/events/pages/change-requests/ChangeRequestReview";
@@ -80,6 +80,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.getByText("3 attendees are already registered; the requested attendance is 2")).toBeInTheDocument();
   });
 
+  /** REVIEW-CHANGE-03-A: the preview shows only the sections with conflicts. */
   it("hides sections without conflicts", async () => {
     previewMock.mockResolvedValue({ ...conflicts, venueBookings: [], registrations: { registered: 0, waitlisted: 0, details: [] } });
     renderReview();
@@ -88,6 +89,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.queryByText("Registrations")).not.toBeInTheDocument();
   });
 
+  /** REVIEW-CHANGE-03-I: a failed conflict check is explained and approval stays disabled. */
   it("shows why the preview could not load", async () => {
     previewMock.mockRejectedValue(new Error("Change request not found."));
     renderReview();
@@ -145,6 +147,7 @@ describe("ChangeRequestReview", () => {
     expect(approveMock).toHaveBeenCalledWith("evt-1", "cr-1");
   });
 
+  /** REVIEW-CHANGE-04-SUP-UI: the approval can be cancelled; no safety note without a safety check. */
   it("can cancel the approval and omits the safety note when none applies", async () => {
     const { user } = renderReview({ requiresSafetyCheck: false });
     await user.click(screen.getByRole("button", { name: "Approve Change" }));
@@ -164,6 +167,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.getByRole("button", { name: "Confirm Approval" })).toBeEnabled();
   });
 
+  /** REVIEW-CHANGE-06-B: a refused decision shows the server’s message. */
   it("shows other refusals without reloading", async () => {
     approveMock.mockRejectedValueOnce(new ApiError("A change to this detail is already awaiting review.", undefined, undefined, 409));
     const { user, onStale } = renderReview();
@@ -201,29 +205,57 @@ describe("ChangeRequestReview", () => {
     expect(denyMock).toHaveBeenCalledWith("evt-1", "cr-1", "The hall is too small.");
   });
 
+  /** REVIEW-CHANGE-05-B: the server’s reason error is shown and the denial can be cancelled. */
   it("shows the server's reason error and can cancel the denial", async () => {
     denyMock.mockRejectedValue(new ApiError("Use between 10 and 500 characters.", { reason: "Use between 10 and 500 characters." }, undefined, 400));
     const { user } = renderReview();
     await user.click(screen.getByRole("button", { name: "Deny Change" }));
     await user.type(screen.getByLabelText(/Reason for denying/), "A long enough reason.");
     await user.click(screen.getByRole("button", { name: "Confirm Denial" }));
-    expect(await screen.findByText("Use between 10 and 500 characters.")).toBeInTheDocument();
+    // The error is on the reason field itself (not only in the page message), asserted explicitly (SPM-175, mutant V15).
+    const reasonField = screen.getByLabelText(/Reason for denying/);
+    await waitFor(() => expect(reasonField).toHaveAttribute("aria-invalid", "true"));
+    expect(document.getElementById(reasonField.getAttribute("aria-describedby")!)).toHaveTextContent("Use between 10 and 500 characters.");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("button", { name: "Deny Change" })).toBeInTheDocument();
   });
 
-  it("ignores a preview that settles after the panel closes", async () => {
-    let resolve!: (value: ChangeRequestConflicts) => void;
-    let reject!: (error: unknown) => void;
+  /**
+   * REVIEW-CHANGE-03-SUP-LOAD: when the panel moves to another request while the first preview is still pending,
+   * the older preview never replaces the newer one.
+   * Kills: ChangeRequestReview.tsx dropping the `active` guard on a superseded preview.
+   */
+  it("REVIEW-CHANGE-03-SUP-LOAD keeps the newer preview when an older one settles after it", async () => {
+    let resolveOld!: (value: ChangeRequestConflicts) => void;
+    let resolveNew!: (value: ChangeRequestConflicts) => void;
     previewMock
-      .mockImplementationOnce(() => new Promise((r) => (resolve = r)))
-      .mockImplementationOnce(() => new Promise((_, r) => (reject = r)));
-    render(<ChangeRequestReview request={request} onApproved={vi.fn()} onDenied={vi.fn()} onStale={vi.fn()} />).unmount();
-    render(<ChangeRequestReview request={request} onApproved={vi.fn()} onDenied={vi.fn()} onStale={vi.fn()} />).unmount();
-    resolve(conflicts);
-    reject(new Error("late"));
-    await Promise.resolve();
+      .mockImplementationOnce(() => new Promise((r) => (resolveOld = r)))
+      .mockImplementationOnce(() => new Promise((r) => (resolveNew = r)));
+    const handlers = { onApproved: vi.fn(), onDenied: vi.fn(), onStale: vi.fn() };
+    const { rerender } = render(<ChangeRequestReview request={request} {...handlers} />);
+    rerender(<ChangeRequestReview request={{ ...request, id: "cr-newer" }} {...handlers} />);
+    resolveNew({ ...conflicts, requestId: "cr-newer", venueBookings: [], equipment: [], registrations: { registered: 0, waitlisted: 0, details: [] }, hasConflicts: false });
+    expect(await screen.findByText("No conflicts with existing bookings or registrations.")).toBeInTheDocument();
+    // act() flushes the state update a settled preview makes, so a missing guard would show here.
+    await act(async () => resolveOld(conflicts));
+    expect(screen.getByText("No conflicts with existing bookings or registrations.")).toBeInTheDocument();
+    expect(screen.queryByText("Attendance 120 exceeds capacity 100")).not.toBeInTheDocument();
+  });
+
+  /** REVIEW-CHANGE-03-SUP-LOAD: an older preview that fails after the newer one loaded shows no error. Kills: the failure-path guard dropped. */
+  it("REVIEW-CHANGE-03-SUP-LOAD shows no error when an older preview fails after a newer one", async () => {
+    let rejectOld!: (error: unknown) => void;
+    previewMock
+      .mockImplementationOnce(() => new Promise((_, r) => (rejectOld = r)))
+      .mockResolvedValueOnce({ ...conflicts, requestId: "cr-newer", venueBookings: [], equipment: [], registrations: { registered: 0, waitlisted: 0, details: [] }, hasConflicts: false });
+    const handlers = { onApproved: vi.fn(), onDenied: vi.fn(), onStale: vi.fn() };
+    const { rerender } = render(<ChangeRequestReview request={request} {...handlers} />);
+    rerender(<ChangeRequestReview request={{ ...request, id: "cr-newer" }} {...handlers} />);
+    expect(await screen.findByText("No conflicts with existing bookings or registrations.")).toBeInTheDocument();
+    await act(async () => rejectOld(new Error("Older preview failed.")));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("No conflicts with existing bookings or registrations.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve Change" })).toBeEnabled();
   });
 
   it("REVIEW-CHANGE-01-F marks the event's change request notice read when the review opens", async () => {

@@ -43,7 +43,8 @@ export const MUTANTS = [
     edits: [["  @Header('Cache-Control', 'no-store')\n", '']],
     suites: both },
   { id: 'Q7', name: 'expired booking statuses read as active: cancelled bookings still flag the venue (09-B)', file: SERVICE,
-    edits: [["AND b.status IN ('pending', 'approved')", "AND b.status IN ('pending', 'approved', 'cancelled')"]],
+    // SPM-175: SPM-132 (3 Nov 2026) added 'expired' to the status list; the edit tracks the current text.
+    edits: [["AND b.status IN ('pending', 'approved', 'expired')", "AND b.status IN ('pending', 'approved', 'expired', 'cancelled')"]],
     suites: ['e2e', 'unit'] },
   { id: 'Q8', name: 'blockout overlap check dropped: every booking at a venue with any period flagged unavailable (09-A)', file: UNAVAILABLE,
     edits: [["       AND u.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)\n       AND u.end_at > b.start_at - make_interval(mins => v.setup_time_minutes))", ')']],
