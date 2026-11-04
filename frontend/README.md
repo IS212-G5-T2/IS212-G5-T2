@@ -202,6 +202,17 @@ The standard Vitest command loads `vitest.config.ts`, which selects both
 `src/**/*.test.ts` and `src/**/*.test.tsx`. Playwright specs use their separate
 browser runner.
 
+SPM-134 browser spec (`src/features/bookings/pages/requests/BookingsPage.hold-expiry.playwright.spec.ts`): it needs a
+backend started with `TENTATIVE_HOLD_EXPIRY_INTERVAL_MS=1000` (its own scheduler writes the notices), a Vite dev server
+pointing at it, and three seeded holds. Run it through the harness
+(`node scripts/testing/run-browser.mjs <spec path>` in `backend/`, with `TEST_DATABASE_URL`, `PLAYWRIGHT_BASE_URL` and
+`PLAYWRIGHT_API_URL`), which seeds and removes the fixtures only when that spec is selected. To run it from the
+test-workflow cycle (`ai/scripts/test-workflow/run-cycle.mjs`, which calls Playwright directly), seed first with
+`TEST_DATABASE_URL=<db> node backend/scripts/testing/spm134-hold-fixtures.mjs seed > fixtures.json`, export the variables
+in that file together with `PLAYWRIGHT_BASE_URL` and `PLAYWRIGHT_API_URL`, run the cycle, then remove the rows with
+`node backend/scripts/testing/spm134-hold-fixtures.mjs cleanup fixtures.json`. Run the cycle's real-database suites on a
+different database from the one the browser backend uses, because they drive the expiry processors with far-future clocks.
+
 ## Authentication
 
 `/login` calls the backend's `/api/auth/login`; session restoration and logout

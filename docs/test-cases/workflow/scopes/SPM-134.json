@@ -1,0 +1,143 @@
+{
+  "story": "SPM-134",
+  "title": "Be notified of hold expiry (Event Coordinator)",
+  "note": "Test-first authoring 4 Nov 2026 (iteration 1 red run: ai/runtime/test-cycles/SPM-134/red-run; iteration 2 red run for the AC11 and expired-timestamp tests: red-run-02). 68 HOLD-EXP-NOTIF ids, all PRIMARY and approved by the story owner chaw678 on 4 Nov 2026 (AC11 is story-owner directed); Confluence matrix 41582744 and case pages HOLD-EXP-NOTIF-01 to 11 (folder 41156807). Shared files use titleMatch ^HOLD-EXP-NOTIF- so other stories' tests in them are not in scope. Spec decisions SC-SPM134-01 (expiry date format), 02 (reassignment marks the previous Coordinator's unread hold notices read) and 03 (a released hold's details show its expiry) were accepted by chaw678 on 4 Nov 2026; Jira AC4, AC6 and the new AC11 carry the story owner's changes (the expired notice is stamped with the hold's expiry time; a converted hold shows no expiry). Stacked on SPM-165 (hold notice pattern, /bookings?booking= link, read-only dialog), SPM-133 (expiry processor, scheduler) and SPM-132 (release and convert). SPM-165 tests VENUE-HOLD-NOTIF-03-I and 03-J were changed for this story. The browser cases (06-INT-1, 06-INT-2) run through backend/scripts/testing/run-browser.mjs fixtures with the backend started with TENTATIVE_HOLD_EXPIRY_INTERVAL_MS=1000; a cycle run seeds them first with `backend/scripts/testing/spm134-hold-fixtures.mjs seed`, exports the printed variables plus PLAYWRIGHT_BASE_URL and PLAYWRIGHT_API_URL, runs the cycle with the real-database suites on a different database from the browser backend, and removes the rows with `... cleanup` (documented in frontend/README.md). Mutants: backend spm134.mutants.mjs (36) and frontend spm134.mutants.mjs (8); the unrendered NotificationItem icon has no mutant. linesFrom changed-lines needs the story's commits, so G5 on changed lines can only run after the work is committed. SC-SPM134-05 (a reminder that finds no Coordinator is consumed, pinned by 09-E) and the SC-SPM134-01 addendum (September renders as \"Sept\") were decided by chaw678 on 4 Nov 2026. The e2e suite restores every venue_bookings row and notification it did not create (F-02).",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/venues/review/hold-lifecycle-notice.spec.ts"
+      },
+      {
+        "glob": "backend/src/venues/repository/venues.repository.spec.ts",
+        "titleMatch": "^HOLD-EXP-NOTIF-"
+      },
+      {
+        "glob": "backend/src/venues/tentative-hold-expiry.scheduler.spec.ts",
+        "titleMatch": "^HOLD-EXP-NOTIF-"
+      },
+      {
+        "glob": "backend/src/events/hold-lifecycle-notifications.spec.ts"
+      },
+      {
+        "glob": "backend/src/lead/lead-assignment.service.spec.ts",
+        "titleMatch": "^HOLD-EXP-NOTIF-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/tentative-hold-lifecycle-notifications.e2e-spec.ts"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "^HOLD-EXP-NOTIF-"
+      },
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx",
+        "titleMatch": "^HOLD-EXP-NOTIF-"
+      }
+    ],
+    "browser": [
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.hold-expiry.playwright.spec.ts"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/venues/review/hold-lifecycle-notice.ts",
+      "backend/src/venues/repository/venues.repository.ts",
+      "backend/src/venues/tentative-hold-expiry.scheduler.ts",
+      "backend/src/registrations/helpers/messages.ts",
+      "backend/src/events/events.service.ts",
+      "backend/src/lead/lead-assignment.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationBell.tsx",
+      "frontend/src/components/notifications/NotificationRow.tsx",
+      "frontend/src/features/bookings/pages/requests/CoordinatorBookingDialog.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    },
+    {
+      "id": "browser",
+      "cwd": "frontend",
+      "tests": "browser",
+      "runner": "playwright",
+      "config": "playwright.config.ts",
+      "coverage": null,
+      "env": [
+        "PLAYWRIGHT_BASE_URL"
+      ]
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm134",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm134.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm134.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm134",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm134.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm134.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

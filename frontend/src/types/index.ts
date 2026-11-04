@@ -464,6 +464,14 @@ export type NotificationType =
   /** SPM-165: Venue Staff approved or rejected a tentative hold request for the coordinator's event. */
   | "tentative_hold_approved"
   | "tentative_hold_rejected"
+  /** SPM-134: the coordinator's tentative hold is about to expire, has expired, or was released or converted by Venue Staff. */
+  | "tentative_hold_expiry_reminder"
+  | "tentative_hold_expired"
+  | "tentative_hold_released"
+  | "tentative_hold_converted"
+  /** SPM-172: Technical Support reserved or could not provide the Coordinator's equipment request. */
+  | "equipment_request_reserved"
+  | "equipment_request_cannot_provide"
   | "event_change"
   | "registration"
   | "confirmation"
@@ -489,6 +497,14 @@ export const VENUE_DECISION_NOTICE_TYPES = [
   "tentative_hold_rejected",
 ] as const satisfies readonly NotificationType[];
 
+/** SPM-134: the Coordinator's tentative hold expiry, release and conversion notices (mirrors the backend list). */
+export const HOLD_LIFECYCLE_NOTICE_TYPES = [
+  "tentative_hold_expiry_reminder",
+  "tentative_hold_expired",
+  "tentative_hold_released",
+  "tentative_hold_converted",
+] as const satisfies readonly NotificationType[];
+
 export interface Notification {
   id: string;
   audienceRole: UserRole;
@@ -500,6 +516,8 @@ export interface Notification {
   relatedEventName?: string | null;
   /** SPM-137 and SPM-125 AC7: the booking a venue booking notice is about (the bell links to it); null or absent otherwise. */
   relatedBookingId?: string | null;
+  /** SPM-172: the equipment request an equipment decision notice is about (the bell links to it); null or absent otherwise. */
+  relatedEquipmentRequestId?: string | null;
   read: boolean;
   createdAt: string;
 }

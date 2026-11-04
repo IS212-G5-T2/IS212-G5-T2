@@ -812,4 +812,55 @@ describe("EventDetailPage", () => {
     const venueTerm = screen.getByText("Venue", { selector: "dt" });
     expect(venueTerm.nextElementSibling).toHaveTextContent("Not yet booked");
   });
+
+  function renderEvent(event: EventRecord) {
+    return render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  /** The organiser of a draft sees Edit and Submit For Review; submitting moves the event to submitted. */
+  it("lets an organiser submit a draft for review", async () => {
+    const event = { ...assignedEvent(), status: "draft" as const };
+    useAppStore.setState({
+      currentUser: { id: "current-user", name: "Demo Organiser", email: "o@example.test", role: "organiser" },
+    });
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    renderEvent(event);
+
+    expect(await screen.findByRole("link", { name: "Edit" })).toHaveAttribute("href", `/events/${event.id}/edit`);
+    fireEvent.click(screen.getByRole("button", { name: "Submit For Review" }));
+
+    expect(useAppStore.getState().events.find((e) => e.id === event.id)?.status).toBe("submitted");
+    expect(screen.queryByRole("button", { name: "Submit For Review" })).not.toBeInTheDocument();
+  });
+
+  /** An attendee opens an attached file from the attendee view as a Blob object URL. */
+  it("opens an attachment from the attendee view as a Blob object URL", async () => {
+    const event = { ...assignedEvent(), status: "confirmed" as const };
+    useAppStore.setState({
+      currentUser: { id: "att-1", name: "Attendee", email: "a@example.test", role: "attendee" },
+      registrations: [],
+    });
+    apiMock.mockImplementation((path: string) => {
+      if (path.includes("/comments")) return Promise.resolve([]);
+      if (path.endsWith("/registrations/me")) return Promise.resolve({ registration: null });
+      return Promise.resolve(event);
+    });
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+    renderEvent(event);
+
+    fireEvent.click(await screen.findByRole("button", { name: "View" }));
+
+    const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
+    expect((blob as Blob).type).toBe("text/plain");
+    expect(openSpy).toHaveBeenCalledWith("blob:mock-url", "_blank", "noopener,noreferrer");
+  });
+
 });

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/utils/api';
-import { markRequestCannotProvide, getAssignedEvents, getEquipmentRequestQueue, getMyEquipmentRequests, submitEquipmentRequest, updateEquipmentRequest } from './equipment-requests-api';
+import { reserveEquipmentRequest, markRequestCannotProvide, getAssignedEvents, getEquipmentRequestQueue, getMyEquipmentRequests, submitEquipmentRequest, updateEquipmentRequest } from './equipment-requests-api';
 
 vi.mock('@/utils/api', () => ({ api: vi.fn() }));
 const apiMock = vi.mocked(api);
@@ -44,5 +44,11 @@ describe('SPM-57 equipment request API', () => {
   it('sends the Cannot provide reason to the request-specific endpoint', () => {
     markRequestCannotProvide('request-58', 'Only 8 available');
     expect(apiMock).toHaveBeenCalledWith('/equipment/requests/request-58/cannot-provide', { method: 'PATCH', body: JSON.stringify({ reason: 'Only 8 available' }) });
+  });
+
+  /** Reserve PATCHes the request-specific reserve endpoint. */
+  it('sends the reserve action to the request-specific endpoint', () => {
+    reserveEquipmentRequest('request-59');
+    expect(apiMock).toHaveBeenCalledWith('/equipment/requests/request-59/reserve', { method: 'PATCH' });
   });
 });

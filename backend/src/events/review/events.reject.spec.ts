@@ -56,6 +56,7 @@ const VALID_REASON = 'Venue unavailable for the requested date.';
 // SPM-64 AC3 adds the organiser's change request notice to the coordinator's feed.
 // SPM-131 adds the Safety Officer's response notice to the coordinator's feed.
 // SPM-137 adds the two venue booking decision notices (approved, rejected); SPM-165 the two tentative hold ones.
+// SPM-134 adds the four tentative hold expiry, release and conversion notices.
 // SPM-171 adds the Organiser's cancellation request notice.
 const COORDINATOR_NOTIFICATION_TYPES = [
   'coordinator_assignment',
@@ -68,7 +69,15 @@ const COORDINATOR_NOTIFICATION_TYPES = [
   'venue_booking_rejected',
   'tentative_hold_approved',
   'tentative_hold_rejected',
+  // SPM-134: the hold expiry reminder, expired, released and converted notices.
+  'tentative_hold_expiry_reminder',
+  'tentative_hold_expired',
+  'tentative_hold_released',
+  'tentative_hold_converted',
   'cancellation_request_submitted',
+  // SPM-172: Technical Support reserved or could not provide the Coordinator's equipment request.
+  'equipment_request_reserved',
+  'equipment_request_cannot_provide',
   // SPM-125 AC6 to AC9: a venue change affects one of the Coordinator's bookings.
   'venue_unavailable_impact',
   'venue_timing_impact',

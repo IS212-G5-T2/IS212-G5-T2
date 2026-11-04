@@ -26,8 +26,8 @@ interface SgtFields {
 }
 
 function sgtFields(value: Date): SgtFields {
-  const parts = SGT_PARTS.formatToParts(value);
-  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  const values = Object.fromEntries(SGT_PARTS.formatToParts(value).map((p) => [p.type, p.value])) as Record<string, string>;
+  const part = (type: string) => values[type];
   return {
     day: Number(part('day')),
     month: Number(part('month')),

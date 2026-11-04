@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { Link } from "react-router-dom";
-import { VENUE_DECISION_NOTICE_TYPES, type Notification } from "@/types";
+import { HOLD_LIFECYCLE_NOTICE_TYPES, VENUE_DECISION_NOTICE_TYPES, type Notification } from "@/types";
 import { formatDateTime, formatDecisionDate, timeAgo } from "@/utils/format";
 
 // SPM-88 AC3: the bell never shows a reason; it is on the event detail page (AC4). Rejection messages carry none.
@@ -22,15 +22,26 @@ function headlineOf(message: string, type: Notification["type"], eventName?: str
 }
 
 const CHANGE_REQUEST_DECISIONS = new Set<Notification["type"]>(["change_request_approved", "change_request_denied"]);
-// SPM-137: a venue booking decision (SPM-165: and a tentative hold decision) opens the Coordinator's Bookings page for that booking, not an event page.
+// SPM-137: a venue booking decision (SPM-165: and a tentative hold decision; SPM-134: and a hold expiry reminder, expired,
+// released or converted notice) opens the Coordinator's Bookings page for that booking, not an event page.
 // SPM-125 AC7: so does a notice that a Venue Staff change (unavailability, setup or turnaround, capacity) affects
 // the booking, where the Coordinator can find a replacement venue (SPM-54 AC5).
 const BOOKING_NOTICES = new Set<Notification["type"]>([
   ...VENUE_DECISION_NOTICE_TYPES,
+  ...HOLD_LIFECYCLE_NOTICE_TYPES,
   "venue_unavailable_impact",
   "venue_timing_impact",
   "venue_capacity_impact",
 ]);
+
+// SPM-172: an equipment request decision opens the Coordinator's equipment requests page with that request highlighted.
+// A notice with no request id (older data) still opens /equipment/requests, just without a request selected.
+const EQUIPMENT_NOTICES = new Set<Notification["type"]>(["equipment_request_reserved", "equipment_request_cannot_provide"]);
+function equipmentLinkTarget(n: Notification) {
+  return n.relatedEquipmentRequestId
+    ? `/equipment/requests?request=${encodeURIComponent(n.relatedEquipmentRequestId)}`
+    : "/equipment/requests";
+}
 
 /**
  * One unread notification inside the top-bar bell dropdown (SPM-88, SC-SPM88-10). Every type uses the same
@@ -51,6 +62,7 @@ export function NotificationRow({
   const headline = headlineOf(n.message, n.type, n.relatedEventName);
   const isChangeRequest = CHANGE_REQUEST_DECISIONS.has(n.type);
   const isBooking = BOOKING_NOTICES.has(n.type);
+  const isEquipment = EQUIPMENT_NOTICES.has(n.type);
   // A notice with no booking id (older data) still opens the Bookings page, just without a booking selected.
   const linkTarget = isBooking
     ? n.relatedBookingId
@@ -58,7 +70,9 @@ export function NotificationRow({
       : "/bookings"
     : isChangeRequest
       ? `/events/${n.relatedEventId}/change-requests`
-      : `/events/${n.relatedEventId}`;
+      : isEquipment
+        ? equipmentLinkTarget(n)
+        : `/events/${n.relatedEventId}`;
   const linkLabel = isBooking ? "View Booking" : isChangeRequest ? "View Change Request" : "View Request";
   // SPM-47 AC8: an unassignment has no link, the event now belongs to another coordinator.
   const hasLink = n.type !== "coordinator_unassignment";

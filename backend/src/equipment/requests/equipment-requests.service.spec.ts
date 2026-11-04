@@ -202,3 +202,16 @@ describe('SPM-57 equipment request service', () => {
     expect(update).toHaveBeenCalledOnce();
   });
 });
+
+describe('SPM-113 reserve authentication and lookup', () => {
+  it('refuses an unauthenticated reserve without touching the repository', async () => {
+    reserve.mockClear();
+    await expect(service.reserve(undefined, '00000000-0000-4000-8000-000000000099')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(reserve).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 when the request to reserve does not exist', async () => {
+    reserve.mockResolvedValue({ kind: 'request-not-found' });
+    await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});

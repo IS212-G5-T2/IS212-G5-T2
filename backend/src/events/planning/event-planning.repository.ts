@@ -200,11 +200,13 @@ function optionalIso(value: unknown): string | undefined {
   return value === null || value === undefined ? undefined : iso(value);
 }
 
+/* v8 ignore start -- TypeScript decorator metadata emits an unreachable fallback branch. */
 @Injectable()
 export class EventPlanningRepository {
   private readonly context = new AsyncLocalStorage<pg.PoolClient>();
 
   constructor(private readonly database: DatabaseService) {}
+/* v8 ignore stop */
 
   /** Runs `work` in one transaction; nested calls reuse the outer one. */
   runInTransaction<T>(work: () => Promise<T>): Promise<T> {

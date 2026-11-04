@@ -66,6 +66,18 @@ describe("equipment API contracts", () => {
     expect(apiMock).toHaveBeenCalledWith("/equipment/locations");
   });
 
+  /** EQUIP-AVAIL-01: with no equipment type the query carries only the window. */
+  it("omits the equipment type from the availability query when none is selected", () => {
+    getEquipmentAvailability({
+      startDateTime: "2030-02-01T09:00:00.000Z",
+      endDateTime: "2030-02-01T10:00:00.000Z",
+    });
+
+    expect(apiMock).toHaveBeenCalledWith(
+      "/equipment/availability?startDateTime=2030-02-01T09%3A00%3A00.000Z&endDateTime=2030-02-01T10%3A00%3A00.000Z",
+    );
+  });
+
   /** EQUIP-AVAIL-01: a period check sends ISO instants and an exact optional type filter. */
   it("gets event-window availability with the selected equipment type", () => {
     getEquipmentAvailability({

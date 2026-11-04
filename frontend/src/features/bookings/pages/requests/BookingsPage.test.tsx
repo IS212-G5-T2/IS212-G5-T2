@@ -1532,8 +1532,8 @@ describe("Coordinator tentative hold opened from a notification (SPM-165 AC3)", 
 
   /**
    * VENUE-HOLD-NOTIF-03-I (SPM-165 AC3, SPM-132 integration): a hold the SPM-132 scheduler has persisted as expired
-   * (status 'expired') still shows "Hold expired" with its expiry in Singapore time; a released hold shows no expiry
-   * line; a converted hold (now a booking) shows no hold lines.
+   * (status 'expired') still shows "Hold expired" with its expiry in Singapore time; a released hold shows its expiry
+   * under "Hold expiry" (SPM-134); a converted hold (now a booking) shows no hold lines.
    * Kills: hiding the expiry once the status is 'expired', showing an expiry for a released hold, hold lines after conversion.
    */
   it("VENUE-HOLD-NOTIF-03-I shows Hold expired for a persisted expired hold, none for released or converted", async () => {
@@ -1548,12 +1548,87 @@ describe("Coordinator tentative hold opened from a notification (SPM-165 AC3)", 
     const second = renderPage("/bookings?booking=hold-1");
     const released = await detailsDialog();
     expect(within(released).getByText("released")).toBeInTheDocument();
-    expect(within(released).queryByText(/Hold expire/)).toBeNull();
+    // Changed 4 Nov 2026 (SPM-134 AC6, SC-SPM134-03): a released hold now shows the expiry it had, labelled "Hold expiry".
+    expect(within(released).getByText("Hold expiry")).toBeInTheDocument();
+    expect(within(released).queryByText(/Hold expire[sd]/)).toBeNull();
     second.unmount();
 
     apiMock.mockResolvedValueOnce([{ ...hold, requestKind: "booking", status: "approved", holdExpiresAt: undefined }] as never);
     renderPage("/bookings?booking=hold-1");
     const converted = await detailsDialog();
     expect(within(converted).queryByText(/Tentative hold|Hold expire/)).toBeNull();
+  });
+});
+
+describe("Coordinator tentative hold opened from an expiry, release or conversion notification (SPM-134 AC6)", () => {
+  const hold = { ...booking, id: "hold-1", requestKind: "tentative_hold" as const, holdExpired: false };
+  const detailsDialog = () => screen.findByRole("dialog", { name: /Booking details/ });
+
+  /**
+   * HOLD-EXP-NOTIF-06-C (SPM-134 AC6): /bookings?booking=hold-1 from a reminder opens the active hold's details with its
+   * status (approved) and its expiry time in Singapore time.
+   * Kills: no expiry for an active hold, a wrong time zone, the wrong label ("Hold expired" before the expiry).
+   */
+  it("HOLD-EXP-NOTIF-06-C opens an active hold from a reminder with its status and expiry time", async () => {
+    apiMock.mockResolvedValueOnce([{ ...hold, status: "approved", holdExpiresAt: "2030-06-03T16:30:00.000Z" }] as never);
+
+    renderPage("/bookings?booking=hold-1");
+
+    const dialog = await detailsDialog();
+    expect(within(dialog).getByText("approved")).toBeInTheDocument();
+    expect(within(dialog).getByText("Hold expires")).toBeInTheDocument();
+    expect(within(dialog).getByText("04 Jun 2030, 00:30 SGT")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Hold expired")).toBeNull();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-06-D (SPM-134 AC6): opened from an expired notice, the hold shows its status (expired) and the expiry
+   * time under "Hold expired".
+   * Kills: hiding the expiry once the status is expired, the active label on an expired hold.
+   */
+  it("HOLD-EXP-NOTIF-06-D opens an expired hold from the expired notice with its status and expiry time", async () => {
+    apiMock.mockResolvedValueOnce([{ ...hold, status: "expired", holdExpiresAt: "2030-06-03T16:30:00.000Z", holdExpired: true }] as never);
+
+    renderPage("/bookings?booking=hold-1");
+
+    const dialog = await detailsDialog();
+    expect(within(dialog).getByText("expired")).toBeInTheDocument();
+    expect(within(dialog).getByText("Hold expired")).toBeInTheDocument();
+    expect(within(dialog).getByText("04 Jun 2030, 00:30 SGT")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Hold expires")).toBeNull();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-06-E (SPM-134 AC6, SC-SPM134-03, confirmed by the story owner chaw678 on 4 Nov 2026): opened from a released notice, the hold shows its status
+   * (released) and the expiry time it had, labelled "Hold expiry" (it no longer "expires").
+   * Kills: dropping the expiry of a released hold, "Hold expires" on a hold that was released.
+   */
+  it("HOLD-EXP-NOTIF-06-E opens a released hold from the released notice with its status and its expiry time", async () => {
+    apiMock.mockResolvedValueOnce([{ ...hold, status: "released", holdExpiresAt: "2030-06-03T16:30:00.000Z" }] as never);
+
+    renderPage("/bookings?booking=hold-1");
+
+    const dialog = await detailsDialog();
+    expect(within(dialog).getByText("released")).toBeInTheDocument();
+    expect(within(dialog).getByText("Hold expiry")).toBeInTheDocument();
+    expect(within(dialog).getByText("04 Jun 2030, 00:30 SGT")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Hold expires")).toBeNull();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-06-F (SPM-134 AC6): opened from a converted notice, the hold (now an ordinary booking) shows its status
+   * approved and no hold lines, because the conversion clears the hold expiry.
+   * Kills: showing "Tentative hold" or a hold expiry for a converted booking.
+   */
+  it("HOLD-EXP-NOTIF-06-F opens a converted hold from the converted notice as an approved booking", async () => {
+    // AC6: a converted hold no longer has an expiry. A stale expiry in the data on purpose: it must still not be shown.
+    apiMock.mockResolvedValueOnce([{ ...hold, requestKind: "booking", status: "approved", holdExpiresAt: "2030-06-03T16:30:00.000Z" }] as never);
+
+    renderPage("/bookings?booking=hold-1");
+
+    const dialog = await detailsDialog();
+    expect(within(dialog).getByText("approved")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Tentative hold|Hold expire/)).toBeNull();
+    expect(within(dialog).queryByText("04 Jun 2030, 00:30 SGT")).toBeNull();
   });
 });

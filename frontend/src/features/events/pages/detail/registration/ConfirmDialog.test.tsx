@@ -81,3 +81,13 @@ describe("CDLG-04: the withdrawal warning once registration has closed", () => {
     expect(screen.queryByText(closedWarning)).not.toBeInTheDocument();
   });
 });
+
+describe("CDLG-01: the leave-waitlist warning without a known place", () => {
+  it.each([null, undefined])("CDLG-01-C-STATE: position %s omits the place and keeps the cannot-be-restored warning", (position) => {
+    render(<ConfirmDialog {...baseProps} variant="leave-waitlist" position={position} />);
+
+    const dialog = screen.getByRole("dialog", { name: "Leave the waitlist?" });
+    expect(within(dialog).getByText("Once you leave, it can't be restored.")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Your place is #/)).not.toBeInTheDocument();
+  });
+});

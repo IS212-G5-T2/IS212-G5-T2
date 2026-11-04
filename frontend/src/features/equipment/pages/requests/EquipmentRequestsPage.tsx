@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '@/store/useAppStore';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -17,6 +17,8 @@ export function EquipmentRequestsPage() {
   const currentUser = useAppStore((s) => s.currentUser);
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedEventId = searchParams.get('eventId');
+  // SPM-172 AC3: a decision notification links to ?request=<id>; that request is highlighted once the list has loaded.
+  const linkedRequestId = searchParams.get('request');
   const [requests, setRequests] = useState<EquipmentRequestRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -53,6 +55,18 @@ export function EquipmentRequestsPage() {
   }, [isCoordinator]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // Scroll once per linked request, when its card first exists; a later refresh (for example after deciding another card) must not scroll again.
+  const scrolledRequestId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!linkedRequestId || loading || scrolledRequestId.current === linkedRequestId) return;
+    const card = document.getElementById(`equipment-request-${linkedRequestId}`);
+    if (!card) return;
+    scrolledRequestId.current = linkedRequestId;
+    card.scrollIntoView?.({ block: 'center' });
+  }, [linkedRequestId, loading, requests]);
+  // Only a list that loaded can say the linked request is missing (for example its event was reassigned).
+  const linkedMissing = Boolean(linkedRequestId) && !loading && !error && !requests.some((record) => record.id === linkedRequestId);
 
   const approveRequest = async (requestId: string) => {
     setError('');
@@ -100,9 +114,11 @@ export function EquipmentRequestsPage() {
       reference={confirmation.reference}
       onDismiss={dismissConfirmation}
     />}
+    {linkedMissing && <p role="status" className="mb-4 rounded-md bg-warning-50 px-3 py-2 text-sm text-warning-800">That equipment request is no longer available to you.</p>}
     <section aria-label={isCoordinator ? 'My Equipment Requests' : 'Technical Support review queue'}>
       {loading ? <p role="status">Loading equipment requests…</p> : requests.length === 0 ? <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-gray-500">No equipment requests to display.</p> :
-        <div className="space-y-3">{requests.map((record) => <Card key={record.id}><CardBody>
+        <div className="space-y-3">{requests.map((record) => <Card key={record.id} id={`equipment-request-${record.id}`} aria-current={record.id === linkedRequestId ? 'true' : undefined}
+          className={record.id === linkedRequestId ? 'ring-2 ring-primary-500' : undefined}><CardBody>
           <div className="flex items-start justify-between gap-3"><div><h2 className="font-medium">{record.eventName}</h2>
             <p className="text-sm text-gray-500">Start: {new Date(record.eventStart).toLocaleString()}</p>
             <p className="text-sm text-gray-500">End: {new Date(record.eventEnd).toLocaleString()}</p>

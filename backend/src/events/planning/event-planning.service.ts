@@ -102,9 +102,11 @@ type Access = {
   isCoordinator: boolean;
 };
 
+/* v8 ignore start -- TypeScript decorator metadata emits an unreachable fallback branch. */
 @Injectable()
 export class EventPlanningService {
   constructor(private readonly repository: EventPlanningRepository) {}
+/* v8 ignore stop */
 
   // ---------------------------------------------------------------- SPM-97 / SPM-49 AC1
 
@@ -801,10 +803,9 @@ function fieldModes(
         return hasVenues
           ? { field, mode: 'conditional', condition: { kind: 'remove_only' } }
           : { field, mode: 'direct' };
-      case 'equipmentNeeds':
-        return { field, mode: hasEquipment ? 'needs_review' : 'direct' };
       default:
-        return { field, mode: 'direct' };
+        // equipmentNeeds is the last review_if_impacting field, so the default is the only remaining case.
+        return { field, mode: hasEquipment ? 'needs_review' : 'direct' };
     }
   });
 }

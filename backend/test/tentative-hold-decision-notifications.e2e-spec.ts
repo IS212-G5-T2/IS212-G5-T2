@@ -318,12 +318,12 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
 
   /**
    * VENUE-HOLD-NOTIF-03-J (SPM-165 AC3 with SPM-132): after the hold decision, converting, releasing or expiring a hold
-   * (SPM-132) writes no further notification; the original notice's booking still opens from the Coordinator's list with
+   * (SPM-132) writes no further SPM-165 decision notice (SPM-134 adds its own lifecycle notice); the original notice's booking still opens from the Coordinator's list with
    * the current status and type (converted: a booking with no hold expiry; released; expired with holdExpired true).
    * Kills: a hold lifecycle action writing an SPM-165 notice, a converted hold still reported as a hold, an expired hold
    * not reported as expired, the notice's booking dropping out of the Coordinator's list.
    */
-  it('VENUE-HOLD-NOTIF-03-J convert, release and expiry of an approved hold write no notice and keep the link openable', async () => {
+  it('VENUE-HOLD-NOTIF-03-J convert, release and expiry of an approved hold write no further decision notice and keep the link openable', async () => {
     const w = await world();
     const releasable = await addPending(w.venue.id, w.eventId, '2030-03-02T06:00:00.000Z', '2030-03-02T07:00:00.000Z', 'tentative_hold');
     const expiring = await addPending(w.venue.id, w.eventId, '2030-03-03T06:00:00.000Z', '2030-03-03T07:00:00.000Z', 'tentative_hold');
@@ -336,11 +336,13 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
     const lapse = new Date(fixedNow.getTime() + 15 * 24 * 60 * 60 * 1000);
     expect(await app.get(VenuesRepository).processExpiredTentativeHolds(lapse)).toContain(expiring);
 
+    // Changed 4 Nov 2026 (SPM-134): convert, release and expiry now each add their own lifecycle notice. The SPM-165
+    // decision notice stays exactly one per hold; the extra row is the SPM-134 notice, typed by what happened.
     const notices = await feed(w.coordinator);
-    expect(notices.map((n) => n.type)).toEqual(['tentative_hold_approved', 'tentative_hold_approved', 'tentative_hold_approved']);
-    expect(await storedFor(w.holdId)).toHaveLength(1);
-    expect(await storedFor(releasable)).toHaveLength(1);
-    expect(await storedFor(expiring)).toHaveLength(1);
+    expect(notices.filter((n) => n.type === 'tentative_hold_approved')).toHaveLength(3);
+    expect((await storedFor(w.holdId)).map((row) => row.type).sort()).toEqual(['tentative_hold_approved', 'tentative_hold_converted']);
+    expect((await storedFor(releasable)).map((row) => row.type).sort()).toEqual(['tentative_hold_approved', 'tentative_hold_released']);
+    expect((await storedFor(expiring)).map((row) => row.type).sort()).toEqual(['tentative_hold_approved', 'tentative_hold_expired']);
 
     const mine = (await request(baseUrl).get('/api/venues/bookings/mine').set('Cookie', w.coordinator.cookie).expect(200)).body as Array<{
       id: string; status: string; requestKind: string; holdExpiresAt?: string; holdExpired: boolean;

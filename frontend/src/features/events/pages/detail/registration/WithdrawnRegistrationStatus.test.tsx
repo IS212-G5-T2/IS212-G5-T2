@@ -392,3 +392,31 @@ describe("WITHDRAW-EVENT-REG-CARD-08: timestamps render in Singapore time", () =
  *  LEGACY rows withdrawn before migration 007 have no withdrawal time -> CARD-01 (legacy row)
  *  SGT    timestamps are shown in Asia/Singapore (the 05-E convention) -> CARD-01, CARD-08
  */
+
+// WITHDRAW-EVENT-REG-CARD-03 (legacy name and email)
+describe("WITHDRAW-EVENT-REG-CARD-03 (legacy row): details a legacy registration does not have", () => {
+  it("falls back to the attendee name, then to Not provided, for a missing full name and email", async () => {
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const render1 = (overrides: Parameters<typeof buildRegistration>[0]) => {
+      const view = render(
+        <WithdrawnRegistrationStatus
+          event={buildEvent()}
+          registration={buildRegistration(overrides)}
+          now={T0}
+          onRegisterAgain={noop}
+        />,
+      );
+      return view;
+    };
+
+    const first = render1({ fullName: "", attendeeName: "Alice Account", email: "", withdrawnAt: T0.toISOString() });
+    await u.click(screen.getByText("View previous registration details").closest("summary")!);
+    expect(within(screen.getByText("Full name").parentElement!).getByText("Alice Account")).toBeVisible();
+    expect(within(screen.getByText("Email").parentElement!).getByText("Not provided")).toBeVisible();
+    first.unmount();
+
+    render1({ fullName: "", attendeeName: "", withdrawnAt: T0.toISOString() });
+    await u.click(screen.getByText("View previous registration details").closest("summary")!);
+    expect(within(screen.getByText("Full name").parentElement!).getByText("Not provided")).toBeVisible();
+  });
+});
