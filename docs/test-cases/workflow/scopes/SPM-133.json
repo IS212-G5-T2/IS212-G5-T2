@@ -1,0 +1,82 @@
+{
+  "story": "SPM-133",
+  "title": "Hold expires and releases venue (Venue Staff)",
+  "note": "AC1 frontend: useHoldExpiry live timer. AC5: static expired-on-load path via useHoldExpiry. AC2–4 and AC6: backend E2E tests in tentative-hold-expiry.e2e-spec.ts verifying the expiry logic against a real database.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "frontend": [
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/useHoldExpiry.test.ts",
+        "titleMatch": "^VEN-HOLD-EXP-"
+      },
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/BookingCard.test.tsx",
+        "titleMatch": "^VEN-HOLD-EXP-"
+      },
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/BookingDetailModal.test.tsx",
+        "titleMatch": "^VEN-HOLD-EXP-"
+      }
+    ],
+    "backend": [
+      {
+        "glob": "backend/test/tentative-hold-expiry.e2e-spec.ts",
+        "titleMatch": "^VEN-HOLD-EXP-"
+      }
+    ]
+  },
+  "sources": {
+    "frontend": [
+      "frontend/src/features/bookings/pages/requests/useHoldExpiry.ts",
+      "frontend/src/features/bookings/pages/requests/BookingCard.tsx",
+      "frontend/src/features/bookings/pages/requests/BookingDetailModal.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": ["DATABASE_URL"]
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm133",
+      "cwd": "backend",
+      "command": ["node", "scripts/mutation/run.mjs", "--mutants", "spm133.mutants.mjs"],
+      "mutantsFile": "backend/scripts/mutation/spm133.mutants.mjs",
+      "export": "MUTANTS",
+      "env": ["DATABASE_URL"]
+    },
+    {
+      "id": "frontend-spm133",
+      "cwd": "frontend",
+      "command": ["node", "scripts/testing/mutation/run.mjs", "--mutants", "spm133.mutants.mjs"],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm133.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}
