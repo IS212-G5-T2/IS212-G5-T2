@@ -62,9 +62,26 @@ describe("NotificationItem", () => {
     expect(onRead).toHaveBeenCalledWith("n-1");
   });
 
-  /** SPM-65: the organiser's decision notices open the Change Requests page. */
+  /** REVIEW-CHANGE-07-D: SPM-65: the organiser's decision notices open the Change Requests page. */
   it.each(["change_request_approved", "change_request_denied"] as const)("opens the Change Requests page for %s", (type) => {
     renderItem(notice({ type, message: "Your change request was decided." }));
     expect(screen.getByRole("link")).toHaveAttribute("href", "/events/event-1/change-requests");
+  });
+
+  /**
+   * CLARIFY-NOTIF-08-A (SPM-177 DoD3): each clarification notice opens the event page, has its own icon and marks itself read.
+   * Kills: a missing icon entry, a wrong link target, a click that does not mark read.
+   */
+  it.each([
+    ["clarification", "❓"],
+    ["clarification_reply", "💬"],
+    ["clarification_resolved", "✅"],
+  ] as const)("CLARIFY-NOTIF-08-A opens the event from a %s notice", async (type, icon) => {
+    const onRead = renderItem(notice({ type, message: "Clarification notice." }));
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("href", "/events/event-1");
+    expect(link.querySelector('[aria-hidden="true"]')).toHaveTextContent(icon);
+    await userEvent.setup().click(link);
+    expect(onRead).toHaveBeenCalledWith("n-1");
   });
 });

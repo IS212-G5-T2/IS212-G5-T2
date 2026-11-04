@@ -22,6 +22,7 @@ import { VENUE_DECISION_NOTICE_TYPES } from '../venues/review/booking-decision-n
 import { HOLD_LIFECYCLE_NOTICE_TYPES } from '../venues/review/hold-lifecycle-notice.js';
 import { EQUIPMENT_DECISION_NOTICE_TYPES } from '../equipment/requests/equipment-decision-notice.js';
 import { VENUE_IMPACT_COORDINATOR_TYPES } from '../venues/notifications/venue-impact-notifications.js';
+import { CLARIFICATION_NOTICE_TYPES } from '../clarifications/clarification-notice.js';
 
 // SPM-123: the Event Coordinator Lead assigns each unassigned request to one
 // available coordinator; SPM-47: the Lead reassigns an assigned event to another.
@@ -283,7 +284,8 @@ export class LeadAssignmentService {
                          ${VENUE_DECISION_NOTICE_TYPES.map((type) => `'${type}'`).join(', ')},
                          ${HOLD_LIFECYCLE_NOTICE_TYPES.map((type) => `'${type}'`).join(', ')},
                          ${EQUIPMENT_DECISION_NOTICE_TYPES.map((type) => `'${type}'`).join(', ')},
-                         ${VENUE_IMPACT_COORDINATOR_TYPES.map((type) => `'${type}'`).join(', ')}) AND read = false`,
+                         ${VENUE_IMPACT_COORDINATOR_TYPES.map((type) => `'${type}'`).join(', ')},
+                         ${CLARIFICATION_NOTICE_TYPES.map((type) => `'${type}'`).join(', ')}) AND read = false`,
         [event.coordinator_id, eventId],
       );
       await client.query(

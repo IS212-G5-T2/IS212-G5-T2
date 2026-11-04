@@ -2,7 +2,7 @@
  * SPM-65 ChangeRequestReviewService rules against a scripted planning repository. The real SQL,
  * triggers, row locks and constraints run against PostgreSQL in test/change-request-review.e2e-spec.ts.
  * The fake transaction commits only when the work resolves, so a fault anywhere in a decision shows
- * that nothing is committed (REVIEW-CHANGE-07-C, 10-C).
+ * that nothing is committed (REVIEW-CHANGE-07-C, REVIEW-CHANGE-10-C).
  * Test IDs refer to the Confluence pages under SPM-28 > SPM-65 (REVIEW-CHANGE-NN-X).
  */
 import {
@@ -384,6 +384,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  /** REVIEW-CHANGE-10-SUP-ACTOR: the decider recorded on the request and in the audit log falls back to the email or role. */
   it('uses the email or a fallback when the coordinator has no name', async () => {
     const byEmail = await setup().svc.approve(
       {
@@ -405,6 +406,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     expect(fallback.request.decidedBy).toBe('Coordinator');
   });
 
+  /** REVIEW-CHANGE-04-E: a decision on a cancelled event is refused with the SPM-136 message. */
   it.each(['Cancelled'])(
     'refuses a %s event with the SPM-136 cancelled message',
     async (status) => {
@@ -452,6 +454,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     });
   });
 
+  /** REVIEW-CHANGE-04-SUP-STATE: an approval is refused once the event can no longer change. */
   it.each(['Rejected'])(
     'refuses to apply a change to a %s event',
     async (status) => {
@@ -468,6 +471,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     },
   );
 
+  /** REVIEW-CHANGE-04-SUP-STATE: an approval is refused from the event start instant. */
   it('refuses once the event has started, at the start instant', async () => {
     const { svc } = setup({
       event: eventRow({
@@ -619,6 +623,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     expect(history?.params.slice(1)).toEqual([EVENT_ID, 'coord-1', NOW]);
   });
 
+  /** REVIEW-CHANGE-08-D: only a Confirmed event returns to Planning; other statuses are kept. */
   it.each(['Submitted', 'Approved'])(
     'keeps a %s event in its status',
     async (status) => {
@@ -813,6 +818,7 @@ describe('ChangeRequestReviewService.deny (AC5, AC6, AC10)', () => {
       ).resolves.toBeDefined();
   });
 
+  /** REVIEW-CHANGE-11-B: decision bodies are strict. */
   it('refuses unknown fields', async () => {
     await expect(
       setup().svc.deny(coordinator, EVENT_ID, REQUEST_ID, {
@@ -866,6 +872,7 @@ describe('ChangeRequestReviewService.markRechecked (AC9)', () => {
     expect(record.recheck[1]).not.toHaveProperty('checkedAt');
   });
 
+  /** REVIEW-CHANGE-09-D: marking an arrangement re-checked is refused when it cannot apply. */
   it('refuses a request that is not approved, an unknown item, an item already re-checked and a cancelled event', async () => {
     await expect(
       setup().svc.markRechecked(coordinator, EVENT_ID, REQUEST_ID, ITEM_ID),

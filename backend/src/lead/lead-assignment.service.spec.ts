@@ -931,6 +931,16 @@ describe('SPM-171 AC6: pending cancellation requests follow assignment', () => {
     expect(markRead.params).toEqual([COORDINATOR_ID, EVENT_ID]);
   });
 
+  /** CLARIFY-NOTIF-05-A (SPM-177 DoD4): reassignment marks the previous Coordinator's unread clarification notices for the event read. */
+  it('CLARIFY-NOTIF-05-A marks the old coordinator\'s unread clarification notices read on reassignment', async () => {
+    wireReassign({});
+    await service.reassign(lead, EVENT_ID, reassignBody);
+    const markRead = txStatements().find((s) => s.sql.startsWith('UPDATE notifications'))!;
+    for (const type of ['clarification', 'clarification_reply', 'clarification_resolved'])
+      expect(markRead.sql).toContain(`'${type}'`);
+    expect(markRead.params).toEqual([COORDINATOR_ID, EVENT_ID]);
+  });
+
   /** CANCEL-REQ-NOTIF-06-G (SPM-171 AC6): a notice insert that fails during assignment propagates, so the assignment rolls back with it. */
   it('CANCEL-REQ-NOTIF-06-G rolls the assignment back if the cancellation notice cannot be saved', async () => {
     wireAssign({});

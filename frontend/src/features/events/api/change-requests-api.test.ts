@@ -42,14 +42,14 @@ describe("change requests API client", () => {
     expect(apiMock).toHaveBeenLastCalledWith("/change-requests");
   });
 
-  /** Withdrawing posts to the request's withdraw route. */
+  /** REQ-CHANGE-09-A: Withdrawing posts to the request's withdraw route. */
   it("withdraws a request", async () => {
     await withdrawChangeRequest("evt-1", "cr-1");
     expect(apiMock).toHaveBeenCalledWith("/events/evt-1/change-requests/cr-1/withdraw", { method: "POST" });
   });
 
-  /** SPM-65: the review routes (REVIEW-CHANGE-03-A, 04-A, 05-A, 09-B, 10-B). */
-  it("calls the SPM-65 review routes", async () => {
+  /** REVIEW-CHANGE-11-SUP-CLIENT: SPM-65: the review routes (REVIEW-CHANGE-03-A, REVIEW-CHANGE-04-A, REVIEW-CHANGE-05-A, REVIEW-CHANGE-09-B, REVIEW-CHANGE-10-B). */
+  it("REVIEW-CHANGE-11-SUP-CLIENT calls the SPM-65 review routes", async () => {
     await previewChangeRequestConflicts("evt-1", "cr-1");
     expect(apiMock).toHaveBeenLastCalledWith("/events/evt-1/change-requests/cr-1/conflicts");
     await approveChangeRequest("evt-1", "cr-1");
@@ -65,8 +65,8 @@ describe("change requests API client", () => {
     expect(apiMock).toHaveBeenLastCalledWith("/events/evt-1/change-requests/audit");
   });
 
-  /** REQ-CHANGE-03-A / REVIEW-CHANGE-01-A: unread change request notices tag requests New; opening marks them read. */
-  it("finds events with an unread change request notice and marks them read", async () => {
+  /** REVIEW-CHANGE-01-F: REQ-CHANGE-03-A / REVIEW-CHANGE-01-A: unread change request notices tag requests New; opening marks them read. */
+  it("REVIEW-CHANGE-01-F finds events with an unread change request notice and marks them read", async () => {
     const notices = [
       { id: "n1", type: "coordinator_change_request", read: false, relatedEventId: "evt-1" },
       { id: "n2", type: "coordinator_change_request", read: true, relatedEventId: "evt-2" },

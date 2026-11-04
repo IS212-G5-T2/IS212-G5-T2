@@ -123,7 +123,7 @@ describe('ChangeRequestsService.create', () => {
     script = { event: eventRow() };
   });
 
-  /** REQ-CHANGE-01-A, 03-A, 04-A: the owner's request is stored Pending, returned, and the coordinator notified. */
+  /** REQ-CHANGE-01-A, REQ-CHANGE-03-A, REQ-CHANGE-04-A: the owner's request is stored Pending, returned, and the coordinator notified. */
   it('REQ-CHANGE-01-A stores a pending request and notifies the assigned coordinator', async () => {
     const { svc, calls } = service({ ...script, safety: true });
     const record = await svc.create(organiser, EVENT_ID, { changes: { expectedAttendance: 140 } });
@@ -155,7 +155,7 @@ describe('ChangeRequestsService.create', () => {
     expect(sqlOf(calls)).toContain('FOR UPDATE');
   });
 
-  /** REQ-CHANGE-01-B, 01-E: only fields that differ from the stored values are kept; dates compare as instants and lists as sets. */
+  /** REQ-CHANGE-01-B, REQ-CHANGE-01-E: only fields that differ from the stored values are kept; dates compare as instants and lists as sets. */
   it('REQ-CHANGE-01-B keeps only the fields that actually change, with their original values', async () => {
     const { svc } = service(script);
     const record = await svc.create(organiser, EVENT_ID, {
@@ -183,10 +183,15 @@ describe('ChangeRequestsService.create', () => {
     expect(sqlOf(calls)).not.toContain('INSERT');
   });
 
-  /** REQ-CHANGE-01-C: the end must stay after the start once merged with the stored values. */
+  /**
+   * REQ-CHANGE-01-C: the end must stay after the start once merged with the stored values (10:30 to 13:30 UTC).
+   * The equal-time rows are the boundary: an end equal to the start is not later than it (SPM-175, mutant C4).
+   */
   it.each([
     [{ endDateTime: '2027-02-05T10:00:00Z' }, 'endDateTime'],
     [{ startDateTime: '2027-02-05T14:00:00Z' }, 'startDateTime'],
+    [{ endDateTime: '2027-02-05T10:30:00Z' }, 'endDateTime'],
+    [{ startDateTime: '2027-02-05T13:30:00Z' }, 'startDateTime'],
   ])('REQ-CHANGE-01-C rejects a schedule that ends before it starts: %j', async (changes, field) => {
     const { svc } = service(script);
     const error = await svc.create(organiser, EVENT_ID, { changes }).catch((e) => e);
@@ -274,7 +279,7 @@ describe('ChangeRequestsService.create', () => {
     });
   });
 
-  /** Other storage errors are not disguised as a duplicate. */
+  /** REQ-CHANGE-08-SUP-SERVICE: Other storage errors are not disguised as a duplicate. */
   it('rethrows other storage errors unchanged', async () => {
     const failure = Object.assign(new Error('down'), { code: '57P01' });
     const { svc } = service({ ...script, insertError: failure });
@@ -307,7 +312,7 @@ describe('ChangeRequestsService.create', () => {
     expect(calls).toHaveLength(0);
   });
 
-  /** A user with neither a name nor an email is still recorded by role. */
+  /** REQ-CHANGE-05-SUP-NAME: A user with neither a name nor an email is still recorded by role. */
   it('falls back to the role name when the session has no name or email', async () => {
     const { svc, calls } = service(script);
     await svc.create({ uid: 'org-1', roles: ['ORGANISER'] } as AuthenticatedUser, EVENT_ID, {
@@ -317,7 +322,7 @@ describe('ChangeRequestsService.create', () => {
     expect(insert.params[3]).toBe('Organiser');
   });
 
-  /** The email is used when the session has no display name. */
+  /** REQ-CHANGE-05-SUP-NAME: The email is used when the session has no display name. */
   it('uses the email when the session has no display name', async () => {
     const { svc, calls } = service(script);
     await svc.create({ uid: 'org-1', email: 'o@x.test', roles: ['ORGANISER'] } as AuthenticatedUser, EVENT_ID, {
@@ -339,7 +344,7 @@ describe('ChangeRequestsService reads', () => {
     }
   });
 
-  /** REQ-CHANGE-05-C, 03-B: nobody else can read an event's requests. */
+  /** REQ-CHANGE-05-C, REQ-CHANGE-03-B: nobody else can read an event's requests. */
   it('REQ-CHANGE-05-C hides an event\'s requests from other organisers, coordinators and attendees', async () => {
     const otherCoordinator = { ...coordinator, uid: 'coord-2' } as AuthenticatedUser;
     await expect(service({ event: eventRow() }).svc.listForEvent(otherOrganiser, EVENT_ID)).rejects.toBeInstanceOf(NotFoundException);
@@ -420,7 +425,7 @@ describe('ChangeRequestsService reads', () => {
     expect(bare).toMatchObject({ recheck: [], safetyCheckReset: false });
   });
 
-  /** An unknown status filter is a client error; attendees have no dashboard list. */
+  /** REQ-CHANGE-08-SUP-SERVICE: An unknown status filter is a client error; attendees have no dashboard list. */
   it('rejects an unknown status filter and non-organiser, non-coordinator callers', async () => {
     await expect(service({}).svc.listMine(organiser, 'Maybe')).rejects.toBeInstanceOf(BadRequestException);
     await expect(service({}).svc.listMine(attendee)).rejects.toBeInstanceOf(ForbiddenException);
