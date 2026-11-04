@@ -213,11 +213,12 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
   });
 
   /**
-   * VENUE-BOOK-NOTIF-01-H (SPM-137 AC1, out of scope SPM-165): approving and rejecting tentative hold requests stores
-   * no notification, while the decisions themselves are saved.
-   * Kills: notifying for a hold request.
+   * VENUE-BOOK-NOTIF-01-H (SPM-137 AC1, hold decisions now SPM-165 AC1): approving and rejecting tentative hold requests
+   * stores a hold notification (tentative_hold_approved / tentative_hold_rejected) and never a venue booking decision
+   * one, while the decisions themselves are saved.
+   * Kills: a hold decision using the booking decision types.
    */
-  it('VENUE-BOOK-NOTIF-01-H a tentative hold decision creates no notification', async () => {
+  it('VENUE-BOOK-NOTIF-01-H a tentative hold decision creates a hold notification, never a booking decision one', async () => {
     // Arrange: two pending hold requests (far enough from the event start to be approvable).
     const staff = await createUser('VENUE_STAFF');
     const coordinator = await createUser('COORDINATOR');
@@ -233,11 +234,11 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
     await approve(toApprove, staff).expect(201);
     await reject(toReject, staff).expect(201);
 
-    // Assert: both decisions saved, no notification stored or in the Coordinator's feed.
+    // Assert: both decisions saved, hold-typed notices only, none of the booking decision types.
     const statuses = await pool.query<{ id: string; status: string }>('SELECT id, status FROM venue_bookings WHERE id = ANY($1::uuid[])', [[toApprove, toReject]]);
     expect(Object.fromEntries(statuses.rows.map((r) => [r.id, r.status]))).toEqual({ [toApprove]: 'approved', [toReject]: 'rejected' });
-    expect(await storedFor(toApprove)).toEqual([]);
-    expect(await storedFor(toReject)).toEqual([]);
+    expect((await storedFor(toApprove)).map((r) => r.type)).toEqual(['tentative_hold_approved']);
+    expect((await storedFor(toReject)).map((r) => r.type)).toEqual(['tentative_hold_rejected']);
     expect((await feed(coordinator)).filter((n) => n.type.startsWith('venue_booking_'))).toEqual([]);
   });
 
