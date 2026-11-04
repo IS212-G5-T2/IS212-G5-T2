@@ -39,6 +39,7 @@ import {
   HOLD_APPROVED_NOTICE,
   HOLD_REJECTED_NOTICE,
 } from '../venues/review/booking-decision-notice.js';
+import { EQUIPMENT_DECISION_NOTICE_TYPES } from '../equipment/requests/equipment-decision-notice.js';
 import { CANCELLATION_ACCEPTED_NOTICE, CANCELLATION_DECLINED_NOTICE, CANCELLATION_REQUESTED_NOTICE } from './cancellation-requests/cancellation-request-notice.js';
 import { COORDINATOR_NOTIFICATION_TYPES } from './coordinator-notification-types.js';
 import {
@@ -95,6 +96,8 @@ function audienceRoleFor(row: AudienceRow) {
   if (row.type === BOOKING_APPROVED_NOTICE || row.type === BOOKING_REJECTED_NOTICE) return 'coordinator';
   // SPM-165: so are the tentative hold decision notices.
   if (row.type === HOLD_APPROVED_NOTICE || row.type === HOLD_REJECTED_NOTICE) return 'coordinator';
+  // SPM-172: the equipment request decision notices are the assigned coordinator's.
+  if ((EQUIPMENT_DECISION_NOTICE_TYPES as readonly string[]).includes(row.type)) return 'coordinator';
   // SPM-125: the Coordinator's notices that a venue change affects their booking.
   if ((VENUE_IMPACT_COORDINATOR_TYPES as readonly string[]).includes(row.type)) return 'coordinator';
   return 'organiser';
@@ -495,6 +498,8 @@ export class EventsService {
             HOLD_REJECTED_NOTICE,
             // SPM-171: the Organiser requested to cancel an event assigned to them.
             CANCELLATION_REQUESTED_NOTICE,
+            // SPM-172: Technical Support reserved or could not provide an equipment request for an event assigned to them.
+            ...EQUIPMENT_DECISION_NOTICE_TYPES,
             // SPM-125 AC6 to AC9: a venue change (unavailability, setup or turnaround, capacity) affects a booking.
             ...VENUE_IMPACT_COORDINATOR_TYPES,
           ]
@@ -532,6 +537,8 @@ export class EventsService {
       relatedEventId: row.related_event_id,
       // SPM-137 and SPM-125 AC7: the booking a venue booking notice is about (null for every other type), the bell's link target.
       relatedBookingId: row.related_booking_id ?? null,
+      // SPM-172: the equipment request an equipment decision notice is about (null for every other type), the bell's link target.
+      relatedEquipmentRequestId: row.related_equipment_request_id ?? null,
       // SPM-88: the event's current name (null when the notice has no event), so the bell can tell a denial's name from its reason.
       relatedEventName: row.event_name,
       read: row.read,

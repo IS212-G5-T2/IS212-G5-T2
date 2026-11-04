@@ -657,6 +657,25 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
   });
 
   /**
+   * EQUIP-REQ-NOTIF-06-D (SPM-172 AC6): the same update also marks the original coordinator's unread equipment request
+   * decision notices for the event read, and the new coordinator is sent no copy of them.
+   * Kills: an equipment type missing from the clearing list, an equipment notice copied to the new coordinator.
+   */
+  it("EQUIP-REQ-NOTIF-06-D also marks the original coordinator's unread equipment decision notices for the event as read", async () => {
+    wireReassign({});
+
+    await service.reassign(lead, EVENT_ID, reassignBody);
+
+    const markRead = writes().find((s) => s.sql.startsWith('UPDATE notifications'))!;
+    expect(markRead.sql).toContain("'equipment_request_reserved'");
+    expect(markRead.sql).toContain("'equipment_request_cannot_provide'");
+    expect(markRead.sql).toContain('read = false');
+    expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
+    const inserts = writes().filter((s) => s.sql.startsWith('INSERT INTO notifications'));
+    expect(inserts.some((s) => `${s.sql} ${JSON.stringify(s.params)}`.includes('equipment_request'))).toBe(false);
+  });
+
+  /**
    * VEN-IMPACT-07-H (SPM-125 AC7): the same update also marks the original coordinator's unread venue-change notices
    * for the event read, so none is left whose View Booking link opens a booking that is no longer theirs.
    * Kills: a venue-change type missing from the list.

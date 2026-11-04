@@ -1,0 +1,119 @@
+{
+  "story": "SPM-172",
+  "title": "Equipment Request Decision Notification (Coordinator)",
+  "note": "Implementation pass 1 (3 Nov 2026, test-first): EQUIP-REQ-NOTIF ids (approved by story owner chaw678, 3 Nov 2026; Confluence matrix 40632321 and case pages EQUIP-REQ-NOTIF-01 to 07 written 3 Nov 2026, all Not Executed). Shared files use titleMatch ^EQUIP-REQ-NOTIF- so the other stories' tests in them are not in scope. Mirrors SPM-137 (venue booking decision notice). Spec conflict SC-SPM172-01 (type names equipment_request_reserved / equipment_request_cannot_provide, notifications.related_equipment_request_id via migration 034, link /equipment/requests?request=<id>) was confirmed by chaw678 on 3 Nov 2026 (SC-SPM172-02 and 03 also decided). Unit-level EQUIP-REQ-NOTIF-01-C..07-B are in equipment-decision-notice.spec.ts; the e2e file needs a database with migration 034 applied.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/equipment/requests/equipment-decision-notice.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/equipment-request-notifications.spec.ts"
+      },
+      {
+        "glob": "backend/src/lead/lead-assignment.service.spec.ts",
+        "titleMatch": "^EQUIP-REQ-NOTIF-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/equipment-request-decision-notifications.e2e-spec.ts"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "^EQUIP-REQ-NOTIF-"
+      },
+      {
+        "glob": "frontend/src/features/equipment/pages/requests/EquipmentRequestsPage.test.tsx",
+        "titleMatch": "^EQUIP-REQ-NOTIF-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/equipment/requests/equipment-decision-notice.ts",
+      "backend/src/equipment/requests/equipment-requests.repository.ts",
+      "backend/src/registrations/helpers/messages.ts",
+      "backend/src/events/events.service.ts",
+      "backend/src/lead/lead-assignment.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationBell.tsx",
+      "frontend/src/components/notifications/NotificationRow.tsx",
+      "frontend/src/components/notifications/NotificationItem.tsx",
+      "frontend/src/features/equipment/pages/requests/EquipmentRequestsPage.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm172",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm172.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm172.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm172",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm172.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm172.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

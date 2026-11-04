@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -318,5 +318,115 @@ describe('equipment review queue error and fallback paths', () => {
     await openReview(user);
     expect(screen.getByText('1 available for this event period; 3 requested.')).toHaveClass('text-red-700');
     expect(screen.getByRole('button', { name: 'Approve & reserve' })).toBeDisabled();
+  });
+});
+
+// SPM-172 AC3: the bell's equipment decision notice opens /equipment/requests?request=<id>. The Coordinator's own list
+// highlights that request (status and, for Cannot Provide, the reason are already on each card). Fixture API, store
+// user set directly: frontend unit tests, not a live login.
+describe('SPM-172 equipment request opened from a decision notice', () => {
+  const other = { ...record, id: 'request-2', reference: 'ER-87654321', eventName: 'Other Fair' };
+  const scrollIntoView = vi.fn();
+  beforeEach(() => {
+    scrollIntoView.mockReset();
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-F (SPM-172 AC3): /equipment/requests?request=request-2 highlights that request only (marked
+   * aria-current, with the ring highlight), scrolls it into view and leaves the other request unmarked and unringed.
+   * Kills: highlighting every card, the first card, or none; no visible ring; not scrolling.
+   */
+  it('EQUIP-REQ-NOTIF-03-F highlights and scrolls to the linked request only', async () => {
+    vi.mocked(getMyEquipmentRequests).mockResolvedValue([record, other]);
+    renderPage('/equipment/requests?request=request-2');
+
+    const linked = (await screen.findByText('Other Fair')).closest('[aria-current]')!;
+    expect(linked).toHaveAttribute('aria-current', 'true');
+    expect(linked).toHaveTextContent('ER-87654321');
+    expect(screen.getByText('Showcase').closest('[aria-current]')).toBeNull();
+    // The visible highlight (not just the marker) is on the linked card only.
+    expect(linked).toHaveClass('ring-2', 'ring-primary-500');
+    expect(document.querySelectorAll('.ring-2')).toHaveLength(1);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView.mock.contexts[0]).toBe(linked);
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-F (continued, SPM-172 AC3): the linked request is scrolled to once; a later refresh (here after
+   * Technical Support reserves another request) keeps it highlighted but does not scroll again.
+   * Kills: an effect that re-scrolls on every refresh.
+   */
+  it('EQUIP-REQ-NOTIF-03-F does not scroll to the linked request again after a later refresh', async () => {
+    const user = userEvent.setup();
+    setRole('tech_support');
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValueOnce([record, other]).mockResolvedValueOnce([other]);
+    renderPage('/equipment/requests?request=request-2');
+
+    expect(await screen.findByText('Other Fair')).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    await user.click(screen.getAllByRole('button', { name: 'Review request' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Approve & reserve' }));
+    await waitFor(() => expect(screen.queryByText('Showcase')).not.toBeInTheDocument());
+    expect(reserveEquipmentRequest).toHaveBeenCalledWith(record.id);
+    expect(screen.getByText('Other Fair').closest('[aria-current]')).toHaveAttribute('aria-current', 'true');
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-G (SPM-172 AC3): the highlighted Cannot Provide request shows its status and the reason; a
+   * highlighted Reserved request shows its status.
+   * Kills: a highlight that hides the reason or the status.
+   */
+  it.each([
+    ['Cannot Provide', 'Only 8 available; 10 requested.'],
+    ['Reserved', null],
+  ] as const)('EQUIP-REQ-NOTIF-03-G shows the %s status on the highlighted request', async (status, reason) => {
+    vi.mocked(getMyEquipmentRequests).mockResolvedValue([{ ...record, status, decisionReason: reason }]);
+    renderPage('/equipment/requests?request=request-1');
+
+    const card = (await screen.findByText('Showcase')).closest('[aria-current="true"]') as HTMLElement;
+    expect(within(card).getByText(status)).toBeInTheDocument();
+    if (reason) expect(within(card).getByText(/Only 8 available; 10 requested\./)).toBeInTheDocument();
+    else expect(within(card).queryByText(/Cannot provide:/)).not.toBeInTheDocument();
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-H (SPM-172 AC3, robustness): a link to a request that is not in the Coordinator's list (the event
+   * was reassigned) highlights nothing and says so.
+   * Kills: highlighting an arbitrary card, a silent blank outcome.
+   */
+  it('EQUIP-REQ-NOTIF-03-H says the request is no longer available when it is not in the list', async () => {
+    renderPage('/equipment/requests?request=request-gone');
+
+    expect(await screen.findByText('That equipment request is no longer available to you.')).toBeInTheDocument();
+    expect(screen.getByText('Showcase').closest('[aria-current]')).toBeNull();
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-I (SPM-172 AC3): without a request parameter nothing is highlighted and no notice is shown; while
+   * the list is loading, or after it failed to load, a linked request is not reported as missing.
+   * Kills: a permanent highlight, "no longer available" shown before the list arrives or after a failed load.
+   */
+  it('EQUIP-REQ-NOTIF-03-I shows no highlight or missing notice when the page has no request link', async () => {
+    renderPage();
+    expect(await screen.findByText('Showcase')).toBeInTheDocument();
+    expect(document.querySelector('[aria-current]')).toBeNull();
+    expect(screen.queryByText(/no longer available to you/)).not.toBeInTheDocument();
+  });
+
+  /** EQUIP-REQ-NOTIF-03-I (loading and failed-load half): the missing-request notice waits for a list that loaded. */
+  it('EQUIP-REQ-NOTIF-03-I does not report a linked request missing while loading or when the list failed to load', async () => {
+    vi.mocked(getMyEquipmentRequests).mockReturnValue(new Promise(() => {}));
+    const view = renderPage('/equipment/requests?request=request-1');
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading equipment requests');
+    expect(screen.queryByText(/no longer available to you/)).not.toBeInTheDocument();
+    view.unmount();
+
+    vi.mocked(getMyEquipmentRequests).mockRejectedValue(new Error('Boom'));
+    renderPage('/equipment/requests?request=request-1');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Boom');
+    expect(screen.queryByText(/no longer available to you/)).not.toBeInTheDocument();
   });
 });
