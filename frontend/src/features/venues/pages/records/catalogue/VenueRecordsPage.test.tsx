@@ -1,5 +1,5 @@
 // frontend/src/features/venues/pages/records/catalogue/VenueRecordsPage.test.tsx
-// SPM-124: AC2/3/4/5/6; VEN-VIEW-02-A/B, 03-A/B/C, 04-A/C, 05-A/B/C/D.
+// SPM-124: AC2/3/4/5/6; VEN-VIEW-02-A/B, 03-A/B/C, 04-A/B/C, 05-A/B/C/D.
 // SPM-124-REG-* IDs are local regression cases; VEN-VIEW-* IDs refer to published cases.
 // ASSUMPTION A1 (AC5): statuses sort alphabetically and equal values use venue ID.
 // ASSUMPTION A2 (AC2): card counts use singular wording for one booking or hold.
@@ -233,6 +233,38 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(within(card!).getByText("unavailable")).toBeInTheDocument();
     expect(within(card!).getByText(/Maintenance/)).toBeInTheDocument();
     expect(within(card!).queryByText("available")).not.toBeInTheDocument();
+  });
+
+  // VEN-VIEW-04-B (AC4): a future scheduled period and its reason show before it starts.
+  it("VEN-VIEW-04-B: shows a future scheduled period and its reason while the venue stays available", async () => {
+    // Arrange: Marina Auditorium has a Renovation period from 10 Oct 2026 08:00 SGT, and the API reports it as available now.
+    apiMock.mockResolvedValueOnce([
+      {
+        ...second,
+        name: "Marina Auditorium Test",
+        availabilityStatus: "available",
+        unavailablePeriods: [
+          {
+            id: "period-2",
+            start: "2026-10-10T00:00:00Z",
+            end: "2026-10-10T10:00:00Z",
+            reason: "Renovation",
+          },
+        ],
+      },
+    ]);
+
+    // Act: open the catalogue and wait for the venue row.
+    renderPage();
+    const card = (
+      await screen.findByRole("link", { name: "Marina Auditorium Test" })
+    ).parentElement;
+
+    // Assert: the venue is not shown as unavailable, and the future period and its reason are listed.
+    expect(card).not.toBeNull();
+    expect(within(card!).getByText("available")).toBeInTheDocument();
+    expect(within(card!).queryByText("unavailable")).not.toBeInTheDocument();
+    expect(within(card!).getByText(/Unavailable .*Renovation/)).toBeInTheDocument();
   });
 
   // VEN-VIEW-04-C (AC4): a venue without blockouts has no invented reason.

@@ -263,7 +263,7 @@ describe("EquipmentCreatePage", () => {
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
     await user.type(screen.getByLabelText(/active quantity/i), "5");
-        await user.type(screen.getByLabelText(/location/i), "Loading Bay");
+    await user.type(screen.getByLabelText(/location/i), "Loading Bay");
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
 
     // Assert: re-opening the dropdown now offers the newly created location.
@@ -304,16 +304,6 @@ describe("EquipmentCreatePage", () => {
     ],
     [
       "all-zero breakdown",
-      {
-        name: "Conference projector",
-        type: "Audio",
-        quantity: "0",
-        location: "Storage Room A",
-      },
-      /at least one equipment item is required/i,
-    ],
-    [
-      "zero quantity",
       {
         name: "Conference projector",
         type: "Audio",
@@ -387,7 +377,7 @@ describe("EquipmentCreatePage", () => {
         );
       if ("quantity" in values)
         await user.type(screen.getByLabelText(/active quantity/i), values.quantity);
-            if ("location" in values)
+      if ("location" in values)
         await user.type(screen.getByLabelText(/location/i), values.location);
 
       // Act: attempt submission.
