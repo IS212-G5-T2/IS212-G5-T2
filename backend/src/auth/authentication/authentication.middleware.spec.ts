@@ -1,5 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { currentActorId } from '../../common/actor-context.js';
 import { AuthService } from './auth.service.js';
 import { AuthenticationMiddleware } from './authentication.middleware.js';
 
@@ -92,5 +93,26 @@ describe('AuthenticationMiddleware', () => {
       next,
     );
     await vi.waitFor(() => expect(next).toHaveBeenCalledWith(sessionError));
+  });
+  /** AUDIT-HISTORY-05-C (SPM-157): the rest of the request runs as the signed-in user. */
+  it('AUDIT-HISTORY-05-C runs the rest of the request as the signed-in user', async () => {
+    const service = {
+      getConfig: vi.fn().mockReturnValue({ cookieName: 'local_session' }),
+      getSessionUser: vi.fn().mockResolvedValue({ uid: 'user-1', roles: ['COORDINATOR'] }),
+    } as unknown as AuthService;
+    let actor: string | undefined;
+    const next = vi.fn(() => {
+      actor = currentActorId();
+    });
+
+    new AuthenticationMiddleware(service).use(
+      { headers: { cookie: 'local_session=opaque-token' } } as never,
+      {} as never,
+      next,
+    );
+    await vi.waitFor(() => expect(next).toHaveBeenCalledWith());
+
+    expect(actor).toBe('user-1');
+    expect(currentActorId()).toBeUndefined();
   });
 });

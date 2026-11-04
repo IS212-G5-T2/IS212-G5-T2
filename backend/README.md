@@ -667,3 +667,50 @@ image. The font does not cover CJK glyphs, and large reports rely on PDFKit
 page wrapping. Integration checks require a dedicated PostgreSQL database and
 `npm run test:e2e`; the report mutation check is
 `node scripts/mutation/run.mjs --mutants spm63.mutants.mjs` with `DATABASE_URL`.
+
+## Event audit history (SPM-157)
+
+`GET /api/events/:eventId/history` returns one event's history, oldest first, in up to four sections:
+`event` (submission, status changes with approval or rejection and its reason and confirmation, completion and
+cancellation worded as such, coordinator assignment and reassignment, clarification requests, replies and resolution,
+information updates and flagged change decisions, change requests and outcomes, cancellation requests and decisions,
+safety check requests, outcomes and resets, the coordinator's response to each safety feedback item, and the
+completion record), `venueBookings` (booking and tentative hold requests, approvals, rejections, cancellations,
+releases, returns for review, removals, conversions and expiries, and venue changes that affect the booking, from the
+SPM-125 notice), `equipment` (requests with their items, item edits, Reserved, Cannot Provide with the reason, returns
+for review, releases) and `registrations` (registration settings, registrations, waiting list joins, promotions,
+withdrawals, removals, cancellations). Each entry has
+`summary`, optional `subject` (venue, items or attendee), `changes` (`field`, `label`, `from`, `to`; instants as ISO
+UTC), optional `reason`, `actor` (`kind` `user`, `system` or `unrecorded` with `name`, "System" or "Not recorded")
+and `occurredAt`.
+
+| Caller | Result |
+|---|---|
+| The Coordinator assigned now | 200, all four sections, `viewer: "coordinator"` (includes entries from before a reassignment) |
+| The owning Organiser | 200, `event` and `registrations` only, `viewer: "organiser"` |
+| Anyone else, including a previous Coordinator | 403 `FORBIDDEN` |
+| Unknown or malformed event id | 404; no session 401 |
+| `PUT`, `PATCH`, `DELETE` on `/history` or `/history/:entryId` | 405 with `Allow: GET` |
+
+Recording: `backend/migrations/032_spm157_event_audit_log.sql` (the same file is
+`database/postgresql/init/032_spm157_event_audit_log.sql` for fresh volumes; idempotent) adds the append-only
+`event_audit_log` table and triggers on `events`, `venue_bookings`, `equipment_requests`, `equipment_reservations`,
+`event_registrations`, `event_safety_checks`, `event_safety_resets`, `event_comments`, `safety_check_feedback_items`,
+`completion_records` and `notifications` (the three SPM-125 venue-change notice types only), so every code path (and other triggers) is
+recorded without calling a helper. The author is the signed-in user: `AuthenticationMiddleware` runs the request
+inside `runAsActor` (`src/common/actor-context.ts`) and `DatabaseService` sets the transaction-local
+`app.actor_id` after `BEGIN`; a single write made with `query()` for a signed-in user runs in its own transaction for
+this. A change made by another trigger (`pg_trigger_depth() > 1`), outside a signed-in request, or by a waiting list
+rule (promotion, removal) or a safety check reset is the system's. Flagged changes, change requests and their
+outcomes, and cancellation requests are read live from their own tables (`src/events/history/event-history.repository.ts`);
+an approved tentative hold whose expiry has passed (SPM-159 `approvedHoldState`, injected `CLOCK`) is shown as
+expired by the system. The table has no foreign key to `events` (a foreign key would make each recorded change
+lock the event row against other requests' `SELECT ... FOR UPDATE`); `events_audit_cleanup` removes an event's
+entries when the event is deleted, and `UPDATE` or any other `DELETE` raises `event_audit_log is append-only`. At
+release the migration loads earlier records once (submissions, status history, reassignments, the current safety
+check and feedback responses, clarifications, the completion record, booking requests, review decisions and
+releases, venue-change notices, equipment requests and releases, registrations); entries
+whose author was not recorded have `actor_kind` `unrecorded`.
+
+Tests: `npx vitest run src/events/history src/common/actor-context.spec.ts src/database src/auth/authentication`;
+`DATABASE_URL=... npm run test:e2e -- test/event-history.e2e-spec.ts` (needs init 001 to 031; applies 032 itself).

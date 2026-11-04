@@ -32,6 +32,7 @@ import { VenueEditPage } from "@/features/venues/pages/edit/VenueEditPage";
 import { AssignmentQueuePage } from "@/features/lead/pages/assignment-queue/AssignmentQueuePage";
 import { ReassignmentPage } from "@/features/lead/pages/reassignment/ReassignmentPage";
 import { SafetyCheckQueuePage } from "@/features/events/pages/safety/SafetyCheckQueuePage";
+import { EventHistoryPage } from "@/features/events/pages/history/EventHistoryPage";
 import { dashboardPathByRole } from "@/components/layout/navConfig";
 
 function RootRedirect() {
@@ -78,6 +79,8 @@ export default function App() {
         {/* SPM-64: the owning organiser and the assigned coordinator; the server decides ownership (404 otherwise). */}
         <Route element={<RequireRole allowedRoles={["organiser", "coordinator"]} />}>
           <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
+          {/* SPM-157: the assigned coordinator and the owning organiser; the server decides access (403 otherwise). */}
+          <Route path="/events/:id/history" element={<EventHistoryPage />} />
         </Route>
 
         <Route element={<RequireRole allowedRoles={["coordinator"]} />}>
