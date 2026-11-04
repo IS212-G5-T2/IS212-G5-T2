@@ -472,6 +472,8 @@ export type NotificationType =
   | "WaitlistPromoted"
   /** SPM-138 AC12: a waiting entry was cancelled with its event (MSG-WL-06). */
   | "EventCancelled"
+  /** SPM-181: an event the attendee is registered or waitlisted for had its start or end changed. */
+  | "EventRescheduled"
   /** SPM-125 AC6/AC7: a venue the Coordinator booked is unavailable during the booking. */
   | "venue_unavailable_impact"
   /** SPM-125 AC8: a venue setup or turnaround change makes the Coordinator's booking conflict. */

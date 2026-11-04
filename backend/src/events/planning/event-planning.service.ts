@@ -49,6 +49,7 @@ import {
   type EventFieldKey,
   type EventUpdatePatch,
 } from './dto/event-update-input.js';
+import { notifyAttendeesOfReschedule } from './event-reschedule-notice.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -279,6 +280,7 @@ export class EventPlanningService {
           },
           appliedAt,
         );
+        await notifyAttendeesOfReschedule(this.repository, event, current, appliedAt); // SPM-181
       }
 
       const flagged: FlaggedChangeRow[] = [];
@@ -469,6 +471,7 @@ export class EventPlanningService {
         patch,
         resolution.resolvedAt,
       );
+      await notifyAttendeesOfReschedule(this.repository, event, current, resolution.resolvedAt); // SPM-181
     }
     const resolved = await this.repository.resolveChange(
       event.id,

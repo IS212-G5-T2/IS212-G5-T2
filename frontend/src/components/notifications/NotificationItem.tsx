@@ -30,6 +30,7 @@ const iconByType: Record<Notification["type"], string> = {
   cancellation: "🚫",
   WaitlistPromoted: "🎟️",
   EventCancelled: "🚫",
+  EventRescheduled: "🗓️",
   venue_unavailable_impact: "🏛️",
   venue_timing_impact: "🏛️",
   venue_capacity_impact: "🏛️",

@@ -52,6 +52,7 @@ import {
   EventPlanningRepository,
   type PlanningEventRow,
 } from '../../planning/event-planning.repository.js';
+import { notifyAttendeesOfReschedule } from '../../planning/event-reschedule-notice.js';
 import { recordOutcome, toAuditEntry } from '../change-request-audit.js';
 import {
   CHANGE_REQUEST_OPEN_STATUSES,
@@ -180,6 +181,7 @@ export class ChangeRequestReviewService {
       const now = this.clock.now();
       const hadSafetyCheck = await this.repository.safetyCheckExists(eventId);
       const applied = await this.repository.applyFields(eventId, valid, now);
+      await notifyAttendeesOfReschedule(this.repository, event, applied, now); // SPM-181
       // SPM-156: the event's change history records every requested field whose
       // value actually changed, proposed by the organiser and applied by this
       // coordinator, at the same instant as the event's updated_at.

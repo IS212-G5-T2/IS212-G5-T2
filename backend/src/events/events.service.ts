@@ -41,6 +41,7 @@ import {
 } from '../venues/review/booking-decision-notice.js';
 import { CANCELLATION_ACCEPTED_NOTICE, CANCELLATION_DECLINED_NOTICE, CANCELLATION_REQUESTED_NOTICE } from './cancellation-requests/cancellation-request-notice.js';
 import { COORDINATOR_NOTIFICATION_TYPES } from './coordinator-notification-types.js';
+import { EVENT_RESCHEDULED_NOTICE } from './planning/event-reschedule-notice.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,
   isRegistrationOpen,
@@ -80,6 +81,8 @@ interface AudienceRow {
 
 function audienceRoleFor(row: AudienceRow) {
   if (row.type === 'WaitlistPromoted') return 'attendee';
+  // SPM-181: the reschedule notice is the attendee's.
+  if (row.type === EVENT_RESCHEDULED_NOTICE) return 'attendee';
   // SPM-136: an EventCancelled notice goes to the organiser, the assigned coordinator and registered or waitlisted
   // attendees. The reader's relation to that event decides the copy, whatever roles the account holds.
   if (row.type === 'EventCancelled') {
@@ -501,7 +504,7 @@ export class EventsService {
         : []),
       ...(user.roles.includes('COORDINATOR_LEAD') ? ['coordinator_unavailable'] : []),
       // SPM-138 AC9/AC12: an attendee reads only their own waitlist notices (the query also filters by recipient).
-      ...(user.roles.includes('ATTENDEE') ? ['WaitlistPromoted', 'EventCancelled'] : []),
+      ...(user.roles.includes('ATTENDEE') ? ['WaitlistPromoted', 'EventCancelled', EVENT_RESCHEDULED_NOTICE] : []),
     ];
     if (!types.length) throw new ForbiddenException('Organiser or coordinator access required.');
     return { user, types };

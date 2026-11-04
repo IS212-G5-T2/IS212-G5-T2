@@ -3,9 +3,10 @@ import { useNotificationFeed } from "@/components/notifications/useNotificationF
 import { useAppStore } from "@/store/useAppStore";
 import type { Notification } from "@/types";
 import { Button } from "@/components/ui/Button";
+import { timeAgo } from "@/utils/format";
 
 /** SPM-138 AC9/AC12: the attendee's own waitlist notices. Other notification types are not shown here. */
-const WAITING_LIST_TYPES: Notification["type"][] = ["WaitlistPromoted", "EventCancelled"];
+const WAITING_LIST_TYPES: Notification["type"][] = ["WaitlistPromoted", "EventCancelled", "EventRescheduled"];
 const isWaitingListNotice = (notification: Notification) => WAITING_LIST_TYPES.includes(notification.type);
 
 /**
@@ -42,12 +43,16 @@ export function WaitlistNotifications() {
       <ul className="divide-y divide-gray-100 dark:divide-gray-700">
         {unread.map((n) => (
           <li key={n.id} className="flex flex-wrap items-center gap-4 px-4 py-3">
-            <p className="min-w-0 flex-1 break-words text-sm text-gray-800 dark:text-gray-100">{n.message}</p>
+            <div className="min-w-0 flex-1">
+              <p className="break-words text-sm text-gray-800 dark:text-gray-100">{n.message}</p>
+              <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{timeAgo(n.createdAt)}</p>
+            </div>
             <div className="flex items-center gap-4 text-sm">
               {n.relatedEventId && (
                 <Link
                   className="font-medium text-primary-700 underline-offset-2 hover:underline dark:text-primary-300"
                   to={`/events/${n.relatedEventId}`}
+                  onClick={() => void markRead(n.id)}
                 >
                   View Event
                 </Link>

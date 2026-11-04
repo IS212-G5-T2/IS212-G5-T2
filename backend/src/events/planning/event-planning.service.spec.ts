@@ -118,6 +118,7 @@ function makeRepo() {
     listPendingChanges: vi.fn().mockResolvedValue([]),
     listHistory: vi.fn().mockResolvedValue([]),
     findChange: vi.fn().mockResolvedValue(undefined),
+    query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
     safetyCheckExists: vi.fn().mockResolvedValue(false),
     recordAppliedChanges: vi.fn().mockResolvedValue(undefined),
     applyFields: vi.fn(
@@ -2161,5 +2162,201 @@ describe('SPM-49 / SPM-85 / SPM-97 defensive paths', () => {
       'chg-1',
       'chg-2',
     ]);
+  });
+});
+
+/*
+ * SPM-181 Event Change Notification (Attendee): every way a start or end change is applied by EventPlanningService
+ * writes one attendee notice (through the shared helper), and nothing else does. The helper's own rules are in
+ * event-reschedule-notice.spec.ts; the approved change request path is in change-request-review.service.spec.ts.
+ * Confluence IDs: EVENT-CHANGE-NOTIF-*.
+ */
+describe('SPM-181 attendee reschedule notice', () => {
+  const NEW_START = '2026-11-10T10:30:00.000Z';
+  const NEW_END = '2026-11-10T12:30:00.000Z';
+  const noticeCalls = () =>
+    repo.query.mock.calls.filter(([sql]) =>
+      String(sql).includes('INSERT INTO notifications'),
+    );
+  const noticeParams = (index = 0) =>
+    (noticeCalls()[index] as unknown as [string, unknown[]])[1];
+  const pendingSchedule = (overrides: Record<string, unknown> = {}) =>
+    flaggedChange({
+      field: 'startDateTime',
+      originalValue: START,
+      proposedValue: NEW_START,
+      ...overrides,
+    });
+  const impact = (bookingId: string) => ({
+    bookingId,
+    venueName: bookingId,
+    impacted: true,
+    conflicts: [],
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-03-A (AC3, AC1): a Coordinator's edit applied immediately notifies once, for a start-only,
+   * an end-only and a start-and-end edit, stamped with the time the change was applied.
+   * Kills: not calling the helper on the direct path, one notice per changed field.
+   */
+  it.each([
+    ['start only', { startDateTime: NEW_START }],
+    ['end only', { endDateTime: NEW_END }],
+    ['start and end', { startDateTime: NEW_START, endDateTime: NEW_END }],
+  ])('EVENT-CHANGE-NOTIF-03-A a direct edit of %s writes one notice statement', async (_label, patch) => {
+    await service.updateEvent(coordinator(), EVENT_ID, patch);
+
+    expect(noticeCalls()).toHaveLength(1);
+    const params = noticeParams();
+    expect(params[0]).toBe(EVENT_ID);
+    expect(params[1]).toBe('EventRescheduled');
+    expect(params[3]).toEqual(NOW);
+    expect(String(params[2])).toMatch(/^"Welcome Evening" has been rescheduled\. It now runs .* \(SGT\)\.$/);
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-05-A (AC5): edits to any other field, alone or together, write no notice.
+   * Kills: notifying on any applied change.
+   */
+  it.each([
+    ['name', { name: 'Renamed Evening' }],
+    ['purpose', { purpose: 'New purpose' }],
+    ['description', { description: 'New description' }],
+    ['expected attendance', { expectedAttendance: 70 }],
+    ['layout', { layout: 'Theatre' }],
+    ['facilities', { facilities: ['Catering', 'Projector'] }],
+    ['accessibility needs', { accessibility: ['Hearing loop'] }],
+    ['equipment requirements', { equipmentNeeds: 'Four microphones' }],
+    ['name, purpose and layout together', { name: 'Renamed', purpose: 'p2', layout: 'Theatre' }],
+  ])('EVENT-CHANGE-NOTIF-05-A a direct edit of %s writes no notice', async (_label, patch) => {
+    await service.updateEvent(coordinator(), EVENT_ID, patch);
+
+    expect(noticeCalls()).toHaveLength(0);
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-05-A: renaming together with a reschedule notifies once, with the new name.
+   * Kills: skipping the notice when other fields change in the same save, quoting the old name.
+   */
+  it('EVENT-CHANGE-NOTIF-05-A a reschedule saved with a rename notifies once, quoting the new name', async () => {
+    await service.updateEvent(coordinator(), EVENT_ID, { name: 'Welcome Night', startDateTime: NEW_START });
+
+    expect(noticeCalls()).toHaveLength(1);
+    expect(String(noticeParams()[2])).toContain('"Welcome Night" has been rescheduled.');
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-04-B (AC4): a schedule change flagged for review is not applied and writes no notice.
+   * Kills: notifying when the change is only recorded as pending.
+   */
+  it('EVENT-CHANGE-NOTIF-04-B a flagged schedule change writes no notice', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+
+    const result = await service.updateEvent(coordinator(), EVENT_ID, { startDateTime: '2026-11-10T09:00:00.000Z' });
+
+    expect(result.flagged).toHaveLength(1);
+    expect(result.applied).toEqual([]);
+    expect(noticeCalls()).toHaveLength(0);
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-03-B (AC3): confirming a whole flagged schedule change notifies once, at the time of confirmation.
+   * Kills: not calling the helper when a flagged change is applied.
+   */
+  it('EVENT-CHANGE-NOTIF-03-B confirming a flagged schedule change writes one notice', async () => {
+    repo.findChange.mockResolvedValue(pendingSchedule());
+
+    await service.resolveChange(coordinator(), EVENT_ID, 'chg-1', { decision: 'confirm' });
+
+    expect(noticeCalls()).toHaveLength(1);
+    expect(noticeParams()[3]).toEqual(NOW);
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-04-C (AC4): rejecting a flagged schedule change writes no notice.
+   * Kills: notifying on any resolution.
+   */
+  it('EVENT-CHANGE-NOTIF-04-C rejecting a flagged schedule change writes no notice', async () => {
+    repo.findChange.mockResolvedValue(pendingSchedule());
+
+    await service.resolveChange(coordinator(), EVENT_ID, 'chg-1', { decision: 'reject' });
+
+    expect(noticeCalls()).toHaveLength(0);
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-05-A: confirming a flagged change to another field writes no notice.
+   * Kills: notifying for every applied flagged change.
+   */
+  it('EVENT-CHANGE-NOTIF-05-A confirming a flagged change to another field writes no notice', async () => {
+    repo.findChange.mockResolvedValue(flaggedChange());
+
+    await service.resolveChange(coordinator(), EVENT_ID, 'chg-1', { decision: 'confirm' });
+
+    expect(repo.applyFields).toHaveBeenCalled();
+    expect(noticeCalls()).toHaveLength(0);
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-03-C (AC3, AC4; SC-SPM181-01): confirming booking by booking notifies once, when the last
+   * impacted booking is confirmed and the change is applied; earlier decisions, and a closing rejection, write none.
+   * Kills: notifying on each booking decision, or when the change closes as Rejected.
+   */
+  it('EVENT-CHANGE-NOTIF-03-C notifies once, when the last booking decision applies the change', async () => {
+    repo.findChange.mockResolvedValue(pendingSchedule({ impacts: [impact('bk-1'), impact('bk-2')] }));
+    await service.resolveChange(coordinator(), EVENT_ID, 'chg-1', { decision: 'confirm', bookingId: 'bk-1' });
+    expect(noticeCalls()).toHaveLength(0);
+
+    repo.findChange.mockResolvedValue(
+      pendingSchedule({ impacts: [{ ...impact('bk-1'), decision: 'Applied' }, impact('bk-2')] }),
+    );
+    await service.resolveChange(coordinator(), EVENT_ID, 'chg-1', { decision: 'confirm', bookingId: 'bk-2' });
+    expect(noticeCalls()).toHaveLength(1);
+  });
+
+  /** EVENT-CHANGE-NOTIF-03-C (AC3, AC4): a last decision that rejects closes the change as Rejected and writes no notice. Kills: notifying on a closing rejection. */
+  it('EVENT-CHANGE-NOTIF-03-C writes no notice when the last booking decision closes the change as Rejected', async () => {
+    repo.findChange.mockResolvedValue(
+      pendingSchedule({ impacts: [{ ...impact('bk-1'), decision: 'Applied' }, impact('bk-2')] }),
+    );
+
+    await service.resolveChange(coordinator(), EVENT_ID, 'chg-1', { decision: 'reject', bookingId: 'bk-2' });
+
+    expect(noticeCalls()).toHaveLength(0);
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-07-A (AC7): a failure while saving the change, or while writing the notice, fails the whole
+   * update; the notice is never written when the fields were not saved.
+   * Kills: swallowing a notice error, writing the notice before the fields are saved.
+   */
+  it('EVENT-CHANGE-NOTIF-07-A writes no notice when saving the fields fails', async () => {
+    repo.applyFields.mockRejectedValueOnce(new Error('db down'));
+
+    await expect(service.updateEvent(coordinator(), EVENT_ID, { startDateTime: NEW_START })).rejects.toThrow('db down');
+
+    expect(noticeCalls()).toHaveLength(0);
+  });
+
+  /** EVENT-CHANGE-NOTIF-07-A (AC7): a notice write error fails the whole update. Kills: swallowing the error. */
+  it('EVENT-CHANGE-NOTIF-07-A fails the update when the notice cannot be written', async () => {
+    repo.query.mockRejectedValueOnce(new Error('notice failed'));
+
+    await expect(service.updateEvent(coordinator(), EVENT_ID, { startDateTime: NEW_START })).rejects.toThrow('notice failed');
+  });
+
+  /** EVENT-CHANGE-NOTIF-07-A (AC7): a refused update (Confirmed event, end before start) writes no notice. Kills: writing the notice before validation. */
+  it('EVENT-CHANGE-NOTIF-07-A writes no notice when the update is refused', async () => {
+    repo.findEvent.mockResolvedValue(eventRow({ status: 'Confirmed' }));
+    await expect(service.updateEvent(coordinator(), EVENT_ID, { startDateTime: NEW_START })).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+
+    repo.findEvent.mockResolvedValue(eventRow());
+    await expect(
+      service.updateEvent(coordinator(), EVENT_ID, { startDateTime: NEW_END, endDateTime: NEW_START }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(noticeCalls()).toHaveLength(0);
   });
 });

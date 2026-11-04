@@ -950,3 +950,101 @@ describe('ChangeRequestReviewService.auditLog (AC10)', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
+
+/*
+ * SPM-181 Event Change Notification (Attendee): approving a change request that moves the start or end tells the
+ * event's Registered and Waitlisted attendees through the shared helper (event-reschedule-notice.ts), inside the
+ * approval's transaction. Cases: EVENT-CHANGE-NOTIF-03-D, 04-A, 05-A, 07-A.
+ */
+describe('ChangeRequestReviewService.approve attendee reschedule notice (SPM-181)', () => {
+  const moved = (...fields: string[]) =>
+    requestRow({
+      changes: fields.map((field) => ({
+        field,
+        originalValue: 'x',
+        proposedValue:
+          field === 'startDateTime'
+            ? '2030-04-14T11:00:00.000Z'
+            : field === 'endDateTime'
+              ? '2030-04-14T14:00:00.000Z'
+              : 'Renamed Night',
+      })),
+    });
+  const notices = (sql: { text: string; params: unknown[] }[]) =>
+    sql.filter((entry) => entry.text.includes('gen_random_uuid'));
+
+  /**
+   * EVENT-CHANGE-NOTIF-03-D (AC3): an approved change request that moves the start, the end or both writes one notice
+   * statement, in the approval's transaction, stamped with the decision time and quoting the event's name.
+   * Kills: not calling the helper on the approval path, one statement per field, writing it outside the transaction.
+   */
+  it.each([
+    ['start', ['startDateTime']],
+    ['end', ['endDateTime']],
+    ['start and end', ['startDateTime', 'endDateTime']],
+  ])('EVENT-CHANGE-NOTIF-03-D approving a request that moves the %s writes one committed notice statement', async (_label, fields) => {
+    const { svc, sql, committed } = setup({ request: moved(...fields) });
+
+    await svc.approve(coordinator, EVENT_ID, REQUEST_ID, {});
+
+    const written = notices(sql);
+    expect(written).toHaveLength(1);
+    expect(written[0].params[0]).toBe(EVENT_ID);
+    expect(written[0].params[1]).toBe('EventRescheduled');
+    expect(written[0].params[2]).toMatch(/^"Alumni Night" has been rescheduled\. It now runs .* \(SGT\)\.$/);
+    expect(written[0].params[3]).toEqual(NOW);
+    expect(committed.some((text) => text.includes('gen_random_uuid'))).toBe(true);
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-05-A (AC5): a request that changes only other fields (including the name) writes no attendee
+   * notice.
+   * Kills: notifying on every approval.
+   */
+  it('EVENT-CHANGE-NOTIF-05-A approving a request that changes only other fields writes no attendee notice', async () => {
+    const { svc, sql } = setup({ request: moved('name') });
+    await svc.approve(coordinator, EVENT_ID, REQUEST_ID, {});
+    expect(notices(sql)).toHaveLength(0);
+
+    const other = setup();
+    await other.svc.approve(coordinator, EVENT_ID, REQUEST_ID, {});
+    expect(notices(other.sql)).toHaveLength(0);
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-04-D (AC4): denying a request writes no attendee notice.
+   * Kills: notifying on a decision other than an approval.
+   */
+  it('EVENT-CHANGE-NOTIF-04-D denying a request that asked to move the start writes no attendee notice', async () => {
+    const { svc, sql } = setup({ request: moved('startDateTime') });
+
+    await svc.deny(coordinator, EVENT_ID, REQUEST_ID, { reason: 'The venue cannot move it.' });
+
+    expect(notices(sql)).toHaveLength(0);
+  });
+
+  /**
+   * EVENT-CHANGE-NOTIF-07-A (AC7): when the notice cannot be written the approval fails and nothing is committed; a
+   * refused approval (the event has started) writes none.
+   * Kills: swallowing the notice error, writing the notice before the event is saved.
+   */
+  it('EVENT-CHANGE-NOTIF-07-A fails the approval and commits nothing when the notice cannot be written', async () => {
+    const { svc, committed } = setup({ request: moved('startDateTime'), failOn: 'gen_random_uuid' });
+
+    await expect(svc.approve(coordinator, EVENT_ID, REQUEST_ID, {})).rejects.toThrow('injected fault');
+
+    expect(committed).toEqual([]);
+  });
+
+  /** EVENT-CHANGE-NOTIF-07-A (AC7): a refused approval (the event has started) writes no notice. Kills: writing the notice before the checks. */
+  it('EVENT-CHANGE-NOTIF-07-A writes no notice when the approval is refused', async () => {
+    const { svc, sql } = setup({
+      request: moved('startDateTime'),
+      event: eventRow({ startDateTime: '2029-12-31T00:00:00.000Z' }),
+    });
+
+    await expect(svc.approve(coordinator, EVENT_ID, REQUEST_ID, {})).rejects.toBeInstanceOf(ConflictException);
+
+    expect(notices(sql)).toHaveLength(0);
+  });
+});
