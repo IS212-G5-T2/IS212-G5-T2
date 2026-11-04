@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { buildRows, belongsToOtherStory, resultOf, titleRegExp, validate } from './check-records.mjs';
+import { buildRows, belongsToOtherStory, resultOf, titleRegExp, titlesMatch, validate } from './check-records.mjs';
 
 test('titleRegExp matches the titles an it.each call site expands to', () => {
   assert.ok(titleRegExp('refuses %s with 403').test('refuses an Attendee (ATT-01) with 403'));
@@ -14,6 +14,15 @@ test('titleRegExp matches the titles an it.each call site expands to', () => {
   assert.ok(titleRegExp('Q1-008 ${field} rejects length ${limit + 1}').test('Q1-008 name rejects length 201'));
   assert.ok(titleRegExp("event\\'s neighbours").test("event's neighbours"));
   assert.ok(!titleRegExp("event\\'s neighbours").test('events neighbours'));
+});
+
+test('titlesMatch links a measured (expanded) kill title to its it.each template, and a template mapping to a plain title', () => {
+  // SPM-175: --measure-kills records the title Vitest ran; the record holds the it.each template.
+  assert.ok(titlesMatch('REQ-CHANGE-01-F accepts a request on a Submitted event', 'REQ-CHANGE-01-F accepts a request on a %s event'));
+  assert.ok(titlesMatch('rejects a change to %s', 'rejects a change to name'));
+  assert.ok(titlesMatch('exact title', 'exact title'));
+  assert.ok(!titlesMatch('accepts a request on a Submitted event', 'refuses a request on a %s event'));
+  assert.ok(!titlesMatch('exact title and more', 'exact title'));
 });
 
 test('resultOf: PASS needs every matched test to pass, FAIL on any failure, NOT RUN when unmatched', () => {

@@ -13,7 +13,7 @@ import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
-import { App } from 'supertest/types';
+import type { App } from 'supertest/types.js';
 import {
   afterAll,
   afterEach,
@@ -129,7 +129,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
       )
     ).rows;
 
-  /** REVIEW-CHANGE-01-A, 01-B, 01-C: the coordinator's pending list holds their events' pending requests only. */
+  /** REVIEW-CHANGE-01-A, REVIEW-CHANGE-01-B, REVIEW-CHANGE-01-C: the coordinator's pending list holds their events' pending requests only. */
   it('REVIEW-CHANGE-01-A lists pending requests for the assigned coordinator only', async () => {
     const second = await seedEvent('Approved');
     const a = await submit({ expectedAttendance: 90 }).expect(201);
@@ -188,7 +188,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     await approve(created.body.id, otherCoordinator).expect(200);
   });
 
-  /** REVIEW-CHANGE-03-A, 03-C, 03-E, 03-H: the read-only preview lists venue and equipment conflicts and changes nothing. */
+  /** REVIEW-CHANGE-03-A, REVIEW-CHANGE-03-C, REVIEW-CHANGE-03-E, REVIEW-CHANGE-03-H: the read-only preview lists venue and equipment conflicts and changes nothing. */
   it('REVIEW-CHANGE-03-A previews booking, turnaround and equipment conflicts without changing anything', async () => {
     const venue = await insertVenue('CR Hall', 150);
     const booking = await insertBooking(
@@ -259,7 +259,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     ).toBe(0);
   });
 
-  /** REVIEW-CHANGE-03-F, 03-G: capacity and registrations are checked too; a compatible change has no conflicts. */
+  /** REVIEW-CHANGE-03-F, REVIEW-CHANGE-03-G: capacity and registrations are checked too; a compatible change has no conflicts. */
   it('REVIEW-CHANGE-03-G reports attendance below the registered count and the attendees a move affects', async () => {
     const venue = await insertVenue('CR Small Room', 60);
     await insertBooking(eventId, venue, START, END);
@@ -317,7 +317,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     });
   });
 
-  /** REVIEW-CHANGE-04-A, 07-A, 07-B, 07-D, 10-A: approving applies only the requested fields, notifies and audits once. */
+  /** REVIEW-CHANGE-04-A, REVIEW-CHANGE-07-A, REVIEW-CHANGE-07-B, REVIEW-CHANGE-07-D, REVIEW-CHANGE-10-A: approving applies only the requested fields, notifies and audits once. */
   it('REVIEW-CHANGE-04-A approves, updates only the requested fields, notifies the organiser and audits', async () => {
     const before = await eventRow();
     const created = await submit({
@@ -460,7 +460,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     expect(after.rows[0].n).toBe(2);
   });
 
-  /** REVIEW-CHANGE-04-B, 04-C: a request is decided once; parallel decisions settle to one. */
+  /** REVIEW-CHANGE-04-B, REVIEW-CHANGE-04-C: a request is decided once; parallel decisions settle to one. */
   it('REVIEW-CHANGE-04-C decides a request exactly once', async () => {
     const created = await submit({ expectedAttendance: 90 }).expect(201);
     const [first, second] = await Promise.all([
@@ -538,7 +538,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
   });
 
   /**
-   * REVIEW-CHANGE-12-B (AC11), 04-E: a pending request is closed automatically when the event is cancelled.
+   * REVIEW-CHANGE-12-B (AC11), REVIEW-CHANGE-04-E: a pending request is closed automatically when the event is cancelled.
    * Status Closed, decided by System with the reason; it leaves the pending list, cannot be decided and is audited.
    */
   it('REVIEW-CHANGE-12-B closes a pending request when the event is cancelled', async () => {
@@ -583,7 +583,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     expect((await auditRows()).map((row) => row.outcome)).toEqual(['Closed']);
   });
 
-  /** REVIEW-CHANGE-05-A, 05-B, 05-D, 10-B: denying needs a reason, leaves the event as it was, notifies and audits. */
+  /** REVIEW-CHANGE-05-A, REVIEW-CHANGE-05-B, REVIEW-CHANGE-05-D, REVIEW-CHANGE-08-E, REVIEW-CHANGE-10-B: denying needs a reason, leaves the event as it was (safety check included), notifies and audits. */
   it('REVIEW-CHANGE-05-A denies with a reason and leaves the event unchanged', async () => {
     await pool.query(
       `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by) VALUES ($1, 'approved', now(), 'CR Coordinator')`,
@@ -634,7 +634,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     });
   });
 
-  /** REVIEW-CHANGE-08-A, 08-C, 08-D: approving resets an existing safety check and a Confirmed event returns to Planning. */
+  /** REVIEW-CHANGE-08-A, REVIEW-CHANGE-08-C, REVIEW-CHANGE-08-D: approving resets an existing safety check and a Confirmed event returns to Planning. */
   it('REVIEW-CHANGE-08-D resets the safety check and returns a Confirmed event to Planning', async () => {
     const confirmed = await seedEvent('Confirmed');
     await pool.query(
@@ -700,7 +700,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     ).toEqual([]);
   });
 
-  /** REVIEW-CHANGE-08-B, 08-C: approving a change to any permitted detail resets an existing safety check. */
+  /** REVIEW-CHANGE-08-B, REVIEW-CHANGE-08-C: approving a change to any permitted detail resets an existing safety check. */
   it.each([
     ['startDateTime', { startDateTime: '2030-04-14T11:00:00Z' }],
     ['expectedAttendance', { expectedAttendance: 140 }],
@@ -737,7 +737,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     },
   );
 
-  /** REVIEW-CHANGE-09-A, 09-B, 09-D: the affected arrangements are listed after approval and ticked off one by one. */
+  /** REVIEW-CHANGE-09-A, REVIEW-CHANGE-09-B, REVIEW-CHANGE-09-D: the affected arrangements are listed after approval and ticked off one by one. */
   it('REVIEW-CHANGE-09-A lists arrangements to re-check after approval and ticks them off', async () => {
     const venue = await insertVenue('CR Hall', 150);
     const booking = await insertBooking(eventId, venue, START, END);
@@ -848,7 +848,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
       .expect(404);
   });
 
-  /** REVIEW-CHANGE-11-A, 11-B: only the assigned coordinator decides, and inputs are strict. */
+  /** REVIEW-CHANGE-11-A, REVIEW-CHANGE-11-B: only the assigned coordinator decides, and inputs are strict. */
   it('REVIEW-CHANGE-11-A refuses everyone but the assigned coordinator and invalid input', async () => {
     const created = await submit({ description: 'New agenda.' }).expect(201);
     await request(http())

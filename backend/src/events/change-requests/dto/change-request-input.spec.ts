@@ -133,7 +133,7 @@ describe('validateChangeRequest', () => {
     },
   );
 
-  /** REQ-CHANGE-02-B, 06-A: the event name can never be changed, and nothing is partially accepted. */
+  /** REQ-CHANGE-02-B, REQ-CHANGE-06-A: the event name can never be changed, and nothing is partially accepted. */
   it('REQ-CHANGE-02-B rejects a change to the event name, even alongside a valid change', () => {
     const body = rejection({ changes: { name: 'Alumni Gala', description: 'New text' } });
     expect(body.message).toBe(LOCKED_FIELDS_MESSAGE);
@@ -186,7 +186,7 @@ describe('validateChangeRequest', () => {
     });
   });
 
-  /** The optional reason is trimmed, blank means none, and it is limited to 500 characters. */
+  /** REQ-CHANGE-01-SUP-REASON: The optional reason is trimmed, blank means none, and it is limited to 500 characters. */
   it('validates the optional reason', () => {
     expect(validateChangeRequest({ changes: { description: 'New' }, reason: '   ' })).toEqual({
       changes: { description: 'New' },
