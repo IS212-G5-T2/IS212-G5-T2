@@ -3,7 +3,9 @@
  * pipeline, session middleware and PostgreSQL: Technical Support reserve a request or mark it cannot be provided, and
  * the event's Coordinator receives one notification in the bell feed. Every user signs in through the real login route.
  * Test cases: EQUIP-REQ-NOTIF-01-E, 01-F, 02-E, 03-B, 04-B, 05-A, 05-B, 05-C, 06-B, 06-C, 07-C.
- * Needs DATABASE_URL with database/postgresql/init 001 and 002 (the equipment migrations and 034 are applied here).
+ * Needs DATABASE_URL with the full database/postgresql/init folder applied, as CI does: 001, 002, the equipment
+ * migrations and 035 are applied here, but 03-B, 05-C, 06-B and 06-C also need tables from other init files
+ * (safety_check_feedback_items, event_change_requests).
  */
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
