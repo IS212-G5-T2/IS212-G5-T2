@@ -137,7 +137,8 @@ describe("SPM-155 EventDetailPage wiring", () => {
 
     // Assert
     const panel = await screen.findByRole("region", { name: "Cancellation request" });
-    expect(within(panel).getByText("Sponsor withdrew")).toBeInTheDocument();
+    // The panel renders before the request loads, so wait for the reason; Accept and Decline render in the same commit.
+    expect(await within(panel).findByText("Sponsor withdrew")).toBeInTheDocument();
     expect(within(panel).getByRole("button", { name: "Accept" })).toBeInTheDocument();
     expect(within(panel).getByRole("button", { name: "Decline" })).toBeInTheDocument();
   });
