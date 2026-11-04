@@ -16,7 +16,6 @@ import { ChangeRequestSummary } from "@/features/events/pages/change-requests/Ch
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { SafetyIndicator } from "@/features/events/components/StatusIndicators";
 import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
@@ -85,8 +84,7 @@ function timelineStages(status: string, cancelledFrom: string | null): readonly 
     const cancelledAt = beforeCancel.indexOf("cancelled");
     return reached >= 0 ? [...beforeCancel.slice(0, Math.min(reached + 1, cancelledAt)), "cancelled"] : ["cancelled"];
   }
-  const current = flow.indexOf(status);
-  return current >= 0 ? flow.slice(0, current + 1) : flow;
+  return flow.slice(0, flow.indexOf(status) + 1);
 }
 
 // Chrome and Firefox block top-level navigation of a link to a data: URL
@@ -192,6 +190,7 @@ export function EventDetailPage() {
     (isPlanningOwner || isPlanningCoordinator);
 
   const loadPlanning = useCallback(async () => {
+    /* v8 ignore next -- the route always supplies :id, so the planning view has an id. */
     if (!id) return;
     try {
       const view = await fetchPlanningView(id);
@@ -208,6 +207,7 @@ export function EventDetailPage() {
   }, [id]);
 
   const loadHistory = useCallback(async () => {
+    /* v8 ignore next -- the route always supplies :id, so the history view has an id. */
     if (!id) return;
     const request = ++historyRequest.current;
     try {
@@ -370,7 +370,6 @@ export function EventDetailPage() {
 
   const isRejected = event.status === "rejected";
   const statusFlow: readonly string[] = isRejected ? REJECTED_FLOW : timelineStages(event.status, cancelledFrom);
-  const currentStepIndex = statusFlow.indexOf(event.status);
 
   return (
     <div>
@@ -460,30 +459,22 @@ export function EventDetailPage() {
               <SafetyIndicator event={event} />
             </div>
           )}
-          {!statusFlow.includes(event.status) ? (
-            <div className="mb-6">
-              <StatusBadge status={event.status} />
-            </div>
-          ) : (
-            <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs" aria-label="Event status timeline">
-              {statusFlow.map((s, i) => (
-                <li key={s} className="flex items-center gap-2">
-                  <span
-                    className={`rounded-full px-2.5 py-1 font-medium ${
-                      isRejected && s === "rejected"
-                        ? "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300"
-                        : i <= currentStepIndex
-                          ? "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300"
-                          : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
-                    }`}
-                  >
-                    {s.replace("_", " ")}
-                  </span>
-                  {i < statusFlow.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
-                </li>
-              ))}
-            </ol>
-          )}
+          <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs" aria-label="Event status timeline">
+            {statusFlow.map((s, i) => (
+              <li key={s} className="flex items-center gap-2">
+                <span
+                  className={`rounded-full px-2.5 py-1 font-medium ${
+                    isRejected && s === "rejected"
+                      ? "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300"
+                      : "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300"
+                  }`}
+                >
+                  {s.replace("_", " ")}
+                </span>
+                {i < statusFlow.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
+              </li>
+            ))}
+          </ol>
         </>
       )}
 
@@ -550,7 +541,6 @@ export function EventDetailPage() {
                     }
                     return;
                   }
-                  if (reviewDecision !== "reject") return;
                   const raw = rejectionReason;
                   const trimmed = raw.trim();
                   const words = trimmed ? trimmed.split(/\s+/).filter(Boolean) : [];
@@ -648,9 +638,6 @@ export function EventDetailPage() {
           people={
             <EventPeople
               event={event}
-              // Confirmed events show View Registrations in the Registration tab instead.
-              canViewRegistrations={canViewRegistrationReport(currentUser, event) && event.status !== "confirmed"}
-              onViewRegistrations={() => setRegistrationsOpen(true)}
               showLastUpdated={false}
             />
           }

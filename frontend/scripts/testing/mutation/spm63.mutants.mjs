@@ -61,7 +61,7 @@ export const MUTANTS = [
   { id: 'X13', name: 'Export as PDF asks for csv', file: PAGE, suites,
     edits: [['onClick={() => void exportAs("pdf")}', 'onClick={() => void exportAs("csv")}']] },
   { id: 'X14', name: 'the link is offered to everyone', file: 'src/features/events/pages/detail/planning/EventPeople.tsx', suites,
-    edits: [['{canViewRegistrations && !preRegistration && (', '{true && (']] },
+    edits: [['{canViewRegistrations && onViewRegistrations && !preRegistration && (', '{true && (']] },
   { id: 'X15', name: 'coordinator link compared with the organiser column', file: UTIL, suites,
     edits: [['event.coordinatorId !== undefined && event.coordinatorId === user.id', 'event.organiserId !== undefined && event.organiserId === user.id']] },
   { id: 'X16', name: 'attendee names rendered as HTML', file: TABLE, suites,

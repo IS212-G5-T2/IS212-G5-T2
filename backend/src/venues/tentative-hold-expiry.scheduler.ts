@@ -4,6 +4,7 @@ import { VenuesRepository } from './repository/venues.repository.js';
 const DEFAULT_INTERVAL_MS = 60_000;
 
 /** Periodically persists processing of logically expired approved tentative holds. */
+/* v8 ignore start -- TypeScript decorator metadata emits an unreachable fallback branch. */
 @Injectable()
 export class TentativeHoldExpiryScheduler implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TentativeHoldExpiryScheduler.name);
@@ -11,6 +12,7 @@ export class TentativeHoldExpiryScheduler implements OnModuleInit, OnModuleDestr
   private running = false;
 
   constructor(private readonly venues: VenuesRepository) {}
+/* v8 ignore stop */
 
   onModuleInit(): void {
     const configured = Number(process.env.TENTATIVE_HOLD_EXPIRY_INTERVAL_MS);

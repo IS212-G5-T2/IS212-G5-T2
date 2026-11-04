@@ -8,6 +8,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { api } from "@/utils/api";
+import { useAppStore } from "@/store/useAppStore";
+import type { User } from "@/types";
 import { VenueRecordsPage } from "./VenueRecordsPage";
 import type { VenueRecord } from "../venue-records";
 
@@ -630,5 +632,61 @@ describe("VenueRecordsPage (SPM-124)", () => {
       await screen.findByRole("link", { name: "Conference Room" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("No venue records yet.")).not.toBeInTheDocument();
+  });
+
+  const asUser = (id: string | undefined) =>
+    useAppStore.setState({
+      currentUser: { id, name: "Venue Staff", email: "staff@example.test", role: "venue_staff" } as unknown as User,
+    });
+
+  // A venue owner gets an Edit link on their own cards only.
+  it("offers Edit only on the cards of venues the current user owns", async () => {
+    asUser("staff-1");
+    apiMock.mockResolvedValue([
+      { ...base, ownerId: "staff-1" },
+      { ...second, ownerId: "staff-2" },
+    ] as VenueRecord[]);
+    renderPage();
+
+    const edit = await screen.findByRole("link", { name: "Edit Conference Room" });
+    expect(edit).toHaveAttribute("href", `/venue-records/${base.id}/edit`);
+    expect(screen.queryByRole("link", { name: "Edit Auditorium" })).not.toBeInTheDocument();
+  });
+
+  // With no signed-in user id nobody owns a venue, so no Edit link is shown.
+  it("offers no Edit link when the current user has no id", async () => {
+    asUser(undefined);
+    apiMock.mockResolvedValue([{ ...base, ownerId: "staff-1" }] as VenueRecord[]);
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "Conference Room" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Edit / })).not.toBeInTheDocument();
+  });
+
+  // A venue with no layout options says None rather than leaving the line blank.
+  it("shows None when a venue has no layout options", async () => {
+    apiMock.mockResolvedValue([{ ...base, layouts: [] }]);
+    renderPage();
+
+    expect(await screen.findByText("Layout options: None")).toBeInTheDocument();
+  });
+
+  // A reply that arrives after the page is left must not touch state (no warnings, no stray output).
+  it.each([
+    ["resolves", (d: { resolve: (v: VenueRecord[]) => void }) => d.resolve([base])],
+    ["rejects", (d: { reject: (e: Error) => void }) => d.reject(new Error("offline"))],
+  ])("ignores a catalogue request that %s after the page unmounted", async (_name, settle) => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let resolve!: (v: VenueRecord[]) => void;
+    let reject!: (e: Error) => void;
+    apiMock.mockReturnValue(new Promise<VenueRecord[]>((res, rej) => { resolve = res; reject = rej; }));
+    const view = renderPage();
+    view.unmount();
+
+    settle({ resolve, reject });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });

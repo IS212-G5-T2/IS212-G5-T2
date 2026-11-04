@@ -571,4 +571,17 @@ describe("EventEditForm: options from the venue schema (SPM-156 follow-up)", () 
       resetVenueOptions();
     }
   });
+
+  // A file input that reports no file list adds nothing and does not break the form.
+  it("ignores a file selection event that carries no file list", () => {
+    const onSave = vi.fn();
+    render(<EventEditForm event={event} onSave={onSave} onCancel={vi.fn()} />);
+    const input = screen.getByLabelText("Supporting files") as HTMLInputElement;
+    Object.defineProperty(input, "files", { configurable: true, value: null });
+
+    fireEvent.change(input);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ attachments: [] }));
+  });
 });

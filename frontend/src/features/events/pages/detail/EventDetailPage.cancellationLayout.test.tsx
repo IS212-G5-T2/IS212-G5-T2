@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
@@ -7,6 +7,7 @@ import type { CancellationRequest } from "@/features/events/types/cancellationRe
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
 import type { EventRecord, PlanningView } from "@/types";
+import { deferred } from "@/test/deferred";
 
 /*
  * SPM-155 event page layout and status timeline (EventDetailPage): the timeline shows only the stages an event has
@@ -220,6 +221,68 @@ describe("SPM-155 status timeline: only the stages reached (commit 02e56aa3)", (
 });
 
 describe("SPM-155 status timeline across events", () => {
+  // Kills: a timeline that reads an object reply's fields as history rows instead of treating it as no history.
+  /** CANCEL-REQUEST-04-SUP-TIMELINE: a status-history reply that is not a list is read as no history, so only Cancelled is shown. */
+  it("CANCEL-REQUEST-04-SUP-TIMELINE: a status history reply that is not a list leaves only the Cancelled step", async () => {
+    // Arrange: the history endpoint answers with an object that has a find method returning a Cancelled row.
+    // Only the Array.isArray guard stops that row being read, so removing the guard would show the earlier stages.
+    const notAList = { find: () => ({ fromStatus: "Confirmed", toStatus: "Cancelled" }) };
+    renderAs(COO1, eventRecord({ status: "cancelled" }), { history: notAList as unknown as History });
+
+    // Assert: the reply is read as no history, so no origin stage is taken from it and no error is shown
+    await waitFor(() => expect(historyCalls()).toHaveLength(1));
+    await waitFor(() => expect(stagesOf(screen.getByRole("list", { name: "Event status timeline" }))).toEqual(["cancelled"]));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  /** CANCEL-REQUEST-04-SUP-TIMELINE: a history reply that arrives after the page moved to another event is not applied to it. */
+  it("CANCEL-REQUEST-04-SUP-TIMELINE: a delayed history reply for the previous cancelled event does not change the next event's timeline", async () => {
+    // Arrange: the first event's history is held open; the second event's history has no cancellation row
+    const second = "00000000-0000-4000-8000-000000000157";
+    const first = eventRecord({ status: "cancelled" });
+    const other = eventRecord({ id: second, name: "Second Event", status: "cancelled" });
+    const held = deferred<{ fromStatus: string; toStatus: string }[]>();
+    apiMock.mockImplementation(((path: string) => {
+      if (path === `/events/${EVENT_ID}/status-history`) return held.promise;
+      if (path === `/events/${second}/status-history`) return Promise.resolve([]);
+      if (path.endsWith("/cancellation-requests")) return Promise.resolve([]);
+      if (path.endsWith("/planning")) return Promise.resolve(planningView(path.includes(second) ? other : first));
+      if (path.includes("/comments") || path.includes("/change-requests")) return Promise.resolve([]);
+      if (path.endsWith("/arrangements-status")) return Promise.resolve({ eventId: EVENT_ID, ready: false, outstanding: [] });
+      if (path.endsWith("/confirmed-arrangements")) return Promise.reject(new Error("not confirmed"));
+      return Promise.resolve(path.includes(second) ? other : first);
+    }) as typeof api);
+    useAppStore.setState({ currentUser: { ...COO1, name: "coo-01", email: "coo-01@example.test" } as never, events: [first, other] });
+    render(
+      <MemoryRouter initialEntries={[`/events/${EVENT_ID}`]}>
+        <Link to={`/events/${second}`}>Go to the second event</Link>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByRole("heading", { name: "Annual Gala Dinner" });
+
+    // Act: leave for the second event, then let the first event's history arrive late
+    await userEvent.click(screen.getByRole("link", { name: "Go to the second event" }));
+    await screen.findByRole("heading", { name: "Second Event" });
+    await act(async () => {
+      held.resolve([{ fromStatus: "Confirmed", toStatus: "Cancelled" }]);
+      await held.promise;
+    });
+
+    // Assert: the late reply is ignored, so the second event shows only Cancelled
+    await waitFor(() => expect(stagesOf(screen.getByRole("list", { name: "Event status timeline" }))).toEqual(["cancelled"]));
+  });
+
+  /** CANCEL-REQUEST-04-SUP-TIMELINE: a history list with no cancellation row leaves only the Cancelled step. */
+  it("CANCEL-REQUEST-04-SUP-TIMELINE: a status history without a cancellation row leaves only the Cancelled step", async () => {
+    renderAs(COO1, eventRecord({ status: "cancelled" }), { history: [{ fromStatus: "Approved", toStatus: "Planning" }] });
+
+    await waitFor(() => expect(historyCalls()).toHaveLength(1));
+    await waitFor(() => expect(stagesOf(screen.getByRole("list", { name: "Event status timeline" }))).toEqual(["cancelled"]));
+  });
+
   // Kills: FM58, FM59, FM60, FM63, FM94
   /** CANCEL-REQUEST-04-SUP-TIMELINE (DERIVED): the stage of one cancelled event is not carried over to the next one whose history cannot be read. */
   it("CANCEL-REQUEST-04-SUP-TIMELINE: moving to another cancelled event whose history cannot be read drops the earlier event's stages", async () => {

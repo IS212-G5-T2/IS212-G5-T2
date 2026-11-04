@@ -3,8 +3,6 @@
  * Night" (capacity 3, full), ATT-01 to ATT-07 attendees. Suite clock T0 = 2026-10-14T12:00:00+08:00 (= 04:00Z).
  * Times are offsets from T0 unless a builder names an absolute instant.
  */
-import { screen } from "@testing-library/react";
-import { expect } from "vitest";
 import type { EventRecord, Registration, User } from "@/types";
 
 export const T0 = new Date("2026-10-14T12:00:00+08:00");
@@ -82,6 +80,3 @@ export function buildWaitlisted(attendeeId: string, position: number | null, ove
 /** Confirmed (status registered) for the attendee. */
 export const buildRegistered = (attendeeId: string, overrides: Partial<Registration> = {}): Registration =>
   buildWaitlisted(attendeeId, null, { status: "registered", ...overrides });
-
-/** Assertion helper: the text of the one element with this exact text is present. */
-export const expectText = (text: string) => expect(screen.getByText(text)).toBeInTheDocument();

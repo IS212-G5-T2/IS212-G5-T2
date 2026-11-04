@@ -421,3 +421,60 @@ describe('SPM-57 equipment request persistence', () => {
     ]);
   });
 });
+
+describe('EQUIP-AVAIL-04 reserve stock check and lookup fallbacks', () => {
+  function stockScenario(opts: { inventory: Array<{ equipment_name: string; active_quantity: number; is_available: boolean }>; reserved?: Array<{ equipment_name: string; reserved_quantity: number }>; requested?: number }) {
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM equipment_requests r JOIN events e')) {
+        return { rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, event_status: 'Planning', start_date_time: event.start_date_time, end_date_time: event.end_date_time }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment_request_items') && sql.includes('GROUP BY item.equipment_name')) {
+        return { rows: [{ equipment_name: 'Conference microphone', requested_quantity: opts.requested ?? 2 }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment\n          WHERE equipment_name')) return { rows: opts.inventory, rowCount: opts.inventory.length };
+      if (sql.includes('FROM equipment_reservations r JOIN events e')) return { rows: opts.reserved ?? [], rowCount: (opts.reserved ?? []).length };
+      return { rows: [], rowCount: 1 };
+    });
+  }
+  const wroteReserved = () => query.mock.calls.some(([sql]) => String(sql).includes("UPDATE equipment_requests SET status = 'Reserved'"));
+
+  it('reports request-not-found and writes nothing when the request id is unknown', async () => {
+    query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'request-not-found' });
+    expect(query).toHaveBeenCalledOnce();
+  });
+
+  it('EQUIP-AVAIL-04 refuses a reservation when overlapping events already hold too many units', async () => {
+    stockScenario({ inventory: [{ equipment_name: 'Conference microphone', active_quantity: 3, is_available: true }], reserved: [{ equipment_name: 'Conference microphone', reserved_quantity: 2 }], requested: 2 });
+    await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'insufficient-active-stock', equipmentName: 'Conference microphone' });
+    expect(wroteReserved()).toBe(false);
+  });
+
+  it('EQUIP-AVAIL-04 reserves when the stock left after overlapping holds exactly covers the request', async () => {
+    stockScenario({ inventory: [{ equipment_name: 'Conference microphone', active_quantity: 4, is_available: true }], reserved: [{ equipment_name: 'Conference microphone', reserved_quantity: 2 }], requested: 2 });
+    await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'reserved', id: requestId });
+    expect(wroteReserved()).toBe(true);
+  });
+
+  it('EQUIP-UNAVAIL refuses a reservation for equipment flagged unavailable even with active units', async () => {
+    stockScenario({ inventory: [{ equipment_name: 'Conference microphone', active_quantity: 10, is_available: false }], requested: 1 });
+    await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'insufficient-active-stock', equipmentName: 'Conference microphone' });
+    expect(wroteReserved()).toBe(false);
+  });
+
+  it('refuses a reservation for equipment with no inventory record', async () => {
+    stockScenario({ inventory: [], requested: 1 });
+    await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'insufficient-active-stock', equipmentName: 'Conference microphone' });
+  });
+
+  it('shows an em dash for a Reserved row without an equipment type', async () => {
+    query = vi.fn().mockResolvedValue({ rows: [{
+      id: 'reservation-1', event_id: eventId, event_name: 'Workshop',
+      start_date_time: event.start_date_time, end_date_time: event.end_date_time,
+      equipment_name: 'Conference microphone', equipment_type: null, quantity: 2, status: 'Reserved',
+      coordinator_email: 'coordinator@example.com',
+    }], rowCount: 1 });
+    repository = new EquipmentRequestsRepository({ query } as unknown as DatabaseService);
+    await expect(repository.listReservations()).resolves.toEqual([expect.objectContaining({ equipmentType: '—' })]);
+  });
+});

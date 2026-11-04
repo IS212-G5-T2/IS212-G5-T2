@@ -16,8 +16,8 @@ const DAY_FORMAT = new Intl.DateTimeFormat("en-CA", { timeZone: SGT_TIME_ZONE })
 
 /** Shared SGT date and time parts; callers choose their own display punctuation. */
 export function sgtDateTimeParts(value: string | Date): { date: string; time: string } {
-  const parts = DATE_TIME_PARTS.formatToParts(new Date(value));
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  const values = Object.fromEntries(DATE_TIME_PARTS.formatToParts(new Date(value)).map((item) => [item.type, item.value])) as Record<string, string>;
+  const part = (type: string) => values[type];
   return {
     date: `${Number(part("day"))} ${MONTHS[Number(part("month")) - 1]} ${part("year")}`,
     time: `${part("hour")}:${part("minute")}`,

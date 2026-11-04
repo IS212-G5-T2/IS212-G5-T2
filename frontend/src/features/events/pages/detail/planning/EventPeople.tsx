@@ -12,9 +12,9 @@ import { formatDateTime } from "@/utils/format";
 
 interface Props {
   event: EventRecord;
-  /** Whether the viewer may open the registrations report for this event. */
-  canViewRegistrations: boolean;
-  onViewRegistrations: () => void;
+  /** Omit both to hide the button; the planning tab shows it in the Registration tab once the event is confirmed. */
+  canViewRegistrations?: boolean;
+  onViewRegistrations?: () => void;
   /** The planning Event Info tab already shows its own "Last updated" line. */
   showLastUpdated?: boolean;
 }
@@ -37,7 +37,7 @@ export function EventPeople({ event, canViewRegistrations, onViewRegistrations, 
           <dd className="font-medium text-gray-800 dark:text-gray-200">{formatDateTime(event.updatedAt)}</dd>
         </div>
       )}
-      {canViewRegistrations && !preRegistration && (
+      {canViewRegistrations && onViewRegistrations && !preRegistration && (
         <Button variant="secondary" size="sm" onClick={onViewRegistrations}>
           View Registrations
         </Button>
