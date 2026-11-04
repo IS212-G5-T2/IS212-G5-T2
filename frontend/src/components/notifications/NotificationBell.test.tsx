@@ -1736,6 +1736,176 @@ describe("NotificationBell (SPM-162: cancellation request outcome notices)", () 
 });
 
 // ---------------------------------------------------------------------------------------------------------
+// SPM-171: the assigned Coordinator's bell lists "<organiser> requested to cancel "<event>"." and links it to the
+// event page (/events/<id>), where the pending request and its reason are shown. The backend builds the message and
+// decides who gets the notice; these are frontend unit tests of the bell with the notifications API stubbed and the
+// signed-in Coordinator set directly in the store (a fixture, not a live login).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-171: cancellation request submitted notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const REQUESTED_MESSAGE = 'Farid Rahman requested to cancel "Welcome Evening".';
+
+  function setCoordinator() {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+  }
+
+  function requestedNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-requested-1",
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type: "cancellation_request_submitted",
+      message: REQUESTED_MESSAGE,
+      relatedEventId: "event-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  /**
+   * CANCEL-REQ-NOTIF-01-E (SPM-171 AC1, AC4): a Coordinator's bell lists the notice and counts it as unread, next to an
+   * assignment notice.
+   * Kills: the new type missing from the Coordinator's bell filter; the notice left out of the unread count.
+   */
+  it("CANCEL-REQ-NOTIF-01-E lists the notice in a Coordinator's bell and counts it with their other notices", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      requestedNotice(),
+      requestedNotice({ id: "notif-assign-1", type: "coordinator_assignment", message: '"Gala" has been assigned to you.', relatedEventId: "event-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(REQUESTED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-02-D (SPM-171 AC2): the row shows the whole message exactly as stored and the notification's own
+   * timestamp as a <time> element, with no reason.
+   * Kills: a row that rewrites the message, hides the time, or adds a reason.
+   */
+  it("CANCEL-REQ-NOTIF-02-D shows the full message and the submission time, with no reason", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([requestedNotice()]);
+
+    renderBell();
+
+    const row = (await screen.findByText(REQUESTED_MESSAGE)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(REQUESTED_MESSAGE);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent(/Reason/);
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-03-A (SPM-171 AC3): the link goes to /events/event-1, marks the notification read once, lands on
+   * the event page and closes the dropdown.
+   * Kills: a link to the Change Requests page or the Bookings page; opening without marking read.
+   */
+  it("CANCEL-REQ-NOTIF-03-A View Request opens /events/event-1 and marks the notice read", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [requestedNotice()]));
+
+    renderBellWithEventRoute();
+    const link = await screen.findByRole("link", { name: "View Request" });
+    expect(link).toHaveAttribute("href", "/events/event-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Event detail page for event-1")).toBeTruthy();
+    expect(postReadCalls("notif-requested-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-03-B (SPM-171 AC3): two notices for two events each link to their own event, and following one
+   * marks only that notice read.
+   * Kills: every row linking to the same event; one read call serving all rows.
+   */
+  it("CANCEL-REQ-NOTIF-03-B links each notice to its own event", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [requestedNotice({ id: "n1", relatedEventId: "event-1" }), requestedNotice({ id: "n2", relatedEventId: "event-2" })],
+      ),
+    );
+
+    renderBellWithEventRoute();
+    const links = await screen.findAllByRole("link", { name: "View Request" });
+    expect(links.map((l) => l.getAttribute("href")).sort()).toEqual(["/events/event-1", "/events/event-2"]);
+    fireEvent.click(links.find((l) => l.getAttribute("href") === "/events/event-2")!);
+
+    await waitFor(() => expect(postReadCalls("n2")).toHaveLength(1));
+    expect(postReadCalls("n1")).toHaveLength(0);
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-04-A (SPM-171 AC4): Mark As Read posts the read call, drops the row and lowers the count without
+   * opening the event page.
+   * Kills: Mark As Read not posting for this type, or leaving the notice counted.
+   */
+  it("CANCEL-REQ-NOTIF-04-A Mark As Read marks the notice read and lowers the unread count", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [requestedNotice()]));
+
+    renderBellWithEventRoute();
+    await screen.findByText(REQUESTED_MESSAGE);
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() => expect(postReadCalls("notif-requested-1")).toHaveLength(1));
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.queryByText(/Event detail page for/)).toBeNull();
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-04-B (SPM-171 AC4): opening and closing the bell does not mark the notice read; it stays unread
+   * and counted until it is opened or marked read.
+   * Kills: marking the notices read when the dropdown opens.
+   */
+  it("CANCEL-REQ-NOTIF-04-B leaves the notice unread after the bell is opened and closed", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [requestedNotice()]));
+
+    renderBell();
+    expect(await screen.findByText(REQUESTED_MESSAGE)).toBeTruthy();
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(apiMock.mock.calls.filter(([path]) => String(path).endsWith("/read"))).toHaveLength(0);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-04-C (SPM-171 AC4): a notice the server already holds as read is neither listed nor counted, so it
+   * stays read after the Coordinator signs out and back in.
+   * Kills: read notices shown again.
+   */
+  it("CANCEL-REQ-NOTIF-04-C leaves out a notice the server holds as read", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([requestedNotice({ read: true }), requestedNotice({ id: "notif-requested-2", relatedEventId: "event-2", message: 'Grace Lim requested to cancel "Gala".' })]);
+
+    renderBell();
+
+    expect(await screen.findByText('Grace Lim requested to cancel "Gala".')).toBeTruthy();
+    expect(screen.queryByText(REQUESTED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
 // SPM-125: venue-change notices. The Coordinator's bell also lists the notices that a Venue Staff change affects one
 // of their bookings (AC6 to AC9), opening that booking on the Bookings page (AC7). Venue Staff get no bell: their save
 // result already shows which Coordinators were notified (SC-SPM125-01; ASSIGN-NOTIFY-01-E still covers it). Frontend

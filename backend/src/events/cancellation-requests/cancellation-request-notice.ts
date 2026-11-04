@@ -8,6 +8,9 @@ import { CANCELLATION_REQUEST_MESSAGES as MESSAGES } from './cancellation-reques
 export const CANCELLATION_ACCEPTED_NOTICE = 'cancellation_request_accepted';
 export const CANCELLATION_DECLINED_NOTICE = 'cancellation_request_declined';
 
+// SPM-171: the assigned Coordinator is told of a submitted request; other places that name this string are listed in backend/AGENTS.md.
+export const CANCELLATION_REQUESTED_NOTICE = 'cancellation_request_submitted';
+
 type Queryable = Pick<pg.PoolClient, 'query'>;
 
 /**
@@ -34,4 +37,43 @@ export async function notifyCancellationOutcome(
       decidedAt,
     ],
   );
+}
+
+/**
+ * SPM-171 AC1/AC2: writes the "requested to cancel" notice for one Coordinator on the caller's transaction client, so it
+ * commits or rolls back with the request row. The timestamp is the submission time the caller passes.
+ */
+export async function notifyCancellationRequested(
+  client: Queryable,
+  coordinatorId: string,
+  eventId: string,
+  eventName: string,
+  requestedBy: string,
+  requestedAt: Date,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO notifications (id, recipient_id, type, message, related_event_id, created_at)
+     VALUES ($1, $2, $3, $4, $5::uuid, $6)`,
+    [randomUUID(), coordinatorId, CANCELLATION_REQUESTED_NOTICE, MESSAGES.requestedNotice(requestedBy, eventName), eventId, requestedAt],
+  );
+}
+
+/**
+ * SPM-171 AC6: when an event is assigned or reassigned, tells the new Coordinator about a cancellation request that is
+ * still pending on it, stamped with the original submission time. Returns whether a notice was sent.
+ */
+export async function notifyPendingCancellationRequest(
+  client: Queryable,
+  eventId: string,
+  eventName: string,
+  coordinatorId: string,
+): Promise<boolean> {
+  const pending = await client.query<{ requested_by: string; requested_at: Date }>(
+    `SELECT requested_by, requested_at FROM event_cancellation_requests WHERE event_id = $1 AND status = 'pending'`,
+    [eventId],
+  );
+  const request = pending.rows[0];
+  if (!request) return false;
+  await notifyCancellationRequested(client, coordinatorId, eventId, eventName, request.requested_by, request.requested_at);
+  return true;
 }

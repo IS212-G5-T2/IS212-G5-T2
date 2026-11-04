@@ -854,6 +854,79 @@ describe('SPM-64 AC3: pending change requests follow assignment', () => {
   });
 });
 
+// SPM-171: a cancellation request that is still pending follows the event to the Coordinator assigned or reassigned
+// later (AC6); the previous Coordinator's unread notice for it is cleared on reassignment.
+describe('SPM-171 AC6: pending cancellation requests follow assignment', () => {
+  const PENDING = { requested_by: 'Organiser 1', requested_at: new Date('2026-11-03T03:15:00.000Z') };
+
+  function withPendingCancellation(pending: boolean) {
+    const base = client.query.getMockImplementation()!;
+    client.query.mockImplementation((sql: string, params?: unknown[]) => {
+      const text = String(sql).replace(/\s+/g, ' ').trim();
+      if (text.startsWith('SELECT') && text.includes('FROM event_cancellation_requests'))
+        return { rows: pending ? [PENDING] : [] };
+      return base(sql, params);
+    });
+  }
+
+  const cancellationNotices = () =>
+    txStatements().filter(
+      (s) => s.sql.startsWith('INSERT INTO notifications') && s.params?.includes('cancellation_request_submitted'),
+    );
+
+  /** CANCEL-REQ-NOTIF-06-D (SPM-171 AC6): assigning an event with a pending cancellation request sends the Coordinator the notice, with the submission time. */
+  it('CANCEL-REQ-NOTIF-06-D notifies the assigned coordinator of a pending cancellation request', async () => {
+    wireAssign({});
+    withPendingCancellation(true);
+    await service.assign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID });
+    const notices = cancellationNotices();
+    expect(notices).toHaveLength(1);
+    expect(notices[0].params!.slice(1)).toEqual([
+      COORDINATOR_ID,
+      'cancellation_request_submitted',
+      'Organiser 1 requested to cancel "Welcome Evening".',
+      EVENT_ID,
+      PENDING.requested_at,
+    ]);
+  });
+
+  /** CANCEL-REQ-NOTIF-06-E (SPM-171 AC6): assigning an event with no pending cancellation request sends none. */
+  it('CANCEL-REQ-NOTIF-06-E sends no cancellation notice when none is pending', async () => {
+    wireAssign({});
+    withPendingCancellation(false);
+    await service.assign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID });
+    expect(cancellationNotices()).toHaveLength(0);
+  });
+
+  /** CANCEL-REQ-NOTIF-06-F (SPM-171 AC6): reassignment notifies the new Coordinator only and marks the previous Coordinator's unread cancellation notice for the event read. */
+  it('CANCEL-REQ-NOTIF-06-F notifies the new coordinator and clears the old coordinator\'s unread notice', async () => {
+    wireReassign({});
+    withPendingCancellation(true);
+    await service.reassign(lead, EVENT_ID, reassignBody);
+    const notices = cancellationNotices();
+    expect(notices).toHaveLength(1);
+    expect(notices[0].params![1]).toBe(NEW_COORDINATOR_ID);
+    expect(notices[0].params![5]).toBe(PENDING.requested_at);
+    const markRead = txStatements().find((s) => s.sql.startsWith('UPDATE notifications'))!;
+    expect(markRead.sql).toContain("'cancellation_request_submitted'");
+    expect(markRead.sql).toContain('read = false');
+    expect(markRead.params).toEqual([COORDINATOR_ID, EVENT_ID]);
+  });
+
+  /** CANCEL-REQ-NOTIF-06-G (SPM-171 AC6): a notice insert that fails during assignment propagates, so the assignment rolls back with it. */
+  it('CANCEL-REQ-NOTIF-06-G rolls the assignment back if the cancellation notice cannot be saved', async () => {
+    wireAssign({});
+    withPendingCancellation(true);
+    const base = client.query.getMockImplementation()!;
+    client.query.mockImplementation((sql: string, params?: unknown[]) => {
+      if (String(sql).includes('INSERT INTO notifications') && params?.includes('cancellation_request_submitted'))
+        throw new Error('notice failed');
+      return base(sql, params);
+    });
+    await expect(service.assign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID })).rejects.toThrow('notice failed');
+  });
+});
+
 // SPM-77: the assigned coordinator's top-bar bell notification. Expected wording is DECIDED (SC-SPM77-01, user, 31 Oct 2026):
 // "<name>" on <D Mon YYYY> has been assigned to you.
 // The date is the event's proposed start date, as the Singapore calendar day (unpadded day, no time).

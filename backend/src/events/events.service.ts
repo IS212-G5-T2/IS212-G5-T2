@@ -40,7 +40,7 @@ import {
   HOLD_REJECTED_NOTICE,
 } from '../venues/review/booking-decision-notice.js';
 import { EQUIPMENT_DECISION_NOTICE_TYPES } from '../equipment/requests/equipment-decision-notice.js';
-import { CANCELLATION_ACCEPTED_NOTICE, CANCELLATION_DECLINED_NOTICE } from './cancellation-requests/cancellation-request-notice.js';
+import { CANCELLATION_ACCEPTED_NOTICE, CANCELLATION_DECLINED_NOTICE, CANCELLATION_REQUESTED_NOTICE } from './cancellation-requests/cancellation-request-notice.js';
 import { COORDINATOR_NOTIFICATION_TYPES } from './coordinator-notification-types.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,
@@ -89,6 +89,8 @@ function audienceRoleFor(row: AudienceRow) {
     return 'attendee';
   }
   if (row.type === 'coordinator_unavailable') return 'coordinator_lead';
+  // SPM-171: the Organiser's cancellation request is told to the assigned Coordinator.
+  if (row.type === CANCELLATION_REQUESTED_NOTICE) return 'coordinator';
   if (row.type.startsWith('coordinator_')) return 'coordinator';
   // SPM-137: the venue booking decision notices are the assigned coordinator's.
   if (row.type === BOOKING_APPROVED_NOTICE || row.type === BOOKING_REJECTED_NOTICE) return 'coordinator';
@@ -494,6 +496,8 @@ export class EventsService {
             // SPM-165: Venue Staff approved or rejected a tentative hold for an event assigned to them.
             HOLD_APPROVED_NOTICE,
             HOLD_REJECTED_NOTICE,
+            // SPM-171: the Organiser requested to cancel an event assigned to them.
+            CANCELLATION_REQUESTED_NOTICE,
             // SPM-172: Technical Support reserved or could not provide an equipment request for an event assigned to them.
             ...EQUIPMENT_DECISION_NOTICE_TYPES,
             // SPM-125 AC6 to AC9: a venue change (unavailability, setup or turnaround, capacity) affects a booking.

@@ -241,10 +241,10 @@ describe('SPM-155 create: eligible statuses and the pending rule (AC1, D5)', () 
     // Act
     const result = await service.create(org1, EVENT, { reason: 'No longer needed' });
 
-    // Assert: 201 payload literal and exactly one INSERT
+    // Assert: 201 payload literal and exactly one INSERT into the request table (SPM-171 adds the Coordinator's notice)
     expect(result.message).toBe('Cancellation request sent to your Event Coordinator.');
     expect(result.request).toMatchObject({ status: 'pending', displayStatus: 'pending', eventId: EVENT, reason: 'No longer needed' });
-    expect(writes()).toHaveLength(1);
+    expect(writes().filter((s) => !/INSERT INTO notifications/.test(s.sql))).toHaveLength(1);
   });
 
   // Kills: M2a, M2d, M4c, M4f, M4g, M4h, M7c
@@ -332,8 +332,8 @@ describe('SPM-155 create: what is written (AC1, AC2)', () => {
     // Act
     await service.create(org1, EVENT, { reason: '  No longer needed  ' });
 
-    // Assert: a single INSERT; params carry the event id, requester uid and name, trimmed reason and T0
-    expect(writes()).toHaveLength(1);
+    // Assert: a single INSERT into the request table (the SPM-171 notice is the only other write); params carry the event id, requester uid and name, trimmed reason and T0
+    expect(writes().filter((s) => !/INSERT INTO notifications/.test(s.sql))).toHaveLength(1);
     const insert = statements.find((s) => /INSERT INTO event_cancellation_requests/.test(s.sql));
     expect(insert?.params).toEqual([expect.any(String), EVENT, 'org-01', 'Farid Rahman', 'No longer needed', NOW]);
     // The event row is never written and the SPM-136 core is never called by a request
@@ -896,5 +896,100 @@ describe('SPM-162 decide: the request-outcome notice (AC1, AC6)', () => {
 
     // Act / Assert 2: the failure reaches the caller, so the real transaction would roll the request update back
     await expect(broken.service.decide(coo1, REQUEST, { decision: 'decline' })).rejects.toThrow('notice failed');
+  });
+});
+
+// SPM-171: the Coordinator's "requested to cancel" notice. The notice is a statement on the create transaction's own
+// client, so it commits or rolls back with the request row. Wording is a literal copy of the Jira AC2 text.
+describe('SPM-171 create: the notice to the assigned Coordinator (AC1, AC2, AC7)', () => {
+  const noticeWrites = (statements: Array<{ sql: string; params: unknown[] }>) =>
+    statements.filter((s) => /INSERT INTO notifications/.test(s.sql));
+  const requestInserts = (statements: Array<{ sql: string; params: unknown[] }>) =>
+    statements.filter((s) => /INSERT INTO event_cancellation_requests/.test(s.sql));
+
+  /** CANCEL-REQ-NOTIF-01-A (SPM-171 AC1, AC2): a saved request writes one notice for the assigned Coordinator, typed, worded as the AC and linked to the event, at the submission instant. */
+  it('CANCEL-REQ-NOTIF-01-A: a saved request writes one notice for the assigned Coordinator at the submission instant', async () => {
+    // Arrange
+    const { service, statements } = setup({ event: eventRow('Confirmed') });
+
+    // Act
+    await service.create(org1, EVENT, { reason: 'No longer needed' });
+
+    // Assert: exactly one notice, for coo-01 (params after the generated id), with the Jira wording, event link and NOW
+    const notices = noticeWrites(statements);
+    expect(notices).toHaveLength(1);
+    expect(notices[0].params.slice(1)).toEqual(['coo-01', 'cancellation_request_submitted', 'Farid Rahman requested to cancel "Hack Night".', EVENT, NOW]);
+  });
+
+  /** CANCEL-REQ-NOTIF-02-A (SPM-171 AC2): the notice names the submitting Organiser from the session, falling back to the email and then to "Organiser", and never carries the reason. */
+  it.each([
+    ['a name', 'Farid Rahman requested to cancel "Hack Night".', { ...org1 }],
+    ['no name, only an email', 'org01@example.test requested to cancel "Hack Night".', { ...org1, name: undefined }],
+    ['neither name nor email', 'Organiser requested to cancel "Hack Night".', { ...org1, name: undefined, email: undefined }],
+  ])('CANCEL-REQ-NOTIF-02-A: with %s the notice text is %s', async (_label, text, actor) => {
+    // Arrange
+    const { service, statements } = setup({ event: eventRow('Confirmed') });
+
+    // Act
+    await service.create(actor as AuthenticatedUser, EVENT, { reason: 'Secret reason' });
+
+    // Assert
+    const [notice] = noticeWrites(statements);
+    expect(notice.params[3]).toBe(text);
+    expect(notice.params[3]).not.toContain('Secret reason');
+  });
+
+  /** CANCEL-REQ-NOTIF-06-A (SPM-171 AC6): a request submitted while no Coordinator is assigned writes the request but no notice (the assignment sends it later). */
+  it('CANCEL-REQ-NOTIF-06-A: an unassigned event saves the request and writes no notice', async () => {
+    // Arrange
+    const { service, statements } = setup({ event: eventRow('Submitted', { coordinator_id: null }) });
+
+    // Act
+    await service.create(org1, EVENT, {});
+
+    // Assert
+    expect(requestInserts(statements)).toHaveLength(1);
+    expect(noticeWrites(statements)).toHaveLength(0);
+  });
+
+  /** CANCEL-REQ-NOTIF-07-A (SPM-171 AC7): every refusal (another pending request, event not cancellable, invalid reason, not the owner, no identity, unknown event, the unique-index backstop) writes no notice. */
+  it.each([
+    ['another request is pending', org1, { reason: 'x' }, { event: eventRow('Confirmed'), pendingExists: true }],
+    ['the event is Completed', org1, {}, { event: eventRow('Completed') }],
+    ['the event is Cancelled', org1, {}, { event: eventRow('Cancelled') }],
+    ['the reason is over 500 characters', org1, { reason: 'x'.repeat(501) }, { event: eventRow('Confirmed') }],
+    ['the caller is another Organiser', org2, {}, { event: eventRow('Confirmed') }],
+    ['the caller is the Coordinator', coo1, {}, { event: eventRow('Confirmed') }],
+    ['the event does not exist', org1, {}, { event: null }],
+    ['the unique index rejects a concurrent request', org1, {}, { event: eventRow('Confirmed'), insertError: { code: '23505' } }],
+  ])('CANCEL-REQ-NOTIF-07-A: %s writes no notice', async (_label, actor, body, script) => {
+    // Arrange
+    const { service, statements } = setup(script as Script);
+
+    // Act
+    await refusal(service.create(actor, EVENT, body));
+
+    // Assert
+    expect(noticeWrites(statements)).toHaveLength(0);
+  });
+
+  /** CANCEL-REQ-NOTIF-07-B (SPM-171 AC7): the notice is written after the request row, and a failing notice write propagates out of create so the transaction rolls the request back. */
+  it('CANCEL-REQ-NOTIF-07-B: the notice follows the request insert and its failure propagates', async () => {
+    // Arrange
+    const ok = setup({ event: eventRow('Confirmed') });
+    const broken = setup({ event: eventRow('Confirmed') });
+    const normal = broken.client.query.getMockImplementation()!;
+    broken.client.query.mockImplementation(async (sql: string, params: unknown[] = []) => {
+      if (/INSERT INTO notifications/.test(sql)) throw new Error('notice failed');
+      return normal(sql, params);
+    });
+
+    // Act
+    await ok.service.create(org1, EVENT, {});
+
+    // Assert
+    const order = ok.statements.map((s) => (/INSERT INTO event_cancellation_requests/.test(s.sql) ? 'request' : /INSERT INTO notifications/.test(s.sql) ? 'notice' : '-'));
+    expect(order.filter((o) => o !== '-')).toEqual(['request', 'notice']);
+    await expect(broken.service.create(org1, EVENT, {})).rejects.toThrow('notice failed');
   });
 });
