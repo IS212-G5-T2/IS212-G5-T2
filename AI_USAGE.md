@@ -14,6 +14,10 @@ Add entries under one date per day, using this format:
 
 Where user is the user's github username.
 
+## 2026-11-04
+
+- tanwz - implementation - dev - Live-demo seed data: Added `database/postgresql/demo/demo_seed.sql`, a destructive wipe-and-reseed (outside `init/`) with 13 fictional Singapore-campus accounts (password `P@55w0rd`, `@connectsphere.sg`), 10 venues, 14 equipment lines, 48 events across every status, bookings, holds, blocked periods, equipment requests, registrations with a waitlist, change and cancellation requests, clarifications, completion records, safety checks and notifications for each role. Documented in `database/README.md`. Verified on a scratch Postgres 16 container built from `init/`: the script ran to COMMIT, re-ran twice with identical counts, safety rows survived, and all logins verify. Run against the local dev volume (`spm-local_postgres-data`) after a full pg_dump backup; the dev schema lacks migration 032, so the seed omits the `expired` booking status. No Jira key, review agents not run, nothing committed.
+
 ## 2026-11-03
 
 - swr - test - SPM-132 - Close whole-file coverage gaps: Expanded owning-module regression execution and added service/controller/calendar behavior assertions; unchanged 16-file scope now measures 100% statements, branches, functions and lines with zero OPEN gaps. Correction cycle 04 passes 612 tests in UTC/SGT/LA, 68 maintained records and 32 mutation kills. Backend full coverage passes 2,436 tests; both builds/lints pass with existing warnings. Full frontend coverage retains two unrelated SPM-129 URL assertion failures (2,470 pass, one skipped, one todo). Earlier legacy integration failures are preserved; sequential rerun passes. Independent review remains pending; nothing committed.
