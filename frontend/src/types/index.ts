@@ -440,6 +440,9 @@ export interface Registration {
 export type NotificationType =
   | "submission"
   | "clarification"
+  /** SPM-177: the other party replied to, or resolved, a clarification. */
+  | "clarification_reply"
+  | "clarification_resolved"
   | "approval"
   | "rejection"
   | "coordinator_assignment"

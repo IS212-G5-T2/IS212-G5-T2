@@ -495,6 +495,15 @@ Rows are the Definition of Done items of Jira SPM-156 (DoD2 to DoD11, as numbere
 | AC10 | PRESENT (HOLD-EXP-NOTIF-10-A) | PRESENT (HOLD-EXP-NOTIF-10-B, HOLD-EXP-NOTIF-10-C) | N/A (no numeric limit in the criterion) | PRESENT (HOLD-EXP-NOTIF-10-C) | N/A (no configurable parameter in the criterion) | PRESENT (HOLD-EXP-NOTIF-10-B) | N/A (recipient rule is AC1) | N/A (no role rule in the criterion) | N/A (no concurrent write rule in the criterion) |
 | AC11 | PRESENT (HOLD-EXP-NOTIF-11-A, HOLD-EXP-NOTIF-11-B, HOLD-EXP-NOTIF-11-E, HOLD-EXP-NOTIF-11-F) | PRESENT (HOLD-EXP-NOTIF-11-C, HOLD-EXP-NOTIF-11-D, HOLD-EXP-NOTIF-11-H) | N/A (no numeric limit in the criterion) | PRESENT (HOLD-EXP-NOTIF-11-G) | N/A (no configurable parameter in the criterion) | PRESENT (HOLD-EXP-NOTIF-11-C, HOLD-EXP-NOTIF-11-H) | PRESENT (HOLD-EXP-NOTIF-11-G) | N/A (route authorization is the existing SPM-132 rule; a foreign staff member's refusal is 11-H) | N/A (concurrent release or conversion uses the SPM-132 venue and booking row lock, unchanged) |
 
+## SPM-177
+
+| AC | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |
+|---|---|---|---|---|---|---|---|---|---|
+| DoD1 (Organiser and Coordinator see the three notices) | PRESENT (CLARIFY-NOTIF-01-A, CLARIFY-NOTIF-06-A, CLARIFY-NOTIF-06-B, CLARIFY-NOTIF-07-A, CLARIFY-NOTIF-07-B) | N/A (the refused read is DoD3) | N/A (no numeric limit) | PRESENT (CLARIFY-NOTIF-03-A) | N/A (no configurable parameter) | N/A (read state is DoD3) | PRESENT (CLARIFY-NOTIF-02-A) | N/A (role scoping asserted in 02-A) | N/A (read-only listing) |
+| DoD2 (notices name the person who acted) | PRESENT (CLARIFY-NOTIF-09-A, CLARIFY-NOTIF-09-B) | N/A (no refusal path in the wording criterion) | PRESENT (CLARIFY-NOTIF-09-C) | N/A (name and wording are independent fields of one message) | N/A (no configurable parameter) | N/A (stored text only) | N/A (each action writes its own notice) | N/A (no access rule in the criterion) | N/A (no concurrent write rule) |
+| DoD3 (opens the event page, marks read, read persists) | PRESENT (CLARIFY-NOTIF-06-A, CLARIFY-NOTIF-06-B, CLARIFY-NOTIF-08-A) | PRESENT (CLARIFY-NOTIF-04-A) | N/A (no numeric limit) | N/A (one rule: the existing read mechanism) | N/A (no configurable parameter) | N/A (persistence asserted in the Happy cases 06-A and 06-B) | PRESENT (CLARIFY-NOTIF-04-A) | N/A (recipient scoping is the Isolation cell) | N/A (no concurrent write rule) |
+| DoD4 (reassignment marks previous Coordinator notices read) | N/A (the success path is State) | N/A (no refusal path in the criterion) | N/A (no numeric limit) | N/A (one rule: the previous Coordinator) | N/A (no configurable parameter) | PRESENT (CLARIFY-NOTIF-05-A, CLARIFY-NOTIF-06-C) | N/A (the Organiser notice staying unread is asserted inside 06-C) | N/A (who may reassign is SPM-47) | N/A (reassignment locks owned by SPM-47) |
+
 ## SPM-172
 
 | AC | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |

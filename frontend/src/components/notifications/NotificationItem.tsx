@@ -6,6 +6,8 @@ import { timeAgo } from "@/utils/format";
 const iconByType: Record<Notification["type"], string> = {
   submission: "📤",
   clarification: "❓",
+  clarification_reply: "💬",
+  clarification_resolved: "✅",
   approval: "✅",
   rejection: "❌",
   coordinator_assignment: "🧑‍💼",

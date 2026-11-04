@@ -673,3 +673,56 @@ describe('ClarificationsService not-found paths and author names', () => {
     );
   });
 });
+
+describe('ClarificationsService notice wording (SPM-177)', () => {
+  const noticeMessage = (repository: ReturnType<typeof buildService>['repository']) =>
+    vi.mocked(repository.insertNotification).mock.calls[0][1].message;
+
+  /**
+   * CLARIFY-NOTIF-09-A (SPM-177 DoD2): a requested clarification names the Coordinator who asked.
+   * Kills: the old unnamed wording, the wrong actor name.
+   */
+  it('CLARIFY-NOTIF-09-A the request notice names the coordinator', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.insertComment).mockResolvedValue(commentRow());
+    await service.createClarification(EVENT_ID, coordinator(), { message: 'Please confirm the layout.' });
+    expect(noticeMessage(repository)).toBe('Marcus Lee requested clarification on "Community Welcome Evening".');
+  });
+
+  /**
+   * CLARIFY-NOTIF-09-B (SPM-177 DoD2): a reply names whoever replied, for both directions.
+   * Kills: the old "The organiser/coordinator replied" wording, the actor swapped with the recipient.
+   */
+  it.each([
+    ['the organiser', organiser, 'Priya Nair'],
+    ['the coordinator', coordinator, 'Marcus Lee'],
+  ])('CLARIFY-NOTIF-09-B the reply notice names %s', async (_label, actor, name) => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({ id: CLARIFICATION_ID, resolved: false });
+    vi.mocked(repository.insertComment).mockResolvedValue(commentRow());
+    await service.reply(EVENT_ID, CLARIFICATION_ID, actor(), { message: 'Hi' });
+    expect(noticeMessage(repository)).toBe(`${name} replied to a clarification on "Community Welcome Evening".`);
+  });
+
+  /**
+   * CLARIFY-NOTIF-09-C (SPM-177 DoD2): a resolve names whoever resolved, for both directions; an actor with no name
+   * falls back to the same value the comment author uses (email, then uid).
+   * Kills: the old wording, the actor swapped with the recipient, a different fallback than the comment's.
+   */
+  it.each([
+    ['the organiser', organiser(), 'Priya Nair'],
+    ['the coordinator', coordinator(), 'Marcus Lee'],
+    ['a coordinator with only an email', coordinator({ name: undefined, email: 'marcus@example.test' }), 'marcus@example.test'],
+  ])('CLARIFY-NOTIF-09-C the resolved notice names %s', async (_label, actor, name) => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({ id: CLARIFICATION_ID, resolved: false });
+    vi.mocked(repository.resolveClarification).mockResolvedValue(
+      commentRow({ id: CLARIFICATION_ID, resolved: true, awaiting_reply: false }),
+    );
+    await service.resolve(EVENT_ID, CLARIFICATION_ID, actor);
+    expect(noticeMessage(repository)).toBe(`${name} marked a clarification on "Community Welcome Evening" as resolved.`);
+  });
+});
