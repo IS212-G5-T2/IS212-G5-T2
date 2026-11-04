@@ -66,7 +66,7 @@ function renderForm(
 afterEach(cleanup);
 
 describe("RequestChangeForm", () => {
-  /** REQ-CHANGE-01-A, 02-A: permitted fields are pre-filled inputs; name and organiser are read-only text. */
+  /** REQ-CHANGE-01-A, REQ-CHANGE-02-A: permitted fields are pre-filled inputs; name and organiser are read-only text. */
   it("REQ-CHANGE-02-A shows the event name and organiser read-only and pre-fills the permitted fields", () => {
     renderForm();
     expect(screen.getByText("Event name").nextElementSibling).toHaveTextContent(
@@ -161,7 +161,7 @@ describe("RequestChangeForm", () => {
     });
   });
 
-  /** REQ-CHANGE-06-A, 04-B: server errors are shown, including fields that are not inputs here; typed values are kept. */
+  /** REQ-CHANGE-06-A, REQ-CHANGE-04-B: server errors are shown, including fields that are not inputs here; typed values are kept. */
   it("REQ-CHANGE-06-A shows the server's message and field errors and keeps the typed values", async () => {
     const onSubmit = vi.fn().mockRejectedValue(
       new ApiError(
@@ -287,7 +287,7 @@ describe("RequestChangeForm", () => {
     );
   });
 
-  /** Cancel closes the form without submitting. */
+  /** REQ-CHANGE-04-SUP-CANCEL: Cancel closes the form without submitting. */
   it("calls onCancel without submitting", async () => {
     const { user, onCancel, onSubmit } = renderForm();
     await user.click(screen.getByRole("button", { name: "Cancel" }));

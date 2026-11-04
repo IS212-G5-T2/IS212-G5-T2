@@ -49,6 +49,7 @@ describe('changeRequestReleaser', () => {
     );
   });
 
+  /** REVIEW-CHANGE-12-B: cancelling an event with no pending request closes nothing. */
   it('does nothing when no request is pending', async () => {
     const query = vi.fn(async () => ({ rows: [] }));
     await changeRequestReleaser.release(

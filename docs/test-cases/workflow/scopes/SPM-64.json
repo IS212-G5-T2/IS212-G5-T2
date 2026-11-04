@@ -1,0 +1,179 @@
+{
+  "story": "SPM-64",
+  "title": "Request a Change to a Submitted Event (Organiser)",
+  "note": "Draft scope created 3 Nov 2026 under SPM-175 (Sprint 3 audit); not yet reviewed by the story owner. Jira SPM-64 is the AC source; the Confluence matrix (page 28016760) is the PRIMARY oracle. Sources are the files containing lines whose origin commit names SPM-64 (line-origin replay, so files moved by SPM-140 are attributed), measured on owned lines only (linesFrom changed-lines). Not measured: READMEs, AGENTS.md, app.module.ts and App.tsx (wiring), types/index.ts (type declarations). Shared test files are narrowed with titleMatch REQ-CHANGE-. change-requests.controller.spec.ts and change-requests-api.test.ts carry both stories' tests and are narrowed with titleMatch like the other shared files (their tests were tagged under SPM-175). SPM-175 (4 Nov 2026): IDs registered, tier table, records and mutant files added; SPM-64 shared planning lines excluded by story-line-corrections.json with reasons.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/change-requests/change-request-notice.spec.ts",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "backend/src/events/change-requests/change-requests.service.spec.ts",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "backend/src/events/change-requests/dto/change-request-input.spec.ts",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "backend/src/lead/lead-assignment.service.spec.ts",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "backend/src/events/change-requests/change-requests.controller.spec.ts",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "backend/src/common/sgt-time.spec.ts",
+        "titleMatch": "REQ-CHANGE-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/change-requests.e2e-spec.ts",
+        "titleMatch": "REQ-CHANGE-"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationItem.test.tsx",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "frontend/src/features/events/lib/changeRequests.test.ts",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/EventChangeRequestsPage.test.tsx",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/change-requests/ChangeRequestList.test.tsx",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/change-requests/ChangeRequestSummary.test.tsx",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/change-requests/RequestChangeForm.test.tsx",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.changeRequest.test.tsx",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/list/EventListPage.test.tsx",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "frontend/src/features/events/api/change-requests-api.test.ts",
+        "titleMatch": "REQ-CHANGE-"
+      },
+      {
+        "glob": "frontend/src/utils/sgtDate.test.ts",
+        "titleMatch": "REQ-CHANGE-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/common/sgt-time.ts",
+      "backend/src/events/change-requests/change-request-notice.ts",
+      "backend/src/events/change-requests/change-requests.controller.ts",
+      "backend/src/events/change-requests/change-requests.service.ts",
+      "backend/src/events/change-requests/dto/change-request-input.ts",
+      "backend/src/events/events.service.ts",
+      "backend/src/events/planning/helpers/event-impact.ts",
+      "backend/src/lead/lead-assignment.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationItem.tsx",
+      "frontend/src/features/events/api/change-requests-api.ts",
+      "frontend/src/features/events/lib/changeRequests.ts",
+      "frontend/src/features/events/pages/EventChangeRequestsPage.tsx",
+      "frontend/src/features/events/pages/change-requests/ChangeRequestList.tsx",
+      "frontend/src/features/events/pages/change-requests/ChangeRequestSummary.tsx",
+      "frontend/src/features/events/pages/change-requests/RequestChangeForm.tsx",
+      "frontend/src/features/events/pages/detail/EventDetailPage.tsx",
+      "frontend/src/features/events/pages/detail/planning/FlaggedChangeReview.tsx",
+      "frontend/src/features/events/pages/detail/planning/PlanningUpdateForm.tsx",
+      "frontend/src/features/events/pages/list/EventCard.tsx",
+      "frontend/src/features/events/pages/list/EventListPage.tsx",
+      "frontend/src/utils/planning.ts",
+      "frontend/src/utils/sgtDate.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm64.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm64.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm64.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm64.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

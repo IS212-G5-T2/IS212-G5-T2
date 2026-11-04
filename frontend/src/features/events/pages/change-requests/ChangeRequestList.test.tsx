@@ -120,6 +120,66 @@ describe("ChangeRequestList", () => {
     expect(screen.queryByRole("button", { name: "Mark As Re-checked" })).not.toBeInTheDocument();
   });
 
+  /**
+   * REVIEW-CHANGE-02-B (case page 28180526, CR-4): a multi-field request lists every requested field with its
+   * value when requested and the requested value, and no other field (description, attendance and the rest).
+   * Kills: ChangeRequestList.tsx RequestedChangesTable rendering a fixed field list or dropping a requested row.
+   */
+  it("REVIEW-CHANGE-02-B lists every requested field and no other", () => {
+    render(
+      <ChangeRequestList
+        requests={[
+          request({
+            changes: [
+              { field: "startDateTime", originalValue: "2030-02-05T10:30:00.000Z", proposedValue: "2030-02-05T11:00:00.000Z" },
+              { field: "endDateTime", originalValue: "2030-02-05T13:30:00.000Z", proposedValue: "2030-02-05T14:00:00.000Z" },
+              { field: "layout", originalValue: "Cocktail", proposedValue: "Banquet" },
+              { field: "equipmentNeeds", originalValue: "One wireless microphone.", proposedValue: "Two wireless microphones." },
+            ],
+          }),
+        ]}
+      />,
+    );
+    const card = screen.getByRole("article");
+    const rows = within(card).getAllByRole("rowheader").map((cell) => cell.textContent);
+    expect(rows).toEqual(["Start date & time", "End date & time", "Room layout", "Equipment requirements"]);
+    const row = (name: string) => within(card).getByRole("rowheader", { name }).closest("tr")!;
+    expect(row("Start date & time")).toHaveTextContent("5 Feb 2030, 6:30 pm5 Feb 2030, 7:00 pm");
+    expect(row("End date & time")).toHaveTextContent("5 Feb 2030, 9:30 pm5 Feb 2030, 10:00 pm");
+    expect(row("Room layout")).toHaveTextContent("CocktailBanquet");
+    expect(row("Equipment requirements")).toHaveTextContent("One wireless microphone.Two wireless microphones.");
+    for (const absent of ["Description", "Expected attendance", "Required facilities", "Accessibility / special requirements"])
+      expect(within(card).queryByRole("rowheader", { name: absent })).not.toBeInTheDocument();
+  });
+
+  /**
+   * REVIEW-CHANGE-02-C (case page 28180526, CR-5): the requested times are shown in Singapore time (lowercase "pm", confirmed by the story owner on
+   * 4 Nov 2026; see the SPM-65 entry in spec-conflicts.md), and a list field shows only what is added and removed.
+   * Kills: listDiff marking added and removed values the wrong way round, or a time shown in UTC.
+   */
+  it("REVIEW-CHANGE-02-C shows times in Singapore time and list changes as added and removed values", () => {
+    render(
+      <ChangeRequestList
+        requests={[
+          request({
+            changes: [
+              { field: "startDateTime", originalValue: "2027-02-05T10:30:00.000Z", proposedValue: "2027-02-06T10:30:00.000Z" },
+              { field: "facilities", originalValue: ["Catering", "AV System"], proposedValue: ["AV System", "Projector"] },
+              { field: "accessibility", originalValue: ["Step-free access"], proposedValue: ["Step-free access", "Hearing loop"] },
+            ],
+          }),
+        ]}
+      />,
+    );
+    const card = screen.getByRole("article");
+    const start = within(card).getByRole("rowheader", { name: "Start date & time" }).closest("tr")!;
+    expect(start).toHaveTextContent("5 Feb 2027, 6:30 pm6 Feb 2027, 6:30 pm");
+    const items = (field: string) =>
+      within(within(card).getByRole("list", { name: `${field} changes` })).getAllByRole("listitem").map((item) => item.textContent);
+    expect(items("Required facilities")).toEqual(["+ Projector", "− Catering"]);
+    expect(items("Accessibility / special requirements")).toEqual(["+ Hearing loop"]);
+  });
+
   it("REVIEW-CHANGE-02-A gives the coordinator the review panel on pending requests only", async () => {
     vi.mocked(previewChangeRequestConflicts).mockResolvedValue({
       requestId: "cr-1",
