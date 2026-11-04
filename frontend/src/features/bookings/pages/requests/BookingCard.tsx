@@ -3,6 +3,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import type { PendingBookingRequest } from "@/types";
 import { formatSingaporeDateTime, formatSingaporeRange } from "@/utils/format";
+import { useHoldExpiry } from "./useHoldExpiry";
 
 /** Renders one venue booking for Venue Staff (pending, approved, or rejected — SPM-55 AC1). */
 export function BookingCard({
@@ -13,6 +14,7 @@ export function BookingCard({
   onReview: (b: PendingBookingRequest) => void;
 }) {
   const decided = booking.status !== "pending";
+  const isExpired = useHoldExpiry(booking.holdExpiresAt, booking.holdExpired ?? false);
   return (
     <Card>
       <CardBody>
@@ -41,7 +43,7 @@ export function BookingCard({
         )}
         {booking.requestKind === "tentative_hold" && (booking.status === "approved" || booking.status === "expired") && booking.holdExpiresAt && (
           <p className="mt-1 text-sm font-medium text-amber-700 dark:text-amber-300">
-            {booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until {formatSingaporeDateTime(booking.holdExpiresAt)}
+            {isExpired ? "Expired tentative hold" : "Active tentative hold"} until {formatSingaporeDateTime(booking.holdExpiresAt)}
           </p>
         )}
         {booking.status === "rejected" && (
