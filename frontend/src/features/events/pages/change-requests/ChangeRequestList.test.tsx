@@ -153,8 +153,8 @@ describe("ChangeRequestList", () => {
   });
 
   /**
-   * REVIEW-CHANGE-02-C (case page 28180526, CR-5): the requested times are shown in Singapore time (SC-SPM65-01: lowercase "pm", confirmed by the
-   * story owner 4 Nov 2026), and a list field shows only what is added and removed.
+   * REVIEW-CHANGE-02-C (case page 28180526, CR-5): the requested times are shown in Singapore time (lowercase "pm", confirmed by the story owner on
+   * 4 Nov 2026; see the SPM-65 entry in spec-conflicts.md), and a list field shows only what is added and removed.
    * Kills: listDiff marking added and removed values the wrong way round, or a time shown in UTC.
    */
   it("REVIEW-CHANGE-02-C shows times in Singapore time and list changes as added and removed values", () => {
