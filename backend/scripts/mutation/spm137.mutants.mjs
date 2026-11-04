@@ -27,8 +27,8 @@ export const SUITES = {
   },
 };
 
-const APPROVE_NOTIFY = "      if (booking.request_kind !== 'tentative_hold')\n        await notifyBookingDecision(client, bookingId, 'approved', this.clock.now());\n";
-const REJECT_NOTIFY = "      if (locked.booking.request_kind !== 'tentative_hold')\n        await notifyBookingDecision(client, bookingId, 'rejected', this.clock.now());\n";
+const APPROVE_NOTIFY = "      await notifyBookingDecision(client, bookingId, 'approved', this.clock.now(), booking.request_kind ?? 'booking');\n";
+const REJECT_NOTIFY = "      await notifyBookingDecision(client, bookingId, 'rejected', this.clock.now(), locked.booking.request_kind ?? 'booking');\n";
 const INSERT_HEAD = '  await client.query(\n    `INSERT INTO notifications';
 
 export const MUTANTS = [
@@ -38,7 +38,7 @@ export const MUTANTS = [
     file: MESSAGES,
     suites: ['backendUnit', 'backendE2E'],
     testMappings: [...repo('02-A', '02-B'), ...e2e('02-D', '02-E')],
-    edits: [['has been ${decision}.`;', 'was ${decision}.`;']],
+    edits: [['Your booking of ${venueName} for "${eventName}" has been ${decision}.`;', 'Your booking of ${venueName} for "${eventName}" was ${decision}.`;']],
   },
   {
     id: 'SPM137-BE-02',
@@ -62,7 +62,7 @@ export const MUTANTS = [
     file: NOTICE,
     suites: ['backendUnit', 'backendE2E'],
     testMappings: [...repo('01-A', '01-B'), ...e2e('01-C', '01-D')],
-    edits: [["decision === 'approved' ? BOOKING_APPROVED_NOTICE : BOOKING_REJECTED_NOTICE", "decision === 'approved' ? BOOKING_REJECTED_NOTICE : BOOKING_APPROVED_NOTICE"]],
+    edits: [['booking: { approved: BOOKING_APPROVED_NOTICE, rejected: BOOKING_REJECTED_NOTICE }', 'booking: { approved: BOOKING_REJECTED_NOTICE, rejected: BOOKING_APPROVED_NOTICE }']],
   },
   {
     id: 'SPM137-BE-05',
@@ -106,19 +106,19 @@ export const MUTANTS = [
   },
   {
     id: 'SPM137-BE-10',
-    name: 'an approval of a tentative hold request is notified',
+    name: 'an approval of a tentative hold request is reported as a booking decision (the SPM-165 hold notice is replaced)',
     file: REPO,
     suites: ['backendUnit', 'backendE2E'],
     testMappings: [...repo('01-E'), ...e2e('01-H')],
-    edits: [["      if (booking.request_kind !== 'tentative_hold')\n        await notifyBookingDecision(client, bookingId, 'approved'", "      if (true)\n        await notifyBookingDecision(client, bookingId, 'approved'"]],
+    edits: [["this.clock.now(), booking.request_kind ?? 'booking');", "this.clock.now(), 'booking');"]],
   },
   {
     id: 'SPM137-BE-11',
-    name: 'a rejection of a tentative hold request is notified',
+    name: 'a rejection of a tentative hold request is reported as a booking decision (the SPM-165 hold notice is replaced)',
     file: REPO,
     suites: ['backendUnit', 'backendE2E'],
     testMappings: [...repo('01-E'), ...e2e('01-H')],
-    edits: [["      if (locked.booking.request_kind !== 'tentative_hold')\n        await notifyBookingDecision(client, bookingId, 'rejected'", "      if (true)\n        await notifyBookingDecision(client, bookingId, 'rejected'"]],
+    edits: [["this.clock.now(), locked.booking.request_kind ?? 'booking');", "this.clock.now(), 'booking');"]],
   },
   {
     id: 'SPM137-BE-12',
@@ -158,7 +158,7 @@ export const MUTANTS = [
     file: REPO,
     suites: ['backendUnit', 'backendE2E'],
     testMappings: [...repo('07-C', '07-D'), ...e2e('07-H')],
-    edits: [["await notifyBookingDecision(client, bookingId, 'approved', this.clock.now());", "await notifyBookingDecision(client, bookingId, 'approved', this.clock.now()).catch(() => undefined);"]],
+    edits: [["await notifyBookingDecision(client, bookingId, 'approved', this.clock.now(), booking.request_kind ?? 'booking');", "await notifyBookingDecision(client, bookingId, 'approved', this.clock.now(), booking.request_kind ?? 'booking').catch(() => undefined);"]],
   },
   {
     id: 'SPM137-BE-17',
@@ -166,7 +166,7 @@ export const MUTANTS = [
     file: REPO,
     suites: ['backendUnit', 'backendE2E'],
     testMappings: [...repo('07-C'), ...e2e('07-H')],
-    edits: [["await notifyBookingDecision(client, bookingId, 'rejected', this.clock.now());", "await notifyBookingDecision(client, bookingId, 'rejected', this.clock.now()).catch(() => undefined);"]],
+    edits: [["await notifyBookingDecision(client, bookingId, 'rejected', this.clock.now(), locked.booking.request_kind ?? 'booking');", "await notifyBookingDecision(client, bookingId, 'rejected', this.clock.now(), locked.booking.request_kind ?? 'booking').catch(() => undefined);"]],
   },
   {
     id: 'SPM137-BE-18',
@@ -214,7 +214,7 @@ export const MUTANTS = [
     file: EVENTS,
     suites: ['backendUnit', 'backendE2E'],
     testMappings: [...feed('01-F', '04-F'), ...e2e('01-SEC-1')],
-    edits: [["            'change_request_denied',\n          ]\n        : []),\n      ...(user.roles.includes('COORDINATOR')", "            'change_request_denied',\n            BOOKING_APPROVED_NOTICE,\n            BOOKING_REJECTED_NOTICE,\n          ]\n        : []),\n      ...(user.roles.includes('COORDINATOR')"]],
+    edits: [["            CANCELLATION_DECLINED_NOTICE,\n          ]\n        : []),\n      ...(user.roles.includes('COORDINATOR')", "            CANCELLATION_DECLINED_NOTICE,\n            BOOKING_APPROVED_NOTICE,\n            BOOKING_REJECTED_NOTICE,\n          ]\n        : []),\n      ...(user.roles.includes('COORDINATOR')"]],
   },
   {
     id: 'SPM137-BE-24',
@@ -281,12 +281,12 @@ export const MUTANTS = [
   {
     id: 'SPM137-BE-31',
     name: 'reassignment no longer marks the previous Coordinator\'s booking decision notices read',
-    file: 'src/lead/lead-assignment.service.ts',
+    file: NOTICE,
     suites: ['backendE2E'],
     testMappings: e2e('06-C'),
     edits: [[
-      "'${CHANGE_REQUEST_NOTICE}',\n                         '${BOOKING_APPROVED_NOTICE}', '${BOOKING_REJECTED_NOTICE}') AND read = false",
-      "'${CHANGE_REQUEST_NOTICE}') AND read = false",
+      'export const VENUE_DECISION_NOTICE_TYPES = [\n  BOOKING_APPROVED_NOTICE,\n  BOOKING_REJECTED_NOTICE,\n',
+      'export const VENUE_DECISION_NOTICE_TYPES = [\n',
     ]],
   },
 ];

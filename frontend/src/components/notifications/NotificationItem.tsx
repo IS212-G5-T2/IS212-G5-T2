@@ -21,6 +21,8 @@ const iconByType: Record<Notification["type"], string> = {
   cancellation_request_declined: "↩️",
   venue_booking_approved: "✅",
   venue_booking_rejected: "❌",
+  tentative_hold_approved: "✅",
+  tentative_hold_rejected: "❌",
   event_change: "✏️",
   registration: "🎟️",
   confirmation: "🎉",

@@ -1,0 +1,120 @@
+{
+  "story": "SPM-165",
+  "title": "Tentative Hold Decision Notification (Coordinator)",
+  "note": "RED authoring pass (2 Nov 2026, test-first): 42 active VENUE-HOLD-NOTIF ids (PRIMARY except 06-D and 07-D, SUPPORTING; 01-SUP-ICON was retired 3 Nov 2026 by story owner chaw678 because NotificationItem is unused); all `pending` story owner approval; the Confluence SPM-165 matrix and case pages are to be written from them (draft in ai/runtime/SPM-165-confluence-draft.md). Shared files use titleMatch ^VENUE-HOLD-NOTIF- so the SPM-55, SPM-137 and SPM-47 tests in them are not in scope. Spec conflict SC-SPM165-01 (type names tentative_hold_approved / tentative_hold_rejected, reassignment clearing, no migration) was confirmed by story owner chaw678 on 3 Nov 2026. Stacked on SPM-137 (booking decision notice, related_booking_id, /bookings?booking= link, read-only dialog) and SPM-77 (bell). SPM-137 tests VENUE-BOOK-NOTIF-01-E and 01-H were retitled to assert hold decisions write a hold notification, never a booking decision one; VEN-HOLD-03-SUP-RECHECK and VEN-HOLD-13-B (SPM-159) were adjusted for the extra notification lookup. Mutants: backend and frontend spm165.mutants.mjs (13 and 9, all killed). VENUE-HOLD-NOTIF-03-E also guards the existing rejection-reason display. The read-state, unread-count and mark-read behaviour (AC4) is the SPM-88 and SPM-137 code, re-verified here with hold notices. linesFrom changed-lines needs the story's commits, so G5 on changed lines can only run after the work is committed.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/venues/repository/venues.repository.spec.ts",
+        "titleMatch": "^VENUE-HOLD-NOTIF-"
+      },
+      {
+        "glob": "backend/src/events/tentative-hold-notifications.spec.ts"
+      },
+      {
+        "glob": "backend/src/lead/lead-assignment.service.spec.ts",
+        "titleMatch": "^VENUE-HOLD-NOTIF-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/tentative-hold-decision-notifications.e2e-spec.ts"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "^VENUE-HOLD-NOTIF-"
+      },
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx",
+        "titleMatch": "^VENUE-HOLD-NOTIF-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/venues/repository/venues.repository.ts",
+      "backend/src/venues/review/booking-decision-notice.ts",
+      "backend/src/registrations/helpers/messages.ts",
+      "backend/src/events/events.service.ts",
+      "backend/src/lead/lead-assignment.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationBell.tsx",
+      "frontend/src/components/notifications/NotificationRow.tsx",
+      "frontend/src/components/notifications/NotificationItem.tsx",
+      "frontend/src/features/bookings/pages/requests/CoordinatorBookingDialog.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm165",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm165.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm165.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm165",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm165.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm165.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

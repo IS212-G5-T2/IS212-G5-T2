@@ -1216,6 +1216,56 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | VENUE-BOOK-NOTIF-07-F | PRIMARY | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
 | VENUE-BOOK-NOTIF-07-G | PRIMARY | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
 | VENUE-BOOK-NOTIF-07-H | PRIMARY | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+## SPM-165
+
+| ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |
+|---|---|---|---|---|---|---|---|
+| VENUE-HOLD-NOTIF-01-A | PRIMARY | SPM-165 | AC1 | Jira SPM-165 AC1 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-01-B | PRIMARY | SPM-165 | AC1 | Jira SPM-165 AC1 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-01-C | PRIMARY | SPM-165 | AC1 | Jira SPM-165 AC1 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-01-D | PRIMARY | SPM-165 | AC1 | Jira SPM-165 AC1 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-01-E | PRIMARY | SPM-165 | AC1 | Jira SPM-165 AC1 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-01-F | PRIMARY | SPM-165 | AC1 | Jira SPM-165 AC1 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/events/tentative-hold-notifications.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-01-G | PRIMARY | SPM-165 | AC1 | Jira SPM-165 AC1 (refined 2 Nov 2026); Confluence matrix 40140804 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-01-H | PRIMARY | SPM-165 | AC1 | Jira SPM-165 AC1 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-01-SEC-1 | PRIMARY | SPM-165 | AC1 | Jira SPM-165 AC1 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-01-SUP-ICON | SUPPORTING | SPM-165 | AC1 | Derived: the bell row icon for each hold decision type. Retired 3 Nov 2026: dropped by story owner chaw678, 3 Nov 2026: tests an unused component (NotificationItem is not imported by the app); never reuse this id | n/a (test removed; was frontend/src/components/notifications/NotificationItem.test.tsx) | chaw678 2026-11-03 | Retired |
+| VENUE-HOLD-NOTIF-02-A | PRIMARY | SPM-165 | AC2 | Jira SPM-165 AC2 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-02-B | PRIMARY | SPM-165 | AC2 | Jira SPM-165 AC2 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-02-C | PRIMARY | SPM-165 | AC2 | Jira SPM-165 AC2 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-02-BND-1 | PRIMARY | SPM-165 | AC2 | Jira SPM-165 AC2 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-02-D | PRIMARY | SPM-165 | AC2 | Jira SPM-165 AC2 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-02-E | PRIMARY | SPM-165 | AC2 | Jira SPM-165 AC2 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-02-F | PRIMARY | SPM-165 | AC2 | Jira SPM-165 AC2 (refined 2 Nov 2026); Confluence matrix 40140804 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-03-A | PRIMARY | SPM-165 | AC3, AC4 | Jira SPM-165 AC3 (refined 2 Nov 2026); Confluence matrix 40140804 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-03-B | PRIMARY | SPM-165 | AC3 | Jira SPM-165 AC3 (refined 2 Nov 2026); Confluence matrix 40140804 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-03-C | PRIMARY | SPM-165 | AC3 | Jira SPM-165 AC3 (refined 2 Nov 2026); Confluence matrix 40140804 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-03-D | PRIMARY | SPM-165 | AC3 | Jira SPM-165 AC3 (refined 2 Nov 2026); Confluence matrix 40140804 | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-03-E | PRIMARY | SPM-165 | AC3 | Jira SPM-165 AC3 (refined 2 Nov 2026); Confluence matrix 40140804 | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-03-F | PRIMARY | SPM-165 | AC3 | Jira SPM-165 AC3 (refined 2 Nov 2026); Confluence matrix 40140804 | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-03-G | PRIMARY | SPM-165 | AC3 | Jira SPM-165 AC3 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/events/tentative-hold-notifications.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-03-H | PRIMARY | SPM-165 | AC3 | Jira SPM-165 AC3 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-03-I | PRIMARY | SPM-165 | AC3 | Jira SPM-165 AC3; Confluence matrix 40140804, case page 39977001 (VENUE-HOLD-NOTIF-03) | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-03-J | PRIMARY | SPM-165 | AC3 | Jira SPM-165 AC3; Confluence matrix 40140804, case page 39977001 (VENUE-HOLD-NOTIF-03) | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-04-A | PRIMARY | SPM-165 | AC4 | Jira SPM-165 AC4 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-04-B | PRIMARY | SPM-165 | AC4 | Jira SPM-165 AC4 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/events/tentative-hold-notifications.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-04-C | PRIMARY | SPM-165 | AC4 | Jira SPM-165 AC4 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-04-D | PRIMARY | SPM-165 | AC4 | Jira SPM-165 AC4 (refined 2 Nov 2026); Confluence matrix 40140804 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-05-A | PRIMARY | SPM-165 | AC5 | Jira SPM-165 AC5 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-05-B | PRIMARY | SPM-165 | AC5 | Jira SPM-165 AC5 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-05-C | PRIMARY | SPM-165 | AC5 | Jira SPM-165 AC5 (refined 2 Nov 2026); Confluence matrix 40140804 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-06-A | PRIMARY | SPM-165 | AC6 | Jira SPM-165 AC6 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-06-B | PRIMARY | SPM-165 | AC6 | Jira SPM-165 AC6 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-06-C | PRIMARY | SPM-165 | AC6 | Jira SPM-165 AC6 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-06-D | SUPPORTING | SPM-165 | AC6 | Jira SPM-165 AC6 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-06-E | PRIMARY | SPM-165 | AC6 | Jira SPM-165 AC6 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/lead/lead-assignment.service.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-07-A | PRIMARY | SPM-165 | AC7 | Jira SPM-165 AC7 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-07-B | PRIMARY | SPM-165 | AC7 | Jira SPM-165 AC7 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-07-C | PRIMARY | SPM-165 | AC7 | Jira SPM-165 AC7 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-07-D | SUPPORTING | SPM-165 | AC7 | Jira SPM-165 AC7 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-07-E | PRIMARY | SPM-165 | AC7 | Jira SPM-165 AC7 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+| VENUE-HOLD-NOTIF-07-F | PRIMARY | SPM-165 | AC7 | Jira SPM-165 AC7 (refined 2 Nov 2026); Confluence matrix 40140804 | backend/test/tentative-hold-decision-notifications.e2e-spec.ts | approved by story owner chaw678, 3 Nov 2026 | Active |
+
 ## SPM-153
 
 | ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |
@@ -1384,6 +1434,7 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 - Supporting-id AC mappings are proposed by the workflow author and stay `pending` until the story owner approves them.
 - SPM-52 (Search and Filter Venues): the Confluence matrix 28868679 was created on 2026-10-17; its VEN-SRCH ids are PRIMARY, each with its AC case page (01 to 08). Earlier they were SUPPORTING while no matrix existed.
 - SPM-137 (Venue Booking Decision Notification, Coordinator): the 50 VENUE-BOOK-NOTIF ids are proposed on 1 Nov 2026 with the story's tests (RED pass first). VENUE-BOOK-NOTIF-03-F (migration is repeatable and the link optional), 06-D (event with no Coordinator, defensive) and 07-D (a failing notice lookup rolls the decision back) are SUPPORTING under their parent AC and stay `pending` until the story owner approves them. The Confluence SPM-137 matrix and its case pages VENUE-BOOK-NOTIF-01 to 07 are written from these ids.
+- SPM-165 (Tentative Hold Decision Notification, Coordinator): the 42 active VENUE-HOLD-NOTIF ids were proposed on 2 Nov 2026 with the story's tests (RED pass first) and approved by the story owner chaw678 on 3 Nov 2026. VENUE-HOLD-NOTIF-06-D (event with no Coordinator, defensive) and 07-D (a failing notice lookup rolls the decision back) are SUPPORTING under their parent AC. VENUE-HOLD-NOTIF-01-SUP-ICON (bell row icon per hold decision type, added in correction iteration 2) is Retired: dropped by story owner chaw678, 3 Nov 2026, because it tested NotificationItem, which the app does not use; the id is never reused. Tests VENUE-BOOK-NOTIF-01-E and 01-H (SPM-137) are retitled and now assert a hold decision writes a hold notification, never a booking decision one.
 
 ## SPM-162
 
@@ -1457,6 +1508,7 @@ Id-shaped text in the tests that is not a test id (fixture labels, message codes
 | SAF | Fixture label for a Safety Officer login in specs (SPM-94) |
 | DX     | Determinism exception row ids (determinism-exceptions.md), not test ids |
 | DX-SPM137 | Determinism exception row ids of SPM-137 (determinism-exceptions.md), not test ids |
+| DX-SPM165 | Determinism exception row ids of SPM-165 (determinism-exceptions.md), not test ids |
 | VS     | Venue Staff login labels in specs (SPM-48 VS-01)             |
 | H1     | Fixture hold label in specs (SPM-48 MONITOR-QUEUE-08-B)      |
 | SC-SPM48 | Spec-conflict register ids for SPM-48, named in test comments |
