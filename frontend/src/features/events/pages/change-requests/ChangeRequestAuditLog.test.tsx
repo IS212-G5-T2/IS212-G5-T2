@@ -2,6 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChangeRequestAuditLog } from "@/features/events/pages/change-requests/ChangeRequestAuditLog";
 import { fetchChangeRequestAudit } from "@/features/events/api/change-requests-api";
+import type { ChangeRequestAuditEntry } from "@/types";
 
 vi.mock("@/features/events/api/change-requests-api", () => ({
   fetchChangeRequestAudit: vi.fn(),
@@ -82,7 +83,7 @@ describe("ChangeRequestAuditLog", () => {
     auditMock
       .mockImplementationOnce(() => new Promise((r) => (resolveOld = r)))
       .mockImplementationOnce(() => new Promise((r) => (resolveNew = r)));
-    const entry = (id: string, decidedBy: string) => ({
+    const entry = (id: string, decidedBy: string): ChangeRequestAuditEntry => ({
       id,
       changeRequestId: `cr-${id}`,
       outcome: "Approved" as const,
