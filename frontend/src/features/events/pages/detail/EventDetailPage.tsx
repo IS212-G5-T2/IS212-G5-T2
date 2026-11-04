@@ -410,6 +410,12 @@ export function EventDetailPage() {
                 <Button variant="secondary">Search Venues</Button>
               </Link>
             )}
+            {/* SPM-157 AC1, AC8: the assigned coordinator and the owner read the event history. */}
+            {(isAssignedCoordinator || (isOwner && event.status !== "draft")) && (
+              <Link to={`/events/${event.id}/history`}>
+                <Button variant="secondary">View History</Button>
+              </Link>
+            )}
             {canCancel && (
               <Button ref={cancelTriggerRef} variant="danger" onClick={() => setShowCancel(true)}>
                 Cancel Event
