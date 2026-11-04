@@ -775,9 +775,9 @@ export class VenuesRepository {
          VALUES ($1::uuid, $2::uuid, 'approved')`,
         [bookingId, staffId],
       );
-      // SPM-137: a booking decision (not a tentative hold) tells the event's Coordinator, in this transaction.
-      if (booking.request_kind !== 'tentative_hold')
-        await notifyBookingDecision(client, bookingId, 'approved', this.clock.now());
+      // SPM-137 / SPM-165: the decision tells the event's Coordinator (a booking or a tentative hold notice by request
+      // kind), in this transaction.
+      await notifyBookingDecision(client, bookingId, 'approved', this.clock.now(), booking.request_kind ?? 'booking');
       return {
         kind: 'decided' as const,
         booking: toDecisionRecord(updated.rows[0]),
@@ -814,9 +814,8 @@ export class VenuesRepository {
          VALUES ($1::uuid, $2::uuid, 'rejected', $3)`,
         [bookingId, staffId, reason],
       );
-      // SPM-137: as for an approval, a booking (not a tentative hold) rejection tells the Coordinator.
-      if (locked.booking.request_kind !== 'tentative_hold')
-        await notifyBookingDecision(client, bookingId, 'rejected', this.clock.now());
+      // SPM-137 / SPM-165: as for an approval, a rejection tells the Coordinator.
+      await notifyBookingDecision(client, bookingId, 'rejected', this.clock.now(), locked.booking.request_kind ?? 'booking');
       return {
         kind: 'decided' as const,
         booking: toDecisionRecord(updated.rows[0]),

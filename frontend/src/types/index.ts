@@ -459,6 +459,9 @@ export type NotificationType =
   /** SPM-137: Venue Staff approved or rejected a venue booking for the coordinator's event. */
   | "venue_booking_approved"
   | "venue_booking_rejected"
+  /** SPM-165: Venue Staff approved or rejected a tentative hold request for the coordinator's event. */
+  | "tentative_hold_approved"
+  | "tentative_hold_rejected"
   /** SPM-172: Technical Support reserved or could not provide the Coordinator's equipment request. */
   | "equipment_request_reserved"
   | "equipment_request_cannot_provide"
@@ -476,6 +479,14 @@ export type NotificationType =
   | "venue_timing_impact"
   /** SPM-125 AC9: a venue capacity change affects the Coordinator's pending or approved booking. */
   | "venue_capacity_impact";
+
+/** SPM-137 and SPM-165: the Coordinator's venue booking and tentative hold decision notices (mirrors the backend list). */
+export const VENUE_DECISION_NOTICE_TYPES = [
+  "venue_booking_approved",
+  "venue_booking_rejected",
+  "tentative_hold_approved",
+  "tentative_hold_rejected",
+] as const satisfies readonly NotificationType[];
 
 export interface Notification {
   id: string;

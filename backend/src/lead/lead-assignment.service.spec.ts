@@ -692,6 +692,23 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
     expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
   });
 
+  /**
+   * VENUE-HOLD-NOTIF-06-E (SPM-165 AC6): the same update also marks the original coordinator's unread tentative hold
+   * decision notices for the event read, so none is left whose View Booking link opens a hold that is no longer theirs.
+   * Kills: a hold decision type missing from the list, or the update not scoped to that coordinator and event.
+   */
+  it("VENUE-HOLD-NOTIF-06-E also marks the original coordinator's unread tentative hold decision notices for the event as read", async () => {
+    wireReassign({});
+
+    await service.reassign(lead, EVENT_ID, reassignBody);
+
+    const markRead = writes().find((s) => s.sql.startsWith('UPDATE notifications'))!;
+    expect(markRead.sql).toContain("'tentative_hold_approved'");
+    expect(markRead.sql).toContain("'tentative_hold_rejected'");
+    expect(markRead.sql).toContain('recipient_id = $1 AND related_event_id = $2');
+    expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
+  });
+
   // If a notification can't be saved, the reassignment doesn't stick.
   it('LEAD-REASN-08-C rolls the reassignment back if a notification cannot be saved', async () => {
     // Arrange: saving notifications fails.

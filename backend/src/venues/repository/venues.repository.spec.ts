@@ -2456,6 +2456,8 @@ describe('SPM-55 venue booking review repository', () => {
       }] })
       .mockResolvedValueOnce(noConflict)
       .mockResolvedValueOnce({ rows: [{ ...pendingRow, status: 'approved', request_kind: 'tentative_hold' }] })
+      .mockResolvedValueOnce({ rows: [] })
+      // SPM-165: the hold approval now also looks up its notification recipient (no row here, so no insert).
       .mockResolvedValueOnce({ rows: [] });
     const repository = new VenuesRepository(
       { transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
@@ -2463,7 +2465,7 @@ describe('SPM-55 venue booking review repository', () => {
     );
 
     await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'decided' });
-    expect(query).toHaveBeenCalledTimes(6);
+    expect(query).toHaveBeenCalledTimes(7);
   });
 
   /** SPM-159: the lead-time recheck is for holds only; an ordinary booking close to its event is still approvable. */
@@ -2516,6 +2518,8 @@ describe('SPM-55 venue booking review repository', () => {
       }] })
       .mockResolvedValueOnce(noConflict)
       .mockResolvedValueOnce({ rows: [{ ...pendingRow, status: 'approved' }] })
+      .mockResolvedValueOnce({ rows: [] })
+      // SPM-165: the hold approval now also looks up its notification recipient (no row here, so no insert).
       .mockResolvedValueOnce({ rows: [] });
     const repository = new VenuesRepository(
       { transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
@@ -2523,7 +2527,7 @@ describe('SPM-55 venue booking review repository', () => {
     );
 
     await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'decided' });
-    expect(query).toHaveBeenCalledTimes(6);
+    expect(query).toHaveBeenCalledTimes(7);
   });
 
   /** VEN-REV-06-A: a cancelled, approved or rejected request is reported as already decided, with no write. */
@@ -2911,22 +2915,23 @@ describe('SPM-55 venue booking review repository', () => {
   });
 
   /**
-   * VENUE-BOOK-NOTIF-01-E (SPM-137 AC1, out of scope SPM-165): deciding a tentative hold request writes no booking
-   * decision notification and does not even look up a recipient.
-   * Kills: notifying for holds (the decision branch ignoring request_kind).
+   * VENUE-BOOK-NOTIF-01-E (SPM-137 AC1, hold decisions now SPM-165 AC1): deciding a tentative hold request writes the
+   * hold-specific notification (tentative_hold_approved / tentative_hold_rejected) and never a booking decision one
+   * (venue_booking_approved / venue_booking_rejected).
+   * Kills: a hold decision using the booking decision types, or a hold decision that is still skipped.
    */
   it.each([
-    ['approving', (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), approveSequence(noticeContext(), 'tentative_hold')],
-    ['rejecting', (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), rejectSequence(noticeContext(), 'tentative_hold')],
-  ])('VENUE-BOOK-NOTIF-01-E %s a tentative hold request writes no notification', async (_label, decide, sequence) => {
+    ['approving', (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), approveSequence(noticeContext(), 'tentative_hold'), 'tentative_hold_approved'],
+    ['rejecting', (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), rejectSequence(noticeContext(), 'tentative_hold'), 'tentative_hold_rejected'],
+  ])('VENUE-BOOK-NOTIF-01-E %s a tentative hold request writes a hold notification, never a booking decision one', async (_label, decide, sequence, holdType) => {
     // Arrange: a hold request (the approval is far enough from the event start to save).
     const { repository, clientQuery } = createSplitReviewRepository(...sequence);
 
-    // Act + Assert: the decision is saved, and no notice lookup or insert runs.
+    // Act + Assert: the decision is saved, and exactly one notice is written, of the hold type.
     await expect(decide(repository)).resolves.toMatchObject({ kind: 'decided' });
-    const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => sql);
-    expect(sqls.some(isNoticeInsert)).toBe(false);
-    expect(sqls.some(isNoticeLookup)).toBe(false);
+    const inserts = (clientQuery.mock.calls as Array<[string, unknown[]]>).filter(([sql]) => isNoticeInsert(sql));
+    expect(inserts.map(([, params]) => params[2])).toEqual([holdType]);
+    expect(inserts.some(([, params]) => String(params[2]).startsWith('venue_booking_'))).toBe(false);
   });
 
   /**
@@ -3127,6 +3132,261 @@ describe('SPM-55 venue booking review repository', () => {
    */
   it('VENUE-BOOK-NOTIF-07-D rolls the decision back when the notification lookup fails', async () => {
     const steps = [...approveSequence().slice(0, -2), new Error('lookup failed')];
+    const { repository, clientQuery } = createRollbackReviewRepository(...steps);
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).rejects.toThrow('lookup failed');
+    const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => normalizeSql(String(sql)));
+    expect(sqls.at(-1)).toBe('ROLLBACK');
+    expect(sqls).not.toContain('COMMIT');
+  });
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // SPM-165 (tentative hold decision notification, Coordinator): VENUE-HOLD-NOTIF-01-A, 01-B, 01-E, 02-A, 02-B, 02-C,
+  // 02-BND-1, 05-A, 06-A, 06-D, 07-A, 07-B, 07-C, 07-D. Same isolation as above: the transaction client answers from a
+  // fixed sequence of fixture rows; PostgreSQL is exercised by test/tentative-hold-decision-notifications.e2e-spec.ts.
+  // ---------------------------------------------------------------------------------------------------------------
+
+  const holdApprove = (context = noticeContext()) => approveSequence(context, 'tentative_hold');
+  const holdReject = (context = noticeContext()) => rejectSequence(context, 'tentative_hold');
+  const noticeInserts = (clientQuery: { mock: { calls: unknown[][] } }) =>
+    (clientQuery.mock.calls as Array<[string, unknown[]]>).filter(([sql]) => isNoticeInsert(sql));
+
+  /**
+   * VENUE-HOLD-NOTIF-01-A (SPM-165 AC1): approving a tentative hold writes exactly one notification for the Coordinator
+   * the event has now, typed tentative_hold_approved and linked to the event and to that hold.
+   * Kills: no notification, a second one, wrong recipient, wrong type, a missing hold link.
+   */
+  it('VENUE-HOLD-NOTIF-01-A approving a tentative hold writes one approved hold notification for the assigned Coordinator', async () => {
+    const { repository, clientQuery } = createSplitReviewRepository(...holdApprove());
+
+    await repository.approveVenueBooking(staffId, bookingId);
+
+    const inserts = noticeInserts(clientQuery);
+    expect(inserts).toHaveLength(1);
+    const [id, recipient, type, , eventId, relatedBooking] = inserts[0][1];
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    expect([recipient, type, eventId, relatedBooking]).toEqual(['coord-assigned', 'tentative_hold_approved', 'event-1', bookingId]);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-01-B (SPM-165 AC1): rejecting a tentative hold writes exactly one tentative_hold_rejected
+   * notification for the event's Coordinator.
+   * Kills: the rejection path writing nothing, using the approved type, or notifying someone else.
+   */
+  it('VENUE-HOLD-NOTIF-01-B rejecting a tentative hold writes one rejected hold notification for the assigned Coordinator', async () => {
+    const { repository, clientQuery } = createSplitReviewRepository(...holdReject());
+
+    await repository.rejectVenueBooking(staffId, bookingId, 'Clash');
+
+    const inserts = noticeInserts(clientQuery);
+    expect(inserts).toHaveLength(1);
+    const [, recipient, type, , eventId, relatedBooking] = inserts[0][1];
+    expect([recipient, type, eventId, relatedBooking]).toEqual(['coord-assigned', 'tentative_hold_rejected', 'event-1', bookingId]);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-01-E (SPM-165 AC1, out of scope SPM-137): deciding an ordinary venue booking request still writes
+   * only the booking decision type, never a tentative hold one.
+   * Kills: choosing the notification type by something other than the request kind.
+   */
+  it.each([
+    ['approving', (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), approveSequence(), 'venue_booking_approved'],
+    ['rejecting', (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), rejectSequence(), 'venue_booking_rejected'],
+  ])('VENUE-HOLD-NOTIF-01-E %s a booking request writes a booking decision notification, never a hold one', async (_label, decide, sequence, bookingType) => {
+    const { repository, clientQuery } = createSplitReviewRepository(...sequence);
+
+    await decide(repository);
+
+    expect(noticeInserts(clientQuery).map(([, params]) => params[2])).toEqual([bookingType]);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-02-A (SPM-165 AC2): the approved text is exactly `Your tentative hold of <venue name> for "<event
+   * name>" has been approved.`, with no expiry, reference or reason.
+   * Kills: any wording change, a swapped venue and event name, the booking wording ("Your booking of").
+   */
+  it('VENUE-HOLD-NOTIF-02-A the approved hold message is exactly the agreed sentence', async () => {
+    const { repository, clientQuery } = createSplitReviewRepository(...holdApprove());
+
+    await repository.approveVenueBooking(staffId, bookingId);
+
+    expect(noticeInserts(clientQuery)[0][1][3]).toBe('Your tentative hold of Orchid Hall for "Gala Night" has been approved.');
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-02-B (SPM-165 AC2): the rejected text is exactly `... has been rejected.`; the typed rejection
+   * reason and the booking reference are not in it.
+   * Kills: the reason appended, the approved wording on a rejection, the reference in the text.
+   */
+  it('VENUE-HOLD-NOTIF-02-B the rejected hold message is exactly the agreed sentence and carries no reason or reference', async () => {
+    const { repository, clientQuery } = createSplitReviewRepository(...holdReject());
+
+    await repository.rejectVenueBooking(staffId, bookingId, 'Clashes with maintenance');
+
+    const message = String(noticeInserts(clientQuery)[0][1][3]);
+    expect(message).toBe('Your tentative hold of Orchid Hall for "Gala Night" has been rejected.');
+    expect(message).not.toMatch(/maintenance|VB-/);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-02-C (SPM-165 AC2): the notification's timestamp is the decision time from the injected clock
+   * (2030-01-10T12:00Z), not the transaction start or the database default.
+   * Kills: omitting created_at, or a different time source.
+   */
+  it('VENUE-HOLD-NOTIF-02-C stamps the hold notification with the decision time from the clock', async () => {
+    const { repository, clientQuery } = createSplitReviewRepository(...holdReject());
+
+    await repository.rejectVenueBooking(staffId, bookingId, 'Clash');
+
+    const [insert] = noticeInserts(clientQuery);
+    expect(normalizeSql(insert[0])).toContain('created_at');
+    expect(insert[1][6]).toEqual(decidedAt);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-02-BND-1 (SPM-165 AC2, boundary): names containing quotes, punctuation and 200+ characters appear
+   * in the message unchanged.
+   * Kills: escaping or stripping quotes, truncating long names.
+   */
+  it('VENUE-HOLD-NOTIF-02-BND-1 keeps quotes and punctuation in the venue and event names of a hold notification', async () => {
+    const venueName = 'Hall "A" & B (Level 2)';
+    const eventName = `"Annual" Gala: ${'x'.repeat(200)}`;
+    const { repository, clientQuery } = createSplitReviewRepository(...holdApprove(noticeContext({ venue_name: venueName, event_name: eventName })));
+
+    await repository.approveVenueBooking(staffId, bookingId);
+
+    expect(noticeInserts(clientQuery)[0][1][3]).toBe(`Your tentative hold of ${venueName} for "${eventName}" has been approved.`);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-05-A (SPM-165 AC5): each hold decision writes its own notification, with its own id, linked to its
+   * own hold, and the context lookup is for the hold that was decided.
+   * Kills: a reused notification id, deduplicating per event, linking every notice to the first hold.
+   */
+  it('VENUE-HOLD-NOTIF-05-A writes a separate hold notification, with its own id and link, for each hold decision', async () => {
+    const otherHold = '0b7d2a5e-1c3f-4e8a-9a6b-2f4c8d1e7a90';
+    const first = createSplitReviewRepository(...holdApprove());
+    const second = createSplitReviewRepository(...holdReject());
+
+    await first.repository.approveVenueBooking(staffId, bookingId);
+    await second.repository.rejectVenueBooking(staffId, otherHold, 'Clash');
+
+    const a = noticeInserts(first.clientQuery)[0];
+    const b = noticeInserts(second.clientQuery)[0];
+    expect(a[1][0]).not.toBe(b[1][0]);
+    expect([a[1][2], a[1][5], b[1][2]]).toEqual(['tentative_hold_approved', bookingId, 'tentative_hold_rejected']);
+    const lookup = (second.clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => isNoticeLookup(sql))!;
+    expect(lookup[1]).toEqual([otherHold]);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-06-A (SPM-165 AC6): the recipient is the event's Coordinator as read inside the decision's own
+   * transaction, after the audit insert, so a reassignment before the decision sends the notice to the new Coordinator.
+   * Kills: a Coordinator remembered from an earlier read, a lookup outside the transaction or before the save.
+   */
+  it('VENUE-HOLD-NOTIF-06-A addresses the hold notification to the Coordinator read inside the decision transaction', async () => {
+    const { repository, clientQuery, poolQuery } = createSplitReviewRepository(...holdReject(noticeContext({ coordinator_id: 'coord-new' })));
+
+    await repository.rejectVenueBooking(staffId, bookingId, 'Clash');
+
+    expect(poolQuery).not.toHaveBeenCalled();
+    const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => normalizeSql(String(sql)));
+    const audit = sqls.findIndex((sql) => sql.includes('INSERT INTO booking_review_log'));
+    expect(isNoticeLookup(sqls[audit + 1])).toBe(true);
+    expect(isNoticeInsert(sqls[audit + 2])).toBe(true);
+    expect(noticeInserts(clientQuery)[0][1][1]).toBe('coord-new');
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-06-D (SPM-165 AC6, defensive): if the event has no Coordinator or no event row is found, the hold
+   * decision still saves and no notification is written.
+   * Kills: inserting with a null recipient, or failing the decision because there is no recipient.
+   */
+  it.each([
+    ['no row', { rows: [] }],
+    ['an unassigned event', noticeContext({ coordinator_id: null })],
+  ])('VENUE-HOLD-NOTIF-06-D saves the hold decision and writes no notification for %s', async (_label, context) => {
+    const { repository, clientQuery } = createSplitReviewRepository(...holdApprove(context as ReturnType<typeof noticeContext>));
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'decided' });
+    expect(noticeInserts(clientQuery)).toEqual([]);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-07-A (SPM-165 AC7): a hold the staff member cannot act on (not theirs or not found) or that is no
+   * longer pending is refused with no notification statement at all.
+   * Kills: notifying before the ownership and pending checks.
+   */
+  it.each([
+    ['approve a hold that is not theirs', (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), [{ rows: [] }], { kind: 'not-found' }],
+    ['reject a hold that is not theirs', (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), [{ rows: [] }], { kind: 'not-found' }],
+    ...(['approved', 'rejected', 'cancelled', 'released'] as const).flatMap((status) => [
+      [`approve a ${status} hold`, (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), [ownedRow, venueLockRow, { rows: [{ ...pendingRow, request_kind: 'tentative_hold', status }] }], { kind: 'already-decided', status }],
+      [`reject a ${status} hold`, (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), [ownedRow, venueLockRow, { rows: [{ ...pendingRow, request_kind: 'tentative_hold', status }] }], { kind: 'already-decided', status }],
+    ]),
+  ] as Array<[string, (r: VenuesRepository) => Promise<unknown>, Array<{ rows: unknown[] }>, object]>)(
+    'VENUE-HOLD-NOTIF-07-A refuses to %s without any notification statement',
+    async (_label, decide, sequence, expected) => {
+      const { repository, clientQuery } = createSplitReviewRepository(...sequence);
+
+      await expect(decide(repository)).resolves.toEqual(expected);
+      const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => sql);
+      expect(sqls.some(isNoticeInsert) || sqls.some(isNoticeLookup)).toBe(false);
+    },
+  );
+
+  /**
+   * VENUE-HOLD-NOTIF-07-B (SPM-165 AC7): a hold approval refused for a slot conflict, or for the 336-hour lead-time
+   * rule (SPM-159), writes no notification and no status change.
+   * Kills: notifying after either refusal returns.
+   */
+  it.each([
+    [
+      'a slot conflict',
+      [{ rows: [{ id: 'other', reason: 'Other event', kind: 'booking', start_at: pendingRow.start_at, end_at: pendingRow.end_at, occupied_start: pendingRow.start_at, occupied_end: pendingRow.end_at, status: 'approved', request_kind: 'booking', hold_expires_at: null }] }],
+      new Date('2031-01-01T00:00:00.000Z'),
+    ],
+    ['the 336-hour lead-time rule', [], new Date('2030-01-11T00:00:00.000Z')],
+  ] as Array<[string, Array<{ rows: unknown[] }>, Date]>)('VENUE-HOLD-NOTIF-07-B writes no notification when the hold approval is refused for %s', async (_label, conflictRows, eventStart) => {
+    const { repository, clientQuery } = createSplitReviewRepository(
+      ownedRow,
+      venueLockRow,
+      { rows: [{ ...pendingRow, request_kind: 'tentative_hold', event_start: eventStart }] },
+      ...conflictRows,
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'conflict' });
+    const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => sql);
+    expect(sqls.some(isNoticeInsert) || sqls.some(isNoticeLookup)).toBe(false);
+    expect(sqls.some((sql) => normalizeSql(sql).includes("SET status = 'approved'"))).toBe(false);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-07-C (SPM-165 AC7): if saving the hold notification fails, the whole decision rolls back (ROLLBACK,
+   * no COMMIT) and the call rejects.
+   * Kills: swallowing the notification error, or writing the notification outside the decision transaction.
+   */
+  it.each([
+    ['approval', (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), holdApprove()],
+    ['rejection', (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), holdReject()],
+  ])('VENUE-HOLD-NOTIF-07-C rolls the hold %s back when the notification insert fails', async (_label, decide, sequence) => {
+    const steps = [...sequence.slice(0, -1), new Error('notification insert failed')];
+    const { repository, clientQuery, poolQuery } = createRollbackReviewRepository(...steps);
+
+    await expect(decide(repository)).rejects.toThrow('notification insert failed');
+    expect(poolQuery).not.toHaveBeenCalled();
+    const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => normalizeSql(String(sql)));
+    expect(sqls.at(-1)).toBe('ROLLBACK');
+    expect(sqls).not.toContain('COMMIT');
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-07-D (SPM-165 AC7, supporting): when the notification lookup itself fails the hold decision also
+   * rolls back.
+   * Kills: a try/catch around the lookup that lets the decision commit without its notification.
+   */
+  it('VENUE-HOLD-NOTIF-07-D rolls the hold decision back when the notification lookup fails', async () => {
+    const steps = [...holdApprove().slice(0, -2), new Error('lookup failed')];
     const { repository, clientQuery } = createRollbackReviewRepository(...steps);
 
     await expect(repository.approveVenueBooking(staffId, bookingId)).rejects.toThrow('lookup failed');

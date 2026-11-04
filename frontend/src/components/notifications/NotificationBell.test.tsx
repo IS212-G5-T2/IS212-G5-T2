@@ -2056,3 +2056,215 @@ describe("NotificationBell (SPM-172: equipment request decision notices)", () =>
 function useLocationSearch() {
   return useLocation().search;
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-165: the Coordinator's bell lists the tentative hold decision notices (approved / rejected) and links each one
+// to the Bookings page for that hold (/bookings?booking=<id>, the SPM-137 link). The backend builds the message and
+// decides who gets the notice; these are frontend unit tests of the bell with the notifications API stubbed and the
+// signed-in user set directly in the store (a fixture, not a live login).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const APPROVED_MESSAGE = 'Your tentative hold of Orchid Hall for "Welcome Evening" has been approved.';
+  const REJECTED_MESSAGE = 'Your tentative hold of Main Hall for "Welcome Evening" has been rejected.';
+
+  function setCoordinator() {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+  }
+
+  function holdNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-hold-1",
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type: "tentative_hold_approved",
+      message: APPROVED_MESSAGE,
+      relatedEventId: "event-1",
+      relatedBookingId: "hold-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  function BookingsMarker() {
+    const location = useLocation();
+    return <p>Bookings page at {location.pathname + location.search}</p>;
+  }
+
+  // Keeps the bell mounted while the child route changes, as the app shell does, and opens the dropdown first.
+  function renderBellWithBookingsRoute() {
+    const view = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <NotificationBell />
+                <Outlet />
+              </>
+            }
+          >
+            <Route path="bookings" element={<BookingsMarker />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(bellButton());
+    return view;
+  }
+
+  /**
+   * VENUE-HOLD-NOTIF-01-G (SPM-165 AC1): a Coordinator's bell lists approved and rejected tentative hold notices with
+   * the unread count 2.
+   * Kills: the tentative hold types missing from the Coordinator's bell filter.
+   */
+  it("VENUE-HOLD-NOTIF-01-G shows a Coordinator both an approved and a rejected hold notice with an unread count of 2", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      holdNotice(),
+      holdNotice({ id: "notif-hold-2", type: "tentative_hold_rejected", message: REJECTED_MESSAGE, relatedBookingId: "hold-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(APPROVED_MESSAGE)).toBeTruthy();
+    expect(screen.getByText(REJECTED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-02-F (SPM-165 AC2): the row shows the whole message exactly as stored, with the notification's own
+   * timestamp as a <time> element, and no reference or rejection reason.
+   * Kills: a row that rewrites the message, hides the decision time, or adds a reference or reason.
+   */
+  it("VENUE-HOLD-NOTIF-02-F shows the full message and the decision time, with no reference or reason", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([holdNotice({ type: "tentative_hold_rejected", message: REJECTED_MESSAGE })]);
+
+    renderBell();
+
+    const row = (await screen.findByText(REJECTED_MESSAGE)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(REJECTED_MESSAGE);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent(/VB-|Reason/);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-03-A (SPM-165 AC3 and AC4): the link on an approved hold notice goes to /bookings?booking=hold-1,
+   * marks the notification read once, lands on the Bookings page and closes the dropdown.
+   * Kills: a link to the event page, a link without the hold id, opening without marking read.
+   */
+  it("VENUE-HOLD-NOTIF-03-A View Booking opens /bookings for that hold and marks the notice read", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [holdNotice()]));
+
+    renderBellWithBookingsRoute();
+    const link = await screen.findByRole("link", { name: "View Booking" });
+    expect(link).toHaveAttribute("href", "/bookings?booking=hold-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Bookings page at /bookings?booking=hold-1")).toBeTruthy();
+    expect(postReadCalls("notif-hold-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-03-B (SPM-165 AC3): a rejected hold notice links to its own hold (not the first one listed).
+   * Kills: every row linking to the same id.
+   */
+  it("VENUE-HOLD-NOTIF-03-B links a rejected hold notice to its own hold", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      holdNotice({ type: "tentative_hold_rejected", message: REJECTED_MESSAGE, relatedBookingId: "hold-2", id: "notif-hold-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings?booking=hold-2");
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-03-C (SPM-165 AC3, robustness): a hold notice with no hold id still links to the Bookings page,
+   * without a query string or the text "undefined".
+   * Kills: a link ending in ?booking=undefined or null, or the event page link.
+   */
+  it.each([null, undefined])("VENUE-HOLD-NOTIF-03-C links a hold notice with id %s to plain /bookings", async (missing) => {
+    setCoordinator();
+    apiMock.mockResolvedValue([holdNotice({ relatedBookingId: missing })]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings");
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-04-D (SPM-165 AC4): a read hold notice is neither listed nor counted, and Mark As Read posts the
+   * read call, drops the row and lowers the count without opening the Bookings page.
+   * Kills: read notices shown, Mark As Read not posting for this type, a notice left counted.
+   */
+  it("VENUE-HOLD-NOTIF-04-D counts unread hold notices, leaves out a read one and Mark As Read clears the notice", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [holdNotice(), holdNotice({ id: "notif-hold-read", message: REJECTED_MESSAGE, type: "tentative_hold_rejected", read: true })],
+      ),
+    );
+
+    renderBellWithBookingsRoute();
+    await screen.findByText(APPROVED_MESSAGE);
+    expect(screen.queryByText(REJECTED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() => expect(postReadCalls("notif-hold-1")).toHaveLength(1));
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.queryByText(/Bookings page at/)).toBeNull();
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-05-C (SPM-165 AC5): an event with several hold decisions shows one row per decision, each with its
+   * own link, and following one marks only that notice read.
+   * Kills: grouping notices per event, or one link or read call serving all rows.
+   */
+  it("VENUE-HOLD-NOTIF-05-C lists a separate row and link for each hold of the same event", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              holdNotice({ id: "n1", relatedBookingId: "hold-1" }),
+              holdNotice({ id: "n2", type: "tentative_hold_rejected", message: REJECTED_MESSAGE, relatedBookingId: "hold-2" }),
+              holdNotice({ id: "n3", relatedBookingId: "hold-3" }),
+            ],
+      ),
+    );
+
+    renderBellWithBookingsRoute();
+    const links = await screen.findAllByRole("link", { name: "View Booking" });
+    expect(links.map((l) => l.getAttribute("href")).sort()).toEqual([
+      "/bookings?booking=hold-1",
+      "/bookings?booking=hold-2",
+      "/bookings?booking=hold-3",
+    ]);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
+
+    fireEvent.click(links.find((l) => l.getAttribute("href")?.endsWith("hold-2"))!);
+
+    await waitFor(() => expect(postReadCalls("n2")).toHaveLength(1));
+    expect(postReadCalls("n1")).toHaveLength(0);
+    expect(postReadCalls("n3")).toHaveLength(0);
+  });
+});

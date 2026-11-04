@@ -57,6 +57,19 @@ export function venueBookingDecisionMessage(
 }
 
 /**
+ * SPM-165 AC2: the Coordinator's tentative hold decision notification, exactly
+ * `Your tentative hold of <venue name> for "<event name>" has been approved.` (or rejected). The hold expiry and the
+ * rejection reason are not part of it; they are on the hold the notification links to.
+ */
+export function tentativeHoldDecisionMessage(
+  venueName: string,
+  eventName: string,
+  decision: 'approved' | 'rejected',
+): string {
+  return `Your tentative hold of ${venueName} for "${eventName}" has been ${decision}.`;
+}
+
+/**
  * SPM-172 AC2: the notification the event's Coordinator receives when Technical Support reserve an equipment request or
  * mark it cannot be provided. The cannot-provide reason is not part of it; the request page shows it.
  */
