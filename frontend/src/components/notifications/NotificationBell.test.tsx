@@ -2035,6 +2035,193 @@ describe("NotificationBell (SPM-125: venue unavailability and venue change notic
   });
 });
 
+// ---------------------------------------------------------------------------------------------------------
+// SPM-172 (equipment request decision notification, Coordinator): Technical Support reserve a request or mark it
+// cannot be provided, and the assigned Coordinator's bell lists the notice. Its link opens the equipment requests page
+// for that request (/equipment/requests?request=<id>). The backend builds the message and decides who gets the notice;
+// these are frontend unit tests of the bell with the notifications API stubbed and the signed-in user set directly in
+// the store (a fixture, not a live login).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-172: equipment request decision notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const RESERVED_MESSAGE = 'Your equipment request for "Welcome Evening" has been reserved.';
+  const CANNOT_MESSAGE = 'Your equipment request for "Welcome Evening" cannot be provided.';
+
+  function setCoordinator() {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+  }
+
+  function equipmentNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-equipment-1",
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type: "equipment_request_reserved",
+      message: RESERVED_MESSAGE,
+      relatedEventId: "event-1",
+      relatedEquipmentRequestId: "request-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  function EquipmentMarker() {
+    const location = useLocation();
+    return <p>Equipment page at {location.pathname + location.search}</p>;
+  }
+
+  function renderBellWithEquipmentRoute() {
+    const view = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <NotificationBell />
+                <Outlet />
+              </>
+            }
+          >
+            <Route path="equipment/requests" element={<EquipmentMarker />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(bellButton());
+    return view;
+  }
+
+  /**
+   * EQUIP-REQ-NOTIF-01-G (SPM-172 AC1): a Coordinator's bell lists reserved and cannot-provide notices with the unread
+   * count 2.
+   * Kills: the equipment types missing from the Coordinator's bell filter.
+   */
+  it("EQUIP-REQ-NOTIF-01-G shows a Coordinator both a reserved and a cannot-provide notice with an unread count of 2", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      equipmentNotice(),
+      equipmentNotice({ id: "notif-equipment-2", type: "equipment_request_cannot_provide", message: CANNOT_MESSAGE, relatedEquipmentRequestId: "request-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(RESERVED_MESSAGE)).toBeTruthy();
+    expect(screen.getByText(CANNOT_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-02-F (SPM-172 AC2): the row shows the whole message as stored with the notification's own timestamp as
+   * a <time> element, and no cannot-provide reason.
+   * Kills: a row that rewrites the message or hides the decision time.
+   */
+  it("EQUIP-REQ-NOTIF-02-F shows the full message and the decision time", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([equipmentNotice({ type: "equipment_request_cannot_provide", message: CANNOT_MESSAGE })]);
+
+    renderBell();
+
+    const row = (await screen.findByText(CANNOT_MESSAGE)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(CANNOT_MESSAGE);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-C (SPM-172 AC3 and AC4): the link on a reserved notice goes to /equipment/requests?request=request-1,
+   * marks the notification read once, lands on the equipment requests page and closes the dropdown.
+   * Kills: a link to the event page, a link without the request id, opening without marking read.
+   */
+  it("EQUIP-REQ-NOTIF-03-C View Request opens the equipment requests page for that request and marks the notice read", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [equipmentNotice()]));
+
+    renderBellWithEquipmentRoute();
+    const link = await screen.findByRole("link", { name: "View Request" });
+    expect(link).toHaveAttribute("href", "/equipment/requests?request=request-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Equipment page at /equipment/requests?request=request-1")).toBeTruthy();
+    expect(postReadCalls("notif-equipment-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-D (SPM-172 AC3): a cannot-provide notice links to its own request, with the id escaped in the query.
+   * Kills: every row linking to the same request id, an unescaped id.
+   */
+  it("EQUIP-REQ-NOTIF-03-D links a cannot-provide notice to its own request with the id escaped", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      equipmentNotice({ type: "equipment_request_cannot_provide", message: CANNOT_MESSAGE, relatedEquipmentRequestId: "request 2&x", id: "notif-equipment-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Request" })).toHaveAttribute("href", "/equipment/requests?request=request%202%26x");
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-E (SPM-172 AC3, robustness): a notice that has no request id still links to the equipment requests
+   * page, without a query string or the text "undefined".
+   * Kills: a link ending in ?request=undefined or null.
+   */
+  it.each([null, undefined])("EQUIP-REQ-NOTIF-03-E links a notice with request id %s to plain /equipment/requests", async (missing) => {
+    setCoordinator();
+    apiMock.mockResolvedValue([equipmentNotice({ relatedEquipmentRequestId: missing })]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Request" })).toHaveAttribute("href", "/equipment/requests");
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-04-C (SPM-172 AC4): Mark As Read on an equipment notice posts the read call, drops the row and lowers
+   * the unread count; a notice already read on the server is neither listed nor counted.
+   * Kills: a Mark As Read that does not call the server, a read notice still counted.
+   */
+  it("EQUIP-REQ-NOTIF-04-C Mark As Read marks an equipment notice read and lowers the unread count", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/read") ? undefined : [equipmentNotice(), equipmentNotice({ id: "notif-equipment-3", read: true })]),
+    );
+
+    renderBell();
+    expect(await screen.findByText(RESERVED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    fireEvent.click(screen.getByRole("button", { name: "Mark As Read" }));
+
+    await waitFor(() => expect(postReadCalls("notif-equipment-1")).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText(RESERVED_MESSAGE)).toBeNull());
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(postReadCalls("notif-equipment-3")).toHaveLength(0);
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-04-D (SPM-172 AC4): opening and closing the bell leaves an equipment notice unread.
+   * Kills: marking notices read when the dropdown opens.
+   */
+  it("EQUIP-REQ-NOTIF-04-D leaves an equipment notice unread after the bell is opened and closed", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([equipmentNotice()]);
+
+    renderBell();
+    expect(await screen.findByText(RESERVED_MESSAGE)).toBeTruthy();
+    fireEvent.click(bellButton());
+
+    expect(postReadCalls("notif-equipment-1")).toHaveLength(0);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+});
+
 /** The current router location's search string (used by the SPM-125 Bookings route marker). */
 function useLocationSearch() {
   return useLocation().search;
@@ -2231,6 +2418,219 @@ describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
               holdNotice({ id: "n1", relatedBookingId: "hold-1" }),
               holdNotice({ id: "n2", type: "tentative_hold_rejected", message: REJECTED_MESSAGE, relatedBookingId: "hold-2" }),
               holdNotice({ id: "n3", relatedBookingId: "hold-3" }),
+            ],
+      ),
+    );
+
+    renderBellWithBookingsRoute();
+    const links = await screen.findAllByRole("link", { name: "View Booking" });
+    expect(links.map((l) => l.getAttribute("href")).sort()).toEqual([
+      "/bookings?booking=hold-1",
+      "/bookings?booking=hold-2",
+      "/bookings?booking=hold-3",
+    ]);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
+
+    fireEvent.click(links.find((l) => l.getAttribute("href")?.endsWith("hold-2"))!);
+
+    await waitFor(() => expect(postReadCalls("n2")).toHaveLength(1));
+    expect(postReadCalls("n1")).toHaveLength(0);
+    expect(postReadCalls("n3")).toHaveLength(0);
+  });
+});
+
+describe("NotificationBell (SPM-134: tentative hold expiry, release and conversion notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const REMINDER_MESSAGE = 'Your tentative hold of Orchid Hall for "Welcome Evening" expires on 4 Jun 2030, 00:30 SGT.';
+  const EXPIRED_MESSAGE = 'Your tentative hold of Orchid Hall for "Welcome Evening" expired on 4 Jun 2030, 00:30 SGT.';
+  const RELEASED_MESSAGE = 'Your tentative hold of Orchid Hall for "Welcome Evening" has been released.';
+  const CONVERTED_MESSAGE = 'Your tentative hold of Orchid Hall for "Welcome Evening" has been confirmed as a booking.';
+  const NOTICES = [
+    ["tentative_hold_expiry_reminder", REMINDER_MESSAGE],
+    ["tentative_hold_expired", EXPIRED_MESSAGE],
+    ["tentative_hold_released", RELEASED_MESSAGE],
+    ["tentative_hold_converted", CONVERTED_MESSAGE],
+  ] as const;
+
+  function setCoordinator() {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+  }
+
+  function lifecycleNotice(type: Notification["type"], message: string, overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: `notif-${type}`,
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type,
+      message,
+      relatedEventId: "event-1",
+      relatedBookingId: `hold-${type}`,
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  function BookingsMarker() {
+    const location = useLocation();
+    return <p>Bookings page at {location.pathname + location.search}</p>;
+  }
+
+  function renderBellWithBookingsRoute() {
+    const view = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <NotificationBell />
+                <Outlet />
+              </>
+            }
+          >
+            <Route path="bookings" element={<BookingsMarker />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(bellButton());
+    return view;
+  }
+
+  /**
+   * HOLD-EXP-NOTIF-01-H (SPM-134 AC1): a Coordinator's bell lists the 48-hour hold reminder as an unread notice.
+   * Kills: the reminder type missing from the Coordinator's bell filter.
+   */
+  it("HOLD-EXP-NOTIF-01-H shows a Coordinator the hold expiry reminder as unread", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([lifecycleNotice("tentative_hold_expiry_reminder", REMINDER_MESSAGE)]);
+
+    renderBell();
+
+    expect(await screen.findByText(REMINDER_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-02-E (SPM-134 AC2): a Coordinator's bell lists the hold expired notice.
+   * Kills: the expired type missing from the Coordinator's bell filter.
+   */
+  it("HOLD-EXP-NOTIF-02-E shows a Coordinator the hold expired notice", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([lifecycleNotice("tentative_hold_expired", EXPIRED_MESSAGE)]);
+
+    renderBell();
+
+    expect(await screen.findByText(EXPIRED_MESSAGE)).toBeTruthy();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-03-G (SPM-134 AC3): a Coordinator's bell lists the released and the converted hold notices, with an
+   * unread count of 2.
+   * Kills: either type missing from the Coordinator's bell filter.
+   */
+  it("HOLD-EXP-NOTIF-03-G shows a Coordinator both a released and a converted hold notice", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      lifecycleNotice("tentative_hold_released", RELEASED_MESSAGE),
+      lifecycleNotice("tentative_hold_converted", CONVERTED_MESSAGE),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(RELEASED_MESSAGE)).toBeTruthy();
+    expect(screen.getByText(CONVERTED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-04-D (SPM-134 AC4): each row shows the whole message exactly as stored with the notification's own
+   * timestamp as a <time> element, and nothing added.
+   * Kills: a row that rewrites the message, hides the time, or adds a reference.
+   */
+  it.each(NOTICES)("HOLD-EXP-NOTIF-04-D a %s row shows the full message and its timestamp", async (type, message) => {
+    setCoordinator();
+    apiMock.mockResolvedValue([lifecycleNotice(type, message)]);
+
+    renderBell();
+
+    const row = (await screen.findByText(message)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(message);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent(/VB-/);
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-06-B (SPM-134 AC6): the link on each of the four notice types goes to /bookings?booking=<hold id>,
+   * lands on the Bookings page, closes the dropdown and marks the notification read once.
+   * Kills: a link to the event page, a link without the hold id, opening without marking read, one type with no link.
+   */
+  it.each(NOTICES)("HOLD-EXP-NOTIF-06-B View Booking on a %s notice opens /bookings for that hold and marks it read", async (type, message) => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [lifecycleNotice(type, message)]));
+
+    renderBellWithBookingsRoute();
+    const link = await screen.findByRole("link", { name: "View Booking" });
+    expect(link).toHaveAttribute("href", `/bookings?booking=hold-${type}`);
+    fireEvent.click(link);
+
+    expect(await screen.findByText(`Bookings page at /bookings?booking=hold-${type}`)).toBeTruthy();
+    expect(postReadCalls(`notif-${type}`)).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-07-B (SPM-134 AC7): unread hold notices are counted, a read one is neither listed nor counted, and Mark
+   * As Read posts the read call and clears the row without opening the Bookings page.
+   * Kills: read notices shown, Mark As Read not posting for these types, a notice left counted.
+   */
+  it("HOLD-EXP-NOTIF-07-B counts unread hold notices, leaves out a read one and Mark As Read clears the notice", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              lifecycleNotice("tentative_hold_expiry_reminder", REMINDER_MESSAGE),
+              lifecycleNotice("tentative_hold_expired", EXPIRED_MESSAGE, { read: true }),
+            ],
+      ),
+    );
+
+    renderBellWithBookingsRoute();
+    await screen.findByText(REMINDER_MESSAGE);
+    expect(screen.queryByText(EXPIRED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() => expect(postReadCalls("notif-tentative_hold_expiry_reminder")).toHaveLength(1));
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.queryByText(/Bookings page at/)).toBeNull();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-08-B (SPM-134 AC8): an event with several holds shows one row per notice, each with its own link, and
+   * following one marks only that notice read.
+   * Kills: grouping notices per event, or one link or read call serving all rows.
+   */
+  it("HOLD-EXP-NOTIF-08-B lists a separate row and link for each hold of the same event", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              lifecycleNotice("tentative_hold_expiry_reminder", REMINDER_MESSAGE, { id: "n1", relatedBookingId: "hold-1" }),
+              lifecycleNotice("tentative_hold_expiry_reminder", REMINDER_MESSAGE, { id: "n2", relatedBookingId: "hold-2" }),
+              lifecycleNotice("tentative_hold_released", RELEASED_MESSAGE, { id: "n3", relatedBookingId: "hold-3" }),
             ],
       ),
     );

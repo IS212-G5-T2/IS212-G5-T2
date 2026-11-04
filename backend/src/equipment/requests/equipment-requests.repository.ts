@@ -5,6 +5,7 @@ import { shouldTransitionToPlanning } from '../../events/types/event-status.js';
 import { CLOCK, systemClock, type Clock } from '../../common/clock.js';
 import { Inject, Optional } from '@nestjs/common';
 import type { EquipmentRequestInput } from './dto/equipment-request-input.js';
+import { notifyEquipmentDecision, type EquipmentDecisionContext } from './equipment-decision-notice.js';
 
 interface EventRow {
   id: string; event_name: string; start_date_time: Date; end_date_time: Date;
@@ -268,8 +269,8 @@ export class EquipmentRequestsRepository {
   /** Atomically makes the request and every linked placeholder reservation live. */
   async reserve(requestId: string) {
     return this.database.transaction(async (client) => {
-      const found = await client.query<{ id: string; status: string; event_id: string; event_status: string; start_date_time: Date; end_date_time: Date }>(
-        `SELECT r.id, r.status, r.event_id, e.status AS event_status, e.start_date_time, e.end_date_time
+      const found = await client.query<{ id: string; status: string; event_id: string; event_status: string; start_date_time: Date; end_date_time: Date; event_name: string; coordinator_id: string | null }>(
+        `SELECT r.id, r.status, r.event_id, e.status AS event_status, e.start_date_time, e.end_date_time, e.event_name, e.coordinator_id
            FROM equipment_requests r JOIN events e ON e.id = r.event_id
           WHERE r.id = $1::uuid FOR UPDATE OF r, e`,
         [requestId],
@@ -362,6 +363,8 @@ export class EquipmentRequestsRepository {
         "UPDATE equipment_requests SET status = 'Reserved', decision_reason = NULL, updated_at = $2::timestamptz WHERE id = $1::uuid",
         [requestId, now],
       );
+      // SPM-172: tell the event's Coordinator (the one on the locked event row), in this same transaction.
+      await notifyEquipmentDecision(client, this.decisionContext(request, 'reserved', now));
       return { kind: 'reserved' as const, id: request.id };
     });
   }
@@ -375,8 +378,8 @@ export class EquipmentRequestsRepository {
    *  Both must be released here so Cannot Provide fully frees the equipment. */
   async markCannotProvide(requestId: string, reason: string) {
     return this.database.transaction(async (client) => {
-      const found = await client.query<{ id: string; status: string; event_id: string; event_status: string }>(
-        `SELECT r.id, r.status, r.event_id, e.status AS event_status
+      const found = await client.query<{ id: string; status: string; event_id: string; event_status: string; event_name: string; coordinator_id: string | null }>(
+        `SELECT r.id, r.status, r.event_id, e.status AS event_status, e.event_name, e.coordinator_id
            FROM equipment_requests r JOIN events e ON e.id = r.event_id
           WHERE r.id = $1::uuid FOR UPDATE OF r, e`,
         [requestId],
@@ -410,8 +413,25 @@ export class EquipmentRequestsRepository {
               AND reservation.status = 'Reserved'))`,
         [requestId, now],
       );
+      await notifyEquipmentDecision(client, this.decisionContext(request, 'cannot-provide', now));
       return { kind: 'cannot-provided' as const, id: request.id };
     });
+  }
+
+  /** SPM-172: what the decision notice needs from the locked request and event row. */
+  private decisionContext(
+    request: { id: string; event_id: string; event_name: string; coordinator_id: string | null },
+    decision: EquipmentDecisionContext['decision'],
+    decidedAt: Date,
+  ): EquipmentDecisionContext {
+    return {
+      requestId: request.id,
+      eventId: request.event_id,
+      eventName: request.event_name,
+      coordinatorId: request.coordinator_id,
+      decision,
+      decidedAt,
+    };
   }
 
   private async readRequests(where: string, params: unknown[]) {

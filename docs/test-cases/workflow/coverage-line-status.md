@@ -194,3 +194,10 @@ Remapped again on 30 Oct 2026 for the SPM-156 PR #87 review corrections: `EventE
 | frontend/src/features/bookings/pages/requests/useHoldExpiry.ts | 22-23 | LOW-VALUE | SPM-133: race-condition guard (msUntilExpiry<=0 in useEffect); unreachable under vi.useFakeTimers() which freezes Date.now() between useState init and useEffect run; defended by M2 equivalent-mutant argument in frontend/scripts/testing/mutation/spm133.mutants.mjs. |
 
 SPM-132 coverage correction 04: the expanded owning-module regression suites and new service/calendar behavior tests measure 100% statements, branches, functions and lines across the unchanged 16-file whole-file scope (`ai/runtime/test-cycles/SPM-132/coverage-correction-04/gates/G5.json`). The former SPM-132 OPEN rows above were removed only after these paths were executed; no lines were reclassified or excluded.
+
+## SPM-172
+
+| File:line | Status | Note |
+| --- | --- | --- |
+| frontend/src/components/notifications/NotificationItem.tsx:24 | LOW-VALUE | The `equipment_request_reserved` icon entry in `iconByType`. NotificationItem is not used by the app (the bell renders NotificationRow), so the line is never executed; the icon is cosmetic. By the standing owner decision (chaw678, as for SPM-165 and SPM-171) the icon is not tested. |
+| frontend/src/components/notifications/NotificationItem.tsx:25 | LOW-VALUE | The `equipment_request_cannot_provide` icon entry in `iconByType`; same reason as line 24. |

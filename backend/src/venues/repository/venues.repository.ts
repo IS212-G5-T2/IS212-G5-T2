@@ -9,6 +9,7 @@ import { DatabaseService } from '../../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from '../../common/clock.js';
 import { accessibilityOptions } from '../helpers/accessibility-options.js';
 import { notifyBookingDecision } from '../review/booking-decision-notice.js';
+import { markHoldRemindersRead, notifyHoldLifecycle } from '../review/hold-lifecycle-notice.js';
 import type {
   VenueImageInput,
   VenueInput,
@@ -833,17 +834,55 @@ export class VenuesRepository {
     return this.updateTentativeHold(staffId, bookingId, 'release');
   }
 
-  /** Persists elapsed approved holds as expired once; logical expiry remains based on hold_expires_at. */
+  /**
+   * Persists elapsed approved holds as expired once; logical expiry remains based on hold_expires_at. SPM-134 AC2: each
+   * hold's expired notice is written in the same transaction as its status change, so a hold is never expired without
+   * its notice, and the guarded UPDATE gives overlapping runs exactly one winner per hold.
+   *
+   * The whole batch is one transaction on purpose: one UPDATE claims every elapsed hold and each claimed hold's notice is
+   * written before COMMIT, so no hold is ever expired without its notice. The trade-off (accepted, Q-04): if one notice
+   * fails, the whole batch rolls back, no hold in it is marked expired, and the scheduler retries the batch on its next
+   * tick (the next minute by default).
+   */
   async processExpiredTentativeHolds(now: Date = this.clock.now()): Promise<string[]> {
-    const result = await this.database.query<{ id: string }>(
-      `UPDATE venue_bookings
-          SET status = 'expired', hold_expiry_processed_at = $1::timestamptz
-        WHERE request_kind = 'tentative_hold' AND status = 'approved'
-          AND hold_expires_at <= $1::timestamptz AND hold_expiry_processed_at IS NULL
-        RETURNING id`,
-      [now],
-    );
-    return result.rows.map((row) => row.id);
+    return this.database.transaction(async (client) => {
+      const result = await client.query<{ id: string; hold_expires_at: Date }>(
+        `UPDATE venue_bookings
+            SET status = 'expired', hold_expiry_processed_at = $1::timestamptz
+          WHERE request_kind = 'tentative_hold' AND status = 'approved'
+            AND hold_expires_at <= $1::timestamptz AND hold_expiry_processed_at IS NULL
+          RETURNING id, hold_expires_at`,
+        [now],
+      );
+      // AC4: an expired hold's notice is stamped with the hold's own expiry time, not the processing time.
+      for (const row of result.rows) await notifyHoldLifecycle(client, row.id, { event: 'expired', expiresAt: row.hold_expires_at }, row.hold_expires_at);
+      return result.rows.map((row) => row.id);
+    });
+  }
+
+  /**
+   * SPM-134 AC1, AC5: sends the 48-hour expiry reminder once per active tentative hold. The conditional UPDATE sets
+   * hold_reminder_sent_at only for an approved, unprocessed, not yet reminded hold that has not expired and expires
+   * within 48 hours, on an event that is not cancelled, so a released, converted or already expired hold is never
+   * reminded and overlapping runs mark each hold once. The reminder is written in the same transaction as the marker.
+   */
+  async processTentativeHoldReminders(now: Date = this.clock.now()): Promise<string[]> {
+    return this.database.transaction(async (client) => {
+      const result = await client.query<{ id: string; hold_expires_at: Date }>(
+        `UPDATE venue_bookings b
+            SET hold_reminder_sent_at = $1::timestamptz
+           FROM events e
+          WHERE e.id = b.event_id AND e.status <> 'Cancelled'
+            AND b.request_kind = 'tentative_hold' AND b.status = 'approved'
+            AND b.hold_expiry_processed_at IS NULL AND b.hold_reminder_sent_at IS NULL
+            AND b.hold_expires_at > $1::timestamptz
+            AND b.hold_expires_at <= $1::timestamptz + interval '48 hours'
+          RETURNING b.id, b.hold_expires_at`,
+        [now],
+      );
+      for (const row of result.rows) await notifyHoldLifecycle(client, row.id, { event: 'reminder', expiresAt: row.hold_expires_at }, now);
+      return result.rows.map((row) => row.id);
+    });
   }
 
   private async updateTentativeHold(
@@ -874,6 +913,9 @@ export class VenuesRepository {
             RETURNING id, status, request_kind, hold_expires_at`,
           [bookingId],
         );
+        // SPM-134 AC11 and AC3: the reminders for this hold are read, then the change tells the Coordinator, in this transaction.
+        await markHoldRemindersRead(client, bookingId);
+        await notifyHoldLifecycle(client, bookingId, { event: 'converted' }, now);
         return { kind: 'updated' as const, id: result.rows[0].id, status: 'approved' as const, requestKind: 'booking' as const };
       }
 
@@ -883,6 +925,8 @@ export class VenuesRepository {
           RETURNING id`,
         [bookingId, now],
       );
+      await markHoldRemindersRead(client, bookingId);
+      await notifyHoldLifecycle(client, bookingId, { event: 'released' }, now);
       return { kind: 'updated' as const, id: result.rows[0].id, status: 'released' as const, requestKind: 'tentative_hold' as const };
     });
   }

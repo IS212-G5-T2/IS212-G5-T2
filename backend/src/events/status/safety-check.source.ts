@@ -51,9 +51,11 @@ const FACT_STATE: Record<SafetyCheckRow['status'], SafetyFact['state']> = {
   rejected: 'Rejected',
 };
 
+/* v8 ignore start -- TypeScript decorator metadata emits an unreachable fallback branch. */
 @Injectable()
 export class EventSafetyCheckSource implements SafetyOutcomeSource {
   constructor(private readonly database: DatabaseService) {}
+/* v8 ignore stop */
 
   async read(eventId: string): Promise<SafetyFact | undefined> {
     const row = await this.row(eventId);

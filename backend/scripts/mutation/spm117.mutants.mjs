@@ -38,7 +38,7 @@ export const MUTANTS = [
       suite: 'service', file: 'src/equipment/equipment.service.spec.ts',
       title: 'EQUIP-VIEW-04-B maps every maintenance status to its equipment record',
     }],
-    edits: [['maintenanceStatus: row.maintenance_status,\n    location: row.location,', "maintenanceStatus: 'Active',\n    location: row.location,"]],
+    edits: [['maintenanceStatus: nonzeroStatuses === 1 ? row.maintenance_status : null,', "maintenanceStatus: nonzeroStatuses === 1 ? 'Active' : null,"]],
   },
   {
     id: 'BE-117-04',

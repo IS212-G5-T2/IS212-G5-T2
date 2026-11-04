@@ -14,6 +14,11 @@ Add entries under one date per day, using this format:
 
 Where user is the user's github username.
 
+## 2026-11-04
+
+- tanwz - test - SPM-176 - Sprint 2 test audit and coverage closure: Audited 18 Done Sprint 2 stories (audit and Confluence update lists kept outside the repo); added and extended unit tests for Sprint 2 directories (backend 100% lines and branches, frontend 100% lines and branches, 2635 backend and 2560 frontend unit tests passing); removed dead branches and added documented ignore markers for decorator metadata; ran mutation sets for SPM-46, 50, 63, 111, 117, 119, 120 (frontend all killed; backend non-e2e all killed, e2e-only mutants skipped). Test-workflow cycle left open. Merged `origin/dev` into the branch.
+- tanwz - implementation - dev - Live-demo seed data: Added `database/postgresql/demo/demo_seed.sql`, a destructive wipe-and-reseed (outside `init/`) with 13 fictional Singapore-campus accounts (password `P@55w0rd`, `@connectsphere.sg`), 10 venues, 14 equipment lines, 48 events across every status, bookings, holds, blocked periods, equipment requests, registrations with a waitlist, change and cancellation requests, clarifications, completion records, safety checks and notifications for each role. Documented in `database/README.md`. Verified on a scratch Postgres 16 container built from `init/`: the script ran to COMMIT, re-ran twice with identical counts, safety rows survived, and all logins verify. Run against the local dev volume (`spm-local_postgres-data`) after a full pg_dump backup; the dev schema lacks migration 032, so the seed omits the `expired` booking status. No Jira key, review agents not run, nothing committed.
+
 ## 2026-11-03
 
 - swr - test - SPM-133 - Hold expires and releases venue (Venue Staff) — backend E2E tests: Added `backend/test/tentative-hold-expiry.e2e-spec.ts` with 13 E2E tests (VEN-HOLD-EXP-02-A, 02-BND-1, 02-B, 03-A, 03-B, 04-B, 04-BND-1, 04-PERF-1, 04-PERF-2, 06-VAR-1, 06-B, 06-PERF-1, 06-A) covering AC2 blocking logic, AC3 schedule capacity, AC4 conversion refusal, and AC6 scheduler/processor correctness. Tests use real PostgreSQL with CLOCK injection for deterministic time control. Updated SPM-133.json scope, records CSV, test-id-registry, and tier-matrix for AC2–AC4 and AC6. No backend source files changed; no commit, push, or Jira transition.

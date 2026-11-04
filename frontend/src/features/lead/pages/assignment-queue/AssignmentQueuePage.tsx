@@ -102,6 +102,7 @@ export function AssignmentQueuePage() {
   const assigned = (id: string, text: string) => {
     setError("");
     setConfirmation(text);
+    /* v8 ignore next -- the queue has loaded before any row can be assigned, so it is never null here. */
     setQueue((items) => (items ?? []).filter((item) => item.id !== id));
     void loadCoordinators().catch(() => undefined);
   };

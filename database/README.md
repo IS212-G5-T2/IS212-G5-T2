@@ -115,6 +115,40 @@ apply the seed script from the repository root:
 docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/002_seed_data.sql
 ```
 
+## Live demo data
+
+`postgresql/demo/demo_seed.sql` replaces the development data with a fictional
+Singapore campus dataset for a live demonstration. It is not part of `init/`, so
+fresh volumes and test databases never run it.
+
+It is destructive: it empties events, venues, equipment and all user accounts,
+then reseeds them. Keep roles, permissions and the lookup catalogues. Run it only
+against the local demo database, and re-run it shortly before a demo so the dates
+stay current (dates are relative to the day it runs):
+
+```sh
+docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/demo/demo_seed.sql
+```
+
+Every demo account uses password `P@55w0rd` and the domain `@connectsphere.sg`:
+
+| Role | Email |
+| --- | --- |
+| Organiser | `org@connectsphere.sg` |
+| Coordinator | `coord1@connectsphere.sg`, `coord2@connectsphere.sg` |
+| Coordinator + Venue Staff | `coord_vs@connectsphere.sg` |
+| Venue Staff | `vs@connectsphere.sg` |
+| Tech Support | `ts@connectsphere.sg` |
+| Event Coordinator Lead | `lead@connectsphere.sg` |
+| Safety Officer | `so@connectsphere.sg` |
+| Attendee | `att1@connectsphere.sg` to `att5@connectsphere.sg` |
+
+The dataset has 48 events across every status, including Confirmed events with a
+full waitlist (`Leadership Lecture Series: Sustainable Cities`, limit 3), a venue
+blocked over a confirmed booking (`Community Health Fair`), and a registration
+report with several statuses (`Annual Science Open Day`). Only five attendee
+accounts exist, so each event has at most five registrations.
+
 ## Events sample database
 
 The local `spm` PostgreSQL database stores requests in `events`. The complete
@@ -248,3 +282,7 @@ SPM-137 (`029_spm137_booking_decision_notification.sql`) adds the nullable `noti
 SPM-125 (`030_spm125_venue_unavailability_history.sql`) adds the append-only `venue_unavailability_history` table: one `created` row when Venue Staff save an unavailable period and one `ended_early` row (with `previous_end_at`) when they end it early, each with the period, its reason, the Venue Staff member (`actor_user_id`, `ON DELETE SET NULL`) and the time. `period_id` has no foreign key, so history outlives its period; rows are removed only with their venue (`ON DELETE CASCADE`). The application only inserts; no database trigger blocks a direct `UPDATE` or `DELETE`. The migration gives every existing blocked period a `created` row with no person (shown as "Not recorded"). Its venue-change notices (`venue_unavailable_impact`, `venue_timing_impact`, `venue_capacity_impact`) reuse SPM-137's `notifications.related_booking_id`, so apply 029 first. For an existing volume, apply `backend/migrations/030_spm125_venue_unavailability_history.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
 
 SPM-157 (`034_spm157_event_audit_log.sql`) adds the append-only `event_audit_log` table and the triggers that fill it from `events` (submission, status, coordinator), `venue_bookings` (event bookings and holds only; blockouts stay with SPM-125), `equipment_requests` (a deferred trigger records a new request at commit with its items), `equipment_reservations` (releases), `event_registrations`, `event_safety_checks` (deferred, so the outcome's feedback items are the reason), `event_safety_resets`, `event_comments` (clarifications), `safety_check_feedback_items` (the coordinator's response), `completion_records` (deferred, with its issues) and `notifications` (only the SPM-125 venue-change notices, which name the affected booking); registration settings changes come from the `events` trigger. The author comes from the transaction-local setting `app.actor_id`, which the backend sets for a signed-in request; without it, or for a change made by another trigger, the entry is the system's, and `actor_name` keeps the person's display name at the time. `UPDATE` and `DELETE` on the table raise `event_audit_log is append-only`, except the clean-up by `events_audit_cleanup` after an event row is deleted (there is deliberately no foreign key, so recording never locks the event row). On first apply it loads earlier records once (only into an empty table); entries whose author was not recorded have `actor_kind = 'unrecorded'`. For an existing volume, apply `backend/migrations/034_spm157_event_audit_log.sql` once (after 032 and 033) with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
+
+SPM-134 (`036_spm134_hold_expiry_notifications.sql`) adds the nullable `venue_bookings.hold_reminder_sent_at`, set by the scheduler in the same transaction that writes the Coordinator's 48-hour expiry reminder so each tentative hold is reminded exactly once; the migration is idempotent and has no backfill (an active hold already within 48 hours of its expiry is reminded on the first run after it, and a hold past its expiry never is). The reminder, expired, released and converted notices need no schema change: `notifications.type` has no constraint and `related_booking_id` (SPM-137) already links a hold. For an existing volume, apply `backend/migrations/036_spm134_hold_expiry_notifications.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; fresh databases apply the copy in `database/postgresql/init/`.
+
+SPM-172 (`035_spm172_equipment_decision_notification.sql`) adds the nullable `notifications.related_equipment_request_id` (`ON DELETE CASCADE`, references `equipment_requests`) and a partial index on it, so an equipment request decision notice (`equipment_request_reserved`, `equipment_request_cannot_provide`) can link to one request. For an existing volume, apply `backend/migrations/035_spm172_equipment_decision_notification.sql` once (after 034) with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.

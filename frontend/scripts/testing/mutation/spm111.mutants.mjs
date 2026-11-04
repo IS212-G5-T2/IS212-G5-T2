@@ -8,7 +8,7 @@ export const MUTANTS = [
   {
     id: 'FE-111-01', name: 'equipment creation uses PUT instead of POST',
     file: 'src/features/equipment/api/equipment-api.ts', suites: ['api'],
-    testMappings: [{ suite: 'api', file: 'src/features/equipment/api/equipment-api.test.ts', title: 'SPM-111 posts the complete equipment creation payload' }],
+    testMappings: [{ suite: 'api', file: 'src/features/equipment/api/equipment-api.test.ts', title: 'EQUIP-AVAIL-08-A posts the complete equipment creation payload' }],
     edits: [["method: 'POST',", "method: 'PUT',"]],
   },
   {

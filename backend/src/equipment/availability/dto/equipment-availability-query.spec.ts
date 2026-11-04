@@ -19,4 +19,10 @@ describe('SPM-113 equipment availability period validation', () => {
     expect(() => validateEquipmentAvailabilityQuery({ startDateTime: 123, endDateTime: '2030-01-01T10:01:00.000Z' })).toThrow(BadRequestException);
     expect(() => validateEquipmentAvailabilityQuery({ startDateTime: '2030-01-01T10:00:00.000Z', endDateTime: '2030-01-01T10:01:00.000Z', equipmentType: 'Invalid' })).toThrow(BadRequestException);
   });
+  it('rejects a non-string equipment type', () => {
+    expect(() => validateEquipmentAvailabilityQuery({ startDateTime: '2030-01-01T10:00:00.000Z', endDateTime: '2030-01-01T10:01:00.000Z', equipmentType: 5 })).toThrow(BadRequestException);
+  });
+  it('rejects a missing end date-time', () => {
+    expect(() => validateEquipmentAvailabilityQuery({ startDateTime: '2030-01-01T10:00:00.000Z' })).toThrow(BadRequestException);
+  });
 });

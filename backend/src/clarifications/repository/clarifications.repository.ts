@@ -50,9 +50,11 @@ export interface InsertNotificationInput {
 
 type Queryable = Pick<pg.PoolClient, 'query'>;
 
+/* v8 ignore start -- TypeScript decorator metadata emits an unreachable fallback branch. */
 @Injectable()
 export class ClarificationsRepository {
   constructor(private readonly database: DatabaseService) {}
+/* v8 ignore stop */
 
   async findEvent(eventId: string): Promise<EventForReview | undefined> {
     const result = await this.database.query<EventForReview>(
