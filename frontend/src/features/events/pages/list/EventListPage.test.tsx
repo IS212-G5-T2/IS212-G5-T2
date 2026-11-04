@@ -259,7 +259,7 @@ describe("EventListPage", () => {
     pendingRequestsMock.mockResolvedValue([
       { id: "cr-1", eventId: "e-1", eventName: "Welcome Evening", status: "Pending", changes: [], requiresSafetyCheck: false, recheck: [], safetyCheckReset: false, requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
     ]);
-    const view = render(
+    render(
       <MemoryRouter initialEntries={["/events"]}>
         <Routes>
           <Route path="/events" element={<EventListPage />} />
@@ -276,26 +276,48 @@ describe("EventListPage", () => {
     expect(within(section).getByText(/Welcome Evening/)).toBeTruthy();
     expect(within(section).queryByText("New")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
-    // A result that arrives after leaving the page changes nothing: no console error is raised by the late result.
-    let resolve!: (ids: Set<string>) => void;
-    vi.mocked(fetchNewChangeRequestEventIds).mockImplementationOnce(() => new Promise((r) => (resolve = r)));
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    view.unmount();
+  });
+
+  // Kills: a superseded New-tag or pending-request load overwriting the newer result after a Retry (missing active guards).
+  /** REVIEW-CHANGE-01-F: after a Retry, an older pending list or New-tag result that settles late is ignored. */
+  it("REVIEW-CHANGE-01-F keeps the newer pending list and New tags when an older load settles after a retry", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
+    });
+    let eventLoads = 0;
+    apiMock.mockImplementation((() =>
+      eventLoads++ === 0 ? Promise.reject(new Error("Events are unavailable.")) : Promise.resolve([])) as never);
+    let resolveOldTags!: (ids: Set<string>) => void;
+    vi.mocked(fetchNewChangeRequestEventIds)
+      .mockImplementationOnce(() => new Promise((r) => (resolveOldTags = r)))
+      .mockResolvedValueOnce(new Set());
+    let resolveOldPending!: (requests: unknown[]) => void;
+    const request = (id: string, eventId: string, eventName: string) => ({
+      id, eventId, eventName, status: "Pending", changes: [], requiresSafetyCheck: false, recheck: [], safetyCheckReset: false,
+      requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z",
+    });
+    pendingRequestsMock
+      .mockImplementationOnce(() => new Promise((r) => (resolveOldPending = r as never)) as never)
+      .mockResolvedValueOnce([request("cr-2", "e-2", "Second Evening")] as never);
     render(
       <MemoryRouter initialEntries={["/events"]}>
         <Routes>
           <Route path="/events" element={<EventListPage />} />
         </Routes>
       </MemoryRouter>,
-    ).unmount();
+    );
+    const eventsError = await screen.findByRole("alert");
+    await userEvent.setup().click(within(eventsError).getByRole("button", { name: "Retry" }));
+    const section = await screen.findByRole("region", { name: "Pending change requests" });
+    expect(await within(section).findByText(/Second Evening/)).toBeTruthy();
+    // act() flushes the updates the superseded loads make, so a missing guard would change the list here.
     await act(async () => {
-      resolve(new Set(["e-1"]));
+      resolveOldPending([request("cr-1", "e-1", "Welcome Evening")]);
+      resolveOldTags(new Set(["e-2"]));
     });
-    try {
-      expect(consoleError).not.toHaveBeenCalled();
-    } finally {
-      consoleError.mockRestore();
-    }
+    expect(within(section).getByText(/Second Evening/)).toBeTruthy();
+    expect(within(section).queryByText(/Welcome Evening/)).toBeNull();
+    expect(within(section).queryByText("New")).toBeNull();
   });
 
   // Kills: the 'No pending change requests.' empty state missing for a coordinator with nothing pending.

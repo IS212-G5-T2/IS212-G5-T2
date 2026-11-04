@@ -138,7 +138,7 @@ describe("ChangeRequestSummary", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/^Could not load your change requests\.$/);
   });
 
-  /** REVIEW-CHANGE-02-A, REVIEW-CHANGE-02-C: the assigned coordinator reviews a pending request on the event page. */
+  /** REVIEW-CHANGE-02-A: the assigned coordinator reviews a pending request on the event page. */
   it("REVIEW-CHANGE-02-A shows the requested changes and the review actions to the coordinator", async () => {
     previewMock.mockResolvedValue({ requestId: "cr-2", venueBookings: [], equipment: [], registrations: { registered: 0, waitlisted: 0, details: [] }, hasConflicts: false });
     fetchMock.mockResolvedValue([

@@ -137,4 +137,10 @@ export const MUTANTS = [
     edits: [['{request.organiserName ?? request.requestedBy} ·{" "}', '{"Someone"} ·{" "}']], suites: s },
   { id: 'V47', name: 'the empty pending list says nothing (01-D)', file: PENDING,
     edits: [['<p className="mt-2 text-sm text-gray-500 dark:text-gray-400">No pending change requests.</p>', '<p className="mt-2 text-sm text-gray-500 dark:text-gray-400"></p>']], suites: s },
+  { id: 'V48', name: 'a superseded New-tag load overwrites the newer tags after a retry (01-F)', file: LIST_PAGE,
+    edits: [['        if (active) setNewChangeRequestEvents(ids);', '        setNewChangeRequestEvents(ids);']], suites: s },
+  { id: 'V49', name: 'a superseded pending list overwrites the newer list after a retry (01-F)', file: LIST_PAGE,
+    edits: [['        if (active) setPendingChangeRequests(requests);', '        setPendingChangeRequests(requests);']], suites: s },
+  { id: 'V50', name: 'list changes are marked the wrong way round (02-C)', file: LIST,
+    edits: [['.map((value) => `+ ${String(value)}`),', '.map((value) => `− ${String(value)}`),']], suites: s },
 ];

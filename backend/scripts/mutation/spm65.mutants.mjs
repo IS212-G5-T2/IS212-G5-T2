@@ -154,7 +154,7 @@ export const MUTANTS = [
   { id: 'R41', name: 'an unknown request id is not refused (11-B)', file: SERVICE,
     edits: [['    if (!request) throw new NotFoundException(REVIEW_MESSAGES.requestNotFound);', '    if (false) throw new NotFoundException(REVIEW_MESSAGES.requestNotFound);']], suites: both },
   { id: 'R42', name: 'the conflict preview writes to the request (03-H read-only)', file: SERVICE,
-    edits: [['    this.requirePending(request);\n    return {\n      requestId: request.id,', "    this.requirePending(request);\n    await this.repository.query('UPDATE event_change_requests SET status = status WHERE id = $1', [request.id]);\n    return {\n      requestId: request.id,"]], suites: both },
+    edits: [['    this.requirePending(request);\n    return {\n      requestId: request.id,', "    this.requirePending(request);\n    await this.repository.query('UPDATE event_change_requests SET status = 'Approved' WHERE id = $1', [request.id]);\n    return {\n      requestId: request.id,"]], suites: both },
   { id: 'R43', name: 'the preview ignores the requested window (03-D)', file: SERVICE,
     edits: [['    const window = { start: patch.startDateTime, end: patch.endDateTime };', '    const window = { start: undefined, end: undefined };']], suites: both },
   { id: 'R44', name: 'the decider is recorded by id instead of name or email (10-SUP-ACTOR)', file: SERVICE,

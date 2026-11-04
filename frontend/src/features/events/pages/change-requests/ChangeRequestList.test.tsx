@@ -152,6 +152,34 @@ describe("ChangeRequestList", () => {
       expect(within(card).queryByRole("rowheader", { name: absent })).not.toBeInTheDocument();
   });
 
+  /**
+   * REVIEW-CHANGE-02-C (case page 28180526, CR-5): the requested times are shown in Singapore time (SC-SPM65-01: lowercase "pm", confirmed by the
+   * story owner 4 Nov 2026), and a list field shows only what is added and removed.
+   * Kills: listDiff marking added and removed values the wrong way round, or a time shown in UTC.
+   */
+  it("REVIEW-CHANGE-02-C shows times in Singapore time and list changes as added and removed values", () => {
+    render(
+      <ChangeRequestList
+        requests={[
+          request({
+            changes: [
+              { field: "startDateTime", originalValue: "2027-02-05T10:30:00.000Z", proposedValue: "2027-02-06T10:30:00.000Z" },
+              { field: "facilities", originalValue: ["Catering", "AV System"], proposedValue: ["AV System", "Projector"] },
+              { field: "accessibility", originalValue: ["Step-free access"], proposedValue: ["Step-free access", "Hearing loop"] },
+            ],
+          }),
+        ]}
+      />,
+    );
+    const card = screen.getByRole("article");
+    const start = within(card).getByRole("rowheader", { name: "Start date & time" }).closest("tr")!;
+    expect(start).toHaveTextContent("5 Feb 2027, 6:30 pm6 Feb 2027, 6:30 pm");
+    const items = (field: string) =>
+      within(within(card).getByRole("list", { name: `${field} changes` })).getAllByRole("listitem").map((item) => item.textContent);
+    expect(items("Required facilities")).toEqual(["+ Projector", "− Catering"]);
+    expect(items("Accessibility / special requirements")).toEqual(["+ Hearing loop"]);
+  });
+
   it("REVIEW-CHANGE-02-A gives the coordinator the review panel on pending requests only", async () => {
     vi.mocked(previewChangeRequestConflicts).mockResolvedValue({
       requestId: "cr-1",
