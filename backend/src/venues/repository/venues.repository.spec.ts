@@ -2713,10 +2713,15 @@ describe('SPM-55 venue booking review repository', () => {
     await expect(repository.releaseTentativeHold(staffId, bookingId)).resolves.toEqual({ kind: 'expired' });
   });
 
-  /** SPM-159: elapsed approved holds are persisted as expired once, using the supplied instant, and their ids are returned. */
+  /**
+   * SPM-159: elapsed approved holds are persisted as expired once, using the supplied instant, and their ids are returned.
+   * The run is one transaction since SPM-134 (the expired notice is saved with the status change); these rows have no
+   * Coordinator, so no notice is written and the UPDATE stays the first query.
+   */
   it('SPM-159 processExpiredTentativeHolds expires only elapsed approved holds not yet processed and returns their ids', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [{ id: 'hold-1' }, { id: 'hold-2' }] });
-    const repository = new VenuesRepository({ query } as unknown as DatabaseService, { now: () => new Date('2030-01-10T12:00:00.000Z') });
+    const transaction = (work: (client: { query: typeof query }) => Promise<unknown>) => work({ query });
+    const repository = new VenuesRepository({ query, transaction } as unknown as DatabaseService, { now: () => new Date('2030-01-10T12:00:00.000Z') });
     const instant = new Date('2030-02-01T00:00:00.000Z');
 
     await expect(repository.processExpiredTentativeHolds(instant)).resolves.toEqual(['hold-1', 'hold-2']);
@@ -2730,7 +2735,8 @@ describe('SPM-55 venue booking review repository', () => {
 
   it('SPM-159 processExpiredTentativeHolds defaults to the injected clock and returns an empty list when nothing elapsed', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
-    const repository = new VenuesRepository({ query } as unknown as DatabaseService, { now: () => new Date('2030-01-10T12:00:00.000Z') });
+    const transaction = (work: (client: { query: typeof query }) => Promise<unknown>) => work({ query });
+    const repository = new VenuesRepository({ query, transaction } as unknown as DatabaseService, { now: () => new Date('2030-01-10T12:00:00.000Z') });
 
     await expect(repository.processExpiredTentativeHolds()).resolves.toEqual([]);
     expect(query.mock.calls[0][1]).toEqual([new Date('2030-01-10T12:00:00.000Z')]);
