@@ -69,6 +69,9 @@ const COORDINATOR_NOTIFICATION_TYPES = [
   'tentative_hold_approved',
   'tentative_hold_rejected',
   'cancellation_request_submitted',
+  // SPM-172: Technical Support reserved or could not provide the Coordinator's equipment request.
+  'equipment_request_reserved',
+  'equipment_request_cannot_provide',
   // SPM-125 AC6 to AC9: a venue change affects one of the Coordinator's bookings.
   'venue_unavailable_impact',
   'venue_timing_impact',

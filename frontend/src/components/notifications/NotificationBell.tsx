@@ -17,6 +17,8 @@ const COORDINATOR_TYPES: Notification["type"][] = [
   "coordinator_unassignment",
   "coordinator_safety_response",
   ...VENUE_DECISION_NOTICE_TYPES,
+  "equipment_request_reserved",
+  "equipment_request_cannot_provide",
   "venue_unavailable_impact",
   "venue_timing_impact",
   "venue_capacity_impact",

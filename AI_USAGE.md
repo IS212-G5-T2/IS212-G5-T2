@@ -14,6 +14,11 @@ Add entries under one date per day, using this format:
 
 Where user is the user's github username.
 
+## 2026-11-04
+
+- chaw678 - fix - SPM-172 - PR #107 review corrections: Removed stray workflow output not on `dev` (`docs/test-cases/workflow/test-records.csv`, a copy of `records/SPM-172.csv`, and `docs/test-cases/workflow/gates/G3.json`). Updated the SPM-172 migration references from 034 to 035 in `backend/AGENTS.md` and the `equipment-request-decision-notifications.e2e-spec.ts` header, which now also say the suite needs the full init folder (03-B, 05-C, 06-B and 06-C need tables it does not create). Documentation and comment changes only.
+- chaw678 - merge - SPM-172 - Latest dev into the SPM-172 branch: One conflict, in `database/README.md`, resolved by keeping both the SPM-157 and SPM-172 migration paragraphs. Both branches had added a 034 migration, so the SPM-172 migration is renumbered to `035_spm172_equipment_decision_notification.sql` in `backend/migrations/` and `database/postgresql/init/` (and in the SPM-172 e2e spec) so it runs after `034_spm157_event_audit_log.sql`; it touches no SPM-157 table, and the SPM-157 notifications trigger records only venue-change notices. Checks on the merged tree: backend and frontend builds pass, backend unit 2,639 passed, frontend 2,552 passed (1 skipped, 1 todo). `equipment-request-decision-notifications.e2e-spec.ts` on a fresh PostgreSQL database: 7 passed, 4 failed (03-B, 05-C, 06-B, 06-C) on missing `safety_check_feedback_items` / `event_change_requests` tables the spec does not create; the same 4 fail on the pre-merge branch head, so they are not caused by the merge.
+
 ## 2026-11-03
 
 - swr - test - SPM-133 - Hold expires and releases venue (Venue Staff) — backend E2E tests: Added `backend/test/tentative-hold-expiry.e2e-spec.ts` with 13 E2E tests (VEN-HOLD-EXP-02-A, 02-BND-1, 02-B, 03-A, 03-B, 04-B, 04-BND-1, 04-PERF-1, 04-PERF-2, 06-VAR-1, 06-B, 06-PERF-1, 06-A) covering AC2 blocking logic, AC3 schedule capacity, AC4 conversion refusal, and AC6 scheduler/processor correctness. Tests use real PostgreSQL with CLOCK injection for deterministic time control. Updated SPM-133.json scope, records CSV, test-id-registry, and tier-matrix for AC2–AC4 and AC6. No backend source files changed; no commit, push, or Jira transition.

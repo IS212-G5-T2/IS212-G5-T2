@@ -150,7 +150,10 @@ export const MUTANTS = [
     file: EVENTS,
     suites: BOTH,
     testMappings: [...feed('01-D', '04-D'), ...e2e('01-C', '04-E')],
-    edits: [['            CANCELLATION_REQUESTED_NOTICE,\n            // SPM-125', '            // SPM-125']],
+    edits: [[
+      '            // SPM-171: the Organiser requested to cancel an event assigned to them.\n            CANCELLATION_REQUESTED_NOTICE,\n',
+      '            // SPM-171: the Organiser requested to cancel an event assigned to them.\n',
+    ]],
   },
   {
     id: 'SPM171-BE-16',
