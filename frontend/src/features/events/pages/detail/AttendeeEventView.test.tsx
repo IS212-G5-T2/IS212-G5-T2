@@ -4,7 +4,7 @@
  * Oracles are the spec's rules: local time, "To be announced", and no internal status. The register action and its
  * states live in RegistrationSection (one register box), tested in RegistrationSection.merged.test.tsx.
  */
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AttendeeEventView } from "./AttendeeEventView";
@@ -290,5 +290,34 @@ describe("attendee view: a full event still reads Registration open", () => {
     renderView(baseEvent({ status: "confirmed", availableRegistrationSpots: 0, isFull: true }));
     expect(screen.getByText("Registration open")).toBeInTheDocument();
     expect(screen.queryByText("Registration closed")).not.toBeInTheDocument();
+  });
+});
+
+describe("attendee view: lifecycle badge over time", () => {
+  it("shows Ongoing while the event is running", () => {
+    vi.setSystemTime(new Date(2026, 10, 12, 9, 0));
+    renderView(baseEvent());
+    expect(screen.getByText("Ongoing")).toBeInTheDocument();
+    expect(screen.queryByText("Upcoming")).not.toBeInTheDocument();
+  });
+
+  it("moves from Upcoming to Ongoing on the periodic re-check once the start time passes", () => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"], now: new Date(2026, 10, 12, 7, 59, 58) });
+    renderView(baseEvent());
+    expect(screen.getByText("Upcoming")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+
+    expect(screen.getByText("Ongoing")).toBeInTheDocument();
+    expect(screen.queryByText("Upcoming")).not.toBeInTheDocument();
+  });
+
+  it("shows Ended once the event is over", () => {
+    vi.setSystemTime(new Date(2026, 10, 12, 18, 0));
+    renderView(baseEvent());
+    expect(screen.getByText("Ended")).toBeInTheDocument();
   });
 });

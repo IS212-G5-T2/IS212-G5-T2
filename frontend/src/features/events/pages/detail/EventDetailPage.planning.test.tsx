@@ -12,6 +12,7 @@ import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { EventDetailPage } from "@/features/events/pages/detail/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
+import { buildReport } from "@/features/registrations/components/report/report.fixtures";
 import { PLANNING_REFRESH_MS } from "@/utils/planning";
 import { formatDateTime } from "@/utils/format";
 import type {
@@ -1347,3 +1348,53 @@ describe("SPM-153 Mark as Completed on the event page (coordinator)", () => {
   });
 });
 
+
+describe("EventDetailPage planning: View Registrations opens the report modal", () => {
+  /** Serves the registration report on top of whatever the planning mock already answers. */
+  function withReport() {
+    const inner = apiMock.getMockImplementation()!;
+    apiMock.mockImplementation(((path: string, init?: RequestInit) =>
+      path.endsWith("/registrations/report")
+        ? Promise.resolve(buildReport())
+        : inner(path, init)) as typeof api);
+  }
+  const openedModal = async () => {
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Registrations (3)" })).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledWith(`/events/${EVENT_ID}/registrations/report`);
+  };
+
+  it("lets the owning organiser open the registrations modal from the read-only People card once confirmed", async () => {
+    currentView = planningView({ event: eventRecord({ status: "confirmed" }) });
+    apiMock.mockImplementation((async (path: string) => {
+      if (path.endsWith("/planning")) return currentView;
+      if (path.includes("/comments")) return [];
+      return currentView.event;
+    }) as typeof api);
+    withReport();
+    renderPage();
+    const region = await planningRegion();
+
+    await userEvent.click(within(region).getByRole("button", { name: "View Registrations" }));
+
+    await openedModal();
+  });
+
+  it("lets the assigned coordinator open the modal from the Registration tab once confirmed", async () => {
+    asCoordinator({
+      event: eventRecord({ status: "confirmed" }),
+      readOnly: true,
+      editableFields: [],
+      pendingChanges: [],
+    });
+    useAppStore.setState({ currentUser: COORDINATOR_USER });
+    withReport();
+    renderPage();
+    const region = await planningRegion();
+    await userEvent.click(within(region).getByRole("tab", { name: /Registration/ }));
+
+    await userEvent.click(within(region).getByRole("button", { name: "View Registrations" }));
+
+    await openedModal();
+  });
+});

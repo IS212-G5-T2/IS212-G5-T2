@@ -12,7 +12,8 @@ const listReservations = vi.fn();
 const listEligibleEvents = vi.fn();
 const update = vi.fn();
 const markCannotProvide = vi.fn();
-const controller = new EquipmentRequestsController({ submit, update, markCannotProvide, listMine, listQueue, listReservations, listEligibleEvents } as never);
+const reserve = vi.fn();
+const controller = new EquipmentRequestsController({ submit, update, markCannotProvide, reserve, listMine, listQueue, listReservations, listEligibleEvents } as never);
 
 beforeEach(() => vi.resetAllMocks());
 
@@ -60,5 +61,14 @@ describe('SPM-57 equipment request controller', () => {
     const body = { reason: 'Only 8 available; 10 requested.' };
     controller.cannotProvide(request, 'request-1', body);
     expect(markCannotProvide).toHaveBeenCalledWith(identity, 'request-1', body);
+  });
+});
+
+describe('SPM-113 equipment request reserve route', () => {
+  /** EQUIP-RESERVE: the reserve endpoint forwards the session identity and request id and returns the service result. */
+  it('forwards a reserve decision to the service', () => {
+    reserve.mockReturnValue('reserved');
+    expect(controller.reserve(request, 'request-1')).toBe('reserved');
+    expect(reserve).toHaveBeenCalledWith(identity, 'request-1');
   });
 });

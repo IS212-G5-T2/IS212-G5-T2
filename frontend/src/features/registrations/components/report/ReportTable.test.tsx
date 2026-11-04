@@ -46,6 +46,15 @@ describe("SPM-63 AC3: the table shows each attendee's details", () => {
   });
 });
 
+describe("SPM-63 AC3 (legacy rows): name and email a legacy registration does not have", () => {
+  it("VIEW-REG-INFO-03-A-NULL: a missing name and email show Not provided, not a blank cell", () => {
+    render(<ReportTable registrations={[{ ...DEV_PATEL, fullName: "", email: "" }]} />);
+
+    const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell").map((c) => c.textContent);
+    expect(cells.slice(0, 3)).toEqual(["Not provided", "Not provided", "87654321"]);
+  });
+});
+
 describe("SPM-63 AC4: an event with no registrations", () => {
   // VIEW-REG-INFO-04-C
   // Oracle (SPEC 04-C): the empty state reads exactly "No registrations yet" and there is no data table.

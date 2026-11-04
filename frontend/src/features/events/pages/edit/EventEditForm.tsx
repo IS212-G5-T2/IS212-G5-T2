@@ -28,9 +28,7 @@ function toDateTimeLocal(isoString: string): string {
 
 function fromDateTimeLocal(value: string): string {
   if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString();
+  return new Date(value).toISOString();
 }
 
 export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditFormProps) {

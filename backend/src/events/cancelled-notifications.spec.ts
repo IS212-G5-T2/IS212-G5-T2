@@ -92,4 +92,13 @@ describe('CANCEL-EVENT-06-A (TR-136-05, RR-136-05): audience of the EventCancell
     // Assert: the relation to the event decides, not the role list
     expect(item).toMatchObject({ type: 'EventCancelled', audienceRole: 'coordinator' });
   });
+
+  it('SPM-138 a WaitlistPromoted notice is labelled for the attendee whatever the event relation', async () => {
+    db.query.mockResolvedValue({ rows: [{ ...notice('att-04', 'org-01'), type: 'WaitlistPromoted', message: 'You have been promoted.' }] });
+    const attendee: AuthenticatedUser = { uid: 'att-04', roles: ['ATTENDEE'], email: 'a4@example.test', name: 'Attendee 4' };
+
+    const [item] = await service.notifications(attendee);
+
+    expect(item).toMatchObject({ type: 'WaitlistPromoted', audienceRole: 'attendee', audienceUserId: 'att-04' });
+  });
 });

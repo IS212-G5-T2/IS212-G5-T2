@@ -2661,6 +2661,81 @@ describe('SPM-55 venue booking review repository', () => {
     expect(clientQuery).toHaveBeenCalledTimes(1);
   });
 
+  /** VEN-CONF-06-A: a conflicting row that carries no status, request kind or hold expiry reports only its interval fields. */
+  it('VEN-CONF-06-A omits status, requestKind and holdExpiresAt from a conflict row that has none', async () => {
+    const { repository } = createReviewRepository(
+      ownedRow,
+      venueLockRow,
+      bookingLockRow,
+      {
+        rows: [{
+          id: 'blockout-1', reason: 'Maintenance', kind: 'blockout',
+          start_at: new Date('2030-01-12T03:00:00.000Z'), end_at: new Date('2030-01-12T04:00:00.000Z'),
+          occupied_start: new Date('2030-01-12T02:30:00.000Z'), occupied_end: new Date('2030-01-12T04:45:00.000Z'),
+          status: null, request_kind: null, hold_expires_at: null,
+        }],
+      },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toEqual({
+      kind: 'conflict',
+      reason: 'Maintenance',
+      conflicts: [{
+        id: 'blockout-1', reason: 'Maintenance', kind: 'blockout',
+        start: '2030-01-12T03:00:00.000Z', end: '2030-01-12T04:00:00.000Z',
+        occupiedStart: '2030-01-12T02:30:00.000Z', occupiedEnd: '2030-01-12T04:45:00.000Z',
+      }],
+    });
+  });
+
+  /** VEN-HOLD-DEC-09-B and 10-B: a hold action is refused, with no write, unless the booking is an active approved hold. */
+  it.each([
+    ['its event is Completed', { event_status: 'Completed', status: 'approved', request_kind: 'tentative_hold' }, 'event-completed'],
+    ['the hold has already been processed as expired', { status: 'expired', request_kind: 'tentative_hold' }, 'expired'],
+    ['the request is still pending', { status: 'pending', request_kind: 'tentative_hold' }, 'not-active'],
+    ['the booking is an ordinary approved booking', { status: 'approved', request_kind: 'booking' }, 'not-active'],
+    ['the hold was already released', { status: 'released', request_kind: 'tentative_hold' }, 'not-active'],
+  ])('VEN-HOLD-DEC-09-B refuses convert and release when %s', async (_name, override, kind) => {
+    for (const method of ['convertTentativeHold', 'releaseTentativeHold'] as const) {
+      const row = { ...pendingRow, hold_expires_at: new Date('2030-01-24T12:00:00.000Z'), ...override };
+      const { repository, clientQuery } = createSplitReviewRepository(ownedRow, venueLockRow, { rows: [row] });
+
+      await expect(repository[method](staffId, bookingId)).resolves.toEqual({ kind });
+      expect(clientQuery).toHaveBeenCalledTimes(3);
+    }
+  });
+
+  /** VEN-HOLD-DEC-09-B: an approved hold with no expiry recorded is treated as expired, not as active. */
+  it('VEN-HOLD-DEC-09-B treats an approved hold without an expiry as expired', async () => {
+    const row = { ...pendingRow, status: 'approved', request_kind: 'tentative_hold', hold_expires_at: null };
+    const { repository } = createSplitReviewRepository(ownedRow, venueLockRow, { rows: [row] });
+
+    await expect(repository.releaseTentativeHold(staffId, bookingId)).resolves.toEqual({ kind: 'expired' });
+  });
+
+  /** SPM-159: elapsed approved holds are persisted as expired once, using the supplied instant, and their ids are returned. */
+  it('SPM-159 processExpiredTentativeHolds expires only elapsed approved holds not yet processed and returns their ids', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ id: 'hold-1' }, { id: 'hold-2' }] });
+    const repository = new VenuesRepository({ query } as unknown as DatabaseService, { now: () => new Date('2030-01-10T12:00:00.000Z') });
+    const instant = new Date('2030-02-01T00:00:00.000Z');
+
+    await expect(repository.processExpiredTentativeHolds(instant)).resolves.toEqual(['hold-1', 'hold-2']);
+
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+    const normalized = normalizeSql(sql);
+    expect(normalized).toContain("SET status = 'expired', hold_expiry_processed_at = $1::timestamptz");
+    expect(normalized).toContain("WHERE request_kind = 'tentative_hold' AND status = 'approved' AND hold_expires_at <= $1::timestamptz AND hold_expiry_processed_at IS NULL");
+    expect(params).toEqual([instant]);
+  });
+
+  it('SPM-159 processExpiredTentativeHolds defaults to the injected clock and returns an empty list when nothing elapsed', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const repository = new VenuesRepository({ query } as unknown as DatabaseService, { now: () => new Date('2030-01-10T12:00:00.000Z') });
+
+    await expect(repository.processExpiredTentativeHolds()).resolves.toEqual([]);
+    expect(query.mock.calls[0][1]).toEqual([new Date('2030-01-10T12:00:00.000Z')]);
+  });
+
   /** VEN-REV-05-A: a rejection writes exactly one audit row that keeps the stored reason and the rejecting staff member. */
   it('SPM-55 AC5 records one rejection audit row carrying the reason', async () => {
     const { repository, query } = createReviewRepository(

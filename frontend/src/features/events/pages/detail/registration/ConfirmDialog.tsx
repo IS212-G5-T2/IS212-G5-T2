@@ -71,6 +71,7 @@ export function ConfirmDialog({ variant, position, registrationClosed = false, p
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const panel = panelRef.current;
+      /* v8 ignore next -- the ref is attached before this listener is added, and the listener is removed on unmount. */
       if (!panel) return;
       if (event.key === "Escape") {
         if (!pending) onCancel();

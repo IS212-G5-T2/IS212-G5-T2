@@ -82,4 +82,12 @@ describe("EventEditPage", () => {
       name: "Welcome Evening",
     });
   });
+
+  /** An id that matches no stored event shows a not-found message instead of the form. */
+  it("shows Event not found when the id matches no event", () => {
+    renderAt(["/events/missing-id/edit"], 0);
+
+    expect(screen.getByText("Event not found.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  });
 });

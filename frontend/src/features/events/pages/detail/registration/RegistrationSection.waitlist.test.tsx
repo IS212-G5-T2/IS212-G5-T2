@@ -627,3 +627,36 @@ describe("JOIN-WAITLIST-07-E-FE: a withdrawn attendee may rejoin a full, open ev
     expect(joinCalls()).toHaveLength(1);
   });
 });
+
+/** A removed entry whose registration has not closed yet shows the closed heading without a Closed on row. */
+describe("JOIN-WAITLIST-11-A-FE-NOCLOSEDON: no Closed on row while the closing time is still ahead (AC11)", () => {
+  it("JOIN-WAITLIST-11-A-FE-STATE-NOCLOSEDON: the heading shows and no closing instant is stated", () => {
+    renderSection(
+      buildGala({ registrationClosesAt: iso(HOUR), waitlistAvailable: false }),
+      ATT_04,
+      buildWaitlisted("ATT-04", null, { status: "removed" }),
+    );
+
+    expect(screen.getByRole("heading", { name: "Registration has closed" })).toBeInTheDocument();
+    expect(screen.queryByText("Closed on")).not.toBeInTheDocument();
+  });
+});
+
+/** The refresh after a stale join answer may itself fail; the join message must still be shown and nothing throws. */
+describe("JOIN-WAITLIST-01-E-FE-ERR-REFRESH-FAIL: a failed refresh after a duplicate join keeps the join message", () => {
+  it("JOIN-WAITLIST-01-E-FE-ERR-REFRESH-FAIL: the alert shows MSG-WL-04 and the unreadable entry is requested once", async () => {
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === JOIN()[0] && init?.method === JOIN()[1])
+        return Promise.reject(new ApiError("You are already on the waitlist for this event.", undefined, "already_on_waitlist", 409));
+      return Promise.reject(new Error("offline"));
+    });
+    renderSection(buildGala(), ATT_04);
+
+    fireEvent.click(joinButton()!);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("You are already on the waitlist for this event.");
+    await waitFor(() =>
+      expect(apiMock.mock.calls.filter(([path]) => path === `${EVENT_PATH}/registrations/me`)).toHaveLength(1),
+    );
+  });
+});

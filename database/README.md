@@ -115,6 +115,40 @@ apply the seed script from the repository root:
 docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/002_seed_data.sql
 ```
 
+## Live demo data
+
+`postgresql/demo/demo_seed.sql` replaces the development data with a fictional
+Singapore campus dataset for a live demonstration. It is not part of `init/`, so
+fresh volumes and test databases never run it.
+
+It is destructive: it empties events, venues, equipment and all user accounts,
+then reseeds them. Keep roles, permissions and the lookup catalogues. Run it only
+against the local demo database, and re-run it shortly before a demo so the dates
+stay current (dates are relative to the day it runs):
+
+```sh
+docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/demo/demo_seed.sql
+```
+
+Every demo account uses password `P@55w0rd` and the domain `@connectsphere.sg`:
+
+| Role | Email |
+| --- | --- |
+| Organiser | `org@connectsphere.sg` |
+| Coordinator | `coord1@connectsphere.sg`, `coord2@connectsphere.sg` |
+| Coordinator + Venue Staff | `coord_vs@connectsphere.sg` |
+| Venue Staff | `vs@connectsphere.sg` |
+| Tech Support | `ts@connectsphere.sg` |
+| Event Coordinator Lead | `lead@connectsphere.sg` |
+| Safety Officer | `so@connectsphere.sg` |
+| Attendee | `att1@connectsphere.sg` to `att5@connectsphere.sg` |
+
+The dataset has 48 events across every status, including Confirmed events with a
+full waitlist (`Leadership Lecture Series: Sustainable Cities`, limit 3), a venue
+blocked over a confirmed booking (`Community Health Fair`), and a registration
+report with several statuses (`Annual Science Open Day`). Only five attendee
+accounts exist, so each event has at most five registrations.
+
 ## Events sample database
 
 The local `spm` PostgreSQL database stores requests in `events`. The complete

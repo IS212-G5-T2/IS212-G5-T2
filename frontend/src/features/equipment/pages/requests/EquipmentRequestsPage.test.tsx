@@ -243,6 +243,84 @@ describe('SPM-57 equipment request list and queue', () => {
   });
 });
 
+describe('equipment review queue error and fallback paths', () => {
+  const noStockInfoItem = { id: 'item-2', equipmentName: 'Speaker', equipmentType: 'Audio' as const, quantity: 3 };
+
+  async function openReview(user: ReturnType<typeof userEvent.setup>) {
+    setRole('tech_support');
+    await user.click(await screen.findByRole('button', { name: 'Review request' }));
+  }
+
+  /** Approve failure with an Error shows that error's message and keeps the request listed. */
+  it('shows the server message when reserving fails with an Error', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([record]);
+    vi.mocked(reserveEquipmentRequest).mockRejectedValue(new Error('Stock changed'));
+    setRole('tech_support');
+    renderPage();
+    await openReview(user);
+    await user.click(screen.getByRole('button', { name: 'Approve & reserve' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Stock changed');
+    expect(screen.getByText(record.reference)).toBeInTheDocument();
+  });
+
+  /** Approve failure without an Error shows the generic reserve message. */
+  it('shows a generic message when reserving rejects with a non-Error value', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([record]);
+    vi.mocked(reserveEquipmentRequest).mockRejectedValue('offline');
+    renderPage();
+    await openReview(user);
+    await user.click(screen.getByRole('button', { name: 'Approve & reserve' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not reserve equipment for this event.');
+  });
+
+  /** Cannot provide failure with an Error shows that error's message in the prompt. */
+  it('shows the server message when Cannot provide fails with an Error', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([record]);
+    vi.mocked(markRequestCannotProvide).mockRejectedValue(new Error('Already decided'));
+    renderPage();
+    await openReview(user);
+    await user.click(screen.getByRole('button', { name: 'Cannot provide' }));
+    await user.type(screen.getByLabelText(/Reason/), 'No stock');
+    await user.click(screen.getByRole('button', { name: 'Confirm cannot provide' }));
+    expect(await screen.findByText('Already decided')).toBeInTheDocument();
+  });
+
+  /** The review toggle collapses the details again. */
+  it('closes the review details when Close review is clicked', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([record]);
+    renderPage();
+    await openReview(user);
+    expect(screen.getByRole('button', { name: 'Approve & reserve' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close review' }));
+    expect(screen.queryByRole('button', { name: 'Approve & reserve' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review request' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  /** An item without stock figures is treated as fully available: requested quantity is shown and approval is enabled. */
+  it('treats an item with no availability figures as sufficient', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([{ ...record, items: [noStockInfoItem] }]);
+    renderPage();
+    await openReview(user);
+    expect(screen.getByText('3 available for this event period; 3 requested.')).toHaveClass('text-green-700');
+    expect(screen.getByRole('button', { name: 'Approve & reserve' })).toBeEnabled();
+  });
+
+  /** An item with availableQuantity but no sufficient flag is judged from the quantities. */
+  it('derives sufficiency from the available quantity when the flag is absent', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([{ ...record, items: [{ ...noStockInfoItem, availableQuantity: 1 }] }]);
+    renderPage();
+    await openReview(user);
+    expect(screen.getByText('1 available for this event period; 3 requested.')).toHaveClass('text-red-700');
+    expect(screen.getByRole('button', { name: 'Approve & reserve' })).toBeDisabled();
+  });
+});
+
 // SPM-172 AC3: the bell's equipment decision notice opens /equipment/requests?request=<id>. The Coordinator's own list
 // highlights that request (status and, for Cannot Provide, the reason are already on each card). Fixture API, store
 // user set directly: frontend unit tests, not a live login.

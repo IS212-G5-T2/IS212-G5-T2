@@ -130,6 +130,29 @@ describe("SPM-120 (story goal): the freed spot shows on the event page", () => {
   });
 });
 
+describe("SPM-120: the refresh after a withdrawal is best effort", () => {
+  it("keeps the withdrawn card and shows no error when the event refetch after withdrawing fails", async () => {
+    const registered = buildRegistration();
+    let eventCalls = 0;
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === "/events/EVT-101")
+        return ++eventCalls === 1 ? Promise.resolve(buildEvent()) : Promise.reject(new Error("refresh failed"));
+      if (path.endsWith("/comments")) return Promise.resolve([]);
+      if (path.endsWith("/registrations/me")) return Promise.resolve({ registration: registered });
+      if (path.endsWith("/withdraw") && init?.method === "POST") return Promise.resolve(withdrawalResponse(registered));
+      return Promise.reject(new Error(`unexpected ${path}`));
+    });
+    renderPage("EVT-101");
+
+    await withdrawThroughDialog();
+
+    expect(await screen.findByText("Withdrawn")).toBeInTheDocument();
+    expect(eventCalls).toBe(2);
+    expect(screen.queryByText("refresh failed")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
 describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
   // WITHDRAW-EVENT-REG-07-B
   // Oracle: a shared-API 401 clears the session so the route guard redirects to /login.
