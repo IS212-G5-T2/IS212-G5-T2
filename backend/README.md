@@ -487,7 +487,7 @@ nothing, and a failing notification rolls the decision back).
   for that event are marked read when the Lead reassigns it (`LeadAssignmentService.reassign` adds the two types to the
   same update that clears the SPM-47 assignment notices; their notices for other events are untouched, SC-SPM137-04).
   The new Coordinator gets nothing for earlier decisions. An event with no Coordinator writes no notification and the decision stands.
-- Not notified: tentative hold requests (`request_kind = 'tentative_hold'`, SPM-165), the Organiser, email.
+- Not notified here: tentative hold requests (`request_kind = 'tentative_hold'`) get the SPM-165 notification below instead; neither goes to the Organiser or by email.
 - Message (`venueBookingDecisionMessage` in `src/registrations/helpers/messages.ts`): `Your booking of <venue name> for
   "<event name>" has been approved.` or `... has been rejected.` The booking reference and rejection reason are not in
   it; `created_at` is the decision time from the injected `CLOCK`.
@@ -501,6 +501,24 @@ nothing, and a failing notification rolls the decision back).
   (needs `DATABASE_URL`; it applies the venue migrations and 029 itself, signs in through the real login route and holds the
   venue row lock from a second connection for the race case). Fault-injection check:
   `node scripts/mutation/run.mjs --mutants spm137.mutants.mjs` (scratch copy; needs `DATABASE_URL`).
+
+### Tentative hold decision notification (SPM-165)
+
+Deciding a tentative hold request (`request_kind = 'tentative_hold'`) uses the same flow as SPM-137: the same
+`notifyBookingDecision` call inside the decision transaction, the same recipient rule (the Coordinator assigned at
+decision time, read in the transaction), the same `related_event_id` and `related_booking_id` link, and no new
+migration (`notifications.type` has no constraint). Only the request kind changes the result:
+
+- Types: `tentative_hold_approved` and `tentative_hold_rejected` (Coordinator feed and mark-read allow-list only). A
+  booking request still writes `venue_booking_approved` / `venue_booking_rejected`; a hold never does.
+- Message (`tentativeHoldDecisionMessage` in `src/registrations/helpers/messages.ts`): `Your tentative hold of <venue
+  name> for "<event name>" has been approved.` or `... has been rejected.` The hold expiry and rejection reason are on
+  the hold the notification links to, not in the text.
+- Reassignment: the Lead's reassignment also marks the previous Coordinator's unread hold notices for that event read.
+- Tests: the `VENUE-HOLD-NOTIF-*` cases in `src/venues/repository/venues.repository.spec.ts`,
+  `src/events/tentative-hold-notifications.spec.ts`, `src/lead/lead-assignment.service.spec.ts` and
+  `test/tentative-hold-decision-notifications.e2e-spec.ts` (needs `DATABASE_URL`). Fault-injection check:
+  `node scripts/mutation/run.mjs --mutants spm165.mutants.mjs`.
 
 ### Tentative hold requests (SPM-159)
 

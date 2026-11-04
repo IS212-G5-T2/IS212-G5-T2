@@ -56,6 +56,19 @@ export function venueBookingDecisionMessage(
   return `Your booking of ${venueName} for "${eventName}" has been ${decision}.`;
 }
 
+/**
+ * SPM-165 AC2: the Coordinator's tentative hold decision notification, exactly
+ * `Your tentative hold of <venue name> for "<event name>" has been approved.` (or rejected). The hold expiry and the
+ * rejection reason are not part of it; they are on the hold the notification links to.
+ */
+export function tentativeHoldDecisionMessage(
+  venueName: string,
+  eventName: string,
+  decision: 'approved' | 'rejected',
+): string {
+  return `Your tentative hold of ${venueName} for "${eventName}" has been ${decision}.`;
+}
+
 /** Formats an instant in Singapore time for user-facing messages. */
 export function formatSgt(value: Date): string {
   return `${SGT_FORMAT.format(value)} SGT`;

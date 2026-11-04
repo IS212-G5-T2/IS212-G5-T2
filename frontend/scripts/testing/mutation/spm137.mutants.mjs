@@ -27,7 +27,7 @@ export const MUTANTS = [
     file: BELL,
     suites: ['bookingNotices'],
     testMappings: bell('01-G', '02-F', '03-A', '03-B', '03-C', '04-G', '04-H', '05-C'),
-    edits: [['  "venue_booking_approved",\n  "venue_booking_rejected",\n', '']],
+    edits: [['  ...VENUE_DECISION_NOTICE_TYPES,\n', '  ...VENUE_DECISION_NOTICE_TYPES.filter((type) => !type.startsWith("venue_booking")),\n']],
   },
   {
     id: 'SPM137-FE-02',
@@ -35,7 +35,7 @@ export const MUTANTS = [
     file: BELL,
     suites: ['bookingNotices'],
     testMappings: bell('01-G', '02-F', '03-B', '05-C'),
-    edits: [['  "venue_booking_rejected",\n', '']],
+    edits: [['  ...VENUE_DECISION_NOTICE_TYPES,\n', '  ...VENUE_DECISION_NOTICE_TYPES.filter((type) => type !== "venue_booking_rejected"),\n']],
   },
   {
     id: 'SPM137-FE-03',
@@ -43,7 +43,7 @@ export const MUTANTS = [
     file: ROW,
     suites: ['bookingNotices'],
     testMappings: bell('03-A', '03-B', '03-C', '05-C'),
-    edits: [['const isBooking = BOOKING_DECISIONS.has(n.type);', 'const isBooking = false;']],
+    edits: [['const isBooking = BOOKING_NOTICES.has(n.type);', 'const isBooking = false;']],
   },
   {
     id: 'SPM137-FE-04',

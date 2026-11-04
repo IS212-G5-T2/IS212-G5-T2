@@ -1,9 +1,9 @@
-# AI usage archives
 
 Historical AI-assisted work is grouped by Jira ticket. Each file retains the original date and concise entry. Entries without a single ticket are in [general.md](general.md). New entries include a verified Jira key or the branch name; older entries retain their original format rather than guessed metadata. Archive active entries when the user explicitly requests it or asks the agent to create a pull request. The cross-ticket test-ID entry is repeated in each related ticket file. Current task status remains in Jira.
 
 ## Ticket files
 
+- [SPM-165](SPM-165.md)
 - [SPM-144](SPM-144.md)
 
 - [SPM-51](SPM-51.md)
