@@ -2,14 +2,14 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useNotificationFeed } from "@/components/notifications/useNotificationFeed";
 import { NotificationRow } from "@/components/notifications/NotificationRow";
 import { useAppStore } from "@/store/useAppStore";
-import { hasRole, VENUE_DECISION_NOTICE_TYPES, type Notification } from "@/types";
+import { hasRole, HOLD_LIFECYCLE_NOTICE_TYPES, VENUE_DECISION_NOTICE_TYPES, type Notification } from "@/types";
 import { Button } from "@/components/ui/Button";
 
 const BADGE_CAP = 9;
 
 // SPM-77 (SC-SPM77-02): a Coordinator's bell lists assignment notices. Change request notices stay in
 // the Pending Change Requests section of the events page. SPM-131 adds the safety response, SPM-137 adds venue
-// booking decisions, SPM-165 tentative hold decisions, and SPM-125 AC6 to AC9 the notices that a Venue Staff change affects one of the Coordinator's bookings.
+// booking decisions, SPM-165 tentative hold decisions, SPM-134 tentative hold expiry, release and conversion notices, and SPM-125 AC6 to AC9 the notices that a Venue Staff change affects one of the Coordinator's bookings.
 // Module-level so the feed hook sees a stable filter.
 const COORDINATOR_TYPES: Notification["type"][] = [
   "coordinator_assignment",
@@ -17,6 +17,7 @@ const COORDINATOR_TYPES: Notification["type"][] = [
   "coordinator_unassignment",
   "coordinator_safety_response",
   ...VENUE_DECISION_NOTICE_TYPES,
+  ...HOLD_LIFECYCLE_NOTICE_TYPES,
   "equipment_request_reserved",
   "equipment_request_cannot_provide",
   "venue_unavailable_impact",
