@@ -15,7 +15,7 @@ const event = { id: EVENT, event_name: 'Annual Gala Dinner', organiser_id: 'org-
 /** A client that records the one statement the writer sends. */
 function recorder() {
   const query = vi.fn(async () => ({ rows: [], rowCount: 1 }));
-  return { client: { query }, query };
+  return { client: { query } as unknown as Parameters<typeof notifyCancellationOutcome>[0], query };
 }
 
 /** The columns the writer sends, in the order of its INSERT: [id, recipient, type, message, event, created_at]. */
