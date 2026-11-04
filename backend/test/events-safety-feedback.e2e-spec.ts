@@ -292,9 +292,12 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
       [itemIds[0], id, bookingId, reservationId],
     );
     const migration031 = await readFile(new URL('../migrations/031_spm131_resource_reapproval.sql', import.meta.url), 'utf8');
+    const migration033 = await readFile(new URL('../migrations/033_fix_venue_trigger_bypass.sql', import.meta.url), 'utf8');
 
     // Apply the migration upgrade to legacy rows: only the selected IDs return to staff review.
     await pool.query(migration031);
+    // Restore the fixed trigger so later suites (safety-officer) are not affected.
+    await pool.query(migration033);
     const migratedChecklist = await http().get(`/api/events/${id}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
     expect(migratedChecklist.body.checklist.venue.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: bookingId, safetyReviewStatus: 'Pending review' }),
@@ -367,6 +370,8 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
       'SELECT id, reapproval_backfilled_at FROM safety_check_feedback_items WHERE event_id = $1 ORDER BY id', [id],
     )).rows;
     await pool.query(migration031);
+    // Restore the fixed trigger so later suites (safety-officer) are not affected.
+    await pool.query(migration033);
     expect((await pool.query('SELECT id, status FROM venue_bookings WHERE event_id = $1 ORDER BY id', [id])).rows)
       .toEqual(afterStaffReview.rows);
     expect((await pool.query(

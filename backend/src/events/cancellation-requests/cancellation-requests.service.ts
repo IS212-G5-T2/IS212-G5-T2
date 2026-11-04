@@ -36,7 +36,7 @@ import { UUID_PATTERN } from '../../common/uuid.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { CancelEventService } from '../cancel/cancel-event.service.js';
 import { isCancellable } from '../cancel/cancel-rules.js';
-import { notifyCancellationOutcome } from './cancellation-request-notice.js';
+import { notifyCancellationOutcome, notifyCancellationRequested } from './cancellation-request-notice.js';
 import { validateCreateBody, validateDecisionBody } from './cancellation-request.input.js';
 import { CANCELLATION_REQUEST_CODES as CODES, CANCELLATION_REQUEST_MESSAGES as MESSAGES } from './cancellation-request.messages.js';
 import { displayStatusOf, type DisplayCancellationStatus, type StoredCancellationStatus } from './cancellation-request.status.js';
@@ -103,12 +103,16 @@ export class CancellationRequestsService {
         );
         if (pending.rows.length) throw this.pending();
         const now = this.clock.now();
+        const requestedBy = displayName(user, 'Organiser');
         const inserted = await client.query(
           `INSERT INTO event_cancellation_requests (id, event_id, requested_by_id, requested_by, reason, requested_at)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING *`,
-          [randomUUID(), eventId, user.uid, displayName(user, 'Organiser'), reason, now],
+          [randomUUID(), eventId, user.uid, requestedBy, reason, now],
         );
+        // SPM-171: the assigned Coordinator is told in the same transaction; an unassigned event is told on assignment.
+        if (event.coordinator_id)
+          await notifyCancellationRequested(client, event.coordinator_id, eventId, event.event_name, requestedBy, now);
         return { request: this.toRecord(inserted.rows[0], event.event_name, event.status), message: MESSAGES.requested };
       });
     } catch (error) {

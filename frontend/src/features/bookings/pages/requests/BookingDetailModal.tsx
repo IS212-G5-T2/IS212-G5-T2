@@ -5,6 +5,7 @@ import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import type { PendingBookingRequest, VenueBookingConflict } from "@/types";
 import { api, ApiError } from "@/utils/api";
 import { formatSingaporeDateTime, formatSingaporeRange } from "@/utils/format";
+import { useHoldExpiry } from "./useHoldExpiry";
 
 /**
  * Venue Staff decision on one pending request (SPM-55 AC2, AC3). Approve and reject call the
@@ -28,6 +29,7 @@ export function BookingDetailModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const isTentativeHold = booking?.requestKind === "tentative_hold";
+  const isExpired = useHoldExpiry(booking?.holdExpiresAt, booking?.holdExpired ?? false);
 
   if (!booking) return null;
 
@@ -110,7 +112,7 @@ export function BookingDetailModal({
               Submit Decision
             </Button>
           </>
-        ) : isTentativeHold && booking.status === "approved" && booking.holdExpiresAt && !booking.holdExpired ? (
+        ) : isTentativeHold && booking.status === "approved" && booking.holdExpiresAt && !isExpired ? (
           <>
             <Button variant="secondary" onClick={onClose}>Close</Button>
             <Button variant="secondary" disabled={submitting} onClick={() => void updateHold("released")}>Release hold</Button>
@@ -169,10 +171,11 @@ export function BookingDetailModal({
 
       {isTentativeHold && (booking.status === "approved" || booking.status === "expired") && booking.holdExpiresAt && (
         <p role="status" className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
-          {booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until {formatSingaporeDateTime(booking.holdExpiresAt)}.
+          {isExpired ? "Expired tentative hold" : "Active tentative hold"} until {formatSingaporeDateTime(booking.holdExpiresAt)}.
         </p>
       )}
 
+      {/* hold-update (convert/release) errors; submit errors appear below in the pending branch */}
       {error && booking.status !== "pending" && <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">{error}</p>}
 
       {booking.status === "pending" ? (

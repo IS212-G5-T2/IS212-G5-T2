@@ -49,6 +49,9 @@ import { CompletionRecordController } from './events/completion/completion-recor
 import { CompletionRecordService } from './events/completion/completion-record.service.js';
 import { ArrangementsReader, NoSafetyRecordSource, SAFETY_OUTCOME_SOURCE } from './events/status/arrangements.reader.js';
 import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
+import { EventHistoryController } from './events/history/event-history.controller.js';
+import { EventHistoryRepository } from './events/history/event-history.repository.js';
+import { EventHistoryService } from './events/history/event-history.service.js';
 import { CancelEventService } from './events/cancel/cancel-event.service.js';
 import { CancellationRequestsController } from './events/cancellation-requests/cancellation-requests.controller.js';
 import { CancellationRequestsService } from './events/cancellation-requests/cancellation-requests.service.js';
@@ -74,6 +77,7 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     StatusController,
     CompletionRecordController,
     CancellationRequestsController,
+    EventHistoryController,
   ],
   providers: [
     AppService,
@@ -101,6 +105,8 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     CompletionRecordService,
     CancelEventService,
     CancellationRequestsService,
+    EventHistoryRepository,
+    EventHistoryService,
     { provide: EVENT_RELEASERS, useValue: DEFAULT_RELEASERS },
     { provide: CLOCK, useValue: systemClock },
   ],
@@ -131,6 +137,7 @@ export class AppModule implements NestModule {
         StatusController,
         CompletionRecordController,
         CancellationRequestsController,
+        EventHistoryController,
       );
   }
 }
