@@ -698,7 +698,7 @@ describe("EquipmentCreatePage", () => {
       await screen.findByText(/unable to create the equipment record/i),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Equipment Record Created."),
+      screen.queryByText("Equipment Record Created"),
     ).not.toBeInTheDocument();
   });
 });
