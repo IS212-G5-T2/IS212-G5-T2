@@ -53,7 +53,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
       '012_spm57_equipment_requests.sql',
       '014_spm57_request_reservations.sql',
       '020_spm58_cannot_provide.sql',
-      '034_spm172_equipment_decision_notification.sql',
+      '035_spm172_equipment_decision_notification.sql',
     ])
       await pool.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
     const module = await Test.createTestingModule({ imports: [AppModule] })
