@@ -10,13 +10,13 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service.js';
 import { DatabaseService } from '../database/database.service.js';
-import type { AuthenticatedUser } from '../auth/types/auth.models.js';
+import type { AuthenticatedUser, UserRole } from '../auth/types/auth.models.js';
 
 const db = { query: vi.fn(), transaction: vi.fn() };
 const EVENT = '11111111-1111-4111-8111-111111111301';
 const REQUEST = '22222222-2222-4222-8222-222222222401';
 const NOTICE = '33333333-3333-4333-8333-333333333501';
-const as = (uid: string, ...roles: string[]): AuthenticatedUser => ({ uid, roles, email: `${uid}@example.test`, name: uid });
+const as = (uid: string, ...roles: UserRole[]): AuthenticatedUser => ({ uid, roles, email: `${uid}@example.test`, name: uid });
 const row = (overrides: Record<string, unknown> = {}) => ({
   id: NOTICE,
   recipient_id: 'coo-01',
