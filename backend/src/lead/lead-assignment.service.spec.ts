@@ -709,6 +709,24 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
     expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
   });
 
+  /**
+   * HOLD-EXP-NOTIF-09-C (SPM-134 AC9, SC-SPM134-02, confirmed by the story owner chaw678 on 4 Nov 2026): the same update also marks the original coordinator's
+   * unread hold reminder, expired, released and converted notices for the event read, so none is left whose View Booking
+   * link opens a hold that is no longer theirs.
+   * Kills: a hold lifecycle type missing from the list, or the update not scoped to that coordinator and event.
+   */
+  it("HOLD-EXP-NOTIF-09-C also marks the original coordinator's unread hold lifecycle notices for the event as read", async () => {
+    wireReassign({});
+
+    await service.reassign(lead, EVENT_ID, reassignBody);
+
+    const markRead = writes().find((s) => s.sql.startsWith('UPDATE notifications'))!;
+    for (const type of ['tentative_hold_expiry_reminder', 'tentative_hold_expired', 'tentative_hold_released', 'tentative_hold_converted'])
+      expect(markRead.sql).toContain(`'${type}'`);
+    expect(markRead.sql).toContain('recipient_id = $1 AND related_event_id = $2');
+    expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
+  });
+
   // If a notification can't be saved, the reassignment doesn't stick.
   it('LEAD-REASN-08-C rolls the reassignment back if a notification cannot be saved', async () => {
     // Arrange: saving notifications fails.

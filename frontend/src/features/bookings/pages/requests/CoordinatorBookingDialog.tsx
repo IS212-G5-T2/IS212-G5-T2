@@ -84,9 +84,10 @@ export function CoordinatorBookingDialog({ booking, onClose }: { booking: Coordi
             <dd className="font-medium text-gray-900 dark:text-gray-100">Tentative hold</dd>
           </div>
         )}
-        {booking.requestKind === "tentative_hold" && (booking.status === "approved" || booking.status === "expired") && booking.holdExpiresAt && (
+        {/* SPM-134 AC6: a released hold keeps its expiry, shown as "Hold expiry" (it no longer expires). */}
+        {booking.requestKind === "tentative_hold" && (booking.status === "approved" || booking.status === "expired" || booking.status === "released") && booking.holdExpiresAt && (
           <div>
-            <dt className="text-gray-400 dark:text-gray-500">{booking.holdExpired ? "Hold expired" : "Hold expires"}</dt>
+            <dt className="text-gray-400 dark:text-gray-500">{booking.status === "released" ? "Hold expiry" : booking.holdExpired ? "Hold expired" : "Hold expires"}</dt>
             <dd className="font-medium text-gray-900 dark:text-gray-100">{formatSingaporeDateTime(booking.holdExpiresAt)}</dd>
           </div>
         )}
