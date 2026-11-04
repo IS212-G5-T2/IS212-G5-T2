@@ -2251,3 +2251,37 @@ describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
     expect(postReadCalls("n3")).toHaveLength(0);
   });
 });
+
+describe("NotificationBell clarification notices (SPM-177)", () => {
+  const CLARIFICATION_TYPES = ["clarification", "clarification_reply", "clarification_resolved"] as const;
+  const clarificationNotice = (type: (typeof CLARIFICATION_TYPES)[number], id: string): Notification =>
+    rejectionNotification({ id, type, message: `Notice ${type}`, relatedEventId: "event-1" });
+
+  /**
+   * CLARIFY-NOTIF-07-A (SPM-177 DoD1): an Organiser's bell lists and counts all three clarification notices.
+   * Kills: the Organiser bell filtering the new types out.
+   */
+  it("CLARIFY-NOTIF-07-A lists the three clarification notices in an Organiser's bell", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue(CLARIFICATION_TYPES.map((type, i) => clarificationNotice(type, `c-${i}`)));
+    renderBell();
+    for (const type of CLARIFICATION_TYPES) expect(await screen.findByText(`Notice ${type}`)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
+  });
+
+  /**
+   * CLARIFY-NOTIF-07-B (SPM-177 DoD1): a Coordinator's bell lists and counts all three clarification notices.
+   * Kills: a type missing from the Coordinator filter.
+   */
+  it("CLARIFY-NOTIF-07-B lists the three clarification notices in a Coordinator's bell", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+    apiMock.mockResolvedValue(
+      CLARIFICATION_TYPES.map((type, i) => ({ ...clarificationNotice(type, `c-${i}`), audienceRole: "coordinator" as const })),
+    );
+    renderBell();
+    for (const type of CLARIFICATION_TYPES) expect(await screen.findByText(`Notice ${type}`)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
+  });
+});

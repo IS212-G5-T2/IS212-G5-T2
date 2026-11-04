@@ -24,6 +24,11 @@ import {
 } from '../events/status/planning.messages.js';
 import { validateMessage } from './dto/clarification-input.js';
 import {
+  CLARIFICATION_REPLY_NOTICE,
+  CLARIFICATION_REQUESTED_NOTICE,
+  CLARIFICATION_RESOLVED_NOTICE,
+} from './clarification-notice.js';
+import {
   ClarificationsRepository,
   type CommentRow,
   type EventForReview,
@@ -81,8 +86,8 @@ export class ClarificationsService {
 
       await this.repository.insertNotification(client, {
         recipientId: event.organiser_id,
-        type: 'clarification',
-        message: `Clarification requested on "${event.event_name}".`,
+        type: CLARIFICATION_REQUESTED_NOTICE,
+        message: `${this.displayName(user)} requested clarification on "${event.event_name}".`,
         relatedEventId: eventId,
       });
 
@@ -139,11 +144,10 @@ export class ClarificationsService {
       const recipientId =
         authorRole === 'organiser' ? event.coordinator_id : event.organiser_id;
       if (recipientId) {
-        const authorLabel = authorRole === 'organiser' ? 'organiser' : 'coordinator';
         await this.repository.insertNotification(client, {
           recipientId,
-          type: 'clarification_reply',
-          message: `The ${authorLabel} replied on "${event.event_name}".`,
+          type: CLARIFICATION_REPLY_NOTICE,
+          message: `${this.displayName(user)} replied to a clarification on "${event.event_name}".`,
           relatedEventId: eventId,
         });
       }
@@ -190,11 +194,10 @@ export class ClarificationsService {
       const recipientId =
         resolverRole === 'organiser' ? event.coordinator_id : event.organiser_id;
       if (recipientId) {
-        const resolverLabel = resolverRole === 'organiser' ? 'organiser' : 'coordinator';
         await this.repository.insertNotification(client, {
           recipientId,
-          type: 'clarification_resolved',
-          message: `The ${resolverLabel} marked a clarification on "${event.event_name}" as resolved.`,
+          type: CLARIFICATION_RESOLVED_NOTICE,
+          message: `${this.displayName(user)} marked a clarification on "${event.event_name}" as resolved.`,
           relatedEventId: eventId,
         });
       }

@@ -73,6 +73,10 @@ const COORDINATOR_NOTIFICATION_TYPES = [
   'venue_unavailable_impact',
   'venue_timing_impact',
   'venue_capacity_impact',
+  // SPM-177: clarification notices.
+  'clarification',
+  'clarification_reply',
+  'clarification_resolved',
 ];
 
 // Build a letters-only, >=3-word reason of exactly n characters (n >= 10) with no
@@ -400,7 +404,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     expect(result[0].message).toBe('Your event request "Welcome Evening" was rejected');
     expect(result[0].message).not.toContain(VALID_REASON);
     // The organiser's query asks only for their decision notification types.
-    expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied', 'cancellation_request_accepted', 'cancellation_request_declined']]);
+    expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied', 'cancellation_request_accepted', 'cancellation_request_declined', 'clarification', 'clarification_reply', 'clarification_resolved']]);
   });
 
   // Coordinators may now read their own assignment notifications (SPM-123), so
@@ -499,7 +503,7 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
     // Assert: an organiser's query still asks only for their decision types.
     db.query.mockResolvedValueOnce({ rows: [] });
     await service.notifications(organiser());
-    expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied', 'cancellation_request_accepted', 'cancellation_request_declined']]);
+    expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied', 'cancellation_request_accepted', 'cancellation_request_declined', 'clarification', 'clarification_reply', 'clarification_resolved']]);
   });
 });
 

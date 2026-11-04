@@ -20,6 +20,7 @@ import {
 } from '../events/cancellation-requests/cancellation-request-notice.js';
 import { VENUE_DECISION_NOTICE_TYPES } from '../venues/review/booking-decision-notice.js';
 import { VENUE_IMPACT_COORDINATOR_TYPES } from '../venues/notifications/venue-impact-notifications.js';
+import { CLARIFICATION_NOTICE_TYPES } from '../clarifications/clarification-notice.js';
 
 // SPM-123: the Event Coordinator Lead assigns each unassigned request to one
 // available coordinator; SPM-47: the Lead reassigns an assigned event to another.
@@ -277,7 +278,8 @@ export class LeadAssignmentService {
             AND type IN ('coordinator_assignment', 'coordinator_reassignment', '${CHANGE_REQUEST_NOTICE}',
                          '${CANCELLATION_REQUESTED_NOTICE}',
                          ${VENUE_DECISION_NOTICE_TYPES.map((type) => `'${type}'`).join(', ')},
-                         ${VENUE_IMPACT_COORDINATOR_TYPES.map((type) => `'${type}'`).join(', ')}) AND read = false`,
+                         ${VENUE_IMPACT_COORDINATOR_TYPES.map((type) => `'${type}'`).join(', ')},
+                         ${CLARIFICATION_NOTICE_TYPES.map((type) => `'${type}'`).join(', ')}) AND read = false`,
         [event.coordinator_id, eventId],
       );
       await client.query(

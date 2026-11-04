@@ -1,0 +1,117 @@
+{
+  "story": "SPM-177",
+  "title": "Clarification notifications are saved but never shown",
+  "note": "Documentation home: the owning story SPM-39 (matrix 8060934, folder 8060981; owner decision, rule 2 of confluence-test-docs.md); this scope exists so the cycle runs per ticket. Implementation pass (4 Nov 2026): 14 CLARIFY-NOTIF ids, all PRIMARY and proposed with the story tests, all ids approved by story owner chaw678 on 4 Nov 2026, SC-SPM177-01 confirmed the same day. Shared files use titleMatch ^CLARIFY-NOTIF- so the SPM-39, SPM-171 and SPM-123 tests in them are not in scope. No existing test asserted the old notice wording, so none was adjusted for it; the coordinator and organiser type lists in events.reject.spec.ts (LEAD-REASN-08-F and the organiser feed assertion) were extended with the three clarification types and are not part of this scope. linesFrom changed-lines needs the story commits; before the first commit G5 has no owned lines. Mutation runners: backend-spm177 (10 mutants) and frontend-spm177 (5 mutants), all killed on 4 Nov 2026 (iteration 2).",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/clarification-notifications.spec.ts"
+      },
+      {
+        "glob": "backend/src/lead/lead-assignment.service.spec.ts",
+        "titleMatch": "^CLARIFY-NOTIF-"
+      },
+      {
+        "glob": "backend/src/clarifications/clarifications.service.spec.ts",
+        "titleMatch": "^CLARIFY-NOTIF-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/clarification-notifications.e2e-spec.ts"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "^CLARIFY-NOTIF-"
+      },
+      {
+        "glob": "frontend/src/components/notifications/NotificationItem.test.tsx",
+        "titleMatch": "^CLARIFY-NOTIF-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/clarifications/clarification-notice.ts",
+      "backend/src/clarifications/clarifications.service.ts",
+      "backend/src/events/events.service.ts",
+      "backend/src/lead/lead-assignment.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationBell.tsx",
+      "frontend/src/components/notifications/NotificationItem.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm177",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm177.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm177.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm177",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm177.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm177.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}
