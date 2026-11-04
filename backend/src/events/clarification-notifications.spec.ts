@@ -85,6 +85,18 @@ describe('SPM-177 clarification notices in the notification feed', () => {
   });
 
   /**
+   * CLARIFY-NOTIF-03-A (SPM-177 DoD1): the recipient rule applies to the clarification types only; any other notice
+   * type still falls through to the existing labelling (an Organiser notice here) even when it is addressed to the
+   * assigned Coordinator.
+   * Kills: the clarification-type guard removed, so every notice for the assigned Coordinator is labelled coordinator.
+   */
+  it('CLARIFY-NOTIF-03-A leaves the label of a non-clarification notice to the existing rules', async () => {
+    db.query.mockResolvedValueOnce({ rows: [row({ type: 'rejection', recipient_id: 'coo-01' })] });
+    const items = await service.notifications(as('coo-01', 'COORDINATOR'));
+    expect(items[0]).toMatchObject({ type: 'rejection', audienceRole: 'organiser' });
+  });
+
+  /**
    * CLARIFY-NOTIF-04-A (SPM-177 DoD3): Organiser and Coordinator can mark their notice read (the query carries the
    * clarification types and the recipient); a call that updates no row is not found.
    * Kills: the read allow-list missing the types, a read call not scoped to the recipient.

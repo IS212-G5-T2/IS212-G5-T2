@@ -54,6 +54,14 @@ export const MUTANTS = [
     edits: [["return row.event_coordinator_id === row.recipient_id ? 'coordinator' : 'organiser';", "return 'organiser';"]],
   },
   {
+    id: 'SPM177-BE-11',
+    name: 'the clarification-type guard is removed, so every notice for the assigned Coordinator is labelled coordinator',
+    file: EVENTS,
+    suites: ['backendUnit'],
+    testMappings: feed('03-A'),
+    edits: [["if ((CLARIFICATION_NOTICE_TYPES as readonly string[]).includes(row.type))\n    return row.event_coordinator_id", "if (true)\n    return row.event_coordinator_id"]],
+  },
+  {
     id: 'SPM177-BE-04',
     name: "the clarification types are dropped from the previous Coordinator's reassignment read-marking",
     file: LEAD,
