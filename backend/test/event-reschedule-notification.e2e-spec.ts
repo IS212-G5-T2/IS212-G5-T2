@@ -416,6 +416,23 @@ describe.skipIf(!database)('SPM-181 event rescheduled notifications over HTTP (e
     expect(await stored(eventId)).toEqual([]);
   });
 
+  /**
+   * Waits, without sleeping or polling, until no statement another connection started on `notifications` is still running.
+   * A notice written outside the request's transaction blocks on the event row the transaction holds locked, and commits
+   * only after the transaction has rolled back; taking this table lock queues behind that statement, so the assertions
+   * that follow see it. With nothing in flight the lock is granted at once.
+   */
+  async function settleNotifications() {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('LOCK TABLE notifications IN SHARE ROW EXCLUSIVE MODE');
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+  }
+
   /** Installs a trigger that raises for rows of this event only; returns its remover. */
   async function failOn(table: string, when: string, eventId: string, timing: 'INSERT' | 'UPDATE') {
     const name = `spm181_fail_${eventId.replaceAll('-', '')}_${table}`;
@@ -430,7 +447,8 @@ describe.skipIf(!database)('SPM-181 event rescheduled notifications over HTTP (e
   /**
    * EVENT-CHANGE-NOTIF-07-C (AC7): confirming a flagged change is atomic. A fault scoped to this event's flagged change
    * row, raised after the schedule is saved and the attendees are notified, rolls everything back: the event keeps its
-   * old schedule, the change stays pending and no notification row exists.
+   * old schedule, the change stays pending and no notification row exists. A notice written through another connection
+   * would block on the locked event row, then commit after the rollback; the assertions wait for it (settleNotifications).
    * Kills: writing the notice outside the confirmation's transaction, committing the schedule without the resolution.
    */
   it('EVENT-CHANGE-NOTIF-07-C rolls back a confirmed flagged change when a later step fails', async () => {
@@ -443,6 +461,7 @@ describe.skipIf(!database)('SPM-181 event rescheduled notifications over HTTP (e
     } finally {
       await remove();
     }
+    await settleNotifications();
 
     expect((await eventRow(eventId)).start_date_time.toISOString()).toBe(SLOT_START);
     expect(await stored(eventId)).toEqual([]);
@@ -465,6 +484,7 @@ describe.skipIf(!database)('SPM-181 event rescheduled notifications over HTTP (e
     } finally {
       await remove();
     }
+    await settleNotifications();
 
     const row = await eventRow(eventId);
     expect(row.start_date_time.toISOString()).toBe(SLOT_START);

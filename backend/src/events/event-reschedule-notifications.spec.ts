@@ -80,6 +80,21 @@ describe('SPM-181 event rescheduled notices in the notification feed', () => {
   });
 
   /**
+   * EVENT-CHANGE-NOTIF-06-B (AC6): only the rescheduled type is labelled an attendee notice by this rule; another notice
+   * type in the same feed keeps its own audience (an Organiser's cancellation notice stays an Organiser notice).
+   * Kills: labelling every notice an attendee notice.
+   */
+  it('EVENT-CHANGE-NOTIF-06-B leaves the audience of other notice types unchanged', async () => {
+    db.query.mockResolvedValue({
+      rows: [row({ id: 'n-c', recipient_id: 'org-01', type: 'EventCancelled', message: 'Gala has been cancelled.' })],
+    });
+
+    const items = await service.notifications(as('org-01', 'ORGANISER'));
+
+    expect(items).toMatchObject([{ id: 'n-c', type: 'EventCancelled', audienceRole: 'organiser' }]);
+  });
+
+  /**
    * EVENT-CHANGE-NOTIF-06-C (AC6): an Attendee can mark the notice read, limited to their own notices of the types they
    * may read; an Organiser's call does not carry the type and finds nothing.
    * Kills: the read allow-list missing the type, a read call not scoped to the recipient.

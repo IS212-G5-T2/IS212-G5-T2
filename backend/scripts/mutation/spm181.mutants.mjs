@@ -187,7 +187,7 @@ export const MUTANTS = [
     file: REVIEW,
     suites: BOTH,
     testMappings: [...e2e('07-C')],
-    edits: [[CALL_APPROVE, '      await notifyAttendeesOfReschedule({ query: (t: string, p?: unknown[]) => (this.repository as never as { database: { query: (t: string, p?: unknown[]) => Promise<never> } }).database.query(t, p) }, event, applied, now);\n']],
+    edits: [[CALL_APPROVE, '      await notifyAttendeesOfReschedule({ query: (t: string, p?: unknown[]) => (this.repository as never as { database: { getPool: () => { query: (t: string, p?: unknown[]) => Promise<never> } } }).database.getPool().query(t, p) }, event, applied, now);\n']],
   },
   {
     id: 'SPM181-BE-20',
@@ -195,7 +195,7 @@ export const MUTANTS = [
     file: PLANNING,
     suites: BOTH,
     testMappings: [...e2e('03-F', '07-C')],
-    edits: [[CALL_CONFIRM, '      await notifyAttendeesOfReschedule({ query: (t: string, p?: unknown[]) => (this.repository as never as { database: { query: (t: string, p?: unknown[]) => Promise<never> } }).database.query(t, p) }, event, current, resolution.resolvedAt);\n    }\n    const resolved']],
+    edits: [[CALL_CONFIRM, '      await notifyAttendeesOfReschedule({ query: (t: string, p?: unknown[]) => (this.repository as never as { database: { getPool: () => { query: (t: string, p?: unknown[]) => Promise<never> } } }).database.getPool().query(t, p) }, event, current, resolution.resolvedAt);\n    }\n    const resolved']],
   },
   {
     id: 'SPM181-BE-21',
@@ -247,5 +247,13 @@ export const MUTANTS = [
     suites: BOTH,
     testMappings: [...e2e('01-B', '06-D')],
     edits: [['SELECT gen_random_uuid(), r.attendee_id::text,', 'SELECT gen_random_uuid(), r.event_id::text,']],
+  },
+  {
+    id: 'SPM181-BE-27',
+    name: 'every notice type is labelled an attendee notice',
+    file: EVENTS,
+    suites: BOTH,
+    testMappings: [...feed('06-B')],
+    edits: [["  if (row.type === EVENT_RESCHEDULED_NOTICE) return 'attendee';\n", "  return 'attendee';\n"]],
   },
 ];
