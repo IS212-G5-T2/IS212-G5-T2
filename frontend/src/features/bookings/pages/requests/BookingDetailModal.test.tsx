@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PendingBookingRequest } from "@/types";
 import { BookingDetailModal } from "./BookingDetailModal";
@@ -120,5 +120,41 @@ describe("BookingDetailModal — useHoldExpiry integration (SPM-133)", () => {
     );
     expect(screen.getByText(/Expired tentative hold/)).toBeTruthy();
     expect(screen.queryByText(/Release hold/)).toBeNull();
+    expect(screen.queryByText(/Convert to confirmed booking/)).toBeNull();
+    expect(screen.getByText(/^Close$/)).toBeTruthy();
+  });
+
+  /**
+   * VEN-HOLD-EXP-01-COMP-5: BookingDetailModal removes Release/Convert buttons and updates the label
+   * to "Expired tentative hold" live when the hold timer fires, without a page reload.
+   */
+  it("VEN-HOLD-EXP-01-COMP-5 BookingDetailModal transitions Release/Convert to Close only after timer fires", () => {
+    const future = new Date(Date.now() + 5_000).toISOString();
+    const booking: PendingBookingRequest = {
+      ...baseBooking,
+      holdExpiresAt: future,
+      holdExpired: false,
+    };
+    render(
+      <BookingDetailModal
+        booking={booking}
+        onClose={() => {}}
+        onDecided={() => {}}
+        onConflict={() => {}}
+        onHoldUpdated={() => {}}
+      />,
+    );
+    expect(screen.getByText(/Active tentative hold/)).toBeTruthy();
+    expect(screen.getByText(/Release hold/)).toBeTruthy();
+    expect(screen.getByText(/Convert to confirmed booking/)).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+
+    expect(screen.getByText(/Expired tentative hold/)).toBeTruthy();
+    expect(screen.queryByText(/Release hold/)).toBeNull();
+    expect(screen.queryByText(/Convert to confirmed booking/)).toBeNull();
+    expect(screen.getByText(/^Close$/)).toBeTruthy();
   });
 });

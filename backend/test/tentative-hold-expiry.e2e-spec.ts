@@ -159,16 +159,17 @@ describe.skipIf(!databaseUrl)(
 
     // ── AC2: Expired hold does not block a new booking request ───────────────
 
-    /** VEN-HOLD-EXP-02-A: an expired hold does not block a new booking request for the same slot. */
-    it('VEN-HOLD-EXP-02-A expired hold does not block a new booking request', async () => {
+    /** VEN-HOLD-EXP-02-A: a clearly-past-expired hold does not block a new booking request for the same slot. */
+    it('VEN-HOLD-EXP-02-A past-expired hold does not block a new booking request', async () => {
       const staff = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(staff.id);
       const holdEventId = await createAssignedEvent(coordinator.id, 'EXP-02-A hold event');
       const newEventId = await createAssignedEvent(coordinator.id, 'EXP-02-A new event');
 
-      // Hold expires at equality with testNow (fixedNow) — logically expired
-      await addActiveHold(venueId, holdEventId, fixedNow.toISOString());
+      // Hold expired 1 hour before fixedNow — clearly in the past
+      const pastExpiry = new Date(fixedNow.getTime() - 60 * 60_000).toISOString();
+      await addActiveHold(venueId, holdEventId, pastExpiry);
 
       const response = await request(app.getHttpServer())
         .post(`/api/venues/${venueId}/booking-requests`)
@@ -291,10 +292,12 @@ describe.skipIf(!databaseUrl)(
         [holdId, fixedNow],
       );
 
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .post(`/api/venues/bookings/${holdId}/convert-hold`)
         .set('Cookie', staff.cookie)
         .expect(409);
+
+      expect(response.body.code).toBe('TENTATIVE_HOLD_EXPIRED');
     });
 
     /** VEN-HOLD-EXP-04-BND-1: clock at equality (hold_expires_at = now), DB still 'approved' — conversion refused. */

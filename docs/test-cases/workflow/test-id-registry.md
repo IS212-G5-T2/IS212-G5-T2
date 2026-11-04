@@ -1506,6 +1506,7 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | VEN-HOLD-EXP-01-COMP-3 | SUPPORTING | SPM-133 | AC1 | Supporting: BookingDetailModal component integration — shows Release/Convert buttons when hold is active | frontend/src/features/bookings/pages/requests/BookingDetailModal.test.tsx | Implementation-assigned G3 | Active |
 | VEN-HOLD-EXP-05-COMP-4 | SUPPORTING | SPM-133 | AC5 | Supporting: BookingDetailModal component integration — shows Expired label and Close-only when holdExpired=true | frontend/src/features/bookings/pages/requests/BookingDetailModal.test.tsx | Implementation-assigned G3 | Active |
 | VEN-HOLD-EXP-01-SUP-4 | SUPPORTING | SPM-133 | AC1 | Supporting: BookingCard shows Expired tentative hold after timer fires | frontend/src/features/bookings/pages/requests/BookingCard.test.tsx | Implementation-assigned G3 | Active |
+| VEN-HOLD-EXP-01-COMP-5 | SUPPORTING | SPM-133 | AC1 | Supporting: BookingDetailModal live-timer — Release/Convert disappear and label changes to Expired when timer fires | frontend/src/features/bookings/pages/requests/BookingDetailModal.test.tsx | Reviewer-requested addition 2026-11-04 | Active |
 
 ## Non-test tokens
 

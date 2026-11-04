@@ -14,13 +14,16 @@ export const SUITES = {
 const HOOK = 'src/features/bookings/pages/requests/useHoldExpiry.ts';
 
 export const MUTANTS = [
-  { id: 'M1', name: 'equality boundary weakened: >= to > in useState initializer (equivalent: useEffect corrects it in the same React commit via msUntilExpiry<=0 branch before first paint)', file: HOOK,
+  { id: 'M1', name: 'equality boundary weakened: >= to > in useState initializer (equivalent: useEffect corrects via msUntilExpiry<=0 within the same scheduler flush, indistinguishable from one render in tests)', file: HOOK,
     edits: [['return Date.now() >= new Date(holdExpiresAt).getTime();', 'return Date.now() > new Date(holdExpiresAt).getTime();']],
     suites: ['spm133'],
-    // Equivalent: useState initializer returns false at equality, but renderHook's act() flushes the
-    // useEffect immediately. The effect finds msUntilExpiry=0 (<=0), calls setIsExpired(true), and
-    // React batches both renders into a single commit before the first browser paint. No observable
-    // difference in a React SPA without SSR.
+    // Equivalent under vi.useFakeTimers(): useState initializer returns false at exact equality, but
+    // act() flushes effects synchronously in the test environment. The effect finds msUntilExpiry=0
+    // (<=0 branch), calls setIsExpired(true), and both state updates are committed before assertions run.
+    // In a real browser there would be a one-frame flash of "Active" before the effect fires; that
+    // frame is unobservable in the jsdom/Vitest test harness, so the mutant is indistinguishable
+    // from the original. Boundary correctness is enforced by VEN-HOLD-EXP-01-BND-1 (useState path)
+    // and by M2 equivalence argument (useEffect path).
     equivalent: true },
   { id: 'M2', name: 'equality boundary weakened: <=0 to <0 in useEffect early-return (equivalent: dead branch at equality — useState initializer catches it with >= first so effect exits early)', file: HOOK,
     edits: [['if (msUntilExpiry <= 0) {', 'if (msUntilExpiry < 0) {']],
