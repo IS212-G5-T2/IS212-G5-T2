@@ -20,6 +20,7 @@ const COORDINATOR_TYPES: Notification["type"][] = [
   "venue_unavailable_impact",
   "venue_timing_impact",
   "venue_capacity_impact",
+  "cancellation_request_submitted",
 ];
 const isCoordinatorNotice = (notification: Notification) => COORDINATOR_TYPES.includes(notification.type);
 

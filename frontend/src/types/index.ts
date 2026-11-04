@@ -456,6 +456,8 @@ export type NotificationType =
   /** SPM-162: the coordinator accepted or declined the organiser's cancellation request. */
   | "cancellation_request_accepted"
   | "cancellation_request_declined"
+  /** SPM-171: the Organiser requested to cancel an event assigned to the Coordinator. */
+  | "cancellation_request_submitted"
   /** SPM-137: Venue Staff approved or rejected a venue booking for the coordinator's event. */
   | "venue_booking_approved"
   | "venue_booking_rejected"
