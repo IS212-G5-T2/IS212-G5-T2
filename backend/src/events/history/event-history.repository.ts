@@ -1,6 +1,6 @@
 /*
  * SPM-157: reads every history source for one event. Read-only; nothing here writes.
- * event_audit_log is written by the database triggers in database/postgresql/init/032; the other
+ * event_audit_log is written by the database triggers in database/postgresql/init/034; the other
  * sources are the histories earlier stories keep and are read as they are.
  */
 import { Injectable } from '@nestjs/common';
@@ -96,7 +96,7 @@ export class EventHistoryRepository {
               `SELECT b.id, v.name AS venue_name, b.status, b.request_kind, b.hold_expires_at
                  FROM venue_bookings b
                  JOIN venues v ON v.id = b.venue_id
-                WHERE b.event_id = $1 AND b.request_kind = 'tentative_hold' AND b.status = 'approved'
+                WHERE b.event_id = $1 AND b.request_kind = 'tentative_hold' AND b.status IN ('approved', 'expired')
                 ORDER BY b.hold_expires_at, b.id`,
               [eventId],
             )
@@ -108,7 +108,8 @@ export class EventHistoryRepository {
       changeRequests: changeRequests.rows,
       changeRequestOutcomes: changeRequestOutcomes.rows,
       cancellationRequests: cancellationRequests.rows,
-      // SPM-159: the one hold rule (src/events/venue-unavailable.ts), with the injected clock.
+      // SPM-159 and SPM-132: the one hold rule (src/events/venue-unavailable.ts), with the injected clock. A hold the
+      // expiry processor already marked 'expired' is expired too; either way the entry is at hold_expires_at.
       expiredHolds: expiredHolds.rows
         .filter((row) => approvedHoldState(
           { status: row.status, requestKind: row.request_kind, holdExpiresAt: row.hold_expires_at }, now) === 'expired')

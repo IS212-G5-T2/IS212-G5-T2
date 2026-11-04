@@ -13,7 +13,7 @@ import { CLOCK } from '../src/common/clock.js';
 /*
  * SPM-157 Audit History of Important Actions. Real Nest pipeline, real PostgreSQL.
  * Needs TEST_DATABASE_URL (or DATABASE_URL) with database/postgresql/init 001 to 031 applied; the suite
- * re-applies migrations/019 (booking lifecycle) and applies migrations/032_spm157_event_audit_log.sql itself (idempotent).
+ * re-applies migrations/019 (booking lifecycle) and applies migrations/034_spm157_event_audit_log.sql itself (idempotent).
  *
  * Test cases: AUDIT-HISTORY-01-A to AUDIT-HISTORY-11-A (Confluence, SPM-157 Audit History of Important Actions Test
  * Cases).
@@ -30,7 +30,7 @@ if (!database && process.env.CI)
   throw new Error('SPM-157 tests must run in CI: set TEST_DATABASE_URL or DATABASE_URL.');
 
 const PASSWORD = 'password123';
-const MIGRATION = new URL('../migrations/032_spm157_event_audit_log.sql', import.meta.url);
+const MIGRATION = new URL('../migrations/034_spm157_event_audit_log.sql', import.meta.url);
 
 interface Entry {
   id: string;
@@ -391,7 +391,8 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(pendingHold).toBeTruthy();
   });
 
-  // AUDIT-HISTORY-02-D: an approved hold is expired from its expiry instant (SPM-159 rule), shown as the system's.
+  // AUDIT-HISTORY-02-D: an approved hold is expired from its expiry instant (SPM-159 rule), shown as the system's, and
+  // stays one entry after the SPM-132 expiry processor stores it as 'expired'.
   it('AUDIT-HISTORY-02-D shows a hold as expired by the system exactly from its expiry time', async () => {
     const expiry = new Date('2027-02-01T02:00:00.000Z');
     const before = await startApp(new Date(expiry.getTime() - 1));
@@ -417,6 +418,16 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
       actor: { kind: 'system', name: 'System' },
       occurredAt: '2027-02-01T02:00:00.000Z',
     });
+
+    // SPM-132: the expiry processor later stores the hold as 'expired' (no signed-in user). The history still shows the
+    // expiry once, at the expiry time, and the processing adds no entry of its own.
+    const processedAt = new Date(expiry.getTime() + 60_000);
+    await asUser(null, (client) => client.query(
+      `UPDATE venue_bookings SET status = 'expired', hold_expiry_processed_at = $2
+        WHERE event_id = $1 AND request_kind = 'tentative_hold' AND status = 'approved'`, [eventId, processedAt]));
+    const later = await startApp(processedAt);
+    const processed = (await history(later, coordinator, eventId)).body.sections.venueBookings as Entry[];
+    expect(processed).toEqual(expired);
   });
 
   // AUDIT-HISTORY-03-A, AUDIT-HISTORY-03-B, AUDIT-HISTORY-03-C: equipment request (recorded with its items when

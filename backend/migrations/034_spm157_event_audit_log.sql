@@ -5,8 +5,8 @@
 -- Also recorded: clarification requests, replies and resolution (event_comments), the coordinator's
 -- response to safety feedback, the completion record, registration settings, and venue changes that
 -- affect the event's booking (from the SPM-125 Coordinator notice). It is written by the
--- triggers below, so every path that changes those rows (service code, other triggers, future stories
--- such as SPM-132 and SPM-133) is recorded without calling a helper.
+-- triggers below, so every path that changes those rows (service code, other triggers, the SPM-132 hold
+-- decisions and expiry processing) is recorded without calling a helper.
 --
 -- Read together with the histories other stories already keep (read live by
 -- backend/src/events/history/event-history.repository.ts, never copied here):
@@ -217,6 +217,12 @@ BEGIN
     PERFORM record_event_audit(OLD.event_id, 'venue_booking',
       CASE WHEN v_hold THEN 'hold_removed' ELSE 'booking_removed' END, OLD.id, v_venue,
       jsonb_build_array(audit_change('status', to_jsonb(OLD.status), NULL)), NULL, v_system);
+    RETURN NULL;
+  END IF;
+
+  -- SPM-132: the expiry processor marks an elapsed hold 'expired' after the fact. The history shows that expiry once,
+  -- at hold_expires_at and as the system's, from the hold itself (event-history.repository.ts), not a second time here.
+  IF NEW.status = 'expired' AND OLD.status IS DISTINCT FROM 'expired' THEN
     RETURN NULL;
   END IF;
 

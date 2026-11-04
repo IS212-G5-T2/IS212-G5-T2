@@ -692,8 +692,8 @@ and `occurredAt`.
 | Unknown or malformed event id | 404; no session 401 |
 | `PUT`, `PATCH`, `DELETE` on `/history` or `/history/:entryId` | 405 with `Allow: GET` |
 
-Recording: `backend/migrations/032_spm157_event_audit_log.sql` (the same file is
-`database/postgresql/init/032_spm157_event_audit_log.sql` for fresh volumes; idempotent) adds the append-only
+Recording: `backend/migrations/034_spm157_event_audit_log.sql` (the same file is
+`database/postgresql/init/034_spm157_event_audit_log.sql` for fresh volumes; idempotent) adds the append-only
 `event_audit_log` table and triggers on `events`, `venue_bookings`, `equipment_requests`, `equipment_reservations`,
 `event_registrations`, `event_safety_checks`, `event_safety_resets`, `event_comments`, `safety_check_feedback_items`,
 `completion_records` and `notifications` (the three SPM-125 venue-change notice types only), so every code path (and other triggers) is
@@ -713,4 +713,4 @@ releases, venue-change notices, equipment requests and releases, registrations);
 whose author was not recorded have `actor_kind` `unrecorded`.
 
 Tests: `npx vitest run src/events/history src/common/actor-context.spec.ts src/database src/auth/authentication`;
-`DATABASE_URL=... npm run test:e2e -- test/event-history.e2e-spec.ts` (needs init 001 to 031; applies 032 itself).
+`DATABASE_URL=... npm run test:e2e -- test/event-history.e2e-spec.ts` (needs init 001 to 033; applies 034 itself).

@@ -1,7 +1,7 @@
 // SPM-157 backend mutants: the audit history of important actions. Covers the wording and ordering rules of the
 // pure mapper, who may read which sections (service), the read-only routes (controller), how the signed-in user
 // reaches the database (actor context, middleware, DatabaseService), and the event_audit_log triggers in
-// migrations/032 (the e2e suite re-applies that file, so SQL mutants are run there). Each mutant maps to the
+// migrations/034 (the e2e suite re-applies that file, so SQL mutants are run there). Each mutant maps to the
 // AUDIT-HISTORY tests that kill it.
 //
 //   DATABASE_URL=... node scripts/mutation/run.mjs --mutants spm157.mutants.mjs
@@ -21,7 +21,7 @@ const CONTROLLER = 'src/events/history/event-history.controller.ts';
 const ACTOR = 'src/common/actor-context.ts';
 const DATABASE = 'src/database/database.service.ts';
 const MIDDLEWARE = 'src/auth/authentication/authentication.middleware.ts';
-const MIGRATION = 'migrations/032_spm157_event_audit_log.sql';
+const MIGRATION = 'migrations/034_spm157_event_audit_log.sql';
 
 const map = (suite, file, ...titles) => titles.map((title) => ({ suite, file, title }));
 const mapper = (...titles) => map('backendUnit', MAPPER_SPEC, ...titles);
@@ -242,7 +242,7 @@ export const MUTANTS = [
     testMappings: [...actor("AUDIT-HISTORY-05-C keeps the actor across awaits and clears it afterwards", "AUDIT-HISTORY-05-C isolates concurrent requests"), ...database("AUDIT-HISTORY-05-C sets the transaction-local actor after BEGIN")],
     edits: [['return storage.getStore()?.actorId;', 'return undefined;']],
   },
-  // event_audit_log triggers (migration 032), run through the e2e suite.
+  // event_audit_log triggers (migration 034), run through the e2e suite.
   {
     id: 'SPM157-DB-01',
     name: 'entries can be updated or deleted (append-only guard removed)',
@@ -426,5 +426,21 @@ export const MUTANTS = [
     suites: DB,
     testMappings: [...e2e("AUDIT-HISTORY-11-A loads earlier records once, naming an author only where one was recorded")],
     edits: [['  IF EXISTS (SELECT 1 FROM event_audit_log) THEN\n    RETURN;\n  END IF;\n', '']],
+  },
+  {
+    id: 'SPM157-DB-24',
+    name: 'the expiry processor marking a hold expired is recorded as a second, generic entry',
+    file: MIGRATION,
+    suites: DB,
+    testMappings: [...e2e('AUDIT-HISTORY-02-D shows a hold as expired by the system exactly from its expiry time')],
+    edits: [["  IF NEW.status = 'expired' AND OLD.status IS DISTINCT FROM 'expired' THEN\n    RETURN NULL;\n  END IF;\n", '']],
+  },
+  {
+    id: 'SPM157-BE-25',
+    name: 'a hold the expiry processor marked expired drops out of the history',
+    file: 'src/events/history/event-history.repository.ts',
+    suites: DB,
+    testMappings: [...e2e('AUDIT-HISTORY-02-D shows a hold as expired by the system exactly from its expiry time')],
+    edits: [["AND b.status IN ('approved', 'expired')", "AND b.status = 'approved'"]],
   },
 ];

@@ -2,7 +2,7 @@
  * SPM-157 AC5: who made a change. The authentication middleware runs the rest of each signed-in
  * request inside `runAsActor`, and DatabaseService passes the id to PostgreSQL as the
  * transaction-local setting `app.actor_id`, which the event_audit_log triggers read
- * (database/postgresql/init/032). Code outside a signed-in request has no actor, so the triggers
+ * (database/postgresql/init/034). Code outside a signed-in request has no actor, so the triggers
  * record its changes as made by the system.
  */
 import { AsyncLocalStorage } from 'node:async_hooks';

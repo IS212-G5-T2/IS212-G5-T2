@@ -1,7 +1,7 @@
 {
   "story": "SPM-157",
   "title": "Audit History of Important Actions",
-  "note": "41 AUDIT-HISTORY ids, all PRIMARY, matching the Confluence SPM-157 matrix (page 39813204). Shared files use titleMatch ^AUDIT-HISTORY- so the other stories' tests in database.service.spec.ts and authentication.middleware.spec.ts are not in scope. The repository (event-history.repository.ts) and the event_audit_log triggers (migration 032) are exercised only by the real-database suite, so backend-e2e contributes to backend coverage. Spec conflict SC-SPM157-01 (what the Organiser's event section contains, AC8) is DECIDED pending PO confirmation. G5 measured on the lines the SPM-157 commits introduced.",
+  "note": "41 AUDIT-HISTORY ids, all PRIMARY, matching the Confluence SPM-157 matrix (page 39813204). Shared files use titleMatch ^AUDIT-HISTORY- so the other stories' tests in database.service.spec.ts and authentication.middleware.spec.ts are not in scope. The repository (event-history.repository.ts) and the event_audit_log triggers (migration 034) are exercised only by the real-database suite, so backend-e2e contributes to backend coverage. Spec conflict SC-SPM157-01 (what the Organiser's event section contains, AC8) is DECIDED pending PO confirmation. G5 measured on the lines the SPM-157 commits introduced.",
   "tz": [
     "UTC",
     "Asia/Singapore",

@@ -15,7 +15,7 @@ const { Pool } = pg;
 /** Statements that can change rows; a plain SELECT is sent as it is. */
 export const WRITE_STATEMENT = /^\s*(INSERT|UPDATE|DELETE|WITH|MERGE)\b/i;
 
-/** Read by the event_audit_log triggers (database/postgresql/init/032). */
+/** Read by the event_audit_log triggers (database/postgresql/init/034). */
 export const SET_ACTOR = "SELECT set_config('app.actor_id', $1, true)";
 
 @Injectable()
