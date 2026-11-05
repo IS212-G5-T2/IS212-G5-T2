@@ -66,7 +66,7 @@ The view uses the credentialed backend API configured by
 `VITE_API_BASE_URL` (default `http://localhost:8080`). The backend database
 must have the SPM-50 venue structure and SPM-124 `venue_bookings` table. This branch's
 fresh local database initializer creates them and also seeds two sample venues
-from `database/postgresql/init/008_spm124_sample_venues.sql`.
+from `database/postgresql/init/002_seed_data.sql`.
 The Coordinator's existing venue-planning and booking view remains at `/venues`
 and `/venues/:id`, including for accounts that also hold the Venue Staff role.
 

@@ -19,7 +19,7 @@ export const MARKER_TABLE = 'spm_disposable_test_db';
 // Reference and identity data, preserved across resets.
 //
 // Everything outside this list is truncated - and that includes the seeded demo data that
-// database/postgresql/init/011, 012, 018-020, 026, 030 and 036 create (sample venues, sample
+// database/postgresql/init/002_seed_data.sql creates beyond the reference data (sample venues, sample
 // events, demo bookings). So a reset does NOT return the database to its freshly-initialised state:
 // it returns it to reference data only. Suites that assert on seeded demo rows - for instance
 // venues-booking-requests.e2e-spec.ts, which expects the SPM-51 sample venues - will fail after one.

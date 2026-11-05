@@ -453,7 +453,7 @@ describe.skipIf(!databaseUrl)(
            AND conname = 'venues_owner_user_id_fkey'`,
       );
       const required = await pool.query(
-        `SELECT conname, convalidated FROM pg_constraint
+        `SELECT conname FROM pg_constraint
          WHERE conrelid = 'venues'::regclass
            AND conname = 'venues_owner_user_id_required'`,
       );
@@ -468,8 +468,10 @@ describe.skipIf(!databaseUrl)(
       expect(constraint.rows).toEqual([
         { conname: 'venues_owner_user_id_fkey' },
       ]);
+      // Exactly one such constraint. Whether it is validated is deliberately not asserted: init/001_schema.sql declares it
+      // validated (CREATE TABLE cannot express NOT VALID) while backend/migrations/008 adds it NOT VALID.
       expect(required.rows).toEqual([
-        { conname: 'venues_owner_user_id_required', convalidated: false },
+        { conname: 'venues_owner_user_id_required' },
       ]);
       expect(index.rows).toEqual([{ indexname: 'venues_owner_user_id_idx' }]);
     });

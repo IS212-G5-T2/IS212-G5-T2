@@ -2,8 +2,9 @@
 
 This directory contains database initialization files shared by local development tooling.
 
-The local initializer consists of one complete schema script and one complete
-seed-data script. Git history records how the local schema evolved.
+The local initializer consists of one complete schema script, one complete
+seed-data script and one complete functions-and-triggers script. Git history
+records how the local schema evolved.
 
 ## PostgreSQL
 
@@ -36,8 +37,27 @@ docker run --rm --name spm-postgresql \
 Pass PostgreSQL credentials at runtime. The Compose stack reads local-only defaults from `docker-compose/.env.example` and optional `.env`; standalone runs should pass their own `-e` values.
 
 The PostgreSQL entrypoint runs the init files by filename order when it creates
-a fresh database: `001_schema.sql` creates the complete local schema and
-`002_seed_data.sql` creates local RBAC, venue lookups, and sample data:
+a fresh database:
+
+| File | Contents |
+| --- | --- |
+| `001_schema.sql` | Every table, column, constraint and index in its final state, declared directly. |
+| `002_seed_data.sql` | All seed data: local RBAC, accounts, venue lookups, and sample events, venues and bookings. |
+| `003_functions_triggers.sql` | Every function and trigger, in its final form. |
+
+The order matters. Triggers are created after the seed data so that loading the
+samples does not fire them: the safety-check triggers delete an event's
+`event_safety_checks` row whenever its event, booking or equipment row changes,
+and the audit triggers would write `event_audit_log` entries for every seeded
+row. A new trigger or function therefore belongs in `003`, and a new table,
+column, constraint or index belongs in `001`; do not add numbered migration
+files here. These files can create a database but cannot upgrade one: `CREATE
+... IF NOT EXISTS` skips a table that already exists, so a column added to `001`
+never reaches an existing volume. Recreate the volume, or apply the matching
+`backend/migrations/` file. `002_seed_data.sql` and `003_functions_triggers.sql`
+are idempotent and can be re-run against an initialised database.
+
+The tables and their purposes:
 
 | Table | Purpose |
 | --- | --- |
@@ -116,23 +136,16 @@ publishes, and `5433`, which hand-started test containers have used. Override wi
 
 ### What the disposable database contains
 
-Only the image's own `init/` directory, which is the complete schema for a fresh database. That was
-not always true: `event_drafts` was once defined solely in `backend/migrations/001_event_drafts.sql`,
-so a database built from `init/` alone had no such table. Three separate workarounds had grown over
-that one gap — the Compose `postgres` service mounts the migration into the entrypoint as
-`004_event_drafts.sql`, `backend/test/drafts.e2e-spec.ts` applies `001_schema.sql` and the migration
-itself, and CI had no workaround at all and ran against a database missing the table.
-`init/003_event_drafts.sql` closes the gap, so this script needs no mount.
+Only the image's own `init/` directory, which is the complete schema for a fresh database:
+`001_schema.sql` (every table, including `event_drafts`), `002_seed_data.sql` and
+`003_functions_triggers.sql`, applied by the entrypoint in that order. There is nothing to mount, and
+no two init files share a numeric prefix, so the order never depends on the rest of a filename.
 
 A catalogue comparison between a database built from `init/` and one built from `init/` plus all 45
-files in `backend/migrations/` now differs by nothing: same 41 tables, 331 columns, 60 functions, 20
-triggers, 96 indexes.
-
-The entrypoint applies these files in filename order, and several init files share a numeric prefix
-(`011`, `012`, `017`, `018`, `019`, `020`, `024`, `026`, `028`, `029`, `030`, `036`). Within a prefix
-the order therefore comes from the rest of the filename. That is deterministic and is the order the
-dev stack has always used, so the script relies on the entrypoint rather than imposing its own order;
-anything order-sensitive must not depend on two files sharing a prefix.
+files in `backend/migrations/` differs only in `venues_owner_user_id_required`, which
+`backend/migrations/008_venue_owner_user_id.sql` adds `NOT VALID` and `001_schema.sql` declares
+validated (`CREATE TABLE` cannot express `NOT VALID`). Every seeded venue has an owner, so the two
+enforce the same rule on every insert and update.
 
 ### Resetting a disposable database
 
@@ -157,7 +170,7 @@ of quietly deleting login accounts. Preserving the accounts also keeps resets fa
 password hashes are bcrypt. A reset clears `auth_sessions`, so it must run before a test logs in.
 
 **What it does not do.** Everything outside that list is truncated, including the seeded demo data
-from `init/011`, `012`, `018`–`020`, `026`, `030` and `036` — sample venues, sample events and
+from `init/002_seed_data.sql` beyond its reference data — sample venues, sample events and
 demo bookings. Suites that assert on those rows fail after a reset; `venues-booking-requests` expects
 the SPM-51 sample venues, for example. So this is a truncation to reference data, not a return to the
 initialised state. Only the browser suite calls it (SPM-187; each test then builds its own rows with
@@ -223,26 +236,28 @@ docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm
 
 ## Coordinator sample events (SPM-149)
 
-`036_spm149_coordinator_sample_events.sql` adds sample events owned by
+`002_seed_data.sql` includes sample events owned by
 `coordinator1`, `coordinator2`, `coordinator3` and `coordinator_venuestaff`, with
 statuses that match their venue bookings, equipment and safety state. Submitted
 events 401 and 402 are left unassigned for the Coordinator Lead's queue, and
-organiser 1 gets one saved draft (when the `event_drafts` table exists).
+organiser 1 gets one saved draft.
 
 - A `Confirmed` event meets the SPM-135 readiness rule: an approved venue booking, reserved equipment or a "no equipment needed" confirmation, and an approved safety check.
 - Planning events show outstanding items (a pending venue request, a missing safety check, or equipment not yet reserved).
 - Rejected events carry a reason.
 - Dates start 50 days out, so the SPM-51/52 availability windows stay free.
 
-`002_seed_data.sql` no longer seeds the two events `Community Welcome Evening`
-(`...000036`) and `Inclusive Arts Workshop` (`...000104`) as `Confirmed`, because
-they have no venue or equipment. They are `Approved` now. The new script also
-updates those two rows on existing volumes.
+The events `Community Welcome Evening` (`...000036`) and `Inclusive Arts Workshop`
+(`...000104`) are `Approved`, not `Confirmed`, because they have no venue or equipment.
 
-For an existing volume, apply the script from the repository root:
+Seed events use the current facility and accessibility option lists only
+(`Wheelchair access`, `AV System`, and so on); the retired values `Wheelchair ramps`,
+`Step-free access`, `PA System`, `Quiet room`, `First aid station` and `Sink access` are not seeded.
+
+For an existing volume, re-run the seed script from the repository root; it is idempotent:
 
 ```sh
-docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/036_spm149_coordinator_sample_events.sql
+docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/002_seed_data.sql
 ```
 
 ## Readiness check (SPM-149)
@@ -312,7 +327,7 @@ up initializer refactoring.
 
 ## Equipment-availability demo data
 
-`018_spm113_availability_demo.sql` is optional local-only data for trying the
+`002_seed_data.sql` includes local-only data for trying the
 SPM-113 Availability page before SPM-58's review-and-reserve workflow exists.
 It creates two future Reserved requests and one Pending Review request for the
 Technical Support queue. The reserved fixtures demonstrate real stock
@@ -320,16 +335,17 @@ subtraction: the Stage Lighting check for the first demo event window shows
 10 Active, 4 Reserved and 6 Available; its 3 Under Maintenance and 2 Retired
 units remain unavailable to reservation.
 
-For an existing local Compose database, apply it once from the repository root:
+For an existing local Compose database, re-run the seed script from the repository root
+(it is idempotent):
 
 ```sh
 docker compose -f docker-compose/docker-compose.yml exec -T postgres \
   psql -U spm -d spm -v ON_ERROR_STOP=1 -f - \
-  < database/postgresql/init/018_spm113_availability_demo.sql
+  < database/postgresql/init/002_seed_data.sql
 ```
 
-For existing local volumes, apply only relevant backend migrations; the two
-initializer files are a fresh-database contract and are not upgrade scripts.
+For existing local volumes, apply only relevant backend migrations; the schema
+and trigger files are a fresh-database contract and are not upgrade scripts.
 If a disposable local volume is missing a schema feature without a matching
 backend migration, recreate that local volume rather than applying part of the
 fresh initializer to a shared or long-lived database.
@@ -362,7 +378,7 @@ locations remain editable attributes rather than identifiers.
 The migration also converts legacy venue facility/layout arrays into the
 normalized lookup relationships before dropping those array columns.
 
-The Compose postgres service also mounts the backend-owned draft migration as `004_event_drafts.sql`. Drafts use separate `event_drafts` storage so incomplete values do not weaken submitted-event constraints. For existing volumes follow the additive migration command in docker-compose/README.md; no reset is required.
+Drafts use separate `event_drafts` storage (declared in `001_schema.sql`) so incomplete values do not weaken submitted-event constraints. For existing volumes follow the additive migration command in docker-compose/README.md; no reset is required.
 
 ## Request rejection schema
 
@@ -370,7 +386,7 @@ Fresh PostgreSQL images receive the final event lifecycle directly from `001_sch
 
 ## Migration application order
 
-Each migration is applied once, in numeric order, against the database it targets: backend migrations under `backend/migrations/` for existing databases, and init files under `database/postgresql/init/` for fresh volumes. Init scripts never rerun on an existing volume, so an existing database must have every earlier migration installed before a later one. SPM-136 (`backend/migrations/011_spm136_cancel_event.sql`, mirrored as `init/017_spm136_cancel_event.sql`) supersedes migration 009's `venue_bookings` status and kind constraints and requires init 011-016 to be in place first.
+Each migration is applied once, in numeric order, against the database it targets: backend migrations under `backend/migrations/` for existing databases, and the three init files under `database/postgresql/init/` for fresh volumes. Init scripts never rerun on an existing volume, so an existing database must have every earlier migration installed before a later one. SPM-136 (`backend/migrations/011_spm136_cancel_event.sql`) supersedes migration 009's `venue_bookings` status and kind constraints; `001_schema.sql` already declares the final constraints.
 
 ## SPM-124 venue schedule
 
@@ -382,41 +398,39 @@ For an existing volume, apply backend migrations 005–009 in order, then
 not rerun on an existing volume. Migration 010 removes the legacy operating
 days and opening-time columns after the availability migration is installed.
 
-The SPM-138 waitlist adds `Waitlisted` and `Removed` statuses and the ordering columns to `event_registrations` in `017_spm138_waitlist.sql`. For an existing volume, apply `backend/migrations/011_spm138_waitlist.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent and keeps existing rows.
+The SPM-138 waitlist adds `Waitlisted` and `Removed` statuses and the ordering columns to `event_registrations` in `001_schema.sql`. For an existing volume, apply `backend/migrations/011_spm138_waitlist.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent and keeps existing rows.
 
-The local SPM-54 manual suitability fixtures in `020_spm54_suitability_manual_variants.sql` add four single-mismatch venues, a capacity-24 boundary venue, and one accessibility-specific event clone. The script is idempotent. For an existing local database, apply it to the intended database with `psql -v ON_ERROR_STOP=1 -f database/postgresql/init/020_spm54_suitability_manual_variants.sql`; it does not alter the shared EVT-201 row.
+The local SPM-54 manual suitability fixtures (VEN-BKG-01-B) in `002_seed_data.sql` add four single-mismatch venues, a capacity-24 boundary venue, and one accessibility-specific event clone. They are idempotent. For an existing local database, re-run `psql -v ON_ERROR_STOP=1 -f database/postgresql/init/002_seed_data.sql` against the intended database; it does not alter the shared EVT-201 row.
 
-SPM-64 change requests add the `event_change_requests` table in `018_spm64_change_requests.sql` (one row per organiser request; at most one `Pending` per event). For an existing volume, apply `backend/migrations/012_spm64_change_requests.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
+SPM-64 change requests add the `event_change_requests` table in `001_schema.sql` (one row per organiser request; at most one `Pending` per event). For an existing volume, apply `backend/migrations/012_spm64_change_requests.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
 
-SPM-65 change request review (`019_spm65_change_request_review.sql`) adds `recheck` (jsonb array) and `safety_check_reset` to `event_change_requests`, the `Closed` status (SPM-65 AC11: a pending request is closed automatically when its event is cancelled; one the organiser withdraws keeps `Withdrawn`), a check that a Denied request has a 10 to 500 character `decision_reason`, and the append-only `event_change_request_audit` table (one entry per request; an `UPDATE` raises). The audit table is not delete-protected: its entries are removed with their event or change request (`ON DELETE CASCADE`), and a direct `DELETE` is not blocked; the application itself never deletes them. For an existing volume, apply `backend/migrations/013_spm65_change_request_review.sql` once; it is idempotent.
+SPM-65 change request review (`001_schema.sql` and the `change_request_audit_no_update` trigger in `003_functions_triggers.sql`) adds `recheck` (jsonb array) and `safety_check_reset` to `event_change_requests`, the `Closed` status (SPM-65 AC11: a pending request is closed automatically when its event is cancelled; one the organiser withdraws keeps `Withdrawn`), a check that a Denied request has a 10 to 500 character `decision_reason`, and the append-only `event_change_request_audit` table (one entry per request; an `UPDATE` raises). The audit table is not delete-protected: its entries are removed with their event or change request (`ON DELETE CASCADE`), and a direct `DELETE` is not blocked; the application itself never deletes them. For an existing volume, apply `backend/migrations/013_spm65_change_request_review.sql` once; it is idempotent.
 
-SPM-55 venue booking review (`021_spm55_booking_review.sql`) adds `venue_bookings.rejection_reason` (1–1000 characters, allowed only on `rejected` rows; `reason` stays reserved for blocked periods) and the append-only `booking_review_log` table, which records each approve or reject with its actor, action, timestamp, and rejection reason. Fresh volumes receive both from the init file; an existing volume needs this file applied once before the staff review endpoints are used.
+SPM-55 venue booking review (`001_schema.sql`) adds `venue_bookings.rejection_reason` (1–1000 characters, allowed only on `rejected` rows; `reason` stays reserved for blocked periods) and the append-only `booking_review_log` table, which records each approve or reject with its actor, action, timestamp, and rejection reason. Fresh volumes receive both from `001_schema.sql`; an existing volume needs the matching backend migration applied once before the staff review endpoints are used.
 
-SPM-48 (`023_spm48_safety_rejected.sql`) adds `rejected` to the allowed `event_safety_checks.status` values so the coordinator queue can show a rejected safety arrangement (SPM-130 AC2 writes it). For an existing volume, apply `backend/migrations/023_spm48_safety_rejected.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
+SPM-48 (`001_schema.sql`) adds `rejected` to the allowed `event_safety_checks.status` values so the coordinator queue can show a rejected safety arrangement (SPM-130 AC2 writes it). For an existing volume, apply `backend/migrations/023_spm48_safety_rejected.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
 
-SPM-159 (`024_spm159_tentative_hold_requests.sql`) adds `venue_bookings.request_kind` (`booking` or `tentative_hold`) and `reassessment_required`, a partial index for Pending tentative holds, and triggers that cancel Pending holds after event timing changes and flag Pending holds after venue setup changes. Fresh volumes receive the mirrored `database/postgresql/init/024_spm159_tentative_hold_requests.sql`. Existing volumes must apply the backend migration after the earlier venue booking migrations; do not reset the volume. Tentative hold expiry is stored in the existing `venue_bookings.hold_expires_at` column when Venue Staff approves a hold (14 days from approval). Only an approved, unexpired tentative hold blocks an ordinary booking; other tentative-hold statuses and expired holds do not.
+SPM-159 (`001_schema.sql` and `003_functions_triggers.sql`) adds `venue_bookings.request_kind` (`booking` or `tentative_hold`) and `reassessment_required`, a partial index for Pending tentative holds, and triggers that cancel Pending holds after event timing changes and flag Pending holds after venue setup changes. Fresh volumes receive the final schema and triggers from `database/postgresql/init/`. Existing volumes must apply the backend migration after the earlier venue booking migrations; do not reset the volume. Tentative hold expiry is stored in the existing `venue_bookings.hold_expires_at` column when Venue Staff approves a hold (14 days from approval). Only an approved, unexpired tentative hold blocks an ordinary booking; other tentative-hold statuses and expired holds do not.
 
-SPM-159 migration `backend/migrations/025_spm159_approved_hold_expiry.sql` adds a validated conditional check: approved tentative holds require `hold_expires_at`, while pending holds and ordinary approved bookings may keep NULL. It fails with a clear count if existing approved tentative holds lack expiry; review those rows explicitly without assigning guessed dates, then rerun. Fresh volumes get the mirrored `025_spm159_approved_hold_expiry.sql` from `database/postgresql/init/`.
+SPM-159 migration `backend/migrations/025_spm159_approved_hold_expiry.sql` adds a validated conditional check: approved tentative holds require `hold_expires_at`, while pending holds and ordinary approved bookings may keep NULL. It fails with a clear count if existing approved tentative holds lack expiry; review those rows explicitly without assigning guessed dates, then rerun. Fresh volumes get the validated check (`venue_bookings_approved_tentative_hold_expiry_check`) from `001_schema.sql`.
 
-SPM-132 adds nullable `venue_bookings.hold_expiry_processed_at` and the `expired` tentative-hold status through `backend/migrations/032_spm132_tentative_hold_expiry_processing.sql`; fresh databases apply `database/postgresql/init/032_spm132_tentative_hold_expiry_processing.sql`. Existing databases apply the backend migration after the current venue migrations. The scheduled worker changes each elapsed approved tentative hold to `expired` once, while availability remains based on `hold_expires_at` before processing. `TENTATIVE_HOLD_EXPIRY_INTERVAL_MS` controls scheduler cadence and defaults to 60000 ms; no maximum permitted expiry-processing lag is defined by the product specification.
+SPM-132 adds nullable `venue_bookings.hold_expiry_processed_at` and the `expired` tentative-hold status through `backend/migrations/032_spm132_tentative_hold_expiry_processing.sql`; fresh databases get both from `database/postgresql/init/001_schema.sql`. Existing databases apply the backend migration after the current venue migrations. The scheduled worker changes each elapsed approved tentative hold to `expired` once, while availability remains based on `hold_expires_at` before processing. `TENTATIVE_HOLD_EXPIRY_INTERVAL_MS` controls scheduler cadence and defaults to 60000 ms; no maximum permitted expiry-processing lag is defined by the product specification.
 
 `002_seed_data.sql` adds two clearly named local sample venues, small
 illustrative images, and one short blockout booking so the Venue Staff
 catalogue has records on a fresh development database. It is idempotent and
 does not replace staff-created venues.
 
-`026_spm56_manual_conflict.sql` adds a manual-review fixture for SPM-56 at
+`002_seed_data.sql` includes a manual-review fixture for SPM-56 at
 Sample Birch Lecture Hall: one pending request overlaps an approved booking,
-an active tentative hold, and an unavailable period. It requires the SPM-159
-schema migration (`024_spm159_tentative_hold_requests.sql`). Fresh volumes run
-the fixture after that migration when it is present; otherwise, the fixture
-prints a skip notice so base database initialization can complete. Apply the
-SPM-159 migration first on an existing local Compose database, then run this
-fixture from the repository root with:
+an active tentative hold, and an unavailable period. It needs the SPM-159
+columns (`venue_bookings.request_kind`), which `001_schema.sql` always declares.
+On an existing local Compose database, apply the SPM-159 backend migration first
+if that column is missing, then re-run the seed from the repository root with:
 
 ```sh
 docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < backend/migrations/024_spm159_tentative_hold_requests.sql
-docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/026_spm56_manual_conflict.sql
+docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/002_seed_data.sql
 ```
 
 The fixed fixture IDs make rerunning safe. The pending demo request is for
@@ -426,12 +440,12 @@ matching event and booking intervals so the staff review shows consistent times.
 
 SPM-128 provisions the `SAFETY_OFFICER` role with read-only Event permission and a local `safety_officer@connectsphere.test` account (`P@55w0rd`). Fresh databases receive these from `002_seed_data.sql`; apply `backend/migrations/028_spm128_safety_officer_role.sql` once to an existing database. SPM-129 uses this role for its safety-check queue.
 
-SPM-137 (`029_spm137_booking_decision_notification.sql`) adds the nullable `notifications.related_booking_id` (`ON DELETE CASCADE`) and a partial index on it, so a notice can link to one venue booking. For an existing volume, apply `backend/migrations/029_spm137_booking_decision_notification.sql` once; it is idempotent.
+SPM-137 (`001_schema.sql`) adds the nullable `notifications.related_booking_id` (`ON DELETE CASCADE`) and a partial index on it, so a notice can link to one venue booking. For an existing volume, apply `backend/migrations/029_spm137_booking_decision_notification.sql` once; it is idempotent.
 
-SPM-125 (`030_spm125_venue_unavailability_history.sql`) adds the append-only `venue_unavailability_history` table: one `created` row when Venue Staff save an unavailable period and one `ended_early` row (with `previous_end_at`) when they end it early, each with the period, its reason, the Venue Staff member (`actor_user_id`, `ON DELETE SET NULL`) and the time. `period_id` has no foreign key, so history outlives its period; rows are removed only with their venue (`ON DELETE CASCADE`). The application only inserts; no database trigger blocks a direct `UPDATE` or `DELETE`. The migration gives every existing blocked period a `created` row with no person (shown as "Not recorded"). Its venue-change notices (`venue_unavailable_impact`, `venue_timing_impact`, `venue_capacity_impact`) reuse SPM-137's `notifications.related_booking_id`, so apply 029 first. For an existing volume, apply `backend/migrations/030_spm125_venue_unavailability_history.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
+SPM-125 (`001_schema.sql`) adds the append-only `venue_unavailability_history` table: one `created` row when Venue Staff save an unavailable period and one `ended_early` row (with `previous_end_at`) when they end it early, each with the period, its reason, the Venue Staff member (`actor_user_id`, `ON DELETE SET NULL`) and the time. `period_id` has no foreign key, so history outlives its period; rows are removed only with their venue (`ON DELETE CASCADE`). The application only inserts; no database trigger blocks a direct `UPDATE` or `DELETE`. The seed gives every blocked sample period a `created` row with no person (shown as "Not recorded"), as the migration does for existing ones. Its venue-change notices (`venue_unavailable_impact`, `venue_timing_impact`, `venue_capacity_impact`) reuse SPM-137's `notifications.related_booking_id`, so apply 029 first. For an existing volume, apply `backend/migrations/030_spm125_venue_unavailability_history.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
 
-SPM-157 (`034_spm157_event_audit_log.sql`) adds the append-only `event_audit_log` table and the triggers that fill it from `events` (submission, status, coordinator), `venue_bookings` (event bookings and holds only; blockouts stay with SPM-125), `equipment_requests` (a deferred trigger records a new request at commit with its items), `equipment_reservations` (releases), `event_registrations`, `event_safety_checks` (deferred, so the outcome's feedback items are the reason), `event_safety_resets`, `event_comments` (clarifications), `safety_check_feedback_items` (the coordinator's response), `completion_records` (deferred, with its issues) and `notifications` (only the SPM-125 venue-change notices, which name the affected booking); registration settings changes come from the `events` trigger. The author comes from the transaction-local setting `app.actor_id`, which the backend sets for a signed-in request; without it, or for a change made by another trigger, the entry is the system's, and `actor_name` keeps the person's display name at the time. `UPDATE` and `DELETE` on the table raise `event_audit_log is append-only`, except the clean-up by `events_audit_cleanup` after an event row is deleted (there is deliberately no foreign key, so recording never locks the event row). On first apply it loads earlier records once (only into an empty table); entries whose author was not recorded have `actor_kind = 'unrecorded'`. For an existing volume, apply `backend/migrations/034_spm157_event_audit_log.sql` once (after 032 and 033) with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
+SPM-157 (`event_audit_log` in `001_schema.sql`, its triggers in `003_functions_triggers.sql`) adds the append-only `event_audit_log` table and the triggers that fill it from `events` (submission, status, coordinator), `venue_bookings` (event bookings and holds only; blockouts stay with SPM-125), `equipment_requests` (a deferred trigger records a new request at commit with its items), `equipment_reservations` (releases), `event_registrations`, `event_safety_checks` (deferred, so the outcome's feedback items are the reason), `event_safety_resets`, `event_comments` (clarifications), `safety_check_feedback_items` (the coordinator's response), `completion_records` (deferred, with its issues) and `notifications` (only the SPM-125 venue-change notices, which name the affected booking); registration settings changes come from the `events` trigger. The author comes from the transaction-local setting `app.actor_id`, which the backend sets for a signed-in request; without it, or for a change made by another trigger, the entry is the system's, and `actor_name` keeps the person's display name at the time. `UPDATE` and `DELETE` on the table raise `event_audit_log is append-only`, except the clean-up by `events_audit_cleanup` after an event row is deleted (there is deliberately no foreign key, so recording never locks the event row). On first apply it loads earlier records once (only into an empty table); entries whose author was not recorded have `actor_kind = 'unrecorded'`. For an existing volume, apply `backend/migrations/034_spm157_event_audit_log.sql` once (after 032 and 033) with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
 
-SPM-134 (`036_spm134_hold_expiry_notifications.sql`) adds the nullable `venue_bookings.hold_reminder_sent_at`, set by the scheduler in the same transaction that writes the Coordinator's 48-hour expiry reminder so each tentative hold is reminded exactly once; the migration is idempotent and has no backfill (an active hold already within 48 hours of its expiry is reminded on the first run after it, and a hold past its expiry never is). The reminder, expired, released and converted notices need no schema change: `notifications.type` has no constraint and `related_booking_id` (SPM-137) already links a hold. For an existing volume, apply `backend/migrations/036_spm134_hold_expiry_notifications.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; fresh databases apply the copy in `database/postgresql/init/`.
+SPM-134 (`001_schema.sql`) adds the nullable `venue_bookings.hold_reminder_sent_at`, set by the scheduler in the same transaction that writes the Coordinator's 48-hour expiry reminder so each tentative hold is reminded exactly once; the migration is idempotent and has no backfill (an active hold already within 48 hours of its expiry is reminded on the first run after it, and a hold past its expiry never is). The reminder, expired, released and converted notices need no schema change: `notifications.type` has no constraint and `related_booking_id` (SPM-137) already links a hold. For an existing volume, apply `backend/migrations/036_spm134_hold_expiry_notifications.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; fresh databases get the column from `database/postgresql/init/001_schema.sql`.
 
-SPM-172 (`035_spm172_equipment_decision_notification.sql`) adds the nullable `notifications.related_equipment_request_id` (`ON DELETE CASCADE`, references `equipment_requests`) and a partial index on it, so an equipment request decision notice (`equipment_request_reserved`, `equipment_request_cannot_provide`) can link to one request. For an existing volume, apply `backend/migrations/035_spm172_equipment_decision_notification.sql` once (after 034) with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
+SPM-172 (`001_schema.sql`) adds the nullable `notifications.related_equipment_request_id` (`ON DELETE CASCADE`, references `equipment_requests`) and a partial index on it, so an equipment request decision notice (`equipment_request_reserved`, `equipment_request_cannot_provide`) can link to one request. For an existing volume, apply `backend/migrations/035_spm172_equipment_decision_notification.sql` once (after 034) with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.

@@ -57,15 +57,10 @@ describe.skipIf(!databaseUrl)(
           ),
         );
       }
-      // Migration 022 adds venue_bookings.special_request and backfills it across every row. Only its schema half
-      // runs here (the init copy has no backfill, as in the CI database), so neither the real backfill nor a mutated
-      // one (VEN-REV-M55) can rewrite other suites' shared rows. VEN-REV-11-A runs the full file in isolation.
-      await pool.query(
-        await readFile(
-          new URL('../../database/postgresql/init/022_spm55_booking_special_request.sql', import.meta.url),
-          'utf8',
-        ),
-      );
+      // venue_bookings.special_request already exists: database/postgresql/init/001_schema.sql declares it. Migration
+      // 022 (which also backfills it across every row) is deliberately not replayed here, so neither the real backfill
+      // nor a mutated one (VEN-REV-M55) can rewrite other suites' shared rows. VEN-REV-11-A runs the full file in
+      // isolation.
 
       const module = await Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(CLOCK)

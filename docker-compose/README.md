@@ -145,7 +145,7 @@ Choose shutdown or data reset according to the lifecycle guidance above.
 
 ## Events sample database
 
-The local `spm` PostgreSQL database stores requests in `events`. `001_schema.sql` defines every local table; `002_seed_data.sql` adds the local RBAC, accounts, health check, and fictional Submitted event. Records persist in Docker's `postgres-data` volume. Dates/times use `timestamptz`; the API/browser handles local-time display. These files are for fresh volumes; use backend migrations for existing-volume schema changes.
+The local `spm` PostgreSQL database stores requests in `events`. `001_schema.sql` defines every local table; `002_seed_data.sql` adds the local RBAC, accounts, health check, and sample data; `003_functions_triggers.sql` adds every function and trigger after the seed so loading it fires none. Records persist in Docker's `postgres-data` volume. Dates/times use `timestamptz`; the API/browser handles local-time display. These files are for fresh volumes; use backend migrations for existing-volume schema changes.
 
 As of SPM-38, `/api/events` and `/api/requests` (drafts) require a verified
 identity; `DEMO_ORGANISER_ENABLED` no longer applies to these routes

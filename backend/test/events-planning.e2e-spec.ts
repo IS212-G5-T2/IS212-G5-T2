@@ -142,16 +142,12 @@ describe.skipIf(!database)(
       process.env.DATABASE_URL = database;
       db = new pg.Pool({ connectionString: database });
       db.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
-      for (const file of [
-        '001_schema.sql',
-        // SPM-156: direct updates are recorded in event_flagged_changes.
-        '026_spm156_direct_update_history.sql',
-      ]) {
-        const schemaPath = process.env.SPM51_DATABASE_INIT_DIR
-          ? join(process.env.SPM51_DATABASE_INIT_DIR, file)
-          : new URL(`../../database/postgresql/init/${file}`, import.meta.url);
-        await db.query(await readFile(schemaPath, 'utf8'));
-      }
+      // 001_schema.sql is the complete schema in its final state, including the widened event_flagged_changes
+      // constraints that record SPM-156 direct updates, so nothing else needs applying.
+      const schemaPath = process.env.SPM51_DATABASE_INIT_DIR
+        ? join(process.env.SPM51_DATABASE_INIT_DIR, '001_schema.sql')
+        : new URL('../../database/postgresql/init/001_schema.sql', import.meta.url);
+      await db.query(await readFile(schemaPath, 'utf8'));
       const module = await Test.createTestingModule({
         controllers: [EventPlanningController],
         providers: [

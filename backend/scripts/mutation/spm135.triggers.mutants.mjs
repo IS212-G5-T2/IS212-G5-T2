@@ -1,5 +1,5 @@
 // SPM-135 trigger mutants: the venue_bookings and equipment_reservations safety-reset triggers and
-// invalidate_safety_check, which live in database/postgresql/init (not in backend/). Run by run-triggers.mjs:
+// invalidate_safety_check, which live in database/postgresql/init/003_functions_triggers.sql (not in backend/). Run by run-triggers.mjs:
 //   node scripts/mutation/run-triggers.mjs                       # every trigger mutant (needs DATABASE_URL)
 //   node scripts/mutation/run-triggers.mjs --only TG1,TG5
 //   node scripts/mutation/run-triggers.mjs --list
@@ -8,9 +8,8 @@
 // scratch database (spm_mutant_<random>), runs the suites against it, and drops that database in a finally
 // block. Nothing under database/ or the shared spm_test / spm_manual databases is changed.
 //
-// The live trigger-function definitions are the ones in 017_spm136_cancel_event.sql (it replaces 016's with
-// CREATE OR REPLACE); invalidate_safety_check stays in 016. Mutants target whichever file is live. A mutant in 014 would be superseded and
-// equivalent by construction.
+// 003_functions_triggers.sql holds exactly one definition of each of these functions, so every anchor
+// below occurs once and there is no superseded copy to mutate by mistake.
 //
 // `equivalent: true` is a claim that the survivor cannot change observable behaviour; the reason is given in
 // the mutant's name and must be backed by evidence (see the TG7 note).
@@ -28,10 +27,9 @@ export const SUITES = {
   },
 };
 
-const RESET_SQL = '016_spm135_safety_reset_reason.sql';
-// SPM-136 (017) redefines the two trigger functions (release transition skips the reset), so the DELETE-branch
-// anchors live there now; 016 still owns invalidate_safety_check itself.
-const TRIGGER_SQL = '017_spm136_cancel_event.sql';
+// One file holds the two trigger functions and invalidate_safety_check.
+const RESET_SQL = '003_functions_triggers.sql';
+const TRIGGER_SQL = '003_functions_triggers.sql';
 const VENUE_DELETE_RESET = "IF OLD.event_id IS NOT NULL THEN PERFORM invalidate_safety_check(OLD.event_id, 'The venue booking changed'); END IF;";
 const EQUIPMENT_DELETE_RESET = "PERFORM invalidate_safety_check(OLD.event_id, 'The equipment request changed');";
 const FUNCTION_START = '  DELETE FROM safety_check_feedback_items WHERE event_id = p_event_id;\n  IF EXISTS';
