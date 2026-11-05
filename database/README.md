@@ -272,12 +272,23 @@ docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm
 
 `postgresql/demo/demo_seed.sql` replaces the development data with a fictional
 Singapore campus dataset for a live demonstration. It is not part of `init/`, so
-fresh volumes and test databases never run it.
+the disposable test database never runs it.
+
+**The Compose stack does run it automatically.** `docker-compose.yml` mounts it as
+`/docker-entrypoint-initdb.d/900_demo_seed.sql`, which sorts after `init/` 001-003, so a
+fresh Compose volume initialises straight into the demo dataset. That is deliberate: the
+local stack is what people look at, while the test suites need `init/`'s fixed accounts and
+ids, and they build their own database from the same image without that mount. Accounts in
+the Compose database are therefore `@connectsphere.sg`, not the `@connectsphere.test` ones
+`init/` seeds — `backend/test` and the Playwright specs authenticate as the latter and must
+never be pointed at this database.
 
 It is destructive: it empties events, venues, equipment and all user accounts,
-then reseeds them. Keep roles, permissions and the lookup catalogues. Run it only
-against the local demo database, and re-run it shortly before a demo so the dates
-stay current (dates are relative to the day it runs):
+then reseeds them. Keep roles, permissions and the lookup catalogues — it looks those up by
+name rather than creating them, which is why it needs `002_seed_data.sql` to have run first
+and cannot replace it. Re-run it shortly before a demo so the dates stay current (dates are
+relative to the day it runs); recreating the volume with `docker compose down -v` has the
+same effect:
 
 ```sh
 docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/demo/demo_seed.sql

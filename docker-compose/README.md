@@ -109,6 +109,10 @@ The Compose configuration targets `backend`. To integrate a different service:
 
 PostgreSQL init scripts are built into the local image from `database/postgresql/init`. These scripts run only when Docker creates a fresh `postgres-data` volume. For already-initialized local databases, apply changes manually or explicitly reset data with `docker compose down -v` from this directory when it is safe to discard local state.
 
+This stack also mounts `database/postgresql/demo/demo_seed.sql` as `/docker-entrypoint-initdb.d/900_demo_seed.sql`. The entrypoint runs that directory in sorted order, so a fresh volume initialises with `init/` 001-003 and then swaps the sample events, venues, equipment and accounts for the demo campus dataset. Accounts here are `@connectsphere.sg`.
+
+The disposable test database is built from the same image **without** that mount, so `backend/test` and the Playwright specs keep `init/`'s fixed `@connectsphere.test` accounts and ids, which is what they authenticate and assert against. Do not point a test suite at this database; `backend/scripts/testing/run-e2e.mjs` refuses `DATABASE_URL` for that reason. Because the demo dataset's dates are relative to the moment it runs, `docker compose down -v` followed by `up` is also how you refresh them before a demo.
+
 To build and run only the database without the rest of Docker Compose:
 
 ```sh
