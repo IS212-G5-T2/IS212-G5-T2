@@ -181,7 +181,7 @@ export const MUTANTS = [
   { id: 'S3', name: 'guard removed: equipment request removal', file: ST, edits: [strip('  async removeEquipmentRequest(identity: AuthenticatedUser | undefined, eventId: string, equipmentReservationId: string) {\n')], suites: both },
   { id: 'S4', name: 'guard removed: venue request removal', file: ST, edits: [strip('  async removeVenueRequest(identity: AuthenticatedUser | undefined, eventId: string, venueRequestId: string) {\n')], suites: both },
   { id: 'S5', name: 'guard removed: safety feedback resolve/unresolve', file: ST, edits: [strip('    resolved: boolean,\n  ) {\n')], suites: both },
-  { id: 'S6', name: 'guard removed: planning PATCH + flagged-change resolve', file: PL, edits: [['    assertEventNotCancelled(access.event.status);\n', '']], suites: both },
+  { id: 'S6', name: 'guard removed: planning PATCH + flagged-change resolve', file: PL, edits: [['    assertArrangementsEditable(access.event.status);\n', '']], suites: both },
   { id: 'S7', name: 'guard removed: clarification create', file: CL, edits: [['      this.requireAssignedCoordinator(event, user);\n      assertEventNotCancelled(event.status);\n', '      this.requireAssignedCoordinator(event, user);\n']], suites: both },
   { id: 'S8', name: 'guard removed: clarification resolve', file: CL, edits: [['      const resolverRole = this.requireOrganiserOrAssignedCoordinator(event, user);\n      assertEventNotCancelled(event.status);\n', '      const resolverRole = this.requireOrganiserOrAssignedCoordinator(event, user);\n']], suites: both },
   // TR-136-15: S9 re-anchored to the current ternary (the Cancelled-on-cancelled-event branch of withdraw).
@@ -219,7 +219,7 @@ export const MUTANTS = [
   { id: 'S12', name: 'only Reserved equipment released (Requested/Unavailable kept)', file: EQ, edits: [["status IN ('Requested', 'Reserved', 'Unavailable')", "status IN ('Reserved')"]], suites: both },
   { id: 'S13', name: 'Requested equipment lines not released', file: EQ, edits: [["status IN ('Requested', 'Reserved', 'Unavailable')", "status IN ('Reserved', 'Unavailable')"]], suites: both },
   { id: 'S14', name: 'registration cancellation_reason not set', file: RE, edits: [["cancellation_reason = 'Event cancelled'", 'cancellation_reason = NULL']], suites: both },
-  { id: 'S15', name: 'EventCancelled missing from coordinator notification types', file: EV, edits: [["'coordinator_unassignment',\n            'EventCancelled',", "'coordinator_unassignment',"]], suites: both },
+  { id: 'S15', name: 'EventCancelled missing from coordinator notification types', file: 'src/events/coordinator-notification-types.ts', edits: [["  'coordinator_unassignment',\n  'EventCancelled',\n", "  'coordinator_unassignment',\n"]], suites: both },
   { id: 'S16', name: 'EventCancelled missing from organiser notification types', file: EV, edits: [["'EventConfirmed',\n            'EventCancelled',", "'EventConfirmed',"]], suites: both },
   { id: 'S17', name: 'canceller excluded from recipients', file: CA, edits: [['    const message = CANCEL_MESSAGES.cancelled(updated.rows[0].event_name);', '    recipients.delete(user.uid);\n    const message = CANCEL_MESSAGES.cancelled(updated.rows[0].event_name);']], suites: both },
   { id: 'S18', name: 'history from_status hard-coded Confirmed', file: CA, edits: [['[randomUUID(), eventId, event.status, user.uid, now],', "[randomUUID(), eventId, 'Confirmed', user.uid, now],"]], suites: both },
