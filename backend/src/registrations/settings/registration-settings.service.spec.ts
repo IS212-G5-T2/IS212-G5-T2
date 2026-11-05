@@ -59,7 +59,7 @@ const refusal = (promise: Promise<unknown>) => promise.then(
   (error: unknown) => error as { getResponse(): Record<string, unknown> },
 );
 
-describe('CONFIG-REG-01 reading the registration settings', () => {
+describe('SPM-139 reading the registration settings (CONFIG-REG case group 01)', () => {
   /** CONFIG-REG-01-A: the assigned coordinator reads the saved period, capacity, Confirmed count and version. */
   it('returns the saved settings with ISO dates, the Confirmed count and the version', async () => {
     const { service } = harness({ counts: [2] });
@@ -101,7 +101,7 @@ describe('CONFIG-REG-01 reading the registration settings', () => {
   });
 });
 
-describe('CONFIG-REG-02 saving the registration settings', () => {
+describe('SPM-139 saving the registration settings (CONFIG-REG case group 02)', () => {
   const save = (service: RegistrationSettingsService, body: unknown) => service.update(COORDINATOR, EVENT_ID, body);
 
   it('saves new settings in one locked transaction, bumps the version and returns the saved message', async () => {

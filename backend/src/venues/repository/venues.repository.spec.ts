@@ -2359,6 +2359,8 @@ describe('SPM-55 venue booking review repository', () => {
     );
     expect(normalized).toContain("start_at < $3::timestamptz + make_interval(mins => $5::int)");
     expect(normalized).toContain("end_at > $2::timestamptz - make_interval(mins => $4::int)");
+    // An unavailable period is reported with its recorded interval, not padded like an event.
+    expect(normalized).toContain("start_at AS occupied_start, end_at AS occupied_end");
     // Approved bookings: setup pads the existing booking's start and turnaround its end; both comparisons are strict.
     // The approved-booking branch is scoped to the venue being decided, with self-exclusion and active-hold check.
     expect(normalized).toContain("WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid AND ((b.status = 'approved' AND (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL OR b.hold_expires_at > $7::timestamptz)) OR (b.status = 'pending' AND (b.hold_expires_at > $7::timestamptz OR (b.request_kind <> 'tentative_hold' AND EXISTS ( SELECT 1 FROM venue_booking_requests r WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id )))))");

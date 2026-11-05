@@ -59,9 +59,9 @@ export const MUTANTS = [
   {
     id: 'S131-BE-03',
     name: 'the coordinator notification feed omits Safety Officer response notices (SAFETY-OUTCOME-01)',
-    file: 'src/events/events.service.ts',
+    file: 'src/events/coordinator-notification-types.ts',
     suites: ['unit'],
-    edits: [['? COORDINATOR_NOTIFICATION_TYPES', '? []']],
+    edits: [["  'coordinator_safety_response',\n", '']],
     testMappings: [{ suite: 'unit', file: 'src/events/review/events.reject.spec.ts', title: 'SAFETY-OUTCOME-01 lists safety response notices for the assigned coordinator' }],
   },
   {

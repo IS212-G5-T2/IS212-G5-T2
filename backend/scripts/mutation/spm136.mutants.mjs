@@ -61,6 +61,13 @@ export const SUITES = {
   unitNotifications: {
     args: ['run', 'src/events/cancelled-notifications.spec.ts'],
   },
+  // SPM-197: file-scoped suites so the registry-order and guard-status tests have a named kill.
+  unitReleaseRegistry: {
+    args: ['run', 'src/events/cancel/release.registry.spec.ts'],
+  },
+  unitGuard: {
+    args: ['run', 'src/events/cancelled-guard.spec.ts'],
+  },
 };
 
 const CANCEL = 'src/events/cancel/cancel-event.service.ts';
@@ -192,7 +199,7 @@ export const MUTANTS = [
   // suite 'waitlist12' with testMappings to the JOIN-WAITLIST-12 cases that must fail. A survivor is reported as a survivor.
   // W1: the waiting releaser is not registered: no waiting entry is cancelled and no notice is written.
   { id: 'W1', name: 'waitlist releaser not registered in DEFAULT_RELEASERS: waiting entries survive the cancel', file: 'src/events/cancel/release.registry.ts',
-    edits: [['  waitlistReleaser,\n', '']], suites: ['waitlist12', 'cancelE2e'], testMappings: [{ suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-A: cancelling the event notifies each waitlisted attendee once' }, { suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-C-REL: the releaser cancels waiting entries only, row by row' }, { suite: 'cancelE2e', file: 'test/events-cancel.e2e-spec.ts', title: 'CANCEL-EVENT-08-A-COMBINED: three Confirmed rows and two waiting entries are Cancelled, and nothing is promoted' }] },
+    edits: [['  waitlistReleaser,\n', '']], suites: ['waitlist12', 'cancelE2e', 'unitReleaseRegistry'], testMappings: [{ suite: 'unitReleaseRegistry', file: 'src/events/cancel/release.registry.spec.ts', title: 'CANCEL-EVENT-04-C-REG: registers the venue, registration, waiting list and equipment releasers in that order (equipment last, for 04-C)' }, { suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-A: cancelling the event notifies each waitlisted attendee once' }, { suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-C-REL: the releaser cancels waiting entries only, row by row' }, { suite: 'cancelE2e', file: 'test/events-cancel.e2e-spec.ts', title: 'CANCEL-EVENT-08-A-COMBINED: three Confirmed rows and two waiting entries are Cancelled, and nothing is promoted' }] },
   // W2: the waiting releaser's release is a no-op (registered, but it releases nothing).
   { id: 'W2', name: 'waitlist releaser release is a no-op: waiting entries are not cancelled', file: 'src/registrations/release/waitlist.releaser.ts',
     edits: [['    await releaseWaitlistForCancelledEvent(client, eventId, now);', '    return;']], suites: ['waitlist12', 'cancelE2e'], testMappings: [{ suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-A: cancelling the event notifies each waitlisted attendee once' }, { suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-C-REL: the releaser cancels waiting entries only, row by row' }, { suite: 'cancelE2e', file: 'test/events-cancel.e2e-spec.ts', title: 'CANCEL-EVENT-08-A-COMBINED: three Confirmed rows and two waiting entries are Cancelled, and nothing is promoted' }] },
@@ -351,4 +358,8 @@ export const MUTANTS = [
   { id: 'E1', name: 'equipment release not scoped to the cancelled event: another event reservation is released (05-B)', file: EQ, suites: ['cancelE2e'],
     edits: [["WHERE event_id = $1 AND status IN ('Requested', 'Reserved', 'Unavailable')", "WHERE ($1::uuid IS NOT NULL) AND status IN ('Requested', 'Reserved', 'Unavailable')"]],
     testMappings: [{ suite: 'cancelE2e', file: 'test/events-cancel.e2e-spec.ts', title: 'CANCEL-EVENT-05-B: EQ-308 stays Reserved x1 after EVT-301 is cancelled' }] },
+  // SPM-197 (CANCEL-EVENT-07-A, the guard's non-Cancelled rows): the guard refuses every status that is set, not only Cancelled.
+  { id: 'G1', name: 'guard refuses every status, not only Cancelled (07-A: the other statuses pass)', file: 'src/events/cancelled-guard.ts', suites: ['unitGuard'],
+    edits: [["  if (status === 'Cancelled')\n    throw new ConflictException({ code: EVENT_CANCELLED_CODE,", "  if (status)\n    throw new ConflictException({ code: EVENT_CANCELLED_CODE,"]],
+    testMappings: [{ suite: 'unitGuard', file: 'src/events/cancelled-guard.spec.ts', title: 'CANCEL-EVENT-07-A: does not refuse a %s event (the guard only applies to Cancelled)' }] },
 ];

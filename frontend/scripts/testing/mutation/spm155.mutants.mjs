@@ -3,6 +3,8 @@
 // Each edit is [from, to]; `from` must occur exactly once in its file. Each mutant names the test that must go red.
 export const SUITES = {
   events: { args: ['run', 'src/features/events'] },
+  // SPM-197: the three timeline-origin tests (CANCEL-REQUEST-04-SUP-TIMELINE) added after the last mutation cycle.
+  timeline: { args: ['run', 'src/features/events/pages/detail/EventDetailPage.cancellationLayout.test.tsx'] },
 };
 
 const API = 'src/features/events/api/cancellation-requests-api.ts';
@@ -318,4 +320,14 @@ export const MUTANTS = [
   { id: 'FM106', name: 'a cancellation row whose origin is Cancelled adds a second Cancelled step', file: PAGE,
     edits: [['Math.min(reached + 1, cancelledAt)', 'reached + 1']],
     suites: ['events'], testMappings: [t(layoutPageTest, 'CANCEL-REQUEST-04-SUP-TIMELINE: a cancellation row whose origin is Cancelled shows Cancelled once')] },
+  // SPM-197: mutants for the three timeline-origin guards of the status-history effect (EventDetailPage.tsx).
+  { id: 'FM107', name: 'the status-history reply is not checked to be a list: an object with a find method is read as history rows', file: PAGE,
+    edits: [['Array.isArray(entries) ? entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled") : undefined', 'entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled")']],
+    suites: ['timeline'], testMappings: [{ suite: 'timeline', file: layoutPageTest, title: 'CANCEL-REQUEST-04-SUP-TIMELINE: a status history reply that is not a list leaves only the Cancelled step' }] },
+  { id: 'FM108', name: 'a late history reply of the previous event is applied (the active guard removed)', file: PAGE,
+    edits: [['if (active) setCancelledFrom(cancellation ? cancellation.fromStatus.toLowerCase() : null);', 'setCancelledFrom(cancellation ? cancellation.fromStatus.toLowerCase() : null);']],
+    suites: ['timeline'], testMappings: [{ suite: 'timeline', file: layoutPageTest, title: "CANCEL-REQUEST-04-SUP-TIMELINE: a delayed history reply for the previous cancelled event does not change the next event's timeline" }] },
+  { id: 'FM109', name: 'a history without a cancellation row falls back to its first row as the origin', file: PAGE,
+    edits: [['entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled") : undefined;', 'entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled") ?? entries[0] : undefined;']],
+    suites: ['timeline'], testMappings: [{ suite: 'timeline', file: layoutPageTest, title: 'CANCEL-REQUEST-04-SUP-TIMELINE: a status history without a cancellation row leaves only the Cancelled step' }] },
 ];

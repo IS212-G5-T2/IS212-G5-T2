@@ -608,3 +608,61 @@ describe('SPM-125 venue notices in the notification feed', () => {
     ]);
   });
 });
+
+/*
+ * SPM-131 AC1 (SAFETY-OUTCOME-01): the Event Coordinator is notified when the Safety Officer responds. Unit test of
+ * EventsService in isolation; the database is a fixture and the callers are fixtures, not live logins. The notice
+ * itself is written by the Safety Officer decision (covered in safety-officer.service.spec.ts and the PostgreSQL
+ * suite); this case covers the read side, the coordinator's notification feed.
+ */
+describe('SPM-131 AC1: the Safety Officer response notice in the coordinator feed', () => {
+  /**
+   * SAFETY-OUTCOME-01: the assigned coordinator's feed lists the safety response notice, labelled for the coordinator
+   * and carrying the event it is about; an organiser's feed does not ask for it.
+   * Kills: the coordinator feed omitting the safety response notice type, or labelling it for another audience.
+   */
+  it('SAFETY-OUTCOME-01 lists safety response notices for the assigned coordinator', async () => {
+    // Arrange: one safety response notice addressed to the assigned coordinator, for an event they coordinate
+    db.query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'notif-safety-1',
+          recipient_id: 'coordinator-1',
+          type: 'coordinator_safety_response',
+          message: 'The Safety Officer responded to the safety check for Welcome Evening.',
+          related_event_id: VALID_UUID,
+          event_coordinator_id: 'coordinator-1',
+          event_organiser_id: 'current-user',
+          event_name: 'Welcome Evening',
+          read: false,
+          created_at: new Date('2026-11-02T09:00:00.000Z'),
+        },
+      ],
+    });
+
+    // Act: the assigned coordinator reads the notification feed
+    const result = await service.notifications(coordinator());
+
+    // Assert: the query is scoped to this coordinator and asks for the safety response notice type
+    const [recipient, types] = db.query.mock.calls[0][1];
+    expect(recipient).toBe('coordinator-1');
+    expect(types).toContain('coordinator_safety_response');
+    // Assert: the notice is returned for the coordinator, unread, with its message and event
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'notif-safety-1',
+        type: 'coordinator_safety_response',
+        audienceRole: 'coordinator',
+        audienceUserId: 'coordinator-1',
+        message: 'The Safety Officer responded to the safety check for Welcome Evening.',
+        relatedEventId: VALID_UUID,
+        read: false,
+      }),
+    ]);
+
+    // Act + Assert: an organiser's feed does not ask for the coordinator's safety response notice
+    db.query.mockResolvedValueOnce({ rows: [] });
+    await service.notifications(organiser());
+    expect(db.query.mock.calls[1][1][1]).not.toContain('coordinator_safety_response');
+  });
+});

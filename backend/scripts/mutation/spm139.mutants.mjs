@@ -170,4 +170,11 @@ export const MUTANTS = [
   { id: 'M39', name: 'a real calendar day refused (month compared without the zero-based offset)', file: VALIDATION,
     edits: [['calendar.getUTCMonth() !== month - 1', 'calendar.getUTCMonth() !== month']],
     suites: ['unit'], testMappings: [unit(unitSpec, 'CONFIG-REG-02-D: still accepts %s')] },
+  // SPM-197: the two read-side service tests (CONFIG-REG-01-A, CONFIG-REG-01-D) had no named kill.
+  { id: 'M40', name: 'the coordinator role check removed: a non-coordinator is not refused before the read (01-D)', file: SERVICE,
+    edits: [["if (!identity.roles.includes('COORDINATOR'))", 'if (false)']],
+    suites: ['unit'], testMappings: [unit(serviceSpec, 'refuses a non-coordinator with 403 before reading')] },
+  { id: 'M41', name: 'the read response reports no Confirmed registrations (01-A: the Confirmed count is returned)', file: SERVICE,
+    edits: [['      confirmedCount,\n      version,\n', '      confirmedCount: 0,\n      version,\n']],
+    suites: ['unit'], testMappings: [unit(serviceSpec, 'returns the saved settings with ISO dates, the Confirmed count and the version')] },
 ];
