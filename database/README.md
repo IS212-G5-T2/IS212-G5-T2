@@ -287,6 +287,17 @@ blocked over a Planning event's booking (`Community Health Fair`, which the coor
 report with several statuses (`Annual Science Open Day`). Only five attendee
 accounts exist, so each event has at most five registrations.
 
+It also seeds two unsubmitted drafts for the organiser (`Green Campus Week
+Kickoff`, mostly filled, and `Photography Club Open Studio`, name and purpose
+only) so My Drafts and the draft resume flow have rows; their `fields` use the
+`name` key, not `eventName`. `event_flagged_changes` holds five change-history
+rows of all three kinds, including a pending `booking_conflict` on `Community
+Health Fair` that overlaps the blocked Community Hall period, and `venue_images`
+gives Main Auditorium, Community Hall and Rooftop Garden Terrace a tiny
+placeholder PNG. The seed clears `event_drafts` explicitly; it does not clear
+`event_audit_log` (no foreign key, filled by triggers), so that table grows with
+each run.
+
 ## Events sample database
 
 The local `spm` PostgreSQL database stores requests in `events`. The complete
