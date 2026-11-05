@@ -1,7 +1,8 @@
 import { expect, test } from "../../../../../e2e/fixtures";
 
-const email = process.env.SPM120_ATTENDEE_EMAIL ?? "attendee1@connectsphere.test";
-const password = process.env.SPM120_TEST_PASSWORD ?? "P@55w0rd";
+const email = "attendee1@connectsphere.test";
+
+test.use({ as: "attendee" });
 
 // SPM-120 WITHDRAW-EVENT-REG-CAP-01 (story goal, end to end) plus the withdrawn-card redesign: a registered attendee
 // withdraws from a full event, sees the timeline card and the freed spot, and can register again. The test builds
@@ -9,11 +10,6 @@ const password = process.env.SPM120_TEST_PASSWORD ?? "P@55w0rd";
 test("withdrawing from a full event frees the spot, persists across a reload, and the attendee can register again", async ({ page, db }) => {
   // Arrange: build the full event, sign in as the attendee who holds one of the two spots, then open the full event.
   const { eventName } = await db.preset("withdrawal");
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
   await page.goto("/events");
   await page.getByRole("link", { name: new RegExp(eventName) }).first().click();
   await expect(page.getByRole("heading", { name: eventName })).toBeVisible();

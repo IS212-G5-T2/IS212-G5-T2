@@ -49,8 +49,15 @@ const webServer = process.env.PLAYWRIGHT_SKIP_WEB_SERVER
     ];
 
 export default defineConfig({
+  // Two projects (SPM-187 stage 2). `setup` writes a saved login per seeded account (e2e/auth.setup.ts) and `browser`
+  // runs the specs after it, so a spec declares `test.use({ as: "coordinator" })` instead of logging in through the UI.
+  // Neither project sets a default storageState: a spec is anonymous unless it asks, which the login test and the
+  // stubbed specs rely on.
   testDir: "./src",
-  testMatch: "**/*.playwright.spec.ts",
+  projects: [
+    { name: "setup", testDir: "./e2e", testMatch: "**/*.setup.ts" },
+    { name: "browser", testMatch: "**/*.playwright.spec.ts", dependencies: ["setup"] },
+  ],
 
   // These suites share one database and frontend/e2e/fixtures.ts truncates it before EVERY test
   // (SPM-187), so two tests running at once would wipe each other's rows and sessions mid-test and the

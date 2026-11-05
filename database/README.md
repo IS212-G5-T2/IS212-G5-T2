@@ -167,7 +167,9 @@ every table in `public` except the reference and identity tables — `roles`, `r
 `app_health_checks` — and then checks those hold exactly the row counts a fresh database has, so a
 future foreign key that makes `TRUNCATE ... CASCADE` reach into preserved data fails loudly instead
 of quietly deleting login accounts. Preserving the accounts also keeps resets fast, since the seeded
-password hashes are bcrypt. A reset clears `auth_sessions`, so it must run before a test logs in.
+password hashes are bcrypt. A reset clears `auth_sessions`, so a login made before it is gone. The browser suite
+therefore re-creates one session per seeded account right after the reset
+(`browser-fixtures.mjs reset <sessions.json>`, see frontend/README.md), instead of preserving the table.
 
 **What it does not do.** Everything outside that list is truncated, including the seeded demo data
 from `init/002_seed_data.sql` beyond its reference data — sample venues, sample events and

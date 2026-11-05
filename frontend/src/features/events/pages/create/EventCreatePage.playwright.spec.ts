@@ -1,8 +1,8 @@
 import { expect, test } from "../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
-const organiserEmail = process.env.SPM37_ORGANISER_EMAIL ?? "organiser1@connectsphere.test";
-const password = process.env.SPM37_TEST_PASSWORD ?? "P@55w0rd";
+
+test.use({ as: "organiser" });
 const fields = {
   name: "",
   purpose: "",
@@ -26,11 +26,6 @@ test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI
   const name = "Draft browser";
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(organiserEmail);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).not.toHaveURL(/\/login$/);
   await page.goto("/events/create");
   await expect(page).toHaveTitle(/ConnectSphere/);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);

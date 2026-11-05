@@ -6,20 +6,11 @@ import { expect, test } from "../../../../../e2e/fixtures";
  * (backend/scripts/testing/run-browser.mjs). Each test resets the database and builds, through the "holdExpiry" preset
  * (backend/scripts/testing/browser-fixtures.mjs), three approved tentative holds of one event assigned to the seeded
  * Coordinator 1. The backend under test must run with TENTATIVE_HOLD_EXPIRY_INTERVAL_MS=1000 (the harness sets it) so
- * its own scheduler sends the reminder and the expired notice. Everyone signs in through the real login page.
+ * its own scheduler sends the reminder and the expired notice. Everyone is signed in from a saved login (frontend/e2e/auth.setup.ts).
  */
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
-const password = "P@55w0rd";
 
-test.use({ timezoneId: "Asia/Singapore" });
-
-async function login(page: Page, email: string) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
-}
+test.use({ timezoneId: "Asia/Singapore", as: "coordinator" });
 
 /** The Coordinator's feed as the browser session sees it (used only to wait for the scheduler's own write). */
 async function feedMessages(page: Page): Promise<string[]> {
@@ -44,7 +35,7 @@ const sgt = (iso: string) => {
  */
 test("HOLD-EXP-NOTIF-06-INT-1 the Coordinator sees the reminder and the expired notice and opens the reminded hold", async ({ page, db }) => {
   const { eventName, reminderVenue, expiredVenue, reminderHoldId, reminderExpiresIso, expiredExpiresIso } = await db.preset("holdExpiry");
-  await login(page, "coordinator1@connectsphere.test");
+  await page.goto("/");
   // The backend's own scheduler writes both notices within its interval; wait for its write, bounded.
   await expect
     .poll(async () => (await feedMessages(page)).filter((m) => m.includes(reminderVenue) || m.includes(expiredVenue)).length, { timeout: 30_000 })
@@ -76,17 +67,14 @@ test("HOLD-EXP-NOTIF-06-INT-1 the Coordinator sees the reminder and the expired 
  * HOLD-EXP-NOTIF-06-INT-2 (SPM-134 AC3, AC6): when Venue Staff release the hold, the Coordinator's bell shows the released
  * notice; opening it shows the hold on the Bookings page with status released.
  */
-test("HOLD-EXP-NOTIF-06-INT-2 the Coordinator is told when Venue Staff release the hold and opens it", async ({ page, browser, db }) => {
+test("HOLD-EXP-NOTIF-06-INT-2 the Coordinator is told when Venue Staff release the hold and opens it", async ({ page, pageAs, db }) => {
   const { eventName, releaseVenue, releaseHoldId } = await db.preset("holdExpiry");
   // Venue Staff release the hold through the real route, in their own session.
-  const staffContext = await browser.newContext();
-  const staffPage = await staffContext.newPage();
-  await login(staffPage, "venue_staff1@connectsphere.test");
+  const staffPage = await pageAs("venue_staff");
   const released = await staffPage.request.post(`${apiBase}/api/venues/bookings/${releaseHoldId}/release-hold`);
   expect(released.status()).toBe(201);
-  await staffContext.close();
 
-  await login(page, "coordinator1@connectsphere.test");
+  await page.goto("/");
   await page.getByRole("button", { name: /^Notifications/ }).click();
   const bell = page.getByRole("dialog", { name: "Notifications" });
   await expect(bell.getByText(`Your tentative hold of ${releaseVenue} for "${eventName}" has been released.`)).toBeVisible();

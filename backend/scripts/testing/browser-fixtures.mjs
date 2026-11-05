@@ -13,16 +13,40 @@
 //
 // The frontend fixture (frontend/e2e/fixtures.ts) reaches this through the CLI below so frontend/
 // takes no database dependency:
-//   TEST_DATABASE_URL=<db> node browser-fixtures.mjs reset
+//   TEST_DATABASE_URL=<db> node browser-fixtures.mjs reset [sessions.json]   (then re-creates the login sessions in that file)
 //   TEST_DATABASE_URL=<db> node browser-fixtures.mjs seed   < scene.json   (prints the result as JSON)
 //   TEST_DATABASE_URL=<db> node browser-fixtures.mjs preset <name>         (prints the result as JSON)
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { assertDisposable, resetTestDatabase } from './reset-test-database.mjs';
 
 const hour = 3_600_000;
 const day = 24 * hour;
+
+/**
+ * Re-creates one login session per entry of `tokensByEmail` ({ email: raw cookie token }), storing only the SHA-256
+ * hex of each token exactly as the backend does (auth.service.ts hashToken). The reset truncates auth_sessions, so
+ * without this a browser storageState captured at setup would carry a cookie for a row that no longer exists.
+ * Calling it straight after a reset keeps every test starting from a known database *and* a valid login.
+ * Every row is brand new (not revoked, last_seen_at = now), so no session state carries between tests.
+ */
+export async function restoreSessions(db, tokensByEmail) {
+  const entries = Object.entries(tokensByEmail);
+  if (entries.length === 0) return 0;
+  const emails = entries.map(([email]) => email);
+  const hashes = entries.map(([, token]) => createHash('sha256').update(token).digest('hex'));
+  const { rowCount } = await db.query(
+    `INSERT INTO auth_sessions (user_id, token_hash, expires_at)
+     SELECT u.id, t.token_hash, now() + interval '365 days'
+       FROM unnest($1::text[], $2::text[]) AS t(email, token_hash)
+       JOIN users u ON u.email = t.email`,
+    [emails, hashes],
+  );
+  if (rowCount !== entries.length) throw new Error(`Restored ${rowCount} of ${entries.length} sessions; an account in the sessions file is not seeded.`);
+  return rowCount;
+}
 
 const userId = async (db, email) => {
   const { rows } = await db.query('SELECT id, display_name, email FROM users WHERE email = $1', [email]);
@@ -248,14 +272,19 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [command, argument] = process.argv.slice(2);
   try {
     if (command === 'reset') {
-      await withClient((db) => resetTestDatabase(db));
+      // Optional argument: a sessions file written by frontend/e2e/auth.setup.ts, restored straight after the reset.
+      const sessions = argument ? JSON.parse(readFileSync(argument, 'utf8')) : null;
+      await withClient(async (db) => {
+        await resetTestDatabase(db);
+        if (sessions) await restoreSessions(db, sessions);
+      });
     } else if (command === 'seed') {
       const scene = await readStdin();
       process.stdout.write(JSON.stringify(await withClient((db) => buildScene(db, scene))));
     } else if (command === 'preset' && Object.hasOwn(PRESETS, argument)) {
       process.stdout.write(JSON.stringify(await withClient((db) => PRESETS[argument](db))));
     } else {
-      throw new Error(`usage: browser-fixtures.mjs reset | seed < scene.json | preset <${Object.keys(PRESETS).join('|')}>`);
+      throw new Error(`usage: browser-fixtures.mjs reset [sessions.json] | seed < scene.json | preset <${Object.keys(PRESETS).join('|')}>`);
     }
   } catch (error) {
     process.stderr.write(`${describeError(error)}\n`);

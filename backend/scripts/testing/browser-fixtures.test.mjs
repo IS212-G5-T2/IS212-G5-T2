@@ -6,8 +6,9 @@
 // call") plus buildEvent({status}) and buildRegistration({status}). It resets the database first, as every browser test does.
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import { createHash } from 'node:crypto';
 import pg from 'pg';
-import { buildEvent, buildRegistration, buildScene, buildVenue, describeError } from './browser-fixtures.mjs';
+import { buildEvent, buildRegistration, buildScene, buildVenue, describeError, restoreSessions } from './browser-fixtures.mjs';
 import { assertDisposable, resetTestDatabase } from './reset-test-database.mjs';
 
 const url = process.env.TEST_DATABASE_URL;
@@ -53,4 +54,29 @@ test('describeError joins AggregateError members and Postgres detail', () => {
   assert.equal(describeError(new AggregateError([new Error('a'), new Error('b')])), 'a; b');
   assert.equal(describeError(Object.assign(new Error('dup'), { detail: 'Key exists', constraint: 'k', table: 't' })), 'dup (detail: Key exists, constraint: k, table: t)');
   assert.equal(describeError(Object.assign(new Error(''), { code: 'ECONNREFUSED' })), 'ECONNREFUSED');
+});
+
+test('restoreSessions re-creates a valid, unrevoked session per account after a reset, and only stores the hash', async () => {
+  const sessions = { 'coordinator1@connectsphere.test': 'a'.repeat(64), 'lead@connectsphere.test': 'b'.repeat(64) };
+  // A session left over from a previous test (here: revoked, as a logout would leave it) must not survive the reset.
+  await restoreSessions(db, sessions);
+  await db.query('UPDATE auth_sessions SET revoked_at = now()');
+  await resetTestDatabase(db);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM auth_sessions')).rows[0].n, 0);
+
+  assert.equal(await restoreSessions(db, sessions), 2);
+  const rows = (await db.query(
+    `SELECT u.email, s.token_hash, s.revoked_at, s.expires_at > now() + interval '300 days' AS far_future
+       FROM auth_sessions s JOIN users u ON u.id = s.user_id ORDER BY u.email`)).rows;
+  assert.deepEqual(rows.map((r) => r.email), Object.keys(sessions).sort());
+  for (const row of rows) {
+    assert.equal(row.token_hash, createHash('sha256').update(sessions[row.email]).digest('hex'));
+    assert.equal(row.revoked_at, null);
+    assert.equal(row.far_future, true);
+  }
+});
+
+test('restoreSessions refuses an account that is not seeded', async () => {
+  await resetTestDatabase(db);
+  await assert.rejects(() => restoreSessions(db, { 'nobody@connectsphere.test': 'c'.repeat(64) }), /not seeded/);
 });
