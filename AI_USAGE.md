@@ -13,3 +13,8 @@ Add entries under one date per day, using this format:
 ```
 
 Where user is the user's github username.
+
+## 2026-11-05
+
+- chaw678 - implementation - SPM-187 - E2E per-test reset fixture and fixture builders (stage 1 of 3): added frontend/e2e/fixtures.ts (auto reset plus db builders) and backend/scripts/testing/browser-fixtures.mjs (builders and presets replacing run-browser.mjs once-per-run seeding); migrated the withdraw, audit-trail and hold-expiry specs, and deleted init/028_spm120_withdrawal_browser_test.sql. storageState, clock helper, device project and selector work remain for stages 2 and 3.
+- chaw678 - implementation - SPM-187 - E2E fixture correction cycle: fixed stale reset/seed docs (database README, reset-test-database.mjs, tests.yml), added a readable error formatter and timeouts to browser-fixtures.mjs/fixtures.ts, added tsconfig.e2e.json plus a typecheck:e2e script and CI step, added a node smoke test for the 30/15-minute venue plus Approved event scene, and recorded the fixture boundary in the frontend and backend AGENTS.md.
