@@ -165,14 +165,18 @@ test.describe("SPM-40 approve request functional workflow", () => {
     // The organiser gets the persistent approval notification and can open the approved request.
     await logout(page);
     await login(page, organiserEmail);
-    await expect(
-      page.getByLabel("Request decision notifications"),
-    ).toContainText(
+    // The decision notices moved out of an inline "Request decision notifications" region and into
+    // the top-bar bell (SPM-88); AppShell.decisions.test.tsx asserts that region is gone. The
+    // assertion is unchanged in substance: the organiser is told, and can open the approved request.
+    await page
+      .getByRole("button", { name: /^Notifications, \d+ unread/ })
+      .click();
+    const notifications = page.getByRole("dialog", { name: "Notifications" });
+    await expect(notifications).toContainText(
       `Your event request "${event.name}" was approved and can proceed.`,
     );
-    await page
-      .getByLabel("Request decision notifications")
-      .getByRole("link", { name: "View request" })
+    await notifications
+      .getByRole("link", { name: "View Request" })
       .first()
       .click();
     await expect(page.getByRole("heading", { name: event.name })).toBeVisible();

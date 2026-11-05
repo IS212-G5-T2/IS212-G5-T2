@@ -33,7 +33,7 @@ test("creates an equipment record and displays it in Equipment Inventory", async
     page.getByRole("dialog", { name: "Equipment record created" }),
   ).toContainText("Equipment record created.");
   await page.getByRole("button", { name: "OK" }).click();
-  await expect(page).toHaveURL(/\/equipment\/availability$/);
+  await expect(page).toHaveURL(/\/equipment\/inventory$/);
   const equipmentRow = page.getByRole("row", { name: new RegExp(name) });
   await expect(equipmentRow).toBeVisible();
   await expect(equipmentRow).toContainText("Browser Test Store");
