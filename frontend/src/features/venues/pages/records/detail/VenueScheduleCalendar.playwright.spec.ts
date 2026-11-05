@@ -65,7 +65,30 @@ const secondMobileBooking = {
   createdAt: "2030-01-02T00:00:00.000Z",
 };
 
+const apiOrigin = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
+
+// The app shell fetches these on every authenticated page. They are nothing to do with what these
+// cases assert, but if they reach the real backend they return 401, and the app treats a 401 as
+// session loss and redirects to /login - so the page under test never renders.
+//
+// Patterns are anchored to the API origin on purpose. An unanchored glob ending in a wildcard also
+// matches Vite's own source module /src/features/events/api/change-requests-api.ts, which is then
+// served JSON and fails the browser's strict MIME check, blanking the page.
+async function stubAppShellApis(page: import("@playwright/test").Page) {
+  for (const path of [
+    `${apiOrigin}/api/notifications`,
+    `${apiOrigin}/api/events`,
+    `${apiOrigin}/api/requests`,
+    `${apiOrigin}/api/change-requests*`,
+    `${apiOrigin}/api/cancellation-requests`,
+  ])
+    await page.route(path, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+    );
+}
+
 async function mockMobileBookingApis(page: import("@playwright/test").Page) {
+  await stubAppShellApis(page);
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       status: 200,
@@ -140,6 +163,7 @@ test(
   async ({ page }) => {
   test.fail(true, "SPM-51 cross-day drag on an assigned event; out of Sprint 1 scope, tracked for a later sprint branch");
   await page.clock.install({ time: new Date("2030-01-07T01:00:00.000Z") });
+  await stubAppShellApis(page);
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       status: 200,

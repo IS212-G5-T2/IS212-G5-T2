@@ -44,6 +44,23 @@ async function openBellWithErrorBanner(page: Page) {
   await page.route("**/api/events", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) }),
   );
+  // My Events also fetches these three. They are not what this case asserts, but if they reach the
+  // real backend they return 401, and the app treats a 401 as session loss and redirects to /login -
+  // which is why this spec failed once later features (SPM-37 drafts, SPM-64/65 change requests,
+  // SPM-155 cancellation requests) added them to this page.
+  //
+  // Anchored to the API origin on purpose. A bare "**/api/change-requests*" also matches Vite's own
+  // source module /src/features/events/api/change-requests-api.ts, which then gets served JSON and
+  // fails the browser's strict MIME check, blanking the page.
+  const apiOrigin = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
+  for (const path of [
+    `${apiOrigin}/api/requests`,
+    `${apiOrigin}/api/change-requests*`,
+    `${apiOrigin}/api/cancellation-requests`,
+  ])
+    await page.route(path, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+    );
   await page.goto("/events");
   await page.getByRole("button", { name: /^Notifications, 12 unread/ }).click();
   await expect(page.getByRole("dialog", { name: "Notifications" })).toBeVisible();
