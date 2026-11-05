@@ -1,4 +1,5 @@
 import { type APIRequestContext } from "@playwright/test";
+import { atUtcHour } from "../../../../../e2e/dates";
 import { type Account, expect, test } from "../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
@@ -28,10 +29,8 @@ const coordinatorAccountByName: Record<string, Account> = {
 };
 
 function futureWindow(daysFromNow: number) {
-  const start = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000);
-  start.setUTCHours(10, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCHours(12, 0, 0, 0);
+  const start = atUtcHour(daysFromNow, 10);
+  const end = atUtcHour(daysFromNow, 12);
   return { startDateTime: start.toISOString(), endDateTime: end.toISOString() };
 }
 

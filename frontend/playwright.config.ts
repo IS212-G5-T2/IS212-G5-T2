@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 const isCI = !!process.env.CI;
 
@@ -56,7 +56,13 @@ export default defineConfig({
   testDir: "./src",
   projects: [
     { name: "setup", testDir: "./e2e", testMatch: "**/*.setup.ts" },
-    { name: "browser", testMatch: "**/*.playwright.spec.ts", dependencies: ["setup"] },
+    { name: "browser", testMatch: "**/*.playwright.spec.ts", testIgnore: "**/*.mobile.playwright.spec.ts", dependencies: ["setup"] },
+    // E2E-30 (SPM-192) and any other phone-only test: name the file `*.mobile.playwright.spec.ts` and it runs under a
+    // named device profile (viewport, touch, mobile UA) instead of calling page.setViewportSize. Pixel 7 is Chromium,
+    // so no extra browser is needed. Tests that deliberately sweep several widths in one test stay in `browser`.
+    { name: "mobile", testMatch: "**/*.mobile.playwright.spec.ts", dependencies: ["setup"], use: { ...devices["Pixel 7"] } },
+    // Self-tests for the e2e helpers (clock, dates). No database or login involved.
+    { name: "helpers", testDir: "./e2e", testMatch: "**/*.playwright.spec.ts" },
   ],
 
   // These suites share one database and frontend/e2e/fixtures.ts truncates it before EVERY test

@@ -1,3 +1,4 @@
+import { calendarDayFromNow } from "../../../../../../e2e/dates";
 import { expect, test } from "../../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
@@ -25,14 +26,14 @@ test("creates an unavailable period through the browser and displays it after re
   const venueId = (await created.json()).venue.id as string;
   await page.goto(`/venue-records/${venueId}`);
   await expect(page.getByRole("heading", { name: venueName })).toBeVisible();
-  const localTimes = await page.evaluate(() => {
-    const start = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
-    start.setHours(15, 0, 0, 0);
-    const end = new Date(start);
-    end.setHours(18, 0, 0, 0);
+  // The day is chosen by the shared date helper; the browser (Asia/Singapore via test.use) builds the local times.
+  const day = calendarDayFromNow(2);
+  const localTimes = await page.evaluate(({ year, month, day }) => {
+    const start = new Date(year, month - 1, day, 15, 0, 0, 0);
+    const end = new Date(year, month - 1, day, 18, 0, 0, 0);
     const input = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
     return { start: input(start), end: input(end), startIso: start.toISOString(), endIso: end.toISOString() };
-  });
+  }, day);
 
   // Act: enter the local interval, review it without writing, then confirm.
   await page.getByRole("button", { name: "Mark unavailable" }).click();

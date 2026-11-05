@@ -1,3 +1,4 @@
+import { isoDateFromNow } from "../../../../../e2e/dates";
 import { expect, test } from "../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
@@ -45,7 +46,7 @@ test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI
   await page.reload();
   const link = page.getByRole("link", { name, exact: true });
   await expect(link).toBeVisible();
-  await expect(link.locator("xpath=ancestor::li")).toContainText("Draft");
+  await expect(page.getByRole("listitem").filter({ has: link })).toContainText("Draft");
   if (process.env.SPM37_SCREENSHOT_DIR)
     await page.screenshot({
       path: `${process.env.SPM37_SCREENSHOT_DIR}/draft-list.png`,
@@ -84,7 +85,7 @@ test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI
     .getByRole("textbox", { name: /description/i })
     .fill("An event saved using the new UI.");
   await page.getByRole("button", { name: /Continue/ }).click();
-  const date = new Date(Date.now() + 86400000 * 30).toISOString().slice(0, 10);
+  const date = isoDateFromNow(30);
   await page.getByLabel("Start date", { exact: false }).fill(date);
   await page.getByLabel("Start time", { exact: false }).fill("10:00");
   await page.getByLabel("End date", { exact: false }).fill(date);
