@@ -5,6 +5,10 @@ on:
     branches:
       - dev
       - main
+      # Subtask pull requests stack into an integration branch for their parent ticket rather than
+      # targeting dev directly. Without this pattern those pull requests run no checks at all, so
+      # the work is only ever tested after it has already been merged once.
+      - "test/SPM-*"
     paths:
       - "frontend/**"
       - "backend/**"
@@ -15,10 +19,17 @@ on:
 permissions:
   contents: read
 
+# One run per branch. Pushing a fixup supersedes the in-flight run instead of leaving two sets of
+# results on the same pull request and paying for both.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   component-unit-tests:
     name: Component Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -90,12 +101,10 @@ jobs:
   backend-e2e-tests:
     name: Backend E2E Tests
     runs-on: ubuntu-latest
-    env:
-      # Backend E2E suites use the local PostgreSQL container. The drafts suite
-      # deliberately requires an explicit test URL, so keep both variables set.
-      DATABASE_URL: postgresql://spm:spm_dev_password@127.0.0.1:5432/spm
-      TEST_DATABASE_URL: postgresql://spm:spm_dev_password@127.0.0.1:5432/spm
-
+    timeout-minutes: 30
+    # No DATABASE_URL here on purpose. The suites resolve TEST_DATABASE_URL ?? DATABASE_URL, and
+    # scripts/testing/run-e2e.mjs sets DATABASE_URL to the test database for the child process, so
+    # the fallback cannot reach anything else. TEST_DATABASE_URL is set below from test-db.sh.
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -111,48 +120,15 @@ jobs:
         run: npm ci
         working-directory: backend
 
-      - name: Build local PostgreSQL image
-        run: docker build -t spm-postgresql ./database/postgresql
-
-      - name: Start PostgreSQL
-        run: |
-          docker run -d --name spm-postgres \
-            -e POSTGRES_USER=spm \
-            -e POSTGRES_PASSWORD=spm_dev_password \
-            -e POSTGRES_DB=spm \
-            -p 5432:5432 \
-            spm-postgresql
-
-      - name: Wait for PostgreSQL
-        run: |
-          for attempt in {1..30}; do
-            # The official image briefly starts a temporary server to run its
-            # init scripts. It accepts pg_isready probes, then shuts down;
-            # wait for that phase to finish and for the final server to listen.
-            if docker logs spm-postgres 2>&1 | grep -q 'PostgreSQL init process complete; ready for start up.' \
-              && docker exec spm-postgres pg_isready -U spm -d spm; then
-              exit 0
-            fi
-            sleep 1
-          done
-          docker logs spm-postgres
-          exit 1
-
-      - name: Mark the CI database as disposable
-        # The E2E runner refuses any database without this marker, because those suites insert and
-        # delete rows and some still re-apply migrations. This container is created and destroyed by
-        # this job, so it is genuinely disposable; stamping it says so explicitly.
-        run: |
-          docker exec -i spm-postgres psql -U spm -d spm -v ON_ERROR_STOP=1 <<'SQL'
-          CREATE TABLE IF NOT EXISTS spm_disposable_test_db (
-            stamped_at timestamptz NOT NULL DEFAULT now(),
-            owner text NOT NULL
-          );
-          INSERT INTO spm_disposable_test_db (owner) VALUES ('github-actions');
-          SQL
+      - name: Start the disposable test database
+        # One committed definition of what a test database is (SPM-185), shared with the browser job
+        # and with local runs, so CI and a developer's machine cannot drift apart. The script builds
+        # database/postgresql, waits for initialisation, stamps the disposable marker the runner
+        # requires, and prints the connection URL on stdout.
+        run: echo "TEST_DATABASE_URL=$(./database/postgresql/scripts/test-db.sh up)" >> "$GITHUB_ENV"
 
       - name: Check seeded Confirmed events meet the readiness rule
-        run: docker exec -i spm-postgres psql -U spm -d spm -v ON_ERROR_STOP=1 < database/postgresql/checks/confirmed_readiness.sql
+        run: ./database/postgresql/scripts/test-db.sh psql -v ON_ERROR_STOP=1 < database/postgresql/checks/confirmed_readiness.sql
 
       - name: Run backend E2E tests
         run: npm run test:e2e
@@ -160,11 +136,11 @@ jobs:
 
       - name: Show PostgreSQL logs after E2E failure
         if: failure()
-        run: docker logs spm-postgres
+        run: docker logs spm-disposable-test-db || true
 
-      - name: Remove PostgreSQL test container
+      - name: Remove the disposable test database
         if: always()
-        run: docker rm -f spm-postgres || true
+        run: ./database/postgresql/scripts/test-db.sh down || true
       - name: Upload npm diagnostics
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
@@ -173,3 +149,72 @@ jobs:
           path: ci-diagnostics/
           if-no-files-found: warn
           retention-days: 7
+
+  browser-e2e-tests:
+    name: Browser E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      - name: Build the backend
+        # playwright.config.ts starts the built output (node dist/main) as one of its webServers.
+        run: npm run build
+        working-directory: backend
+
+      - name: Start the disposable test database
+        run: echo "TEST_DATABASE_URL=$(./database/postgresql/scripts/test-db.sh up)" >> "$GITHUB_ENV"
+
+      - name: Run browser E2E suite
+        # The harness seeds this run's fixtures and then spawns Playwright, which starts the backend
+        # and the Vite dev server itself and points them at the same disposable database.
+        run: npm run test:browser
+        working-directory: backend
+
+      - name: Upload Playwright report, traces and screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Show database logs after failure
+        if: failure()
+        run: docker logs spm-disposable-test-db || true
+
+      - name: Remove the disposable test database
+        if: always()
+        run: ./database/postgresql/scripts/test-db.sh down || true

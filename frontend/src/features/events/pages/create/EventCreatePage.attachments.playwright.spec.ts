@@ -4,7 +4,7 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 // SPM-36 AC9 in a real browser: an invalid supporting file must show an error to the organiser.
 // The API is mocked with page.route, so these run against the Vite dev server without the
 // backend or database. Expected messages are the ones the create page uses.
-const appOrigin = "http://localhost:5173";
+const appOrigin = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 const corsHeaders = {
   "Access-Control-Allow-Origin": appOrigin,
   "Access-Control-Allow-Credentials": "true",
