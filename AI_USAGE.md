@@ -13,3 +13,7 @@ Add entries under one date per day, using this format:
 ```
 
 Where user is the user's github username.
+
+## 2026-11-06
+
+- general - fix - SPM-196 - Frontend bugs: My Drafts blank screen for seeded organiser draft, and Venue Staff / Technical Support landing on Events instead of their own pages; tests rerun (frontend 168 files, 2647 passed); patch generated, not committed.

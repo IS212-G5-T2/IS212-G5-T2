@@ -67,7 +67,7 @@ export function MyRequestsPage() {
                         className="font-semibold text-primary-700"
                         to={`/requests/${request.id}`}
                       >
-                        {request.fields.name.trim() || "Untitled event request"}
+                        {(request.fields?.name ?? "").trim() || "Untitled event request"}
                       </Link>
                       <p className="mt-1 text-xs text-gray-500">
                         Saved {new Date(request.updatedAt).toLocaleString()}
