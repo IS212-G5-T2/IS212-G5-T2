@@ -3243,8 +3243,8 @@ describe.skipIf(!databaseUrl)(
       expect(response.body).toMatchObject({ status: 'approved' });
     });
 
-    /** VEN-CONF-04-A VEN-CONF-05-A/B/BND-1/C: active holds block, expired holds don't, ordinary approved bookings block. */
-    it('VEN-CONF-04-A VEN-CONF-05-A VEN-CONF-05-B VEN-CONF-05-BND-1 VEN-CONF-05-C SPM-56 distinguishes active and expired holds from ordinary bookings', async () => {
+    /** VEN-CONF-04-A VEN-CONF-05-B: an approved, not-yet-expired hold blocks approval and is labelled as a tentative hold, while an expired hold on the same slot is not reported. */
+    it('VEN-CONF-04-A VEN-CONF-05-B SPM-56 blocks on an unexpired approved hold and omits an expired one', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
@@ -3291,10 +3291,98 @@ describe.skipIf(!databaseUrl)(
       expect(reasons).not.toContain('Expired Hold');
       const activeHold = conflicts.find((c) => c.reason === 'Active Hold');
       expect(activeHold).toMatchObject({ requestKind: 'tentative_hold' });
+      const persisted = await pool.query<{ status: string }>('SELECT status FROM venue_bookings WHERE id = $1', [pending.rows[0].id]);
+      expect(persisted.rows[0].status).toBe('pending');
     });
 
-    /** VEN-CONF-04-D VEN-CONF-04-PERF-1: concurrent overlapping hold approvals are serialized so only one succeeds. */
-    it('VEN-CONF-04-D VEN-CONF-04-PERF-1 SPM-56 allows only one concurrent overlapping hold approval', async () => {
+    /**
+     * Seeds the SPM-56 AC5 fixture: an approved tentative hold A on the slot (expiring at `holdExpiry`) and a pending
+     * ordinary booking B overlapping it; returns B's id. The decision clock is the suite's fixed `testNow`.
+     */
+    async function seedExpiryFixture(coordinatorId: string, venueId: string, holdExpiry: Date, withApprovedBooking = false) {
+      const holdEvent = await createAssignedEvent(coordinatorId, 'Expiry Hold A');
+      const holdId = await addBooking(venueId, holdEvent, {
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T06:00:00.000Z',
+        status: 'approved',
+        requestKind: 'tentative_hold',
+        expires: holdExpiry,
+      });
+      let approvedId: string | undefined;
+      if (withApprovedBooking) {
+        const approvedEvent = await createAssignedEvent(coordinatorId, 'Independent Approved C');
+        approvedId = await addBooking(venueId, approvedEvent, {
+          start: '2030-01-12T04:30:00.000Z',
+          end: '2030-01-12T06:30:00.000Z',
+          status: 'approved',
+        });
+      }
+      const candidateEvent = await createAssignedEvent(coordinatorId, 'Candidate B');
+      const pending = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, '2030-01-12T05:00:00.000Z', '2030-01-12T07:00:00.000Z', 'pending')
+         RETURNING id`,
+        [venueId, candidateEvent],
+      );
+      await pool.query('INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)', [candidateEvent, venueId]);
+      return { holdId, approvedId, pendingId: pending.rows[0].id };
+    }
+
+    /** VEN-CONF-05-A: an approved hold whose expiry is before the decision clock does not block, and its row is preserved. */
+    it('VEN-CONF-05-A SPM-56 approves over an expired hold and preserves the hold row', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const { holdId, pendingId } = await seedExpiryFixture(coordinator.id, venueId, new Date(testNow.getTime() - 60_000));
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${pendingId}/approve`)
+        .set('Cookie', owner.cookie)
+        .expect(201);
+
+      expect(response.body).toMatchObject({ status: 'approved' });
+      const hold = await pool.query<{ status: string; request_kind: string }>('SELECT status, request_kind FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(hold.rows).toEqual([{ status: 'approved', request_kind: 'tentative_hold' }]);
+    });
+
+    /** VEN-CONF-05-BND-1: a hold whose expiry equals the decision clock is expired (hold_expires_at <= now), so it does not block. */
+    it('VEN-CONF-05-BND-1 SPM-56 treats a hold expiring exactly at the decision clock as expired', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const { holdId, pendingId } = await seedExpiryFixture(coordinator.id, venueId, new Date(testNow.getTime()));
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${pendingId}/approve`)
+        .set('Cookie', owner.cookie)
+        .expect(201);
+
+      expect(response.body).toMatchObject({ status: 'approved' });
+      const hold = await pool.query<{ status: string }>('SELECT status FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(hold.rows).toEqual([{ status: 'approved' }]);
+    });
+
+    /** VEN-CONF-05-C: an expired hold does not mask an independent approved ordinary booking; only that booking is reported and B stays pending. */
+    it('VEN-CONF-05-C SPM-56 still reports an approved booking when an expired hold overlaps the same slot', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const { approvedId, pendingId } = await seedExpiryFixture(coordinator.id, venueId, new Date(testNow.getTime() - 60_000), true);
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${pendingId}/approve`)
+        .set('Cookie', owner.cookie)
+        .expect(409);
+
+      expect(response.body.code).toBe('BOOKING_SLOT_CONFLICT');
+      expect((response.body.conflicts as { id: string }[]).map((c) => c.id)).toEqual([approvedId]);
+      expect(response.body.conflicts[0]).toMatchObject({ reason: 'Independent Approved C', status: 'approved', requestKind: 'booking' });
+      const rows = await pool.query<{ id: string; status: string }>('SELECT id, status FROM venue_bookings WHERE id = ANY($1::uuid[]) ORDER BY id', [[approvedId, pendingId]]);
+      expect(Object.fromEntries(rows.rows.map((r) => [r.id, r.status]))).toEqual({ [approvedId as string]: 'approved', [pendingId]: 'pending' });
+    });
+
+    /** VEN-CONF-04-D: two overlapping pending holds approved one after the other; only the first succeeds. */
+    it('VEN-CONF-04-D SPM-56 allows only one overlapping hold approval when approvals are sequential', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
@@ -3327,6 +3415,71 @@ describe.skipIf(!databaseUrl)(
 
       expect(responseA.status).toBe(201);
       expect(responseB.status).toBe(409);
+    });
+
+    /** VEN-CONF-04-PERF-1: two overlapping pending holds approved at the same moment; exactly one commits and the other conflicts. */
+    it('VEN-CONF-04-PERF-1 SPM-56 commits exactly one of two simultaneous overlapping hold approvals', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+
+      const holdIds: string[] = [];
+      for (const [label, start, end] of [
+        ['Simultaneous Hold A', '2030-06-01T06:00:00.000Z', '2030-06-01T08:00:00.000Z'],
+        ['Simultaneous Hold B', '2030-06-01T07:00:00.000Z', '2030-06-01T09:00:00.000Z'],
+      ]) {
+        const eventId = await createAssignedEvent(coordinator.id, label, start, end);
+        holdIds.push(await addBooking(venueId, eventId, { start, end, status: 'pending', requestKind: 'tentative_hold' }));
+        await pool.query('INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)', [eventId, venueId]);
+      }
+
+      // Both approvals are in flight together; the venue-level lock must let only one of them commit.
+      const responses = await Promise.all(
+        holdIds.map((id) => request(app.getHttpServer()).post(`/api/venues/bookings/${id}/approve`).set('Cookie', owner.cookie)),
+      );
+
+      expect(responses.map((r) => r.status).sort()).toEqual([201, 409]);
+      const rows = await pool.query<{ status: string; hold_expires_at: Date | null }>(
+        'SELECT status, hold_expires_at FROM venue_bookings WHERE id = ANY($1::uuid[]) ORDER BY status',
+        [holdIds],
+      );
+      expect(rows.rows.map((r) => r.status)).toEqual(['approved', 'pending']);
+      expect(rows.rows[0].hold_expires_at).toEqual(new Date(testNow.getTime() + 336 * 3_600_000));
+      expect(rows.rows[1].hold_expires_at).toBeNull();
+    });
+
+    /** VEN-CONF-04-B: an active approved hold on a different venue never blocks an ordinary booking approval, and the hold is left unchanged. */
+    it('VEN-CONF-04-B SPM-56 ignores an active hold on a different venue', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const holdVenue = await createVenue(owner.id);
+      const bookingVenue = await createVenue(owner.id);
+
+      const holdEvent = await createAssignedEvent(coordinator.id, 'Other Venue Active Hold');
+      const holdId = await addBooking(holdVenue, holdEvent, {
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z',
+        status: 'approved',
+        requestKind: 'tentative_hold',
+        expires: new Date(testNow.getTime() + 24 * 3_600_000),
+      });
+      const candidateEvent = await createAssignedEvent(coordinator.id, 'Booking Beside Other-Venue Hold');
+      const pending = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, '2030-01-12T04:00:00.000Z', '2030-01-12T05:00:00.000Z', 'pending')
+         RETURNING id`,
+        [bookingVenue, candidateEvent],
+      );
+      await pool.query('INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)', [candidateEvent, bookingVenue]);
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${pending.rows[0].id}/approve`)
+        .set('Cookie', owner.cookie)
+        .expect(201);
+
+      expect(response.body).toMatchObject({ status: 'approved' });
+      const hold = await pool.query<{ status: string; hold_expires_at: Date }>('SELECT status, hold_expires_at FROM venue_bookings WHERE id = $1', [holdId]);
+      expect(hold.rows).toEqual([{ status: 'approved', hold_expires_at: new Date(testNow.getTime() + 24 * 3_600_000) }]);
     });
 
     /** VEN-CONF-04-D: a second sequential overlapping hold approval is rejected after the first succeeded. */
@@ -3428,6 +3581,8 @@ describe.skipIf(!databaseUrl)(
         .set('Cookie', owner.cookie)
         .expect(409);
       expect(setupResp.body.code).toBe('BOOKING_SLOT_CONFLICT');
+      const setupDb = await pool.query<{ status: string }>('SELECT status FROM venue_bookings WHERE id = $1', [setupPending.rows[0].id]);
+      expect(setupDb.rows[0].status).toBe('pending');
 
       const turnaroundEvent = await createAssignedEvent(coordinator.id, 'Turnaround Only');
       const turnaroundPending = await pool.query<{ id: string }>(
@@ -3443,6 +3598,8 @@ describe.skipIf(!databaseUrl)(
         .set('Cookie', owner.cookie)
         .expect(409);
       expect(turnaroundResp.body.code).toBe('BOOKING_SLOT_CONFLICT');
+      const turnaroundDb = await pool.query<{ status: string }>('SELECT status FROM venue_bookings WHERE id = $1', [turnaroundPending.rows[0].id]);
+      expect(turnaroundDb.rows[0].status).toBe('pending');
     });
 
     /** VEN-CONF-01-BND-1 VEN-CONF-03-BND-1: exactly touching occupied endpoints are not conflicts (half-open intervals). */
@@ -3558,6 +3715,49 @@ describe.skipIf(!databaseUrl)(
           expect.objectContaining({ reason: 'Other Venue Maintenance' }),
         ]),
       );
+    });
+
+    /** VEN-CONF-06-A VEN-CONF-06-C VEN-CONF-06-E: the database returns each booking's full setup/turnaround occupied interval and an unavailable period's raw interval with its reason. */
+    it('VEN-CONF-06-A VEN-CONF-06-C VEN-CONF-06-E SPM-56 returns buffered booking intervals and the raw unavailable interval', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id, { setupTimeMinutes: 30, turnaroundTimeMinutes: 45 });
+
+      const blockerEvent = await createAssignedEvent(coordinator.id, 'Buffered Blocker');
+      await addBooking(venueId, blockerEvent, {
+        start: '2030-01-12T02:00:00.000Z',
+        end: '2030-01-12T04:00:00.000Z',
+        status: 'approved',
+      });
+      await addBlockout(venueId, '2030-01-12T01:00:00.000Z', '2030-01-12T05:00:00.000Z', 'maintenance');
+
+      const candidateEvent = await createAssignedEvent(coordinator.id, 'Buffered Candidate');
+      const pending = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, '2030-01-12T03:00:00.000Z', '2030-01-12T04:00:00.000Z', 'pending')
+         RETURNING id`,
+        [venueId, candidateEvent],
+      );
+      await pool.query('INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)', [candidateEvent, venueId]);
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${pending.rows[0].id}/approve`)
+        .set('Cookie', owner.cookie)
+        .expect(409);
+
+      const byReason = Object.fromEntries((response.body.conflicts as { reason: string }[]).map((c) => [c.reason, c]));
+      // Booking: event 02:00-04:00 occupies 30 minutes of setup before and 45 minutes of turnaround after.
+      expect(byReason['Buffered Blocker']).toMatchObject({
+        kind: 'booking', start: '2030-01-12T02:00:00.000Z', end: '2030-01-12T04:00:00.000Z',
+        occupiedStart: '2030-01-12T01:30:00.000Z', occupiedEnd: '2030-01-12T04:45:00.000Z',
+      });
+      // Unavailable period: returned as recorded, without setup or turnaround padding, with its reason.
+      expect(byReason['maintenance']).toMatchObject({
+        kind: 'unavailable', start: '2030-01-12T01:00:00.000Z', end: '2030-01-12T05:00:00.000Z',
+        occupiedStart: '2030-01-12T01:00:00.000Z', occupiedEnd: '2030-01-12T05:00:00.000Z',
+      });
+      const db = await pool.query<{ status: string }>('SELECT status FROM venue_bookings WHERE id = $1', [pending.rows[0].id]);
+      expect(db.rows[0].status).toBe('pending');
     });
 
     /**
