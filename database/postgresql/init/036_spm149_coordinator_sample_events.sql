@@ -172,7 +172,7 @@ BEGIN
     INSERT INTO event_drafts (id, organiser_id, fields)
     SELECT '00000000-0000-4000-8000-000000000451'::uuid, u.id::text,
         jsonb_build_object(
-            'name', 'SPM-149 Seed: Draft - not yet submitted',
+            'eventName', 'SPM-149 Seed: Draft - not yet submitted',
             'purpose', 'Draft for organiser testing.',
             'description', 'Saved draft that has not been submitted to a coordinator.',
             'expectedAttendance', '25'

@@ -110,16 +110,11 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
         version.current = result.version;
         if (result.status !== "Draft") setLocked(true);
         else {
-          // Saved drafts can predate fields (or lack them entirely); keep the blank defaults for any
-          // missing value so validation and inputs never read undefined or null.
-          const { formStep, ...values } = (result.fields ?? {}) as Partial<
-            DraftRecord["fields"]
-          >;
-          setForm((current) => ({
-            ...current,
+          const { formStep, ...values } = result.fields;
+          setForm({
             ...values,
             registrationEnabled: values.registrationEnabled ?? false,
-          }));
+          });
           setStep(
             Number.isInteger(formStep) &&
               formStep! >= 0 &&
