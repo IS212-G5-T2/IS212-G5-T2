@@ -115,6 +115,38 @@ apply the seed script from the repository root:
 docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/002_seed_data.sql
 ```
 
+## Coordinator sample events (SPM-149)
+
+`036_spm149_coordinator_sample_events.sql` adds sample events owned by
+`coordinator1`, `coordinator2`, `coordinator3` and `coordinator_venuestaff`, with
+statuses that match their venue bookings, equipment and safety state. Submitted
+events 401 and 402 are left unassigned for the Coordinator Lead's queue, and
+organiser 1 gets one saved draft (when the `event_drafts` table exists).
+
+- A `Confirmed` event meets the SPM-135 readiness rule: an approved venue booking, reserved equipment or a "no equipment needed" confirmation, and an approved safety check.
+- Planning events show outstanding items (a pending venue request, a missing safety check, or equipment not yet reserved).
+- Rejected events carry a reason.
+- Dates start 50 days out, so the SPM-51/52 availability windows stay free.
+
+`002_seed_data.sql` no longer seeds the two events `Community Welcome Evening`
+(`...000036`) and `Inclusive Arts Workshop` (`...000104`) as `Confirmed`, because
+they have no venue or equipment. They are `Approved` now. The new script also
+updates those two rows on existing volumes.
+
+For an existing volume, apply the script from the repository root:
+
+```sh
+docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/036_spm149_coordinator_sample_events.sql
+```
+
+## Readiness check (SPM-149)
+
+`postgresql/checks/confirmed_readiness.sql` is not part of `init/`. It fails and names every Confirmed event that does not meet the SPM-135 readiness rule. It mirrors `backend/src/events/status/readiness.ts` and `venue-unavailable.ts`, including the setup and turnaround buffers. CI runs it after PostgreSQL starts. To run it locally against a seeded database:
+
+```sh
+docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/checks/confirmed_readiness.sql
+```
+
 ## Live demo data
 
 `postgresql/demo/demo_seed.sql` replaces the development data with a fictional
@@ -145,7 +177,7 @@ Every demo account uses password `P@55w0rd` and the domain `@connectsphere.sg`:
 
 The dataset has 48 events across every status, including Confirmed events with a
 full waitlist (`Leadership Lecture Series: Sustainable Cities`, limit 3), a venue
-blocked over a confirmed booking (`Community Health Fair`), and a registration
+blocked over a Planning event's booking (`Community Health Fair`, which the coordinator must resolve), and a registration
 report with several statuses (`Annual Science Open Day`). Only five attendee
 accounts exist, so each event has at most five registrations.
 

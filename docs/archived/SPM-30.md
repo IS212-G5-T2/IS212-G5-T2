@@ -22,3 +22,7 @@ Historical AI-assisted work associated with SPM-30.
 
 - swr - implementation - Enforce role-aware organiser routes for SPM-30: Restricted organiser and coordinator routes using Firebase role claims and guarded nested routes.
 - swr - maintenance - Share local Firebase Auth Emulator between frontend and backend: Added opt-in frontend Auth Emulator connection, a shared Compose Auth Emulator service, and backend emulator initialization using the same `demo-is212` project without service-account credentials.
+
+## 2026-10-17
+
+- Wei Zhi - implementation - Sprint 1 test review follow-up (SPM-30 to SPM-34 AC2, SPM-40 AC4, SPM-83 AC1) - Venue Staff and Technical Support now land on the Events Dashboard after sign-in (new dashboardPathByRole; SPM-124 denied-route fallbacks unchanged). Added a post-login landing test for all five login roles; replaced store-only pending-list checks with a real-list test (EVENT-APPROVE-02-C, EVENT-REJECT-02-C). Mutation checks: venue-staff landing and the default coordinator filter each fail their test. Not committed; e2e and Playwright not run.

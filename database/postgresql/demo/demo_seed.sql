@@ -243,7 +243,7 @@ INSERT INTO demo_plan VALUES
     (24, 'Rooftop Stargazing Evening', 'Astronomy night for students', 'Telescope viewing and a short talk on the night sky.', 52, 20, 2, 80, 'Standing', ARRAY['Power outlets'], ARRAY['Accessible restrooms'], 'Telescopes and red-light torches for each guide.', false, 1, 1, 'Planning', 'coord_vs', NULL, ARRAY['Submitted', 'Approved', 'Planning']),
     -- Confirmed, upcoming
     (25, 'Leadership Lecture Series: Sustainable Cities', 'Speaker series on urban sustainability', 'A keynote and panel on sustainable urban design. Registration is capped at 3 to show a waitlist.', 14, 18, 2, 200, 'Theatre', ARRAY['AV System', 'Stage'], ARRAY['Wheelchair access', 'Hearing loop'], 'Two wireless microphones and a PA system.', true, 3, 1, 'Confirmed', 'coord1', NULL, ARRAY['Submitted', 'Approved', 'Planning', 'Confirmed']),
-    (26, 'Community Health Fair', 'Free health screenings for residents', 'Blood pressure checks, dental advice and health talks.', 20, 18, 3, 150, 'Standing', ARRAY['Power outlets', 'Wi-Fi'], ARRAY['Wheelchair access', 'Accessible restrooms'], 'Screening stations and a PA system.', true, 200, 1, 'Confirmed', 'coord1', NULL, ARRAY['Submitted', 'Approved', 'Planning', 'Confirmed']),
+    (26, 'Community Health Fair', 'Free health screenings for residents', 'Blood pressure checks, dental advice and health talks.', 20, 18, 3, 150, 'Standing', ARRAY['Power outlets', 'Wi-Fi'], ARRAY['Wheelchair access', 'Accessible restrooms'], 'Screening stations and a PA system.', false, 1, 1, 'Planning', 'coord1', NULL, ARRAY['Submitted', 'Approved', 'Planning']),
     (27, 'Annual Science Open Day', 'Showcase campus science', 'Lab tours, demonstrations and public talks for families.', 45, 10, 6, 320, 'Theatre', ARRAY['AV System', 'Stage'], ARRAY['Wheelchair access', 'Elevator access'], 'Lab demonstration equipment and two lapel microphones.', true, 5, 1, 'Confirmed', 'coord_vs', NULL, ARRAY['Submitted', 'Approved', 'Planning', 'Confirmed']),
     (28, 'Student Leadership Retreat', 'Develop student leaders', 'Team-building and leadership workshops over one day. Registration opens later.', 60, 9, 8, 45, 'Seminar Room', ARRAY['Whiteboard', 'Wi-Fi'], ARRAY[]::text[], 'Breakout tables and flip charts.', true, 60, 1, 'Confirmed', 'coord2', NULL, ARRAY['Submitted', 'Approved', 'Planning', 'Confirmed']),
     (29, 'Creative Writing Showcase', 'Celebrate student writing', 'Readings by student authors, followed by a book signing. Registration has closed.', 5, 14, 3, 35, 'Seminar Room', ARRAY['Lectern', 'Power outlets'], ARRAY['Hearing loop'], 'Lectern and a clip-on microphone.', true, 40, 240, 'Confirmed', 'coord_vs', NULL, ARRAY['Submitted', 'Approved', 'Planning', 'Confirmed']),
@@ -488,8 +488,6 @@ INSERT INTO demo_reg (ek, att, st, wl, note) VALUES
     (25, 'att3', 'Registered', NULL, NULL),
     (25, 'att4', 'Waitlisted', 1, NULL),
     (25, 'att5', 'Waitlisted', 2, NULL),
-    (26, 'att1', 'Registered', NULL, NULL),
-    (26, 'att2', 'Registered', NULL, NULL),
     (27, 'att1', 'Registered', NULL, NULL),
     (27, 'att2', 'Registered', NULL, NULL),
     (27, 'att3', 'Registered', NULL, NULL),
