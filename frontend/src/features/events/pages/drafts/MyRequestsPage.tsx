@@ -67,7 +67,13 @@ export function MyRequestsPage() {
                         className="font-semibold text-primary-700"
                         to={`/requests/${request.id}`}
                       >
-                        {request.fields.name.trim() || "Untitled event request"}
+                        {/* fields comes from a jsonb column, so name can be absent however DraftFields
+                            types it. Without the guard, .trim() throws while rendering and React
+                            unmounts the whole list - one malformed row hid every draft the organiser
+                            had, which is what made a freshly saved draft look lost. EventListPage
+                            already tolerates this. */}
+                        {request.fields.name?.trim() ||
+                          "Untitled event request"}
                       </Link>
                       <p className="mt-1 text-xs text-gray-500">
                         Saved {new Date(request.updatedAt).toLocaleString()}

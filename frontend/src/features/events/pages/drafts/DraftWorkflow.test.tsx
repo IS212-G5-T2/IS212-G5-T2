@@ -577,4 +577,27 @@ describe("SPM-37 Q2 functional cases", () => {
       ),
     );
   });
+
+  // Kills: MyRequestsPage calling .trim() on an absent fields.name. `fields` is a jsonb column, so a
+  // draft can reach the page without the key however DraftFields types it - init/036 seeded exactly
+  // such a row under 'eventName'. The throw happened while rendering, so React unmounted the whole
+  // list and every draft disappeared, including one the organiser had just saved. That is why the
+  // SPM-37 browser spec failed: the save worked and the list died on an unrelated row.
+  it("renders a draft whose stored fields have no name, and keeps the rest of the list", async () => {
+    const nameless = {
+      ...draft(),
+      id: "draft-without-a-name",
+      fields: { ...fields, name: undefined },
+    } as unknown as DraftRecord;
+    const named = { ...draft({ name: "Has a name" }), id: "draft-with-a-name" };
+    mocked.mockImplementation(async (path) =>
+      path === "/requests" ? [nameless, named] : undefined,
+    );
+    open("/requests");
+    expect(
+      await screen.findByRole("link", { name: "Untitled event request" }),
+    ).toBeTruthy();
+    // The second draft still renders, so one malformed row no longer takes the list down.
+    expect(screen.getByRole("link", { name: "Has a name" })).toBeTruthy();
+  });
 });
