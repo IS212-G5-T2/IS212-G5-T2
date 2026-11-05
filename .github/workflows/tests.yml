@@ -138,6 +138,9 @@ jobs:
           docker logs spm-postgres
           exit 1
 
+      - name: Check seeded Confirmed events meet the readiness rule
+        run: docker exec -i spm-postgres psql -U spm -d spm -v ON_ERROR_STOP=1 < database/postgresql/checks/confirmed_readiness.sql
+
       - name: Run backend E2E tests
         run: npm run test:e2e
         working-directory: backend
