@@ -19,10 +19,17 @@ on:
 permissions:
   contents: read
 
+# One run per branch. Pushing a fixup supersedes the in-flight run instead of leaving two sets of
+# results on the same pull request and paying for both.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   component-unit-tests:
     name: Component Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -94,6 +101,7 @@ jobs:
   backend-e2e-tests:
     name: Backend E2E Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # No DATABASE_URL here on purpose. The suites resolve TEST_DATABASE_URL ?? DATABASE_URL, and
     # scripts/testing/run-e2e.mjs sets DATABASE_URL to the test database for the child process, so
     # the fallback cannot reach anything else. TEST_DATABASE_URL is set below from test-db.sh.
@@ -145,6 +153,7 @@ jobs:
   browser-e2e-tests:
     name: Browser E2E Tests (Playwright)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout

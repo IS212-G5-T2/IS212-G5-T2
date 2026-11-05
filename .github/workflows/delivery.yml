@@ -1,0 +1,130 @@
+name: Delivery
+
+# Continuous delivery: build both components and publish one downloadable archive per run, so any
+# commit on an integration branch has a deployable bundle attached to it. Nothing is deployed from
+# here and no credentials are needed; the artifact is the deliverable.
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push supersedes an in-flight build of the same ref.
+concurrency:
+  group: delivery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Build and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Build backend
+        run: npm run build
+        working-directory: backend
+
+      - name: Assemble the release bundle
+        id: assemble
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          short_sha="$(git rev-parse --short HEAD)"
+          name="connectsphere-${short_sha}"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+          # :? so an unset or empty variable stops the script instead of resolving to a root path.
+          staging="${RUNNER_TEMP:?}/${name:?}"
+          mkdir -p "$staging/frontend" "$staging/backend"
+
+          # Built output, not sources.
+          cp -R frontend/dist "$staging/frontend/dist"
+          cp -R backend/dist "$staging/backend/dist"
+
+          # The backend needs its manifests to install production dependencies where it runs.
+          cp backend/package.json backend/package-lock.json "$staging/backend/"
+
+          # Everything needed to stand the stack up: schema and seed assets, and the Compose files.
+          # Copied through tar so a local .env is excluded rather than copied and then deleted.
+          cp -R database "$staging/database"
+          tar -cf - --exclude='.env' docker-compose | tar -xf - -C "$staging"
+
+          cat > "$staging/BUILD-INFO.txt" <<INFO
+          ConnectSphere delivery bundle
+          =============================
+          Commit      : $(git rev-parse HEAD)
+          Short SHA   : $short_sha
+          Ref         : $GITHUB_REF_NAME
+          Run         : #$GITHUB_RUN_NUMBER ($GITHUB_RUN_ID)
+          Built at    : $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          Built by    : GitHub Actions on $RUNNER_OS
+          Node        : $(node --version)
+
+          Contents
+          --------
+          frontend/dist/      Built static site. Serve with any static web server.
+          backend/dist/       Compiled NestJS. Run: cd backend && npm ci --omit=dev && node dist/main
+          backend/package*    Manifests for installing production dependencies.
+          database/           PostgreSQL image and initialisation SQL (init/ is the complete schema).
+          docker-compose/     Compose stack. Copy .env.example to .env first.
+
+          Required environment
+          --------------------
+          backend  : DATABASE_URL, FRONTEND_ORIGIN, PORT (default 8080)
+          frontend : VITE_API_BASE_URL is baked in at build time; rebuild to change it.
+          INFO
+
+          ( cd "${RUNNER_TEMP:?}" && zip -qr "${name:?}.zip" "${name:?}" )
+          echo "zip=${RUNNER_TEMP}/${name}.zip" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Delivery bundle"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Archive | \`$name.zip\` |"
+            echo "| Size | $(du -h "${RUNNER_TEMP}/${name}.zip" | cut -f1) |"
+            echo "| Commit | \`$(git rev-parse HEAD)\` |"
+            echo "| Ref | \`$GITHUB_REF_NAME\` |"
+            echo
+            echo "Download it from the **Artifacts** section of this run."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the delivery bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.assemble.outputs.name }}
+          path: ${{ steps.assemble.outputs.zip }}
+          if-no-files-found: error
+          retention-days: 30
