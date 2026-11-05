@@ -51,3 +51,23 @@ WHERE u.email IN (
 )
 ON CONFLICT (event_id, attendee_id) DO UPDATE
     SET status = 'Registered', withdrawn_at = NULL;
+
+-- The event is Confirmed, so it must meet the SPM-135 readiness rule (see 036 for the order).
+-- Venue booking, equipment confirmation and safety approval are inserted after the event exists.
+-- Venue 301 is the seeded Sample Birch Lecture Hall; the window is the event's own 10:00 to 12:00.
+INSERT INTO venue_bookings (id, venue_id, event_id, start_at, end_at, status, reason, hold_expires_at)
+SELECT '00000000-0000-4000-8000-000000000121'::uuid, v.id, e.id, e.start_date_time, e.end_date_time,
+    'approved', NULL, NULL
+FROM events e
+JOIN venues v ON v.id = '00000000-0000-4000-8000-000000000301'::uuid
+WHERE e.id = '00000000-0000-4000-8000-000000000120'::uuid
+ON CONFLICT (id) DO NOTHING;
+
+UPDATE events
+SET equipment_confirmed_at = COALESCE(equipment_confirmed_at, now() - interval '2 days')
+WHERE id = '00000000-0000-4000-8000-000000000120'::uuid;
+
+INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by, approver_name, feedback, decided_at)
+VALUES ('00000000-0000-4000-8000-000000000120'::uuid, 'approved', now() - interval '3 days',
+    'coordinator1@connectsphere.test', 'Safety Officer 1', NULL, now() - interval '2 days')
+ON CONFLICT (event_id) DO NOTHING;
