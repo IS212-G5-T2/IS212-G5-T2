@@ -23,7 +23,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
     await pool.query(await readFile(new URL('../../database/postgresql/init/001_schema.sql', import.meta.url), 'utf8'));
     await pool.query(await readFile(new URL('../../database/postgresql/init/002_seed_data.sql', import.meta.url), 'utf8'));
-    for (const file of ['010_spm135_confirm_event.sql', '012_spm57_equipment_requests.sql', '014_spm57_request_reservations.sql', '020_spm58_cannot_provide.sql'])
+    for (const file of ['010_spm135_confirm_event.sql', '012_spm57_equipment_requests.sql', '014_spm57_request_reservations.sql', '020_spm58_cannot_provide.sql', '035_spm172_equipment_decision_notification.sql'])
       await pool.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication();
@@ -59,14 +59,14 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     return { id, cookie: cookie.split(';', 1)[0] };
   }
 
-  async function createEvent(coordinatorId: string, status: string) {
+  async function createEvent(coordinatorId: string, status: string, window: { start: string; end: string } = { start: '2030-02-03T10:00:00Z', end: '2030-02-03T12:00:00Z' }) {
     const id = randomUUID();
     await pool.query(
       `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose,
         start_date_time, end_date_time, expected_attendance, coordinator_id, coordinator_name, submission_key, status, rejection_reason)
        VALUES ($1, 'spm57-owner', 'Owner', 'owner@example.test', 'SPM-57 Showcase', 'Equipment request',
-        '2030-02-03T10:00:00Z', '2030-02-03T12:00:00Z', 120, $2, 'Coordinator', $1, $3,
-        CASE WHEN $3 = 'Rejected' THEN 'Event not suitable for approval.' ELSE NULL END)`, [id, coordinatorId, status]);
+        $4::timestamptz, $5::timestamptz, 120, $2, 'Coordinator', $1, $3,
+        CASE WHEN $3 = 'Rejected' THEN 'Event not suitable for approval.' ELSE NULL END)`, [id, coordinatorId, status, window.start, window.end]);
     eventIds.push(id);
     return id;
   }
@@ -114,23 +114,24 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await pool.query('SELECT id FROM event_status_history WHERE event_id = $1', [eventId])).rows).toEqual([]);
   });
 
-  /** approval creates missing reservation rows and reuses existing placeholders without duplication. */
+  /** EQUIP-RESERVE-08-A (Reserved half only; DECIDED SC-SPM58-03, chaw678 2026-11-06: reserve and Cannot Provide are accepted only from a Pending Review request): approval creates missing reservation rows and reuses existing placeholders without duplication. */
   it('persists exactly one Reserved row per request item whether placeholders were missing or already present', async () => {
     const coordinator = await createUser('COORDINATOR');
     const support = await createUser('TECH_SUPPORT');
     const equipmentId = randomUUID();
+    const placeholderStock = `SPM-58 Missing Placeholder Test ${equipmentId}`; // unique, so an aborted earlier run cannot collide
     equipmentIds.push(equipmentId);
     await pool.query(
       `INSERT INTO equipment (id, equipment_name, equipment_type, quantity, maintenance_status,
                               active_quantity, under_maintenance_quantity, retired_quantity, location)
-       VALUES ($1, 'SPM-58 Missing Placeholder Test', 'Audio', 4, 'Active', 4, 0, 0, 'Test Store')`,
-      [equipmentId],
+       VALUES ($1, $2, 'Audio', 4, 'Active', 4, 0, 0, 'Test Store')`,
+      [equipmentId, placeholderStock],
     );
 
     const missingEventId = await createEvent(coordinator.id, 'Planning');
     const missingRequest = await request(app.getHttpServer()).post('/api/equipment/requests')
       .set('Cookie', coordinator.cookie)
-      .send({ eventId: missingEventId, items: [{ equipmentName: 'SPM-58 Missing Placeholder Test', equipmentType: 'Audio', quantity: 1 }] })
+      .send({ eventId: missingEventId, items: [{ equipmentName: placeholderStock, equipmentType: 'Audio', quantity: 1 }] })
       .expect(201);
     await pool.query(
       'DELETE FROM equipment_reservations WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)',
@@ -143,12 +144,12 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
          FROM equipment_reservations reservation
          JOIN equipment_request_items item ON item.id = reservation.equipment_request_item_id
         WHERE item.request_id = $1::uuid`, [missingRequest.body.id]);
-    expect(createdRows.rows).toEqual([{ equipment_name: 'SPM-58 Missing Placeholder Test', quantity: 1, status: 'Reserved' }]);
+    expect(createdRows.rows).toEqual([{ equipment_name: placeholderStock, quantity: 1, status: 'Reserved' }]);
 
     const existingEventId = await createEvent(coordinator.id, 'Planning');
     const existingRequest = await request(app.getHttpServer()).post('/api/equipment/requests')
       .set('Cookie', coordinator.cookie)
-      .send({ eventId: existingEventId, items: [{ equipmentName: 'SPM-58 Missing Placeholder Test', equipmentType: 'Audio', quantity: 1 }] })
+      .send({ eventId: existingEventId, items: [{ equipmentName: placeholderStock, equipmentType: 'Audio', quantity: 1 }] })
       .expect(201);
     const before = await pool.query(
       'SELECT count(*)::integer AS count FROM equipment_reservations WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)',
@@ -164,7 +165,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(existingRows.rows).toEqual([{ status: 'Reserved' }]);
   });
 
-  /** EQUIP-RESERVE-08-A / EQUIP-RESERVE-09-A: Technical Support marks a request Cannot Provide with a required reason; it persists, retires placeholders, and the coordinator reads it. */
+  /** EQUIP-RESERVE-09-A (DECIDED SC-SPM58-03 and SC-SPM58-01, chaw678 2026-11-06: Pending Review only, one request-level status): Technical Support marks a request Cannot Provide with a required reason; it persists, retires placeholders, and the coordinator reads it. */
   it('records a Cannot Provide decision with its reason, retires placeholders, and shows it to the coordinator', async () => {
     const coordinator = await createUser('COORDINATOR');
     const support = await createUser('TECH_SUPPORT');
@@ -199,7 +200,310 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
       .set('Cookie', support.cookie).send({ reason: 'Still cannot provide.' }).expect(409);
   });
 
-  /** EQUIP-REQUEST-03-A: a multi-item Approved-event submission is persisted and moves the event to Planning. */
+  // SPM-58 overlap fixtures (real PostgreSQL). Event A holds 2030-03-10 10:00-12:00Z. B overlaps A, C is a
+  // different day, D starts exactly when A ends and E ends exactly when A starts (touching, not overlapping).
+  const overlapWindows = {
+    A: { start: '2030-03-10T10:00:00Z', end: '2030-03-10T12:00:00Z' },
+    B: { start: '2030-03-10T11:00:00Z', end: '2030-03-10T13:00:00Z' },
+    C: { start: '2030-03-11T10:00:00Z', end: '2030-03-11T12:00:00Z' },
+    D: { start: '2030-03-10T12:00:00Z', end: '2030-03-10T14:00:00Z' },
+    E: { start: '2030-03-10T08:00:00Z', end: '2030-03-10T10:00:00Z' },
+  };
+
+  async function seedStock(label: string, active: number) {
+    const id = randomUUID();
+    equipmentIds.push(id);
+    const name = `SPM-58 ${label} ${id}`;
+    await pool.query(
+      `INSERT INTO equipment (id, equipment_name, equipment_type, quantity, maintenance_status,
+                              active_quantity, under_maintenance_quantity, retired_quantity, location)
+       VALUES ($1, $2, 'Audio', $3, 'Active', $3, 0, 0, 'Test Store')`, [id, name, active]);
+    return name;
+  }
+
+  async function requestOn(coordinator: { cookie: string; id: string }, equipmentName: string, quantity: number, window: { start: string; end: string }) {
+    const eventId = await createEvent(coordinator.id, 'Planning', window);
+    const created = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName, equipmentType: 'Audio', quantity }] }).expect(201);
+    return created.body.id as string;
+  }
+
+  async function itemFor(cookie: string, requestId: string) {
+    const list = await request(app.getHttpServer()).get('/api/equipment/requests').set('Cookie', cookie).expect(200);
+    return list.body.find((row: { id: string }) => row.id === requestId) as {
+      status: string; items: { availableQuantity: number; sufficient: boolean }[];
+    };
+  }
+
+  const reserveRequest = (cookie: string, requestId: string) =>
+    request(app.getHttpServer()).patch(`/api/equipment/requests/${requestId}/reserve`).set('Cookie', cookie);
+
+  /** EQUIP-RESERVE-06-A (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): reserving N units reduces the availability shown for an overlapping event by exactly N (T = 6, N = 2). */
+  it('EQUIP-RESERVE-06-A reduces the available quantity of an overlapping event by exactly the reserved amount', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('06-A', 6);
+    const first = await requestOn(coordinator, stock, 2, overlapWindows.A);
+    const overlapping = await requestOn(coordinator, stock, 1, overlapWindows.B);
+    expect((await itemFor(coordinator.cookie, overlapping)).items[0].availableQuantity).toBe(6);
+
+    await reserveRequest(support.cookie, first).expect(200);
+
+    expect((await itemFor(coordinator.cookie, overlapping)).items[0]).toMatchObject({ availableQuantity: 4, sufficient: true });
+  });
+
+  /** EQUIP-RESERVE-06-B: a reservation does not reduce availability for a disjoint event (T = 6, N = 2). */
+  it('EQUIP-RESERVE-06-B leaves the available quantity of a disjoint event unchanged', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('06-B', 6);
+    const first = await requestOn(coordinator, stock, 2, overlapWindows.A);
+    const disjoint = await requestOn(coordinator, stock, 1, overlapWindows.C);
+    expect((await itemFor(coordinator.cookie, disjoint)).items[0].availableQuantity).toBe(6);
+
+    await reserveRequest(support.cookie, first).expect(200);
+
+    expect((await itemFor(coordinator.cookie, disjoint)).items[0]).toMatchObject({ availableQuantity: 6, sufficient: true });
+  });
+
+  /** EQUIP-RESERVE-06-BND-1 (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): reserving all T units leaves exactly 0 (not negative) and refuses a further reserve (T = 3). */
+  it('EQUIP-RESERVE-06-BND-1 reserving the whole stock leaves an overlapping event at exactly zero and refuses another reserve', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('06-BND-1', 3);
+    const first = await requestOn(coordinator, stock, 3, overlapWindows.A);
+    const overlapping = await requestOn(coordinator, stock, 1, overlapWindows.B);
+
+    await reserveRequest(support.cookie, first).expect(200);
+
+    expect((await itemFor(coordinator.cookie, overlapping)).items[0]).toMatchObject({ availableQuantity: 0, sufficient: false });
+    await reserveRequest(support.cookie, overlapping).expect(409);
+    expect((await itemFor(coordinator.cookie, overlapping)).status).toBe('Pending Review');
+  });
+
+  /** EQUIP-RESERVE-02-BND-1: available equal to requested is sufficient; one overlapping unit reserved elsewhere makes it insufficient (T = 3, request 3). */
+  it('EQUIP-RESERVE-02-BND-1 flips from sufficient to insufficient when one overlapping unit is reserved', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('02-BND-1', 3);
+    const subject = await requestOn(coordinator, stock, 3, overlapWindows.A);
+    const other = await requestOn(coordinator, stock, 1, overlapWindows.B);
+    expect((await itemFor(coordinator.cookie, subject)).items[0]).toMatchObject({ availableQuantity: 3, sufficient: true });
+
+    await reserveRequest(support.cookie, other).expect(200);
+
+    expect((await itemFor(coordinator.cookie, subject)).items[0]).toMatchObject({ availableQuantity: 2, sufficient: false });
+  });
+
+  /** EQUIP-RESERVE-04-A: reserving more than the units free for the event window (4 requested, 3 in stock) is refused and nothing is created. */
+  it('EQUIP-RESERVE-04-A refuses a reserve for more units than are available and persists nothing', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('04-A', 3);
+    const tooMany = await requestOn(coordinator, stock, 4, overlapWindows.A);
+
+    const refused = await reserveRequest(support.cookie, tooMany).expect(409);
+    expect(refused.body.message).toContain('Not enough active equipment');
+
+    expect((await itemFor(coordinator.cookie, tooMany)).status).toBe('Pending Review');
+    const rows = await pool.query(
+      `SELECT res.status FROM equipment_reservations res JOIN equipment_request_items i ON i.id = res.equipment_request_item_id
+        WHERE i.request_id = $1::uuid`, [tooMany]);
+    expect(rows.rows).toEqual([{ status: 'Requested' }]);
+  });
+
+  /** EQUIP-RESERVE-05-B: stock that is only Under Maintenance or Retired (no Active units) cannot be reserved and nothing is persisted. */
+  it.each([
+    ['Under Maintenance', 0, 2, 0],
+    ['Retired', 0, 0, 2],
+  ])('EQUIP-RESERVE-05-B refuses to reserve stock that is only %s', async (_label, active, maintenance, retired) => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const id = randomUUID();
+    equipmentIds.push(id);
+    const name = `SPM-58 05-B ${id}`;
+    await pool.query(
+      `INSERT INTO equipment (id, equipment_name, equipment_type, quantity, maintenance_status,
+                              active_quantity, under_maintenance_quantity, retired_quantity, location)
+       VALUES ($1, $2, 'Audio', 2, 'Active', $3, $4, $5, 'Test Store')`, [id, name, active, maintenance, retired]);
+    const subject = await requestOn(coordinator, name, 1, overlapWindows.A);
+
+    await reserveRequest(support.cookie, subject).expect(409);
+
+    expect((await itemFor(coordinator.cookie, subject)).status).toBe('Pending Review');
+    const rows = await pool.query(
+      `SELECT res.status FROM equipment_reservations res JOIN equipment_request_items i ON i.id = res.equipment_request_item_id
+        WHERE i.request_id = $1::uuid`, [subject]);
+    expect(rows.rows).toEqual([{ status: 'Requested' }]);
+  });
+
+  const rowsFor = (requestId: string) => pool.query(
+    `SELECT r.status AS request_status, res.status AS reservation_status
+       FROM equipment_requests r JOIN equipment_request_items i ON i.request_id = r.id
+       JOIN equipment_reservations res ON res.equipment_request_item_id = i.id WHERE r.id = $1::uuid`, [requestId]);
+
+  /** EQUIP-RESERVE-01-A: the Technical Support queue shows the event name, date and time and each item's type, name and quantity. */
+  it('EQUIP-RESERVE-01-A lists a Pending Review request with its event name, window and item details in the queue', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('01-A', 5);
+    const requestId = await requestOn(coordinator, stock, 3, overlapWindows.A);
+
+    const queue = await request(app.getHttpServer()).get('/api/equipment/requests/review-queue').set('Cookie', support.cookie).expect(200);
+    const row = queue.body.find((entry: { id: string }) => entry.id === requestId);
+    expect(row).toMatchObject({
+      status: 'Pending Review', eventName: 'SPM-57 Showcase',
+      eventStart: '2030-03-10T10:00:00.000Z', eventEnd: '2030-03-10T12:00:00.000Z',
+      items: [{ equipmentName: stock, equipmentType: 'Audio', quantity: 3 }],
+    });
+  });
+
+  /** EQUIP-RESERVE-01-B: requests that are Reserved or Cannot Provide are absent from the queue while a Pending Review request is present. */
+  it('EQUIP-RESERVE-01-B leaves resolved requests out of the queue and keeps the Pending Review one', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('01-B', 5);
+    const reserved = await requestOn(coordinator, stock, 1, overlapWindows.A);
+    const refused = await requestOn(coordinator, stock, 1, overlapWindows.C);
+    const pending = await requestOn(coordinator, stock, 1, overlapWindows.D);
+    await reserveRequest(support.cookie, reserved).expect(200);
+    await request(app.getHttpServer()).patch(`/api/equipment/requests/${refused}/cannot-provide`)
+      .set('Cookie', support.cookie).send({ reason: 'No stock.' }).expect(200);
+
+    const queue = await request(app.getHttpServer()).get('/api/equipment/requests/review-queue').set('Cookie', support.cookie).expect(200);
+    const ids = queue.body.map((entry: { id: string }) => entry.id);
+    expect(ids).toContain(pending);
+    expect(ids).not.toContain(reserved);
+    expect(ids).not.toContain(refused);
+  });
+
+  /** EQUIP-RESERVE-03-B: when an overlapping event already holds every unit, reserving 1 unit is refused and nothing is created (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request). */
+  it('EQUIP-RESERVE-03-B refuses a reserve when an overlapping event holds every unit and creates nothing', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('03-B', 2);
+    const holder = await requestOn(coordinator, stock, 2, overlapWindows.A);
+    const subject = await requestOn(coordinator, stock, 1, overlapWindows.B);
+    await reserveRequest(support.cookie, holder).expect(200);
+
+    await reserveRequest(support.cookie, subject).expect(409);
+
+    expect((await rowsFor(subject)).rows).toEqual([{ request_status: 'Pending Review', reservation_status: 'Requested' }]);
+  });
+
+  /** EQUIP-RESERVE-03-BND-1: reserving the entire available quantity (4 of 4) succeeds, available becomes 0 and a further reserve is refused (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request). */
+  it('EQUIP-RESERVE-03-BND-1 reserves the entire available quantity, leaves zero and refuses a further reserve', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('03-BND-1', 4);
+    const full = await requestOn(coordinator, stock, 4, overlapWindows.A);
+    const further = await requestOn(coordinator, stock, 1, overlapWindows.A);
+    expect((await itemFor(coordinator.cookie, further)).items[0].availableQuantity).toBe(4);
+
+    await reserveRequest(support.cookie, full).expect(200);
+
+    expect((await itemFor(coordinator.cookie, further)).items[0]).toMatchObject({ availableQuantity: 0, sufficient: false });
+    await reserveRequest(support.cookie, further).expect(409);
+  });
+
+  /** EQUIP-RESERVE-04-BND-1: reserving exactly the free quantity (F = 2 of 3, one held elsewhere) succeeds and one more unit is refused (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request). */
+  it('EQUIP-RESERVE-04-BND-1 reserves exactly the free quantity and refuses one more', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('04-BND-1', 3);
+    const held = await requestOn(coordinator, stock, 1, overlapWindows.A);
+    const exact = await requestOn(coordinator, stock, 2, overlapWindows.B);
+    const oneMore = await requestOn(coordinator, stock, 1, overlapWindows.B);
+    await reserveRequest(support.cookie, held).expect(200);
+
+    await reserveRequest(support.cookie, exact).expect(200);
+
+    await reserveRequest(support.cookie, oneMore).expect(409);
+    expect((await rowsFor(oneMore)).rows).toEqual([{ request_status: 'Pending Review', reservation_status: 'Requested' }]);
+  });
+
+  /** EQUIP-RESERVE-05-C: stock held for an overlapping event is refused (more than the remaining free quantity); the same units for a disjoint event succeed. */
+  it('EQUIP-RESERVE-05-C refuses the overlapping request and accepts the disjoint one', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('05-C', 2);
+    const held = await requestOn(coordinator, stock, 2, overlapWindows.A);
+    const overlapping = await requestOn(coordinator, stock, 1, overlapWindows.B);
+    const disjoint = await requestOn(coordinator, stock, 2, overlapWindows.C);
+    await reserveRequest(support.cookie, held).expect(200);
+
+    await reserveRequest(support.cookie, overlapping).expect(409);
+    expect((await rowsFor(overlapping)).rows).toEqual([{ request_status: 'Pending Review', reservation_status: 'Requested' }]);
+    await reserveRequest(support.cookie, disjoint).expect(200);
+    expect((await itemFor(coordinator.cookie, disjoint)).status).toBe('Reserved');
+  });
+
+  /** EQUIP-RESERVE-12-BND-1: an update is accepted in the last pre-Confirmed state and refused (naming the confirmed event) immediately after the event becomes Confirmed. */
+  it('EQUIP-RESERVE-12-BND-1 accepts the last pre-Confirmed update and refuses the next one once Confirmed', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const eventId = await createEvent(coordinator.id, 'Planning');
+    const created = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Boundary original', equipmentType: 'Audio', quantity: 1 }] }).expect(201);
+    await request(app.getHttpServer()).put(`/api/equipment/requests/${created.body.id}`).set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Boundary last allowed', equipmentType: 'Audio', quantity: 2 }] }).expect(200);
+    await pool.query("UPDATE events SET status = 'Confirmed' WHERE id = $1", [eventId]);
+    await request(app.getHttpServer()).put(`/api/equipment/requests/${created.body.id}`).set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Boundary too late', equipmentType: 'Audio', quantity: 3 }] }).expect(409)
+      .expect((response) => expect(response.body.message).toMatch(/confirmed/i));
+    const items = await pool.query('SELECT equipment_name, quantity FROM equipment_request_items WHERE request_id = $1 ORDER BY item_order', [created.body.id]);
+    expect(items.rows).toEqual([{ equipment_name: 'Boundary last allowed', quantity: 2 }]);
+  });
+
+  /** EQUIP-RESERVE-05-BND-1 (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): an overlapping reserve is refused; windows that only touch (end == start) do not consume stock (T = 2). */
+  it('EQUIP-RESERVE-05-BND-1 refuses an overlapping reserve but allows windows that only touch the held window', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('05-BND-1', 2);
+    const held = await requestOn(coordinator, stock, 2, overlapWindows.A);
+    const overlapping = await requestOn(coordinator, stock, 1, overlapWindows.B);
+    const touchingAfter = await requestOn(coordinator, stock, 2, overlapWindows.D);
+    const touchingBefore = await requestOn(coordinator, stock, 2, overlapWindows.E);
+    await reserveRequest(support.cookie, held).expect(200);
+
+    // Overlap: only 0 of 2 units remain, so nothing is persisted for the overlapping request.
+    await reserveRequest(support.cookie, overlapping).expect(409);
+    const refused = await pool.query(
+      `SELECT r.status AS request_status, res.status AS reservation_status
+         FROM equipment_requests r JOIN equipment_request_items i ON i.request_id = r.id
+         JOIN equipment_reservations res ON res.equipment_request_item_id = i.id WHERE r.id = $1::uuid`, [overlapping]);
+    expect(refused.rows).toEqual([{ request_status: 'Pending Review', reservation_status: 'Requested' }]);
+
+    // Touching windows do not overlap, so the full 2 units are still free for each.
+    expect((await itemFor(coordinator.cookie, touchingAfter)).items[0]).toMatchObject({ availableQuantity: 2, sufficient: true });
+    await reserveRequest(support.cookie, touchingAfter).expect(200);
+    expect((await itemFor(coordinator.cookie, touchingBefore)).items[0]).toMatchObject({ availableQuantity: 2, sufficient: true });
+    await reserveRequest(support.cookie, touchingBefore).expect(200);
+  });
+
+  /**
+   * EQUIP-RESERVE-08-BND-1 (DECIDED SC-SPM58-01, chaw678 2026-11-06: status is per equipment request; the test only shows that
+   * deciding one request never changes another request).
+   */
+  it('EQUIP-RESERVE-08-BND-1 keeps the Reserved, Cannot Provide and Pending Review statuses of separate requests independent', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('08-BND-1', 10);
+    const toReserve = await requestOn(coordinator, stock, 1, overlapWindows.A);
+    const toRefuse = await requestOn(coordinator, stock, 1, overlapWindows.C);
+    const untouched = await requestOn(coordinator, stock, 1, overlapWindows.D);
+
+    await reserveRequest(support.cookie, toReserve).expect(200);
+    await request(app.getHttpServer()).patch(`/api/equipment/requests/${toRefuse}/cannot-provide`)
+      .set('Cookie', support.cookie).send({ reason: 'Not available for this slot.' }).expect(200);
+
+    const list = await request(app.getHttpServer()).get('/api/equipment/requests').set('Cookie', coordinator.cookie).expect(200);
+    const statusOf = (id: string) => list.body.find((row: { id: string }) => row.id === id)?.status;
+    expect(statusOf(toReserve)).toBe('Reserved');
+    expect(statusOf(toRefuse)).toBe('Cannot Provide');
+    expect(statusOf(untouched)).toBe('Pending Review');
+  });
+
+  /** EQUIP-REQUEST-03-A, EQUIP-RESERVE-01-A: a multi-item Approved-event submission is persisted and moves the event to Planning. */
   it('EQUIP-REQUEST-03-A creates a Pending Review request, exposes it to both lists, and records Approved to Planning', async () => {
     const coordinator = await createUser('COORDINATOR');
     const support = await createUser('TECH_SUPPORT');
@@ -224,6 +528,8 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     const queued = queue.body.find((row: { id: string }) => row.id === response.body.id);
     expect(queued).toBeDefined();
     expect(queued.reference).toBe(response.body.requestReference);
+    // EQUIP-RESERVE-01-A: the queue row names the event and its date and time window.
+    expect(queued).toMatchObject({ eventName: 'SPM-57 Showcase', eventStart: '2030-02-03T10:00:00.000Z', eventEnd: '2030-02-03T12:00:00.000Z' });
     expect(queued.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ equipmentName: 'Wireless microphones', equipmentType: 'Audio', quantity: 1 }),
       expect.objectContaining({ equipmentName: 'Projector', equipmentType: 'Visual', quantity: 2 }),
@@ -530,7 +836,30 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(secondMine.body.map((row: { id: string }) => row.id)).not.toContain(firstCreated.body.id);
   });
 
-  /** EQUIP-REQUEST-07-A: Technical Support sees Pending Review rows but excludes requests already Reserved. */
+  /** EQUIP-RESERVE-10-B: after Technical Support reserves one request and marks another Cannot Provide on event E, a non-owning coordinator does not see either status; the owner does. */
+  it('EQUIP-RESERVE-10-B hides Technical Support status updates from a coordinator who does not own the event', async () => {
+    const owner = await createUser('COORDINATOR');
+    const other = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('10-B', 5);
+    const reservedId = await requestOn(owner, stock, 1, overlapWindows.A);
+    const refusedId = await requestOn(owner, stock, 1, overlapWindows.C);
+    await reserveRequest(support.cookie, reservedId).expect(200);
+    await request(app.getHttpServer()).patch(`/api/equipment/requests/${refusedId}/cannot-provide`)
+      .set('Cookie', support.cookie).send({ reason: 'No stock.' }).expect(200);
+
+    const ownerList = await request(app.getHttpServer()).get('/api/equipment/requests').set('Cookie', owner.cookie).expect(200);
+    const ownerStatuses = Object.fromEntries(ownerList.body.map((row: { id: string; status: string }) => [row.id, row.status]));
+    expect(ownerStatuses[reservedId]).toBe('Reserved');
+    expect(ownerStatuses[refusedId]).toBe('Cannot Provide');
+
+    const otherList = await request(app.getHttpServer()).get('/api/equipment/requests').set('Cookie', other.cookie).expect(200);
+    const otherIds = otherList.body.map((row: { id: string }) => row.id);
+    expect(otherIds).not.toContain(reservedId);
+    expect(otherIds).not.toContain(refusedId);
+  });
+
+  /** EQUIP-REQUEST-07-A, EQUIP-RESERVE-01-B: Technical Support sees Pending Review rows but excludes requests already Reserved. */
   it('EQUIP-REQUEST-07-A excludes non-Pending Review requests from the support queue', async () => {
     const first = await createUser('COORDINATOR');
     const second = await createUser('COORDINATOR');
@@ -703,7 +1032,8 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
       .send({ eventId, items: [{ equipmentName: 'Before confirmation', equipmentType: 'Audio', quantity: 2 }] }).expect(200);
     await pool.query("UPDATE events SET status = 'Confirmed' WHERE id = $1", [eventId]);
     await request(app.getHttpServer()).put(`/api/equipment/requests/${created.body.id}`).set('Cookie', coordinator.cookie)
-      .send({ eventId, items: [{ equipmentName: 'After confirmation', equipmentType: 'Audio', quantity: 3 }] }).expect(409);
+      .send({ eventId, items: [{ equipmentName: 'After confirmation', equipmentType: 'Audio', quantity: 3 }] }).expect(409)
+      .expect((response) => expect(response.body.message).toMatch(/confirmed/i));
 
     const items = await pool.query('SELECT equipment_name, quantity FROM equipment_request_items WHERE request_id = $1 ORDER BY item_order', [created.body.id]);
     const reservations = await pool.query('SELECT equipment_name, quantity FROM equipment_reservations WHERE event_id = $1 AND status = \'Requested\'', [eventId]);
@@ -713,9 +1043,63 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(requests.rows).toEqual([{ id: created.body.id }]);
   });
 
+  /** EQUIP-RESERVE-12-A: an edit is accepted and persisted while the event is Approved (the other pre-Confirmed state). */
+  it('EQUIP-RESERVE-12-A accepts and persists an edit while the event is Approved', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const eventId = await createEvent(coordinator.id, 'Planning');
+    const created = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Original', equipmentType: 'Audio', quantity: 1 }] }).expect(201);
+    await pool.query("UPDATE events SET status = 'Approved' WHERE id = $1", [eventId]);
+    await request(app.getHttpServer()).put(`/api/equipment/requests/${created.body.id}`).set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Edited while Approved', equipmentType: 'Audio', quantity: 2 }] }).expect(200);
+    const items = await pool.query('SELECT equipment_name, quantity FROM equipment_request_items WHERE request_id = $1 ORDER BY item_order', [created.body.id]);
+    expect(items.rows).toEqual([{ equipment_name: 'Edited while Approved', quantity: 2 }]);
+  });
+
+  /** EQUIP-RESERVE-12-B: once the event is Confirmed, Technical Support can neither reserve nor mark Cannot Provide; the refusal says the event is confirmed and the request is unchanged. */
+  it('EQUIP-RESERVE-12-B refuses Technical Support reserve and Cannot Provide on a Confirmed event and leaves the request unchanged', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const stock = await seedStock('12-B', 5);
+    const requestId = await requestOn(coordinator, stock, 1, overlapWindows.A);
+    const eventId = (await pool.query<{ event_id: string }>('SELECT event_id FROM equipment_requests WHERE id = $1::uuid', [requestId])).rows[0].event_id;
+    await pool.query("UPDATE events SET status = 'Confirmed' WHERE id = $1", [eventId]);
+
+    const reserved = await reserveRequest(support.cookie, requestId).expect(409);
+    expect(reserved.body.message).toMatch(/confirmed/i);
+    const refused = await request(app.getHttpServer()).patch(`/api/equipment/requests/${requestId}/cannot-provide`)
+      .set('Cookie', support.cookie).send({ reason: 'Too late.' }).expect(409);
+    expect(refused.body.message).toMatch(/confirmed/i);
+
+    const stored = await pool.query(
+      `SELECT r.status AS request_status, r.decision_reason, res.status AS reservation_status
+         FROM equipment_requests r JOIN equipment_request_items i ON i.request_id = r.id
+         JOIN equipment_reservations res ON res.equipment_request_item_id = i.id WHERE r.id = $1::uuid`, [requestId]);
+    expect(stored.rows).toEqual([{ request_status: 'Pending Review', decision_reason: null, reservation_status: 'Requested' }]);
+  });
+
   /** EQUIP-REQUEST-07-A: only Technical Support can see the review queue. */
   it('refuses the review queue to a coordinator', async () => {
     const coordinator = await createUser('COORDINATOR');
     await request(app.getHttpServer()).get('/api/equipment/requests/review-queue').set('Cookie', coordinator.cookie).expect(403);
+  });
+
+  /** EQUIP-RESERVE-03-SEC-1: an unauthenticated caller gets 401 and a coordinator gets 403 on both the review queue and reserve, and no reservation is created. */
+  it('EQUIP-RESERVE-03-SEC-1 refuses the review queue and reserve to unauthenticated and non-Technical-Support callers and creates nothing', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const stock = await seedStock('03-SEC-1', 5);
+    const requestId = await requestOn(coordinator, stock, 1, overlapWindows.A);
+    const http = () => request(app.getHttpServer());
+
+    await http().get('/api/equipment/requests/review-queue').expect(401);
+    await http().patch(`/api/equipment/requests/${requestId}/reserve`).expect(401);
+    await http().get('/api/equipment/requests/review-queue').set('Cookie', coordinator.cookie).expect(403);
+    await http().patch(`/api/equipment/requests/${requestId}/reserve`).set('Cookie', coordinator.cookie).expect(403);
+
+    const stored = await pool.query(
+      `SELECT r.status AS request_status, res.status AS reservation_status
+         FROM equipment_requests r JOIN equipment_request_items i ON i.request_id = r.id
+         JOIN equipment_reservations res ON res.equipment_request_item_id = i.id WHERE r.id = $1::uuid`, [requestId]);
+    expect(stored.rows).toEqual([{ request_status: 'Pending Review', reservation_status: 'Requested' }]);
   });
 });

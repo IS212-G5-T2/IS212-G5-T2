@@ -65,7 +65,7 @@ describe('SPM-57 equipment request controller', () => {
 });
 
 describe('SPM-113 equipment request reserve route', () => {
-  /** EQUIP-RESERVE: the reserve endpoint forwards the session identity and request id and returns the service result. */
+  /** EQUIP-RESERVE-03-A (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): the reserve endpoint forwards the session identity and request id and returns the service result. */
   it('forwards a reserve decision to the service', () => {
     reserve.mockReturnValue('reserved');
     expect(controller.reserve(request, 'request-1')).toBe('reserved');
