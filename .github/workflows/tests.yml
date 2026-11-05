@@ -194,9 +194,19 @@ jobs:
       - name: Start the disposable test database
         run: echo "TEST_DATABASE_URL=$(./database/postgresql/scripts/test-db.sh up)" >> "$GITHUB_ENV"
 
+      - name: Smoke-test the browser fixture builders
+        run: npm run test:browser-fixtures
+        working-directory: backend
+
+      - name: Typecheck the Playwright specs and fixture
+        # Playwright transpiles without type-checking and tsconfig.json excludes the specs, so this is the only gate.
+        run: npm run typecheck:e2e
+        working-directory: frontend
+
       - name: Run browser E2E suite
-        # The harness seeds this run's fixtures and then spawns Playwright, which starts the backend
-        # and the Vite dev server itself and points them at the same disposable database.
+        # The harness spawns Playwright, which starts the backend and the Vite dev server itself and
+        # points them at the same disposable database. Each test resets that database and builds its own
+        # fixtures (frontend/e2e/fixtures.ts); the harness no longer seeds.
         run: npm run test:browser
         working-directory: backend
 

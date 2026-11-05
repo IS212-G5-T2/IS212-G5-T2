@@ -21,7 +21,8 @@
     "test:e2e": "node scripts/testing/run-e2e.mjs",
     "test:cov:e2e": "node scripts/testing/run-e2e.mjs --coverage",
     "test:cov:spm37": "vitest run --config vitest.spm37.config.ts",
-    "test:browser": "node scripts/testing/run-browser.mjs"
+    "test:browser": "node scripts/testing/run-browser.mjs",
+    "test:browser-fixtures": "node --test scripts/testing/browser-fixtures.test.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^12.2.0",
