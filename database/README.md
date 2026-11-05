@@ -74,6 +74,109 @@ SELECT count(*) FROM role_permissions;
 
 The expected counts are 7 roles, 11 resources, and 31 role permission rows.
 
+## Disposable test database (SPM-185)
+
+Automated tests must never run against the shared Compose stack's `spm` database: they create and
+delete rows, and two backend suites re-apply migrations, which rolls schema backwards for everyone
+using that volume. `postgresql/scripts/test-db.sh` owns a separate throwaway container instead, so
+the Compose containers, networks, and named volumes are left untouched.
+
+`npm run test:e2e` in `backend` provisions one automatically when `TEST_DATABASE_URL` is unset, so
+no setup is needed:
+
+```sh
+cd backend && npm run test:e2e
+database/postgresql/scripts/test-db.sh down   # when finished; it is left running for reuse
+```
+
+Set `TEST_DATABASE_URL` yourself to use a database you manage instead:
+
+```sh
+export TEST_DATABASE_URL="$(database/postgresql/scripts/test-db.sh up)"
+cd backend && npm run test:e2e
+```
+
+`up` builds this directory's image, starts a container with an anonymous data volume, waits for
+initialisation, stamps the database, and prints the connection URL. Because the volume is anonymous,
+every `up` replays the full initialisation and the database is fresh by construction; `down` removes
+the container and that volume by recorded identity. The script refuses to remove a container it did
+not create, so a hand-started container of the same name is never deleted silently.
+
+| Command | Effect |
+| --- | --- |
+| `up` | Build, start, initialise, print the connection URL. Reuses an already-running container. |
+| `down` | Remove this script's container and its data volume. |
+| `url` | Print the connection URL without starting anything. |
+| `status` | Report `running`, `stopped`, or `absent`. |
+| `psql` | Open `psql` inside the container; extra arguments are passed through. |
+
+Defaults: port `55432`, user `spm`, database `spm`. The port avoids `5432`, which the Compose stack
+publishes, and `5433`, which hand-started test containers have used. Override with
+`SPM_TEST_DB_PORT`, `SPM_TEST_DB_CONTAINER`, and `SPM_TEST_DB_IMAGE`.
+
+### What the disposable database contains
+
+Only the image's own `init/` directory, which is the complete schema for a fresh database. That was
+not always true: `event_drafts` was once defined solely in `backend/migrations/001_event_drafts.sql`,
+so a database built from `init/` alone had no such table. Three separate workarounds had grown over
+that one gap — the Compose `postgres` service mounts the migration into the entrypoint as
+`004_event_drafts.sql`, `backend/test/drafts.e2e-spec.ts` applies `001_schema.sql` and the migration
+itself, and CI had no workaround at all and ran against a database missing the table.
+`init/003_event_drafts.sql` closes the gap, so this script needs no mount.
+
+A catalogue comparison between a database built from `init/` and one built from `init/` plus all 45
+files in `backend/migrations/` now differs by nothing: same 41 tables, 331 columns, 60 functions, 20
+triggers, 96 indexes.
+
+The entrypoint applies these files in filename order, and several init files share a numeric prefix
+(`011`, `012`, `017`, `018`, `019`, `020`, `024`, `026`, `028`, `029`, `030`, `036`). Within a prefix
+the order therefore comes from the rest of the filename. That is deterministic and is the order the
+dev stack has always used, so the script relies on the entrypoint rather than imposing its own order;
+anything order-sensitive must not depend on two files sharing a prefix.
+
+### Resetting a disposable database
+
+> **This destroys seeded demo data.** It is not yet wired into any runner, and it does not return the
+> database to its freshly-initialised state - see the limits below before using it.
+
+`backend/scripts/testing/reset-test-database.mjs` truncates a disposable database back to reference
+data only:
+
+```sh
+node backend/scripts/testing/reset-test-database.mjs   # needs TEST_DATABASE_URL
+```
+
+It reads the table list from the catalogue on every call rather than from a hardcoded list, so a
+table added later is reset from the day it exists instead of being silently skipped. It truncates
+every table in `public` except the reference and identity tables — `roles`, `resources`,
+`role_permissions`, `users`, `user_roles`, `facilities`, `room_layouts`, `accessibility_features`,
+`app_health_checks` — and then checks those hold exactly the row counts a fresh database has, so a
+future foreign key that makes `TRUNCATE ... CASCADE` reach into preserved data fails loudly instead
+of quietly deleting login accounts. Preserving the accounts also keeps resets fast, since the seeded
+password hashes are bcrypt. A reset clears `auth_sessions`, so it must run before a test logs in.
+
+**What it does not do.** Everything outside that list is truncated, including the seeded demo data
+from `init/011`, `012`, `018`–`020`, `026`, `028`, `030` and `036` — sample venues, sample events and
+demo bookings. Suites that assert on those rows fail after a reset; `venues-booking-requests` expects
+the SPM-51 sample venues, for example. So this is a truncation to reference data, not a return to the
+initialised state, and nothing calls it yet: the browser suites need per-test fixture builders first
+(SPM-187), and the backend suites either need those too or need seed restoration adding here. To get a
+genuinely fresh database today, use `test-db.sh down && test-db.sh up` — it replays the full init in
+about eight seconds.
+
+### Guards
+
+Both the reset helper and `npm run test:e2e` require `TEST_DATABASE_URL` and reject `DATABASE_URL`;
+the runner also overrides `DATABASE_URL` for the child process so the `TEST_DATABASE_URL ??
+DATABASE_URL` fallback in the suites cannot reach a dev database. Both also refuse any database
+without the `spm_disposable_test_db` marker that `test-db.sh` stamps, and CI stamps its own
+job-scoped database for the same reason.
+
+The marker is a guard against accident, **not** authentication: anyone can create that table by hand,
+and a database that has it is trusted. What it prevents is pointing a destructive run at a database
+nobody prepared for destruction. Note also that invoking vitest directly
+(`npx vitest run --config vitest.config.e2e.ts`) bypasses the runner and therefore every guard.
+
 ## Local login data
 
 `001_schema.sql` enables PostgreSQL `pgcrypto`, adds local-role membership and
