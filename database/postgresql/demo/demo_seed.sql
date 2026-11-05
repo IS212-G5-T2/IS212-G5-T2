@@ -20,6 +20,12 @@ TRUNCATE TABLE users, venues, events, equipment CASCADE;
 -- draft is only removed by the cascade above through its event_id reference. Listing it
 -- keeps the reseed from leaving a draft that points at a deleted account.
 TRUNCATE TABLE event_drafts;
+-- event_audit_log has no foreign key to events (SPM-157: it outlives the rows it describes), so the
+-- cascade above never reaches it. Without this, every reseed leaves the previous dataset's history
+-- behind: a fresh Compose volume was carrying 80 rows for events that no longer existed, and the
+-- count grew with each run. The history page is per-event so those rows were unreachable, but they
+-- are still the deleted dataset's data. Triggers refill this for the rows seeded below.
+TRUNCATE TABLE event_audit_log;
 
 -- ---------------------------------------------------------------------------
 -- Session-local helpers (pg_temp vanishes when the connection closes)
