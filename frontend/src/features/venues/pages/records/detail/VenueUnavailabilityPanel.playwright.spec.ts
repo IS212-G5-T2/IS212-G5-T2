@@ -1,14 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
-const venueName = process.env.SPM122_TEST_VENUE_NAME;
+const venueName = "SPM-122 unavailability browser";
 
 test.use({ timezoneId: "Asia/Singapore" });
 
 // SPM-122 / VEN-UNAVAIL-01-A/03-A/04-A/06-A: review, confirm, persist, and reload a real venue blockout.
 test("creates an unavailable period through the browser and displays it after reload", async ({ page }) => {
-  if (!venueName) throw new Error("Run this spec through the browser harness with a dedicated test database.");
-
   // Arrange: authenticate seeded Venue Staff and create an isolated venue through the real API.
   await page.goto("/login");
   await page.getByLabel("Email").fill("venue_staff1@connectsphere.test");

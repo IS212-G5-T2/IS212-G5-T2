@@ -52,7 +52,11 @@ export default defineConfig({
   testDir: "./src",
   testMatch: "**/*.playwright.spec.ts",
 
-  // These suites share one database, so they run one at a time. Per-test isolation is SPM-187.
+  // These suites share one database and frontend/e2e/fixtures.ts truncates it before EVERY test
+  // (SPM-187), so two tests running at once would wipe each other's rows and sessions mid-test and the
+  // fixtures' fixed names would collide. workers: 1 is a correctness requirement here, not a tuning
+  // choice - do not raise it, enable fullyParallel, or shard two shards onto one database. The reset
+  // fixture asserts this and fails loudly rather than letting it corrupt a run.
   workers: 1,
   fullyParallel: false,
 

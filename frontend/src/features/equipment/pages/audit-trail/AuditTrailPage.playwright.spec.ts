@@ -1,22 +1,22 @@
 // Story: SPM-119 Mark Equipment as Unavailable
 // ACs: AC5, AC6, AC7
 // Test cases: EQUIP-UNAVAIL-05-A, EQUIP-UNAVAIL-05-B, EQUIP-UNAVAIL-05-C
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../../../e2e/fixtures";
 
 const email =
   process.env.SPM119_TECH_SUPPORT_EMAIL ?? "tech_support1@connectsphere.test";
 const readerEmail =
   process.env.SPM119_AUDIT_READER_EMAIL ?? "tech_support2@connectsphere.test";
 const password = process.env.SPM119_TEST_PASSWORD ?? "P@55w0rd";
-const equipmentName = process.env.SPM119_AUDIT_EQUIPMENT_NAME;
 
 // EQUIP-UNAVAIL-05-A/B/C: shared audit history shows mark and reactivation snapshots to Technical Support.
 test("EQUIP-UNAVAIL-05-A/B/C displays shared audit history for unavailable and reactivated equipment", async ({
   page,
   browser,
+  db,
 }) => {
   // Arrange: sign in as seeded Technical Support and open the unique fixture record.
-  if (!equipmentName) throw new Error("SPM119_AUDIT_EQUIPMENT_NAME is required.");
+  const { equipmentName } = await db.preset("auditTrail");
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);

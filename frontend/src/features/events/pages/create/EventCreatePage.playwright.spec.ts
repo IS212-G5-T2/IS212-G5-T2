@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
 const organiserEmail = process.env.SPM37_ORGANISER_EMAIL ?? "organiser1@connectsphere.test";
@@ -23,7 +23,7 @@ const fields = {
 test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI", async ({
   page,
 }) => {
-  const name = process.env.SPM37_TEST_NAME ?? `Draft browser ${Date.now()}`;
+  const name = "Draft browser";
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/login");

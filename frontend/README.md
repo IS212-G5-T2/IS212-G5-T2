@@ -202,16 +202,21 @@ The standard Vitest command loads `vitest.config.ts`, which selects both
 `src/**/*.test.ts` and `src/**/*.test.tsx`. Playwright specs use their separate
 browser runner.
 
-SPM-134 browser spec (`src/features/bookings/pages/requests/BookingsPage.hold-expiry.playwright.spec.ts`): it needs a
-backend started with `TENTATIVE_HOLD_EXPIRY_INTERVAL_MS=1000` (its own scheduler writes the notices), a Vite dev server
-pointing at it, and three seeded holds. Run it through the harness
-(`node scripts/testing/run-browser.mjs <spec path>` in `backend/`, with `TEST_DATABASE_URL`, `PLAYWRIGHT_BASE_URL` and
-`PLAYWRIGHT_API_URL`), which seeds and removes the fixtures only when that spec is selected. To run it from the
-test-workflow cycle (`ai/scripts/test-workflow/run-cycle.mjs`, which calls Playwright directly), seed first with
-`TEST_DATABASE_URL=<db> node backend/scripts/testing/spm134-hold-fixtures.mjs seed > fixtures.json`, export the variables
-in that file together with `PLAYWRIGHT_BASE_URL` and `PLAYWRIGHT_API_URL`, run the cycle, then remove the rows with
-`node backend/scripts/testing/spm134-hold-fixtures.mjs cleanup fixtures.json`. Run the cycle's real-database suites on a
-different database from the one the browser backend uses, because they drive the expiry processors with far-future clocks.
+Browser test isolation (SPM-187): every Playwright test imports `test` and `expect` from `e2e/fixtures.ts`, whose
+automatic fixture resets the disposable database to reference data before the test (so before it logs in; the reset
+clears `auth_sessions`). A test then builds what it needs through the `db` fixture: `db.scene({ venues: { hall:
+{ setupMinutes: 30, turnaroundMinutes: 15 } }, events: { main: { status: "Approved", venue: "hall" } } })` in one call,
+the single-row `db.venue()`, `db.event()` and `db.equipment()`, or a named preset (`db.preset("withdrawal" |
+"auditTrail" | "holdExpiry")`). The builders live in `backend/scripts/testing/browser-fixtures.mjs`; the fixture runs
+that script as a child process, so `frontend/` takes no `pg` dependency (cost: about a quarter of a second per reset or
+seeding call). Run through the harness (`cd backend && TEST_DATABASE_URL=<db> npm run test:browser [-- <spec path>]`),
+which refuses a database without the disposable-test marker and starts the backend with
+`TENTATIVE_HOLD_EXPIRY_INTERVAL_MS=1000`, which the SPM-134 spec needs (its own scheduler writes the notices). Running
+`npx playwright test` directly resets whatever `TEST_DATABASE_URL` names, so point it at the database the backend uses.
+The old `spm134-hold-fixtures.mjs seed/cleanup` commands were replaced by the `holdExpiry` preset.
+Playwright transpiles without type-checking and `tsconfig.json` excludes the specs, so `npm run typecheck:e2e`
+(`tsc --noEmit -p tsconfig.e2e.json`, covering `e2e/` and `src/**/*.playwright.spec.ts`) is the type gate for them; CI runs it
+in the `browser-e2e-tests` job.
 
 ## Authentication
 

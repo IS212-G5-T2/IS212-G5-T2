@@ -136,8 +136,9 @@ anything order-sensitive must not depend on two files sharing a prefix.
 
 ### Resetting a disposable database
 
-> **This destroys seeded demo data.** It is not yet wired into any runner, and it does not return the
-> database to its freshly-initialised state - see the limits below before using it.
+> **This destroys seeded demo data.** It runs before every Playwright test (via `frontend/e2e/fixtures.ts`,
+> which builds each test's own state afterwards), but it is NOT wired into the backend suites and it does not
+> return the database to its freshly-initialised state - see the limits below before using it.
 
 `backend/scripts/testing/reset-test-database.mjs` truncates a disposable database back to reference
 data only:
@@ -156,11 +157,13 @@ of quietly deleting login accounts. Preserving the accounts also keeps resets fa
 password hashes are bcrypt. A reset clears `auth_sessions`, so it must run before a test logs in.
 
 **What it does not do.** Everything outside that list is truncated, including the seeded demo data
-from `init/011`, `012`, `018`–`020`, `026`, `028`, `030` and `036` — sample venues, sample events and
+from `init/011`, `012`, `018`–`020`, `026`, `030` and `036` — sample venues, sample events and
 demo bookings. Suites that assert on those rows fail after a reset; `venues-booking-requests` expects
 the SPM-51 sample venues, for example. So this is a truncation to reference data, not a return to the
-initialised state, and nothing calls it yet: the browser suites need per-test fixture builders first
-(SPM-187), and the backend suites either need those too or need seed restoration adding here. To get a
+initialised state. Only the browser suite calls it (SPM-187; each test then builds its own rows with
+`backend/scripts/testing/browser-fixtures.mjs`). The backend suites are not affected by that fixture and still need
+the seeded data, so do not run this against a database they will use: they would need seed restoration adding
+here first. To get a
 genuinely fresh database today, use `test-db.sh down && test-db.sh up` — it replays the full init in
 about eight seconds.
 

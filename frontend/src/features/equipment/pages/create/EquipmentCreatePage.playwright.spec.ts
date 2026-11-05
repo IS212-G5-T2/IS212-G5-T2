@@ -1,10 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../../../e2e/fixtures";
 
 const email =
   process.env.SPM111_TECH_SUPPORT_EMAIL ?? "tech_support1@connectsphere.test";
 const password = process.env.SPM111_TEST_PASSWORD ?? "P@55w0rd";
-const name =
-  process.env.SPM111_TEST_NAME ?? `SPM-111 equipment browser ${Date.now()}`;
+const name = "SPM-111 equipment browser";
 
 // SPM-111 EQUIP-CRE-04-A/05-A; SPM-113 EQUIP-AVAIL-08-A: create an item with
 // status-specific quantities and verify the complete breakdown in live inventory.

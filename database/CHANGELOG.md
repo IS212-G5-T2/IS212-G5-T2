@@ -2,6 +2,10 @@
 
 Changes to the local database assets in `database/`. Newest first.
 
+## SPM-187: browser-test event seed removed
+
+- Deleted `postgresql/init/028_spm120_withdrawal_browser_test.sql`, a committed fixed-id event for the SPM-120 withdrawal Playwright spec. The spec now builds its own Confirmed, at-capacity event (with the venue booking, equipment confirmation and safety check the readiness rule needs) per test through `backend/scripts/testing/browser-fixtures.mjs`, so fresh databases no longer carry it. Existing volumes keep the row until recreated; nothing else reads it.
+
 ## SPM-149: sample event seed data matches event statuses
 
 - Added `postgresql/init/036_spm149_coordinator_sample_events.sql`: sample events for `coordinator1`, `coordinator2`, `coordinator3` and `coordinator_venuestaff`, covering Submitted (some unassigned for the Lead queue), Approved, Planning, Confirmed and Rejected. Confirmed events have an approved venue booking, reserved equipment or a "no equipment needed" confirmation, and an approved safety check. Idempotent (`ON CONFLICT DO NOTHING`).

@@ -1,17 +1,12 @@
-import {
-  expect,
-  test,
-  type APIRequestContext,
-  type Page,
-} from "@playwright/test";
+import { type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test } from "../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
 const password = process.env.SPM40_TEST_PASSWORD ?? "P@55w0rd";
 const organiserEmail =
   process.env.SPM40_ORGANISER_EMAIL ?? "organiser1@connectsphere.test";
 const leadEmail = process.env.SPM40_LEAD_EMAIL ?? "lead@connectsphere.test";
-const defaultName =
-  process.env.SPM40_TEST_NAME ?? `SPM-40 approval functional ${Date.now()}`;
+const defaultName = "SPM-40 approval functional";
 
 type CreatedEvent = {
   id: string;

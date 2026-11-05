@@ -19,13 +19,13 @@ export const MARKER_TABLE = 'spm_disposable_test_db';
 // Reference and identity data, preserved across resets.
 //
 // Everything outside this list is truncated - and that includes the seeded demo data that
-// database/postgresql/init/011, 012, 018-020, 026, 028, 030 and 036 create (sample venues, sample
+// database/postgresql/init/011, 012, 018-020, 026, 030 and 036 create (sample venues, sample
 // events, demo bookings). So a reset does NOT return the database to its freshly-initialised state:
 // it returns it to reference data only. Suites that assert on seeded demo rows - for instance
 // venues-booking-requests.e2e-spec.ts, which expects the SPM-51 sample venues - will fail after one.
-// That is why this helper is not yet wired into any runner: the browser suites need per-test fixture
-// builders first (SPM-187), and the backend suites either need the same or need seed restoration
-// adding here.
+// The browser (Playwright) suite calls this before every test through frontend/e2e/fixtures.ts and then
+// builds its own rows with browser-fixtures.mjs (SPM-187). The backend suites do NOT use it and still need
+// the seed data, so do not run it against a database they share: they would need seed restoration adding here.
 //
 // Preserving these is also a performance decision: the seeded accounts' password hashes are
 // bcrypt, so re-seeding 20 users on every reset would dominate the cost of the reset itself.
