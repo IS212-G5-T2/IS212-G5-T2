@@ -39,6 +39,7 @@ import {
   HOLD_APPROVED_NOTICE,
   HOLD_REJECTED_NOTICE,
 } from '../venues/review/booking-decision-notice.js';
+import { HOLD_LIFECYCLE_NOTICE_TYPES } from '../venues/review/hold-lifecycle-notice.js';
 import { EQUIPMENT_DECISION_NOTICE_TYPES } from '../equipment/requests/equipment-decision-notice.js';
 import { CANCELLATION_ACCEPTED_NOTICE, CANCELLATION_DECLINED_NOTICE, CANCELLATION_REQUESTED_NOTICE } from './cancellation-requests/cancellation-request-notice.js';
 import { COORDINATOR_NOTIFICATION_TYPES } from './coordinator-notification-types.js';
@@ -47,6 +48,7 @@ import {
   isRegistrationOpen,
 } from '../registrations/registration/registration-window.js';
 import { VENUE_IMPACT_COORDINATOR_TYPES } from '../venues/notifications/venue-impact-notifications.js';
+import { CLARIFICATION_NOTICE_TYPES } from '../clarifications/clarification-notice.js';
 
 // SPM-46: the event's most recent reassignment, read with each event so the
 // current coordinator can see who it came from and when.
@@ -89,6 +91,9 @@ function audienceRoleFor(row: AudienceRow) {
     return 'attendee';
   }
   if (row.type === 'coordinator_unavailable') return 'coordinator_lead';
+  // SPM-177: a clarification notice goes to whichever of the Organiser and the assigned Coordinator is the other party.
+  if ((CLARIFICATION_NOTICE_TYPES as readonly string[]).includes(row.type))
+    return row.event_coordinator_id === row.recipient_id ? 'coordinator' : 'organiser';
   // SPM-171: the Organiser's cancellation request is told to the assigned Coordinator.
   if (row.type === CANCELLATION_REQUESTED_NOTICE) return 'coordinator';
   if (row.type.startsWith('coordinator_')) return 'coordinator';
@@ -96,6 +101,8 @@ function audienceRoleFor(row: AudienceRow) {
   if (row.type === BOOKING_APPROVED_NOTICE || row.type === BOOKING_REJECTED_NOTICE) return 'coordinator';
   // SPM-165: so are the tentative hold decision notices.
   if (row.type === HOLD_APPROVED_NOTICE || row.type === HOLD_REJECTED_NOTICE) return 'coordinator';
+  // SPM-134: and the hold expiry reminder, expired, released and converted notices.
+  if ((HOLD_LIFECYCLE_NOTICE_TYPES as readonly string[]).includes(row.type)) return 'coordinator';
   // SPM-172: the equipment request decision notices are the assigned coordinator's.
   if ((EQUIPMENT_DECISION_NOTICE_TYPES as readonly string[]).includes(row.type)) return 'coordinator';
   // SPM-125: the Coordinator's notices that a venue change affects their booking.
@@ -485,6 +492,8 @@ export class EventsService {
             // SPM-162: the Coordinator accepted or declined the organiser's cancellation request.
             CANCELLATION_ACCEPTED_NOTICE,
             CANCELLATION_DECLINED_NOTICE,
+            // SPM-177: the Coordinator requested, replied to or resolved a clarification.
+            ...CLARIFICATION_NOTICE_TYPES,
           ]
         : []),
       ...(user.roles.includes('COORDINATOR')
@@ -496,12 +505,16 @@ export class EventsService {
             // SPM-165: Venue Staff approved or rejected a tentative hold for an event assigned to them.
             HOLD_APPROVED_NOTICE,
             HOLD_REJECTED_NOTICE,
+            // SPM-134: the event's tentative hold is about to expire, has expired, or was released or converted.
+            ...HOLD_LIFECYCLE_NOTICE_TYPES,
             // SPM-171: the Organiser requested to cancel an event assigned to them.
             CANCELLATION_REQUESTED_NOTICE,
             // SPM-172: Technical Support reserved or could not provide an equipment request for an event assigned to them.
             ...EQUIPMENT_DECISION_NOTICE_TYPES,
             // SPM-125 AC6 to AC9: a venue change (unavailability, setup or turnaround, capacity) affects a booking.
             ...VENUE_IMPACT_COORDINATOR_TYPES,
+            // SPM-177: the Organiser replied to or resolved a clarification.
+            ...CLARIFICATION_NOTICE_TYPES,
           ]
         : []),
       ...(user.roles.includes('COORDINATOR_LEAD') ? ['coordinator_unavailable'] : []),

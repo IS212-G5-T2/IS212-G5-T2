@@ -35,6 +35,15 @@ export function titleRegExp(title) {
   return new RegExp(`^${escaped}$`);
 }
 
+/**
+ * Whether a kill link's title names a test definition. A hand-written testMappings title may be an it.each
+ * template, and a measured kill title (from --measure-kills) is the title Vitest ran, which for an it.each call
+ * site is one expansion of the definition's template. So either side can be the template: match both ways.
+ */
+export function titlesMatch(linkTitle, testTitle) {
+  return titleRegExp(linkTitle).test(testTitle) || titleRegExp(testTitle).test(linkTitle);
+}
+
 /** Results by repo-relative file from vitest --reporter=json outputs: [{ title, status }]. */
 export function readRunResults(runDir) {
   const byFile = new Map();
@@ -114,7 +123,7 @@ export async function buildRows(scope, existingRows, ctx) {
         deterministic: entry.file in deterministic ? (deterministic[entry.file] ? 'Yes' : 'No') : previous.deterministic ?? '',
         result: results.size ? resultOf(base, results) : previous.result || 'NOT RUN',
       });
-      const mapped = [...new Set(titleLinks.filter((link) => link.file === entry.file && titleRegExp(link.title).test(test.title)).map((link) => link.mutant))];
+      const mapped = [...new Set(titleLinks.filter((link) => link.file === entry.file && titlesMatch(link.title, test.title)).map((link) => link.mutant))];
       const killed = mapped.length ? `mutants:${mapped.join(',')}` : killsFor(entry.file, links);
       if (killed && (!previous.kills || previous.kills.startsWith('mutants:'))) row.kills = killed;
       if (!row.ac && registry.get(testId)) row.ac = registry.get(testId).parent_ac;

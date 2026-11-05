@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { Link } from "react-router-dom";
-import { VENUE_DECISION_NOTICE_TYPES, type Notification } from "@/types";
+import { HOLD_LIFECYCLE_NOTICE_TYPES, VENUE_DECISION_NOTICE_TYPES, type Notification } from "@/types";
 import { formatDateTime, formatDecisionDate, timeAgo } from "@/utils/format";
 
 // SPM-88 AC3: the bell never shows a reason; it is on the event detail page (AC4). Rejection messages carry none.
@@ -22,11 +22,13 @@ function headlineOf(message: string, type: Notification["type"], eventName?: str
 }
 
 const CHANGE_REQUEST_DECISIONS = new Set<Notification["type"]>(["change_request_approved", "change_request_denied"]);
-// SPM-137: a venue booking decision (SPM-165: and a tentative hold decision) opens the Coordinator's Bookings page for that booking, not an event page.
+// SPM-137: a venue booking decision (SPM-165: and a tentative hold decision; SPM-134: and a hold expiry reminder, expired,
+// released or converted notice) opens the Coordinator's Bookings page for that booking, not an event page.
 // SPM-125 AC7: so does a notice that a Venue Staff change (unavailability, setup or turnaround, capacity) affects
 // the booking, where the Coordinator can find a replacement venue (SPM-54 AC5).
 const BOOKING_NOTICES = new Set<Notification["type"]>([
   ...VENUE_DECISION_NOTICE_TYPES,
+  ...HOLD_LIFECYCLE_NOTICE_TYPES,
   "venue_unavailable_impact",
   "venue_timing_impact",
   "venue_capacity_impact",

@@ -16,5 +16,23 @@
     "file": "backend/src/events/events.service.ts",
     "lines": "105",
     "reason": "requireOrganiser name fallback used by event creation (SPM-36); covered by EVE-CRE-06-BND-2"
+  },
+  {
+    "story": "SPM-64",
+    "file": "frontend/src/utils/planning.ts",
+    "lines": "12,74,78,91",
+    "reason": "Planning-page date formatting (SPM-97 field conditions and values) moved to the shared Singapore formatter in SPM-64 commit 1a9a3926; the behaviour is the planning page’s, covered by EVENT-UPDATE and EVENT-VIEW tests in planning.test.ts (SPM-175 audit, 4 Nov 2026)"
+  },
+  {
+    "story": "SPM-64",
+    "file": "frontend/src/features/events/pages/detail/planning/FlaggedChangeReview.tsx",
+    "lines": "89-92,104",
+    "reason": "Per-booking decision progress on a flagged change (SPM-85 behaviour), committed in SPM-64 commit 1a9a3926; covered by EVENT-FLAG tests in FlaggedChangeReview.test.tsx (SPM-175 audit, 4 Nov 2026)"
+  },
+  {
+    "story": "SPM-64",
+    "file": "frontend/src/features/events/pages/detail/planning/PlanningUpdateForm.tsx",
+    "lines": "6,7,38,48,65,66,149-151,162,185-187,230,233-235",
+    "reason": "Field rule badges and the per-field last decision line on the planning form (SPM-97/SPM-156 behaviour), committed in SPM-64 commit 1a9a3926; covered by EVENT-UPDATE and EVENT-FLAG tests in PlanningUpdateForm.test.tsx (SPM-175 audit, 4 Nov 2026)"
   }
 ]

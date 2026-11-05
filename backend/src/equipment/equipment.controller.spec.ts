@@ -20,6 +20,7 @@ describe('EquipmentController route delegation', () => {
     updateAvailability: vi.fn(),
     update: vi.fn(),
     getAuditTrail: vi.fn(),
+    getAvailability: vi.fn(),
   };
   const controller = new EquipmentController(service as unknown as EquipmentService);
 
@@ -86,5 +87,19 @@ describe('EquipmentController route delegation', () => {
 
     expect(controller.update('equipment-1', body, request)).toBe('updated');
     expect(service.update).toHaveBeenCalledWith(identity, 'equipment-1', body);
+  });
+
+  /**
+   * EQUIP-AVAIL-01-A: the availability route forwards the verified caller and the raw query values for validation in the service.
+   */
+  it('EQUIP-AVAIL-01-A delegates the availability lookup with the verified caller and query window', () => {
+    service.getAvailability.mockReturnValue('availability');
+
+    expect(controller.availability('2030-01-01T10:00:00.000Z', '2030-01-01T11:00:00.000Z', 'Audio', request)).toBe('availability');
+    expect(service.getAvailability).toHaveBeenCalledWith(identity, {
+      startDateTime: '2030-01-01T10:00:00.000Z',
+      endDateTime: '2030-01-01T11:00:00.000Z',
+      equipmentType: 'Audio',
+    });
   });
 });

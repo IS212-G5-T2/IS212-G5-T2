@@ -56,6 +56,7 @@ const VALID_REASON = 'Venue unavailable for the requested date.';
 // SPM-64 AC3 adds the organiser's change request notice to the coordinator's feed.
 // SPM-131 adds the Safety Officer's response notice to the coordinator's feed.
 // SPM-137 adds the two venue booking decision notices (approved, rejected); SPM-165 the two tentative hold ones.
+// SPM-134 adds the four tentative hold expiry, release and conversion notices.
 // SPM-171 adds the Organiser's cancellation request notice.
 const COORDINATOR_NOTIFICATION_TYPES = [
   'coordinator_assignment',
@@ -68,6 +69,11 @@ const COORDINATOR_NOTIFICATION_TYPES = [
   'venue_booking_rejected',
   'tentative_hold_approved',
   'tentative_hold_rejected',
+  // SPM-134: the hold expiry reminder, expired, released and converted notices.
+  'tentative_hold_expiry_reminder',
+  'tentative_hold_expired',
+  'tentative_hold_released',
+  'tentative_hold_converted',
   'cancellation_request_submitted',
   // SPM-172: Technical Support reserved or could not provide the Coordinator's equipment request.
   'equipment_request_reserved',
@@ -76,6 +82,10 @@ const COORDINATOR_NOTIFICATION_TYPES = [
   'venue_unavailable_impact',
   'venue_timing_impact',
   'venue_capacity_impact',
+  // SPM-177: clarification notices.
+  'clarification',
+  'clarification_reply',
+  'clarification_resolved',
 ];
 
 // Build a letters-only, >=3-word reason of exactly n characters (n >= 10) with no
@@ -403,7 +413,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     expect(result[0].message).toBe('Your event request "Welcome Evening" was rejected');
     expect(result[0].message).not.toContain(VALID_REASON);
     // The organiser's query asks only for their decision notification types.
-    expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied', 'cancellation_request_accepted', 'cancellation_request_declined']]);
+    expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied', 'cancellation_request_accepted', 'cancellation_request_declined', 'clarification', 'clarification_reply', 'clarification_resolved']]);
   });
 
   // Coordinators may now read their own assignment notifications (SPM-123), so
@@ -502,7 +512,7 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
     // Assert: an organiser's query still asks only for their decision types.
     db.query.mockResolvedValueOnce({ rows: [] });
     await service.notifications(organiser());
-    expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied', 'cancellation_request_accepted', 'cancellation_request_declined']]);
+    expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied', 'cancellation_request_accepted', 'cancellation_request_declined', 'clarification', 'clarification_reply', 'clarification_resolved']]);
   });
 });
 

@@ -70,6 +70,27 @@ export function tentativeHoldDecisionMessage(
 }
 
 /**
+ * SPM-134 AC4: the Coordinator's tentative hold lifecycle notices. The expiry is written with formatSgt, the app's
+ * Singapore-time format (SC-SPM134-01; AC4 now states Singapore time, for example `4 Jun 2030, 15:00 SGT`). Released and converted notices name
+ * no date; the notification's own timestamp shows when the change happened.
+ */
+export function tentativeHoldReminderMessage(venueName: string, eventName: string, expiresAt: Date): string {
+  return `Your tentative hold of ${venueName} for "${eventName}" expires on ${formatSgt(expiresAt)}.`;
+}
+
+export function tentativeHoldExpiredMessage(venueName: string, eventName: string, expiresAt: Date): string {
+  return `Your tentative hold of ${venueName} for "${eventName}" expired on ${formatSgt(expiresAt)}.`;
+}
+
+export function tentativeHoldReleasedMessage(venueName: string, eventName: string): string {
+  return `Your tentative hold of ${venueName} for "${eventName}" has been released.`;
+}
+
+export function tentativeHoldConvertedMessage(venueName: string, eventName: string): string {
+  return `Your tentative hold of ${venueName} for "${eventName}" has been confirmed as a booking.`;
+}
+
+/**
  * SPM-172 AC2: the notification the event's Coordinator receives when Technical Support reserve an equipment request or
  * mark it cannot be provided. The cannot-provide reason is not part of it; the request page shows it.
  */

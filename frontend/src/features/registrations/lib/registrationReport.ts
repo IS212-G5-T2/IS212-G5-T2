@@ -99,10 +99,7 @@ export function filterRegistrations(rows: ReportRow[], search: string, filter: F
     if (!matchesSearch) return false;
     if (filter === "all") return true;
     if (filter === "today") return sgtDayKey(row.registeredAt) === today;
-    if (filter === "special-requirements") {
-      return !!row.specialRequirements;
-    }
-    return true;
+    return !!row.specialRequirements;
   });
 }
 

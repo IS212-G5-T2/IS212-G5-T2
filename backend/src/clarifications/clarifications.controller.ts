@@ -8,9 +8,11 @@ import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import type { AuthenticatedRequest } from '../auth/types/authenticated-request.js';
 import { ClarificationsService } from './clarifications.service.js';
 
+/* v8 ignore start -- TypeScript decorator metadata emits an unreachable fallback branch. */
 @Controller('api')
 export class ClarificationsController {
   constructor(private readonly clarifications: ClarificationsService) {}
+/* v8 ignore stop */
 
   @Post('events/:id/clarifications')
   create(

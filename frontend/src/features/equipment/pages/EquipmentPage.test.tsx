@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EquipmentPage } from "./EquipmentPage";
 
@@ -73,5 +73,25 @@ describe("EquipmentPage", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load equipment reservations. Please try again.");
     expect(screen.queryByText("No equipment currently reserved.")).not.toBeInTheDocument();
+  });
+
+  /** A response that arrives after the page is left is ignored and raises no errors. */
+  it.each([
+    ["resolves", (d: { resolve: (v: unknown) => void }) => d.resolve([])],
+    ["rejects", (d: { reject: (e: unknown) => void }) => d.reject(new Error("late"))],
+  ])("ignores a request that %s after the page unmounted", async (_name, settle) => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let resolve!: (v: unknown) => void;
+    let reject!: (e: unknown) => void;
+    getEquipmentReservations.mockReturnValue(new Promise((res, rej) => { resolve = res; reject = rej; }));
+    const view = render(<EquipmentPage />);
+    expect(screen.getByText(/Loading equipment reservations/)).toBeInTheDocument();
+    view.unmount();
+    settle({ resolve, reject });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    errorSpy.mockRestore();
+    cleanup();
   });
 });

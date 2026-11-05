@@ -285,6 +285,7 @@ export function VenueRecordDetailPage() {
   }, [canCoordinate, requestedEventId, venue?.id, bookingMode, revision, availabilityNow]);
 
   async function cancelEventVenueBooking(confirmed = false) {
+    /* v8 ignore next -- the Confirm cancellation button renders only when the booking exists. */
     if (!eventVenueBooking) return;
     setCancelling(true);
     setRequestError("");

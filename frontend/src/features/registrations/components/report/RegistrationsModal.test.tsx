@@ -97,6 +97,20 @@ describe("SPM-63 registrations modal: expandable cards", () => {
     expect(screen.queryByText("Contact number")).not.toBeInTheDocument();
   });
 
+  // A legacy registration without a name or email shows Not provided in the card header and in its details.
+  it("shows Not provided for a missing name and email, collapsed and expanded", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue(buildReport({ registrations: [{ ...DEV_PATEL, fullName: "", email: "" }] }));
+    renderModal();
+
+    const card = await screen.findByRole("button", { name: /Not provided \(Not provided\)/ });
+    await user.click(card);
+
+    const details = within(screen.getByText("Full name").closest("dl") as HTMLElement);
+    expect(details.getAllByText("Not provided")).toHaveLength(2);
+    expect(details.getByText("87654321")).toBeInTheDocument();
+  });
+
   // Only one card is open at a time, so opening a second collapses the first.
   // Kills: M-MODAL-SINGLE
   it("keeps a single card expanded at a time", async () => {

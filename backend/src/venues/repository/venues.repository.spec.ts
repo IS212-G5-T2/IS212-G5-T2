@@ -791,7 +791,7 @@ describe('VenuesRepository', () => {
       });
       expect(String(query.mock.calls[2][0])).toContain("status = 'pending' OR (status = 'approved' AND");
       expect(String(query.mock.calls[2][0])).toContain("request_kind <> 'tentative_hold' OR hold_expires_at IS NULL OR hold_expires_at > $3::timestamptz");
-      expect(query.mock.calls[2][1]).toEqual([
+      expect((query.mock.calls[2] as unknown[])[1]).toEqual([
         '00000000-0000-4000-8000-000000000099',
         venue.id,
         expect.any(Date),
@@ -1757,7 +1757,7 @@ describe('SPM-124 venue reads', () => {
     expect(query.mock.calls[2][0].replace(/\s+/g, ' ')).toContain(
       "((b.status = 'approved' AND b.request_kind <> 'tentative_hold') OR (b.status = 'approved' AND b.request_kind = 'tentative_hold' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > $3::timestamptz)) OR (b.status = 'pending' AND b.hold_expires_at > $3::timestamptz))",
     );
-    expect(result.affectedBookings).toContainEqual(
+    expect(result?.affectedBookings).toContainEqual(
       expect.objectContaining({ id: 'hold-null-expiry', status: 'tentative' }),
     );
     expect(query.mock.calls[2][1]).toEqual([
@@ -2659,6 +2659,87 @@ describe('SPM-55 venue booking review repository', () => {
     const { repository, clientQuery } = createSplitReviewRepository({ rows: [] });
     await expect(repository.convertTentativeHold(staffId, bookingId)).resolves.toEqual({ kind: 'not-found' });
     expect(clientQuery).toHaveBeenCalledTimes(1);
+  });
+
+  /** VEN-CONF-06-A: a conflicting row that carries no status, request kind or hold expiry reports only its interval fields. */
+  it('VEN-CONF-06-A omits status, requestKind and holdExpiresAt from a conflict row that has none', async () => {
+    const { repository } = createReviewRepository(
+      ownedRow,
+      venueLockRow,
+      bookingLockRow,
+      {
+        rows: [{
+          id: 'blockout-1', reason: 'Maintenance', kind: 'blockout',
+          start_at: new Date('2030-01-12T03:00:00.000Z'), end_at: new Date('2030-01-12T04:00:00.000Z'),
+          occupied_start: new Date('2030-01-12T02:30:00.000Z'), occupied_end: new Date('2030-01-12T04:45:00.000Z'),
+          status: null, request_kind: null, hold_expires_at: null,
+        }],
+      },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toEqual({
+      kind: 'conflict',
+      reason: 'Maintenance',
+      conflicts: [{
+        id: 'blockout-1', reason: 'Maintenance', kind: 'blockout',
+        start: '2030-01-12T03:00:00.000Z', end: '2030-01-12T04:00:00.000Z',
+        occupiedStart: '2030-01-12T02:30:00.000Z', occupiedEnd: '2030-01-12T04:45:00.000Z',
+      }],
+    });
+  });
+
+  /** VEN-HOLD-DEC-09-B and 10-B: a hold action is refused, with no write, unless the booking is an active approved hold. */
+  it.each([
+    ['its event is Completed', { event_status: 'Completed', status: 'approved', request_kind: 'tentative_hold' }, 'event-completed'],
+    ['the hold has already been processed as expired', { status: 'expired', request_kind: 'tentative_hold' }, 'expired'],
+    ['the request is still pending', { status: 'pending', request_kind: 'tentative_hold' }, 'not-active'],
+    ['the booking is an ordinary approved booking', { status: 'approved', request_kind: 'booking' }, 'not-active'],
+    ['the hold was already released', { status: 'released', request_kind: 'tentative_hold' }, 'not-active'],
+  ])('VEN-HOLD-DEC-09-B refuses convert and release when %s', async (_name, override, kind) => {
+    for (const method of ['convertTentativeHold', 'releaseTentativeHold'] as const) {
+      const row = { ...pendingRow, hold_expires_at: new Date('2030-01-24T12:00:00.000Z'), ...override };
+      const { repository, clientQuery } = createSplitReviewRepository(ownedRow, venueLockRow, { rows: [row] });
+
+      await expect(repository[method](staffId, bookingId)).resolves.toEqual({ kind });
+      expect(clientQuery).toHaveBeenCalledTimes(3);
+    }
+  });
+
+  /** VEN-HOLD-DEC-09-B: an approved hold with no expiry recorded is treated as expired, not as active. */
+  it('VEN-HOLD-DEC-09-B treats an approved hold without an expiry as expired', async () => {
+    const row = { ...pendingRow, status: 'approved', request_kind: 'tentative_hold', hold_expires_at: null };
+    const { repository } = createSplitReviewRepository(ownedRow, venueLockRow, { rows: [row] });
+
+    await expect(repository.releaseTentativeHold(staffId, bookingId)).resolves.toEqual({ kind: 'expired' });
+  });
+
+  /**
+   * SPM-159: elapsed approved holds are persisted as expired once, using the supplied instant, and their ids are returned.
+   * The run is one transaction since SPM-134 (the expired notice is saved with the status change); these rows have no
+   * Coordinator, so no notice is written and the UPDATE stays the first query.
+   */
+  it('SPM-159 processExpiredTentativeHolds expires only elapsed approved holds not yet processed and returns their ids', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ id: 'hold-1' }, { id: 'hold-2' }] });
+    const transaction = (work: (client: { query: typeof query }) => Promise<unknown>) => work({ query });
+    const repository = new VenuesRepository({ query, transaction } as unknown as DatabaseService, { now: () => new Date('2030-01-10T12:00:00.000Z') });
+    const instant = new Date('2030-02-01T00:00:00.000Z');
+
+    await expect(repository.processExpiredTentativeHolds(instant)).resolves.toEqual(['hold-1', 'hold-2']);
+
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+    const normalized = normalizeSql(sql);
+    expect(normalized).toContain("SET status = 'expired', hold_expiry_processed_at = $1::timestamptz");
+    expect(normalized).toContain("WHERE request_kind = 'tentative_hold' AND status = 'approved' AND hold_expires_at <= $1::timestamptz AND hold_expiry_processed_at IS NULL");
+    expect(params).toEqual([instant]);
+  });
+
+  it('SPM-159 processExpiredTentativeHolds defaults to the injected clock and returns an empty list when nothing elapsed', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const transaction = (work: (client: { query: typeof query }) => Promise<unknown>) => work({ query });
+    const repository = new VenuesRepository({ query, transaction } as unknown as DatabaseService, { now: () => new Date('2030-01-10T12:00:00.000Z') });
+
+    await expect(repository.processExpiredTentativeHolds()).resolves.toEqual([]);
+    expect(query.mock.calls[0][1]).toEqual([new Date('2030-01-10T12:00:00.000Z')]);
   });
 
   /** VEN-REV-05-A: a rejection writes exactly one audit row that keeps the stored reason and the rejecting staff member. */
@@ -4187,5 +4268,346 @@ describe('SPM-125 venue update notifications', () => {
       ['upcoming', true],
       ['ended', undefined],
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// SPM-134 (tentative hold expiry notifications, Coordinator): HOLD-EXP-NOTIF-01-C, 01-D, 01-E, 02-A, 02-B, 02-C, 03-A,
+// 03-B, 03-C, 03-D, 11-A, 11-B, 11-C, 11-D. The repository is tested in isolation: the transaction client answers from a fixed sequence of
+// fixture rows, so these cases show which statements run, in what order and inside which transaction. PostgreSQL is
+// exercised by test/tentative-hold-lifecycle-notifications.e2e-spec.ts.
+// ---------------------------------------------------------------------------------------------------------------------
+describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
+  const staffId = ownerUserId;
+  const holdId = '6f0d6f3a-2c1e-4b59-9d8a-0c3b7e1f2a44';
+  const now = new Date('2030-01-10T12:00:00.000Z');
+  const expiry = new Date('2030-01-12T11:00:00.000Z');
+  const norm = (sql: unknown) => String(sql).replace(/\s+/g, ' ');
+  const context = (overrides: Record<string, unknown> = {}) => ({
+    rows: [{ coordinator_id: 'coord-assigned', event_id: 'event-1', event_name: 'Gala Night', event_status: 'Planning', venue_name: 'Orchid Hall', ...overrides }],
+  });
+  const activeHold = {
+    id: holdId, event_id: 'event-1', venue_id: venue.id, status: 'approved', start_at: new Date('2030-03-01T10:00:00.000Z'),
+    end_at: new Date('2030-03-01T11:00:00.000Z'), rejection_reason: null, request_kind: 'tentative_hold',
+    hold_expires_at: new Date('2030-01-24T12:00:00.000Z'), reassessment_required: false, event_start: new Date('2030-03-01T10:00:00.000Z'),
+    event_status: 'Planning',
+  };
+  const ownedRow = { rows: [{ venue_id: venue.id }] };
+  const venueLockRow = { rows: [{ id: venue.id, setup_time_minutes: 30, turnaround_time_minutes: 45 }] };
+
+  /**
+   * Models DatabaseService.transaction: BEGIN, the work, COMMIT on success, ROLLBACK then rethrow on failure. A queued
+   * Error is thrown by that statement. BEGIN, COMMIT and ROLLBACK do not consume queued responses.
+   */
+  function createRepository(...steps: Array<{ rows: unknown[] } | Error>) {
+    const queue = [...steps];
+    const clientQuery = vi.fn(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      const next = queue.shift() ?? { rows: [] };
+      if (next instanceof Error) throw next;
+      return next;
+    });
+    const poolQuery = vi.fn().mockResolvedValue({ rows: [] });
+    const database = {
+      query: poolQuery,
+      transaction: async (work: (tx: unknown) => Promise<unknown>) => {
+        await clientQuery('BEGIN');
+        try {
+          const result = await work({ query: clientQuery });
+          await clientQuery('COMMIT');
+          return result;
+        } catch (error) {
+          await clientQuery('ROLLBACK');
+          throw error;
+        }
+      },
+    };
+    return { repository: new VenuesRepository(database as unknown as DatabaseService, { now: () => now }), clientQuery, poolQuery };
+  }
+  const sqlsOf = (clientQuery: { mock: { calls: unknown[][] } }) => (clientQuery.mock.calls as Array<[string]>).map(([sql]) => norm(sql));
+  const noticeInserts = (clientQuery: { mock: { calls: unknown[][] } }) =>
+    (clientQuery.mock.calls as Array<[string, unknown[]]>).filter(([sql]) => sql.includes('INSERT INTO notifications'));
+
+  /**
+   * HOLD-EXP-NOTIF-01-C (SPM-134 AC1, AC5): the reminder run marks, in one conditional UPDATE, only approved tentative
+   * holds that are not yet processed, not yet reminded, not yet expired and expire within 48 hours, on a non-cancelled
+   * event, and writes one reminder for each hold the UPDATE returns, in the same transaction and stamped with the run time.
+   * Kills: a reminder without the marker, any dropped guard, a notice written outside the transaction, a wrong timestamp.
+   */
+  it('HOLD-EXP-NOTIF-01-C marks the due holds once and writes one reminder per marked hold in the same transaction', async () => {
+    const { repository, clientQuery, poolQuery } = createRepository(
+      { rows: [{ id: holdId, hold_expires_at: expiry }, { id: 'hold-2', hold_expires_at: expiry }] },
+      context(), { rows: [] },
+      context({ event_id: 'event-2' }), { rows: [] },
+    );
+
+    await expect(repository.processTentativeHoldReminders()).resolves.toEqual([holdId, 'hold-2']);
+
+    const [mark, markParams] = (clientQuery.mock.calls as unknown as Array<[string, unknown[]]>)[1];
+    const sql = norm(mark);
+    expect(sql).toContain('UPDATE venue_bookings b SET hold_reminder_sent_at = $1::timestamptz');
+    for (const guard of [
+      "b.request_kind = 'tentative_hold'", "b.status = 'approved'", 'b.hold_expiry_processed_at IS NULL',
+      'b.hold_reminder_sent_at IS NULL', 'b.hold_expires_at > $1::timestamptz',
+      "b.hold_expires_at <= $1::timestamptz + interval '48 hours'", "e.status <> 'Cancelled'",
+    ]) expect(sql).toContain(guard);
+    expect(markParams).toEqual([now]);
+    expect(poolQuery).not.toHaveBeenCalled();
+    const inserts = noticeInserts(clientQuery);
+    expect(inserts.map(([, params]) => [params[2], params[5], params[6]])).toEqual([
+      ['tentative_hold_expiry_reminder', holdId, now],
+      ['tentative_hold_expiry_reminder', 'hold-2', now],
+    ]);
+    expect(inserts[0][1][3]).toBe('Your tentative hold of Orchid Hall for "Gala Night" expires on 12 Jan 2030, 19:00 SGT.');
+    expect(sqlsOf(clientQuery).at(-1)).toBe('COMMIT');
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-01-D (SPM-134 AC1, AC5): when no hold is due the run writes nothing and returns no ids.
+   * Kills: inserting without a marked hold.
+   */
+  it('HOLD-EXP-NOTIF-01-D writes no notification when no hold is due for a reminder', async () => {
+    const { repository, clientQuery } = createRepository({ rows: [] });
+
+    await expect(repository.processTentativeHoldReminders(new Date('2030-01-01T00:00:00.000Z'))).resolves.toEqual([]);
+
+    expect(noticeInserts(clientQuery)).toHaveLength(0);
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-01-E (SPM-134 AC1): a failed reminder insert rolls the marker back too (ROLLBACK, no COMMIT), so the
+   * next run sends the reminder instead of losing it.
+   * Kills: marking the hold outside the notice's transaction, swallowing the error.
+   */
+  it('HOLD-EXP-NOTIF-01-E rolls the reminder marker back when the notification insert fails', async () => {
+    const { repository, clientQuery } = createRepository(
+      { rows: [{ id: holdId, hold_expires_at: expiry }] }, context(), new Error('insert failed'),
+    );
+
+    await expect(repository.processTentativeHoldReminders()).rejects.toThrow('insert failed');
+
+    const sqls = sqlsOf(clientQuery);
+    expect(sqls.at(-1)).toBe('ROLLBACK');
+    expect(sqls).not.toContain('COMMIT');
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-02-A (SPM-134 AC2, AC4): the expiry run changes each elapsed approved hold to expired and writes one expired
+   * notice for it, all inside one transaction (not on the pool), stamped with the hold's own expiry time (AC4: the notice's
+   * timestamp for an expired hold is its expiry, not the run time) and naming it.
+   * Kills: the old plain pool UPDATE, a notice written outside the transaction, a missing notice, a reminder wording.
+   */
+  it('HOLD-EXP-NOTIF-02-A expires the holds and writes one expired notice per hold in the same transaction', async () => {
+    const { repository, clientQuery, poolQuery } = createRepository(
+      { rows: [{ id: holdId, hold_expires_at: expiry }, { id: 'hold-2', hold_expires_at: expiry }] },
+      context(), { rows: [] }, context(), { rows: [] },
+    );
+
+    await expect(repository.processExpiredTentativeHolds()).resolves.toEqual([holdId, 'hold-2']);
+
+    const sql = norm((clientQuery.mock.calls as Array<[string]>)[1][0]);
+    expect(sql).toContain("SET status = 'expired', hold_expiry_processed_at = $1::timestamptz");
+    expect(sql).toContain('hold_expiry_processed_at IS NULL');
+    expect(poolQuery).not.toHaveBeenCalled();
+    const inserts = noticeInserts(clientQuery);
+    expect(inserts.map(([, params]) => [params[2], params[5], params[6]])).toEqual([
+      ['tentative_hold_expired', holdId, expiry],
+      ['tentative_hold_expired', 'hold-2', expiry],
+    ]);
+    expect(inserts[0][1][3]).toBe('Your tentative hold of Orchid Hall for "Gala Night" expired on 12 Jan 2030, 19:00 SGT.');
+    expect(sqlsOf(clientQuery).at(-1)).toBe('COMMIT');
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-02-B (SPM-134 AC2): with nothing to expire the run writes no notification.
+   * Kills: a notice written without an expired hold.
+   */
+  it('HOLD-EXP-NOTIF-02-B writes no notification when no hold has expired', async () => {
+    const { repository, clientQuery } = createRepository({ rows: [] });
+
+    await expect(repository.processExpiredTentativeHolds()).resolves.toEqual([]);
+
+    expect(noticeInserts(clientQuery)).toHaveLength(0);
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-02-C (SPM-134 AC2): a failed expired-notice insert rolls the status change back (ROLLBACK, no COMMIT):
+   * a hold is never expired without its notice.
+   * Kills: swallowing the notification error, committing the status change on its own.
+   */
+  it('HOLD-EXP-NOTIF-02-C rolls the expiry back when the notification insert fails', async () => {
+    const { repository, clientQuery } = createRepository(
+      { rows: [{ id: holdId, hold_expires_at: expiry }] }, context(), new Error('insert failed'),
+    );
+
+    await expect(repository.processExpiredTentativeHolds()).rejects.toThrow('insert failed');
+
+    const sqls = sqlsOf(clientQuery);
+    expect(sqls.at(-1)).toBe('ROLLBACK');
+    expect(sqls).not.toContain('COMMIT');
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-03-A (SPM-134 AC3): releasing an active hold writes one released notice in the release transaction,
+   * after the status change, stamped with the release time.
+   * Kills: no notice, a notice before the UPDATE, a notice on the pool.
+   */
+  it('HOLD-EXP-NOTIF-03-A releasing an active hold writes one released notice in the same transaction', async () => {
+    const { repository, clientQuery, poolQuery } = createRepository(ownedRow, venueLockRow, { rows: [activeHold] }, { rows: [{ id: holdId }] }, { rows: [] }, context(), { rows: [] });
+
+    await expect(repository.releaseTentativeHold(staffId, holdId)).resolves.toMatchObject({ kind: 'updated', status: 'released' });
+
+    const sqls = sqlsOf(clientQuery);
+    expect(sqls.findIndex((s) => s.includes("SET status = 'released'"))).toBeLessThan(sqls.findIndex((s) => s.includes('INSERT INTO notifications')));
+    const inserts = noticeInserts(clientQuery);
+    expect(inserts).toHaveLength(1);
+    expect([inserts[0][1][1], inserts[0][1][2], inserts[0][1][5], inserts[0][1][6]]).toEqual(['coord-assigned', 'tentative_hold_released', holdId, now]);
+    expect(inserts[0][1][3]).toBe('Your tentative hold of Orchid Hall for "Gala Night" has been released.');
+    expect(poolQuery).not.toHaveBeenCalled();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-03-B (SPM-134 AC3): converting an active hold writes one converted notice in the conversion transaction.
+   * Kills: no notice, the released type for a conversion.
+   */
+  it('HOLD-EXP-NOTIF-03-B converting an active hold writes one converted notice in the same transaction', async () => {
+    const { repository, clientQuery } = createRepository(ownedRow, venueLockRow, { rows: [activeHold] }, { rows: [{ id: holdId }] }, { rows: [] }, context(), { rows: [] });
+
+    await expect(repository.convertTentativeHold(staffId, holdId)).resolves.toMatchObject({ kind: 'updated', requestKind: 'booking' });
+
+    const inserts = noticeInserts(clientQuery);
+    expect(inserts).toHaveLength(1);
+    expect([inserts[0][1][1], inserts[0][1][2], inserts[0][1][5], inserts[0][1][6]]).toEqual(['coord-assigned', 'tentative_hold_converted', holdId, now]);
+    expect(inserts[0][1][3]).toBe('Your tentative hold of Orchid Hall for "Gala Night" has been confirmed as a booking.');
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-03-C (SPM-134 AC3): a release or conversion that is refused (not the staff member's hold, an expired
+   * hold, a hold that is not active, a completed event) writes no notification.
+   * Kills: notifying before the ownership and state checks.
+   */
+  it.each([
+    ['not found', [{ rows: [] }]],
+    ['already expired', [ownedRow, venueLockRow, { rows: [{ ...activeHold, status: 'expired' }] }]],
+    ['expired by time', [ownedRow, venueLockRow, { rows: [{ ...activeHold, hold_expires_at: now }] }]],
+    ['already released', [ownedRow, venueLockRow, { rows: [{ ...activeHold, status: 'released' }] }]],
+    ['already converted', [ownedRow, venueLockRow, { rows: [{ ...activeHold, request_kind: 'booking' }] }]],
+    ['on a completed event', [ownedRow, venueLockRow, { rows: [{ ...activeHold, event_status: 'Completed' }] }]],
+  ] as Array<[string, Array<{ rows: unknown[] }>]>)('HOLD-EXP-NOTIF-03-C writes no notification when the hold is %s', async (_label, steps) => {
+    for (const act of [(r: VenuesRepository) => r.releaseTentativeHold(staffId, holdId), (r: VenuesRepository) => r.convertTentativeHold(staffId, holdId)]) {
+      const { repository, clientQuery } = createRepository(...steps);
+      await act(repository);
+      expect(noticeInserts(clientQuery)).toHaveLength(0);
+    }
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-03-D (SPM-134 AC3): if the notice cannot be saved the release or conversion rolls back (ROLLBACK, no
+   * COMMIT) and the call rejects, so the change is never saved without its notice.
+   * Kills: swallowing the notification error.
+   */
+  it.each([
+    ['release', (r: VenuesRepository) => r.releaseTentativeHold(staffId, holdId)],
+    ['conversion', (r: VenuesRepository) => r.convertTentativeHold(staffId, holdId)],
+  ])('HOLD-EXP-NOTIF-03-D rolls the %s back when the notification insert fails', async (_label, act) => {
+    const { repository, clientQuery } = createRepository(ownedRow, venueLockRow, { rows: [activeHold] }, { rows: [{ id: holdId }] }, { rows: [] }, context(), new Error('insert failed'));
+
+    await expect(act(repository)).rejects.toThrow('insert failed');
+
+    const sqls = sqlsOf(clientQuery);
+    expect(sqls.at(-1)).toBe('ROLLBACK');
+    expect(sqls).not.toContain('COMMIT');
+  });
+  // ---- AC11 --------------------------------------------------------------------------------------------------------
+
+  const markReadStatements = (clientQuery: { mock: { calls: unknown[][] } }) =>
+    sqlsOf(clientQuery).filter((sql) => sql.startsWith('UPDATE notifications'));
+
+  /**
+   * HOLD-EXP-NOTIF-11-A (SPM-134 AC11): converting an active hold marks the Coordinator's unread reminders for that hold
+   * read in the conversion transaction, after the status change and before the converted notice. The statement filters on
+   * the hold, the reminder type and unread, and only updates (nothing is deleted).
+   * Kills: no mark-read, a filter missing the booking, the type or the unread condition, a DELETE, a statement on the pool.
+   */
+  it('HOLD-EXP-NOTIF-11-A converting an active hold marks only its unread reminders read in the same transaction', async () => {
+    const { repository, clientQuery, poolQuery } = createRepository(ownedRow, venueLockRow, { rows: [activeHold] }, { rows: [{ id: holdId }] }, { rows: [] }, context(), { rows: [] });
+
+    await repository.convertTentativeHold(staffId, holdId);
+
+    const sqls = sqlsOf(clientQuery);
+    const marks = markReadStatements(clientQuery);
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toContain('SET read = true');
+    expect(marks[0]).toContain('related_booking_id = $1::uuid');
+    expect(marks[0]).toContain('type = $2');
+    expect(marks[0]).toContain('read = false');
+    expect(sqls.some((sql) => sql.startsWith('DELETE FROM notifications'))).toBe(false);
+    const call = (clientQuery.mock.calls as unknown as Array<[string, unknown[]]>).find(([sql]) => norm(sql).startsWith('UPDATE notifications'))!;
+    // The reminder type is the exported constant, bound as the second parameter (not a SQL literal).
+    expect(call[1]).toEqual([holdId, 'tentative_hold_expiry_reminder']);
+    const at = (needle: string) => sqls.findIndex((sql) => sql.includes(needle));
+    expect(at("SET request_kind = 'booking'")).toBeLessThan(at('UPDATE notifications'));
+    expect(at('UPDATE notifications')).toBeLessThan(at('INSERT INTO notifications'));
+    expect(poolQuery).not.toHaveBeenCalled();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-11-B (SPM-134 AC11): releasing an active hold marks its unread reminders read in the release
+   * transaction, with the same filter.
+   * Kills: marking read only on the conversion path.
+   */
+  it('HOLD-EXP-NOTIF-11-B releasing an active hold marks only its unread reminders read in the same transaction', async () => {
+    const { repository, clientQuery, poolQuery } = createRepository(ownedRow, venueLockRow, { rows: [activeHold] }, { rows: [{ id: holdId }] }, { rows: [] }, context(), { rows: [] });
+
+    await repository.releaseTentativeHold(staffId, holdId);
+
+    const marks = markReadStatements(clientQuery);
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toContain('type = $2');
+    expect(marks[0]).toContain('related_booking_id = $1::uuid');
+    expect(marks[0]).toContain('read = false');
+    const markCall = (clientQuery.mock.calls as unknown as Array<[string, unknown[]]>).find(([sql]) => norm(sql).startsWith('UPDATE notifications'))!;
+    expect(markCall[1]).toEqual([holdId, 'tentative_hold_expiry_reminder']);
+    const sqls = sqlsOf(clientQuery);
+    expect(sqls.findIndex((sql) => sql.includes("SET status = 'released'"))).toBeLessThan(sqls.findIndex((sql) => sql.startsWith('UPDATE notifications')));
+    expect(poolQuery).not.toHaveBeenCalled();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-11-C (SPM-134 AC11): a refused release or conversion (not found, expired by status or time, already
+   * released, already converted, completed event) marks nothing read.
+   * Kills: marking read before the ownership and state checks.
+   */
+  it.each([
+    ['not found', [{ rows: [] }]],
+    ['already expired', [ownedRow, venueLockRow, { rows: [{ ...activeHold, status: 'expired' }] }]],
+    ['expired by time', [ownedRow, venueLockRow, { rows: [{ ...activeHold, hold_expires_at: now }] }]],
+    ['already released', [ownedRow, venueLockRow, { rows: [{ ...activeHold, status: 'released' }] }]],
+    ['already converted', [ownedRow, venueLockRow, { rows: [{ ...activeHold, request_kind: 'booking' }] }]],
+    ['on a completed event', [ownedRow, venueLockRow, { rows: [{ ...activeHold, event_status: 'Completed' }] }]],
+  ] as Array<[string, Array<{ rows: unknown[] }>]>)('HOLD-EXP-NOTIF-11-C marks nothing read when the hold is %s', async (_label, steps) => {
+    for (const act of [(r: VenuesRepository) => r.releaseTentativeHold(staffId, holdId), (r: VenuesRepository) => r.convertTentativeHold(staffId, holdId)]) {
+      const { repository, clientQuery } = createRepository(...steps);
+      await act(repository);
+      expect(markReadStatements(clientQuery)).toHaveLength(0);
+    }
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-11-D (SPM-134 AC11): if marking the reminders read fails, the release or conversion rolls back and the
+   * call rejects, so a change is never saved with its reminder left unread.
+   * Kills: swallowing the mark-read error, marking read outside the transaction.
+   */
+  it.each([
+    ['release', (r: VenuesRepository) => r.releaseTentativeHold(staffId, holdId)],
+    ['conversion', (r: VenuesRepository) => r.convertTentativeHold(staffId, holdId)],
+  ])('HOLD-EXP-NOTIF-11-D rolls the %s back when marking the reminders read fails', async (_label, act) => {
+    const { repository, clientQuery } = createRepository(ownedRow, venueLockRow, { rows: [activeHold] }, { rows: [{ id: holdId }] }, new Error('mark read failed'));
+
+    await expect(act(repository)).rejects.toThrow('mark read failed');
+
+    const sqls = sqlsOf(clientQuery);
+    expect(sqls.at(-1)).toBe('ROLLBACK');
+    expect(sqls).not.toContain('COMMIT');
   });
 });

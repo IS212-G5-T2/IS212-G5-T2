@@ -56,6 +56,7 @@ describe("RecheckList", () => {
     expect(markMock).toHaveBeenCalledWith("evt-1", "cr-1", "i1");
   });
 
+  /** REVIEW-CHANGE-09-D: who re-checked each arrangement, and the all-done state. */
   it("shows who re-checked each arrangement and when all are done", () => {
     const done = approved.recheck.map((item) => ({ ...item, checkedAt: "2026-10-18T02:00:00.000Z", checkedBy: "Coord" }));
     render(<RecheckList request={{ ...approved, recheck: done }} onRechecked={vi.fn()} />);
@@ -63,6 +64,7 @@ describe("RecheckList", () => {
     expect(screen.getAllByText(/Re-checked by Coord on/)).toHaveLength(2);
   });
 
+  /** REVIEW-CHANGE-09-D: a failed re-check mark is explained. */
   it("shows why marking failed", async () => {
     markMock.mockRejectedValueOnce(new Error("This arrangement has already been re-checked.")).mockRejectedValueOnce("offline");
     render(<RecheckList request={approved} onRechecked={vi.fn()} />);

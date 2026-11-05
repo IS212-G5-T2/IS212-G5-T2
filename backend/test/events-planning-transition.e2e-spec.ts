@@ -400,7 +400,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     ] as const)(
       'PLAN-STATUS-%s: a failure right after %s rolls everything back and a retry succeeds',
       // Kills: M4 (separate transactions), M5 (history outside the transaction).
-      async (_id, table, op) => {
+      async (_id, table, op, _write) => {
         // Arrange: fault raised after the named write ran inside the transaction.
         const coordinator = await account('COORDINATOR');
         const venueId = await venue();

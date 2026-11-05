@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { cleanupHoldFixtures, holdFixtureNames, seedHoldFixtures } from './spm134-hold-fixtures.mjs';
 
 if (!process.env.TEST_DATABASE_URL)
   throw new Error(
@@ -13,6 +14,7 @@ const equipmentName = `SPM-111 equipment browser ${randomUUID()}`;
 const auditTrailEquipmentName = `SPM-119 audit browser ${randomUUID()}`;
 const withdrawalEventName = `SPM-120 withdrawal browser ${randomUUID()}`;
 const venueName = `SPM-122 unavailability browser ${randomUUID()}`;
+const holdNames = holdFixtureNames();
 const frontend = fileURLToPath(new URL('../../../frontend/', import.meta.url));
 const db = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
 await db.connect();
@@ -54,6 +56,10 @@ try {
       WHERE email IN ('attendee1@connectsphere.test', 'attendee2@connectsphere.test')`,
     [event.rows[0].id],
   );
+  // SPM-134: seed only when the run includes its spec (no spec argument means every spec), so other stories' browser
+  // runs neither pay for nor depend on these rows. Cleanup below is harmless when nothing was seeded.
+  const seedHold = process.argv.slice(2).length === 0 || process.argv.slice(2).some((arg) => arg.includes('BookingsPage.hold-expiry'));
+  const holdEnv = seedHold ? await seedHoldFixtures(db, holdNames) : {};
   code = await new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
@@ -70,6 +76,7 @@ try {
           SPM119_AUDIT_EQUIPMENT_NAME: auditTrailEquipmentName,
           SPM120_TEST_NAME: withdrawalEventName,
           SPM122_TEST_VENUE_NAME: venueName,
+          ...holdEnv,
         },
       },
     );
@@ -103,6 +110,8 @@ try {
   ]);
   // The venue's unavailable periods cascade with it; only this run's unique venue is removed.
   await db.query('DELETE FROM venues WHERE name=$1', [venueName]);
+  // SPM-134: the holds' venues (their bookings and those bookings' notifications cascade) and the event.
+  await cleanupHoldFixtures(db, holdNames);
   await db.end();
 }
 process.exitCode = code;
