@@ -118,22 +118,48 @@
   min-width: 700px;
 }
 
+/* Each event box clips its own content so text cannot spill into neighbouring events. */
+.venue-schedule-calendar
+  :is(.venue-schedule-booking, .venue-schedule-hold, .venue-schedule-unavailable, .venue-schedule-buffer, .venue-schedule-selected) {
+  overflow: hidden;
+}
+
 .venue-schedule-calendar .venue-schedule-event {
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  padding: 0.125rem 0.25rem;
   overflow: hidden;
   font-size: 0.75rem;
   line-height: 1.25;
 }
 
+.venue-schedule-calendar .venue-schedule-buffer .venue-schedule-event {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.25rem;
+  padding-block: 0;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .venue-schedule-calendar .venue-schedule-event strong {
+  display: block;
+  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
   font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .venue-schedule-calendar .venue-schedule-event-time {
   font-weight: 500;
   opacity: 0.9;
+  white-space: nowrap;
 }
 
 .venue-schedule-calendar .venue-schedule-event span {

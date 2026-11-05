@@ -272,6 +272,9 @@ export function VenueScheduleCalendar({
           slotMaxTime="24:00:00"
           slotDuration="01:00:00"
           slotHeaderInterval="01:00:00"
+          slotMinHeight={48}
+          slotEventOverlap={false}
+          eventMinHeight={28}
           scrollTime="08:00:00"
           headerToolbar={{
             left: "title",
