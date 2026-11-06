@@ -8,7 +8,7 @@ export interface EquipmentAvailabilityQuery {
 
 const EQUIPMENT_TYPES = new Set(['Audio', 'Visual', 'Furniture', 'Lighting', 'Other']);
 
-/** SPM-113 AC1: validates an event window supplied as ISO instants by the client. */
+/** Legacy availability endpoint (cancelled SPM-113 AC1): validates an event window supplied as ISO instants by the client. */
 export function validateEquipmentAvailabilityQuery(value: Record<string, unknown>): EquipmentAvailabilityQuery {
   const startValue = value.startDateTime;
   const endValue = value.endDateTime;

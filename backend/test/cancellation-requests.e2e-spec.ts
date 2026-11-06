@@ -158,7 +158,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       .useValue(safety);
     if (releasers) builder = builder.overrideProvider(EVENT_RELEASERS).useValue(releasers);
     const moduleFixture = await builder.compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     // Bind to 127.0.0.1 so supertest's requests cannot reach another local listener (as in SPM-136).
     await app.listen(0, '127.0.0.1');

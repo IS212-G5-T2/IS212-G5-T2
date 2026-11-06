@@ -288,10 +288,19 @@ describe('SPM-37 Q1 service contract and failures', () => {
   // Kills: a repeated submit that creates a second event instead of returning the event already linked to the draft.
   it('EVE-DRF-SUP-09 returns original event on repeated submission', async () => {
     selected({ ...row(), status: 'Submitted', event_id: id });
-    events.get.mockResolvedValue({ id });
+    events.get.mockResolvedValue({ id, status: 'submitted' });
     expect(await submit()).toMatchObject({ event: { id } });
     expect(events.get).toHaveBeenCalledWith(identity, id);
     expect(events.create).not.toHaveBeenCalled();
+  });
+  /** A retry after the linked event advances must report a conflict rather than repeat submission success. */
+  it.each(['Rejected', 'Confirmed'])('rejects a repeated submission when the linked event is %s', async (status) => {
+    selected({ ...row(), status: 'Submitted', event_id: id });
+    events.get.mockResolvedValue({ id, status });
+    await expect(submit()).rejects.toMatchObject({ status: 409 });
+    expect(events.get).toHaveBeenCalledWith(identity, id);
+    expect(events.create).not.toHaveBeenCalled();
+    expect(db.transaction).toHaveBeenLastCalledWith('ROLLBACK');
   });
   // Kills: a database failure that is swallowed, skips the ROLLBACK or release, or still issues COMMIT, for either save or submit.
   it.each(['save', 'submit'] as const)(

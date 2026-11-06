@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../../../../e2e/fixtures";
 
 test.use({ timezoneId: "Asia/Singapore" });
 
@@ -65,7 +65,16 @@ const secondMobileBooking = {
   createdAt: "2030-01-02T00:00:00.000Z",
 };
 
+/** The app shell also reads the drafts, change-request, cancellation-request and notification lists. Unstubbed they go to
+ *  the real backend, answer 401 for the stubbed (not really signed-in) user, and the app redirects to /login. */
+async function stubShellLists(page: import("@playwright/test").Page) {
+  await page.route(/\/api\/(requests|change-requests|cancellation-requests|notifications)(\?.*)?$/, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
+}
+
 async function mockMobileBookingApis(page: import("@playwright/test").Page) {
+  await stubShellLists(page);
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       status: 200,
@@ -102,7 +111,9 @@ async function pointInSlot(
       year: "numeric",
     }).format(new Date(`${date}T12:00:00+08:00`)),
   });
-  const row = page.locator(`[data-time="${time}:00"]`).nth(1);
+  // slotLaneDidMount in VenueScheduleCalendar.tsx stamps this id, so the spec does not depend on
+  // FullCalendar's own class names.
+  const row = page.getByTestId(`slot-lane-${time}`);
   await row.scrollIntoViewIfNeeded();
   const [columnBox, rowBox] = await Promise.all([
     column.boundingBox(),
@@ -134,12 +145,17 @@ async function dragRange(
 // Out of scope for this Sprint 1 branch. The drag-to-create decision for SPM-51 belongs to a later sprint branch.
 // Known failure: kept failing on purpose so it is not hidden. test.fail() below makes the run pass while the assertions fail,
 // and reports an unexpected pass if they succeed. Remove test.fail() when the later sprint work lands.
+//
+// Re-measured 2026-11-06 after stubbing the app shell's list endpoints (stubShellLists): the test now reaches the first
+// dragRange and fails on the assertion that "Event starts" becomes 2030-01-09T02:00 (the field stays read-only and keeps
+// the assigned event's own time), so test.fail() is hiding the real SPM-51 drag gap and not a stub problem.
 /** SPM-51: a real FullCalendar drag updates event times across days regardless of retired operating-day fields. */
 test(
   "selects a real cross-day time range across any calendar day",
   async ({ page }) => {
   test.fail(true, "SPM-51 cross-day drag on an assigned event; out of Sprint 1 scope, tracked for a later sprint branch");
   await page.clock.install({ time: new Date("2030-01-07T01:00:00.000Z") });
+  await stubShellLists(page);
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       status: 200,
@@ -185,7 +201,7 @@ test(
   await expect(page.getByRole("status")).toContainText("available for this venue");
 
   // Clear the selected range before trying a second, separate interval.
-  await page.locator('[title="Click to clear the selected event time"]').click();
+  await page.getByTestId("selected-event-time").click();
 
   const mondayFive = await pointInSlot(page, "2030-01-07", "17:00");
   const tuesdayTen = await pointInSlot(page, "2030-01-08", "10:00");
@@ -257,11 +273,11 @@ test("keeps My Bookings summary and cancellation actions usable at phone widths"
     await expect(page.getByText("VB-MOBILE-001")).toBeVisible();
     await expect(page.getByText("Step-free access, please.")).toBeVisible();
     await expect(page.getByText("VB-MOBILE-002")).toBeVisible();
-    await expect(page.locator("article")).toHaveCount(2);
+    await expect(page.getByRole("article")).toHaveCount(2);
 
     const [firstCard, secondCard] = await Promise.all([
-      page.locator("article").nth(0).boundingBox(),
-      page.locator("article").nth(1).boundingBox(),
+      page.getByRole("article").nth(0).boundingBox(),
+      page.getByRole("article").nth(1).boundingBox(),
     ]);
     expect(firstCard).not.toBeNull();
     expect(secondCard).not.toBeNull();

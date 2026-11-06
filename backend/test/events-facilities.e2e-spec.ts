@@ -38,7 +38,7 @@ describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', 
   beforeEach(async () => {
     createdEventIds = [];
     const fixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = fixture.createNestApplication();
+    app = fixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     organiser = await createOrganiser();
   });

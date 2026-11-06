@@ -79,6 +79,12 @@ export type AffectedVenueReservation = VenueReservation & {
   eventId: string;
   /** SPM-125 AC6: present (true) when the booking's Event Coordinator was notified of the unavailable period. */
   coordinatorNotified?: true;
+  /**
+   * SPM-122 AC7 / SPM-125 AC7: the occupied window, the event start minus the venue's setup time through the event end
+   * plus its turnaround time (ISO instants). Equal to start and end when the venue has neither.
+   */
+  occupiedStart: string;
+  occupiedEnd: string;
 };
 
 /** SPM-125 AC1: one entry of a venue's unavailability history. */
@@ -648,6 +654,9 @@ export class VenuesRepository {
   /**
    * SPM-55 AC2 / SPM-56: approves a pending request for an owned venue. The venue row lock
    * serialises decisions; the approval re-check returns every conflict with its occupied window.
+   * E2E-09 [S2]: pending ordinary requests may coexist, so only approved bookings, active holds and
+   * unavailable periods block here; the first approval wins and any overlapping pending request is
+   * refused (409) when its own approval is attempted.
    */
   async approveVenueBooking(
     staffId: string,
@@ -713,12 +722,7 @@ export class VenuesRepository {
               AND ((b.status = 'approved' AND
                 (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL
                   OR b.hold_expires_at > $7::timestamptz)) OR
-                (b.status = 'pending' AND
-                  (b.hold_expires_at > $7::timestamptz OR
-                   (b.request_kind <> 'tentative_hold' AND EXISTS (
-                    SELECT 1 FROM venue_booking_requests r
-                     WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id
-                   )))))
+                (b.status = 'pending' AND b.hold_expires_at > $7::timestamptz))
               AND b.start_at - make_interval(mins => $4::int)
                     < $3::timestamptz + make_interval(mins => $5::int)
               AND b.end_at + make_interval(mins => $5::int)
@@ -1099,8 +1103,10 @@ export class VenuesRepository {
           status: activeRequest.rows[0].status,
         };
 
-      // SPM-54 AC2: booking requests remain blockers without hold expiry; standalone Venue Staff holds block only until expiry. SPM-148 PLAN-STATUS-01-C, 01-BND: conflicts are checked before any write; an adjacent booking (end == start) does not conflict.
-      // Only standalone pending holds need an expiry here; event-linked pending booking requests also block below.
+      // SPM-54 AC2: approved bookings, active holds and unavailable periods are the blockers. SPM-148 PLAN-STATUS-01-C, 01-BND: conflicts are checked before any write; an adjacent booking (end == start) does not conflict.
+      // E2E-09 [S2]: pending ordinary booking requests do NOT block a new request, so two Coordinators may both
+      // request the same window. The race is settled at approval, where approveVenueBooking re-checks against the
+      // booking that was approved first and refuses the other with 409 BOOKING_SLOT_CONFLICT.
       const conflict = await client.query<{ reason: string }>(
         `SELECT reason FROM (
            SELECT COALESCE(reason, 'Venue unavailable') AS reason
@@ -1116,12 +1122,7 @@ export class VenuesRepository {
               AND ((b.status = 'approved' AND
                 (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL
                   OR b.hold_expires_at > $6::timestamptz)) OR
-                (b.status = 'pending' AND
-                  (b.hold_expires_at > $6::timestamptz OR
-                   (b.request_kind <> 'tentative_hold' AND EXISTS (
-                    SELECT 1 FROM venue_booking_requests r
-                     WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id
-                   )))))
+                (b.status = 'pending' AND b.hold_expires_at > $6::timestamptz))
               AND b.start_at - make_interval(mins => $4::int)
                     < $3::timestamptz + make_interval(mins => $5::int)
               AND b.end_at + make_interval(mins => $5::int)
@@ -1384,10 +1385,16 @@ export class VenuesRepository {
         [venueId, input.start, input.end, input.reason, actorId],
       );
       const affected = await client.query<
-        BookingRow & { event_id: string; coordinator_id: string | null }
+        BookingRow & {
+          event_id: string;
+          coordinator_id: string | null;
+          setup_time_minutes: number;
+          turnaround_time_minutes: number;
+        }
       >(
         `SELECT b.id, b.event_id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status,
-           b.request_kind, b.hold_expires_at, e.coordinator_id
+           b.request_kind, b.hold_expires_at, e.coordinator_id,
+           v.setup_time_minutes, v.turnaround_time_minutes
          FROM venue_bookings b JOIN events e ON e.id = b.event_id
          JOIN venues v ON v.id = b.venue_id
          WHERE b.venue_id = $1::uuid
@@ -1446,6 +1453,13 @@ export class VenuesRepository {
               eventName: booking.event_name,
               start: booking.start_at.toISOString(),
               end: booking.end_at.toISOString(),
+              // SPM-122 AC7 / SPM-125 AC7: the same buffered window the overlap test above uses.
+              occupiedStart: new Date(
+                booking.start_at.getTime() - booking.setup_time_minutes * 60_000,
+              ).toISOString(),
+              occupiedEnd: new Date(
+                booking.end_at.getTime() + booking.turnaround_time_minutes * 60_000,
+              ).toISOString(),
               affectedByUnavailablePeriod: true as const,
               ...(notified.has(booking.id) ? { coordinatorNotified: true as const } : {}),
             };

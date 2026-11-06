@@ -71,7 +71,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
       .overrideProvider(CLOCK)
       .useValue({ now: () => new Date(clockNow) })
       .compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
 
     // Five logins (bcrypt) per test; under load they can exceed the 30 s default hook limit.

@@ -1,5 +1,5 @@
 // SPM-136 trigger mutants: the release-skip branches of the venue_bookings and equipment_reservations safety
-// triggers, redefined by database/postgresql/init/017_spm136_cancel_event.sql. Run by run-triggers.mjs:
+// triggers, defined in database/postgresql/init/003_functions_triggers.sql. Run by run-triggers.mjs:
 //   node scripts/mutation/run-triggers.mjs --mutants spm136.triggers.mutants.mjs
 //   node scripts/mutation/run-triggers.mjs --mutants spm136.triggers.mutants.mjs --only TR-T1
 // The same text lives in backend/migrations/011_spm136_cancel_event.sql, which the SPM-136 suites re-apply to the
@@ -18,7 +18,7 @@ export const SUITES = {
   },
 };
 
-const TRIGGER_SQL = '017_spm136_cancel_event.sql';
+const TRIGGER_SQL = '003_functions_triggers.sql';
 const MIGRATION = 'migrations/011_spm136_cancel_event.sql';
 const VENUE_SKIP = "  IF TG_OP = 'UPDATE' AND NEW.status = 'released' AND OLD.status <> 'released' THEN\n    RETURN NEW;\n  END IF;\n";
 const EQUIPMENT_SKIP = "  IF TG_OP = 'UPDATE' AND NEW.status = 'Released' AND OLD.status <> 'Released' THEN\n    RETURN NEW;\n  END IF;\n";

@@ -33,6 +33,8 @@ function booking(
     capacity: 200,
     start: START,
     end: END,
+    setupTimeMinutes: 0,
+    turnaroundTimeMinutes: T,
     neighbours: [],
     ...overrides,
   };
@@ -40,10 +42,65 @@ function booking(
 
 // Another event's booking at the same venue.
 function neighbour(start: string, end: string, id = 'nb-1') {
-  return { id, eventName: 'Chemistry Workshop', start, end };
+  return {
+    id,
+    eventName: 'Chemistry Workshop',
+    start,
+    end,
+    setupTimeMinutes: 0,
+    turnaroundTimeMinutes: T,
+  };
 }
 
 describe('assessVenueBookings', () => {
+  /** A preceding booking needs its own turnaround plus the proposed booking's setup. */
+  it('uses the two occupied windows at the exact boundary before the proposal', () => {
+    const earlier = iso('09:00');
+    const other = {
+      ...neighbour(iso('07:00'), iso('08:15')),
+      turnaroundTimeMinutes: 25,
+    };
+    const proposed = booking({
+      setupTimeMinutes: 20,
+      turnaroundTimeMinutes: 0,
+      neighbours: [other],
+    });
+    expect(
+      assessVenueBookings({ startDateTime: earlier }, [
+        proposed,
+      ])[0].conflicts.map((c) => c.kind),
+    ).toEqual(['window']);
+    expect(
+      assessVenueBookings({ startDateTime: shift(earlier, -1) }, [
+        proposed,
+      ])[0].conflicts.map((c) => c.kind),
+    ).toEqual(['window', 'turnaround']);
+  });
+
+  /** A following booking needs the proposed booking's turnaround plus its own setup. */
+  it('uses the two occupied windows at the exact boundary after the proposal', () => {
+    const later = iso('14:00');
+    const other = {
+      ...neighbour(iso('14:45'), iso('16:00')),
+      setupTimeMinutes: 15,
+      turnaroundTimeMinutes: 0,
+    };
+    const proposed = booking({
+      setupTimeMinutes: 0,
+      turnaroundTimeMinutes: 30,
+      neighbours: [other],
+    });
+    expect(
+      assessVenueBookings({ endDateTime: later }, [proposed])[0].conflicts.map(
+        (c) => c.kind,
+      ),
+    ).toEqual(['window']);
+    expect(
+      assessVenueBookings({ endDateTime: shift(later, 1) }, [
+        proposed,
+      ])[0].conflicts.map((c) => c.kind),
+    ).toEqual(['window', 'turnaround']);
+  });
   // Guard: the boundary cases below assume a positive turnaround buffer.
   it('uses a positive turnaround buffer', () => {
     expect(T).toBeGreaterThan(0);

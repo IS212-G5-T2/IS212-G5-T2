@@ -42,7 +42,7 @@ describe.skipIf(!database)('VENUE-REMOVE: coordinator removes an unavailable ven
     createdVenueIds = [];
     createdUserIds = [];
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     coordinator = await createSession('COORDINATOR', 'Coordinator 1');
   });

@@ -1,27 +1,21 @@
 // Story: SPM-119 Mark Equipment as Unavailable
 // ACs: AC5, AC6, AC7
 // Test cases: EQUIP-UNAVAIL-05-A, EQUIP-UNAVAIL-05-B, EQUIP-UNAVAIL-05-C
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../../../e2e/fixtures";
 
-const email =
-  process.env.SPM119_TECH_SUPPORT_EMAIL ?? "tech_support1@connectsphere.test";
-const readerEmail =
-  process.env.SPM119_AUDIT_READER_EMAIL ?? "tech_support2@connectsphere.test";
-const password = process.env.SPM119_TEST_PASSWORD ?? "P@55w0rd";
-const equipmentName = process.env.SPM119_AUDIT_EQUIPMENT_NAME;
+const email = "tech_support1@connectsphere.test";
+
+// tech_support is tech_support1, the account named in `email` above; the reader below is a second, different account.
+test.use({ as: "tech_support" });
 
 // EQUIP-UNAVAIL-05-A/B/C: shared audit history shows mark and reactivation snapshots to Technical Support.
 test("EQUIP-UNAVAIL-05-A/B/C displays shared audit history for unavailable and reactivated equipment", async ({
   page,
-  browser,
+  pageAs,
+  db,
 }) => {
-  // Arrange: sign in as seeded Technical Support and open the unique fixture record.
-  if (!equipmentName) throw new Error("SPM119_AUDIT_EQUIPMENT_NAME is required.");
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).not.toHaveURL(/\/login$/);
+  // Arrange: signed in as seeded Technical Support (test.use above); open the unique fixture record.
+  const { equipmentName } = await db.preset("auditTrail");
   await page.goto("/equipment/inventory");
   const row = page.getByRole("row").filter({ hasText: equipmentName });
   await expect(row).toBeVisible();
@@ -62,16 +56,8 @@ test("EQUIP-UNAVAIL-05-A/B/C displays shared audit history for unavailable and r
   await expect(history.nth(0)).toContainText(email);
   await expect(history.nth(1)).toContainText(email);
 
-  // Act: sign in separately as a second Technical Support user and open the shared history.
-  const readerContext = await browser.newContext({
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173",
-  });
-  const readerPage = await readerContext.newPage();
-  await readerPage.goto("/login");
-  await readerPage.getByLabel("Email").fill(readerEmail);
-  await readerPage.getByLabel("Password").fill(password);
-  await readerPage.getByRole("button", { name: "Log in" }).click();
-  await expect(readerPage).not.toHaveURL(/\/login$/);
+  // Act: open the shared history as a second Technical Support user, in a separate browser session.
+  const readerPage = await pageAs("tech_support2");
   await readerPage.goto("/equipment/audit-trail");
 
   // Assert: 05-C exposes the first technician's entries to the second without actor filtering.
@@ -79,5 +65,4 @@ test("EQUIP-UNAVAIL-05-A/B/C displays shared audit history for unavailable and r
   await expect(sharedHistory).toHaveCount(2);
   await expect(sharedHistory.nth(0)).toContainText(email);
   await expect(sharedHistory.nth(1)).toContainText(email);
-  await readerContext.close();
 });

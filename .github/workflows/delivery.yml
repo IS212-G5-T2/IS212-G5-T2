@@ -1,0 +1,290 @@
+name: Delivery
+
+# Continuous delivery: build both components and publish one downloadable archive per run, so any
+# commit on an integration branch has a deployable bundle attached to it. Nothing is deployed from
+# here and no credentials are needed; the artifact is the deliverable.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push supersedes an in-flight build of the same ref.
+concurrency:
+  group: delivery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Build and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      bundle: ${{ steps.assemble.outputs.name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Build backend
+        run: npm run build
+        working-directory: backend
+
+      - name: Assemble the release bundle
+        id: assemble
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          short_sha="$(git rev-parse --short HEAD)"
+          name="connectsphere-${short_sha}"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+          # :? so an unset or empty variable stops the script instead of resolving to a root path.
+          staging="${RUNNER_TEMP:?}/${name:?}"
+          mkdir -p "$staging/frontend" "$staging/backend"
+
+          # Built output, not sources.
+          cp -R frontend/dist "$staging/frontend/dist"
+          cp -R backend/dist "$staging/backend/dist"
+
+          # The backend needs its manifests to install production dependencies where it runs.
+          cp backend/package.json backend/package-lock.json "$staging/backend/"
+
+          # Everything needed to stand the stack up: schema and seed assets, and the Compose files.
+          # Copied through tar so a local .env is excluded rather than copied and then deleted.
+          cp -R database "$staging/database"
+          tar -cf - --exclude='.env' docker-compose | tar -xf - -C "$staging"
+
+          cat > "$staging/BUILD-INFO.txt" <<INFO
+          ConnectSphere delivery bundle
+          =============================
+          Commit      : $(git rev-parse HEAD)
+          Short SHA   : $short_sha
+          Ref         : $GITHUB_REF_NAME
+          Run         : #$GITHUB_RUN_NUMBER ($GITHUB_RUN_ID)
+          Built at    : $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          Built by    : GitHub Actions on $RUNNER_OS
+          Node        : $(node --version)
+
+          Contents
+          --------
+          frontend/dist/      Built static site. Serve with any static web server.
+          backend/dist/       Compiled NestJS. Run: cd backend && npm ci --omit=dev && node dist/main
+          backend/package*    Manifests for installing production dependencies.
+          database/           PostgreSQL image and initialisation SQL (init/ is the complete schema).
+          docker-compose/     Compose stack. Copy .env.example to .env first.
+
+          Required environment
+          --------------------
+          backend  : DATABASE_URL, FRONTEND_ORIGIN, PORT (default 8080)
+          frontend : VITE_API_BASE_URL is baked in at build time; rebuild to change it.
+          INFO
+
+          ( cd "${RUNNER_TEMP:?}" && zip -qr "${name:?}.zip" "${name:?}" )
+          echo "zip=${RUNNER_TEMP}/${name}.zip" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Delivery bundle"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Archive | \`$name.zip\` |"
+            echo "| Size | $(du -h "${RUNNER_TEMP}/${name}.zip" | cut -f1) |"
+            echo "| Commit | \`$(git rev-parse HEAD)\` |"
+            echo "| Ref | \`$GITHUB_REF_NAME\` |"
+            echo
+            echo "Download it from the **Artifacts** section of this run."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the delivery bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.assemble.outputs.name }}
+          path: ${{ steps.assemble.outputs.zip }}
+          if-no-files-found: error
+          retention-days: 30
+
+  # Post-delivery smoke test (docs/ci/smoke.md). Unpacks the archive the package job produced and
+  # proves the packaged backend and frontend work, cheapest tier first: unit -> integration -> P0 browser.
+  # A failure here fails the run; the archive stays attached to the run either way. Nothing is deployed.
+  smoke:
+    name: Smoke test the delivery bundle
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # Isolated from the dev stack (5432) and from test-db.sh's default (55432).
+      SPM_TEST_DB_PORT: "55433"
+      SPM_TEST_DB_CONTAINER: spm-smoke-db
+      BACKEND_PORT: "8080"
+      FRONTEND_PORT: "5173"
+
+    steps:
+      - name: Checkout
+        # The tests and their runners come from the repository at the delivered commit. The code under
+        # test (backend/dist and frontend/dist) comes from the archive, unpacked below.
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies (test tooling)
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend dependencies (test tooling)
+        run: npm ci
+        working-directory: frontend
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      # Tier 1: unit tests. Seconds, no database. Fail here before paying for anything else.
+      - name: Smoke tier 1 - unit tests
+        run: npm run test:smoke:unit
+        working-directory: backend
+
+      - name: Download the delivery bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.package.outputs.bundle }}
+          path: ${{ runner.temp }}/smoke-download
+
+      - name: Unpack the delivery bundle
+        shell: bash
+        env:
+          BUNDLE: ${{ needs.package.outputs.bundle }}
+        run: |
+          set -euo pipefail
+          # Fresh, empty directories every run, so a re-run never sees leftovers.
+          rm -rf "${RUNNER_TEMP:?}/smoke-bundle"
+          mkdir -p "${RUNNER_TEMP}/smoke-bundle"
+          unzip -q "${RUNNER_TEMP}/smoke-download/${BUNDLE}.zip" -d "${RUNNER_TEMP}/smoke-bundle"
+          bundle="${RUNNER_TEMP}/smoke-bundle/${BUNDLE}"
+          test -f "$bundle/backend/dist/main.js"
+          test -f "$bundle/frontend/dist/index.html"
+          echo "BUNDLE_DIR=$bundle" >> "$GITHUB_ENV"
+          cat "$bundle/BUILD-INFO.txt"
+
+      - name: Install production dependencies of the unpacked backend
+        # What the BUILD-INFO.txt tells an operator to run, so a broken manifest or lockfile fails here.
+        run: npm ci --omit=dev
+        working-directory: ${{ env.BUNDLE_DIR }}/backend
+
+      - name: Start the disposable test database
+        run: echo "TEST_DATABASE_URL=$(./database/postgresql/scripts/test-db.sh up)" >> "$GITHUB_ENV"
+
+      # Tier 2: backend integration tests against real PostgreSQL. These run the Nest app in-process from
+      # source (vitest), so they prove the schema, SQL and HTTP flows at this commit, not the compiled bundle.
+      - name: Smoke tier 2 - backend integration tests
+        run: npm run test:smoke:integration
+        working-directory: backend
+
+      - name: Recreate the disposable test database
+        # Two of the suites replay schema SQL over the database. Tier 3 starts from a fresh one rather than
+        # inheriting whatever tier 2 left behind.
+        run: |
+          ./database/postgresql/scripts/test-db.sh down
+          echo "TEST_DATABASE_URL=$(./database/postgresql/scripts/test-db.sh up)" >> "$GITHUB_ENV"
+
+      - name: Start the packaged backend and frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/smoke-logs"
+
+          # The backend exactly as BUILD-INFO.txt says to run it: node dist/main from the unpacked bundle.
+          (
+            cd "$BUNDLE_DIR/backend"
+            DATABASE_URL="$TEST_DATABASE_URL" PORT="$BACKEND_PORT" \
+              FRONTEND_ORIGIN="http://localhost:${FRONTEND_PORT}" \
+              TENTATIVE_HOLD_EXPIRY_INTERVAL_MS=1000 \
+              setsid nohup node dist/main > "${RUNNER_TEMP}/smoke-logs/backend.log" 2>&1 &
+          )
+
+          # The built frontend served as static files with SPA fallback. vite comes from the repository's
+          # tooling install; the files served are the archive's.
+          (
+            cd frontend
+            setsid nohup npx vite preview --outDir "$BUNDLE_DIR/frontend/dist" \
+              --port "$FRONTEND_PORT" --strictPort > "${RUNNER_TEMP}/smoke-logs/frontend.log" 2>&1 &
+          )
+
+          for url in "http://127.0.0.1:${BACKEND_PORT}/healthz" "http://localhost:${FRONTEND_PORT}/"; do
+            for i in $(seq 1 60); do
+              curl -fsS -o /dev/null "$url" && break
+              [ "$i" -eq 60 ] && { echo "Timed out waiting for $url"; tail -n 40 "${RUNNER_TEMP}"/smoke-logs/*.log; exit 1; }
+              sleep 1
+            done
+          done
+
+      # Tier 3: every @P0 browser test, against the packaged stack above. workers is 1 and each test resets
+      # the database, so this is serial by design (about 52 tests).
+      - name: Smoke tier 3 - P0 browser tests
+        run: npm run test:browser -- --grep @P0
+        working-directory: backend
+        env:
+          PLAYWRIGHT_SKIP_WEB_SERVER: "1"
+
+      - name: Upload Playwright report, traces and screenshots
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            ${{ runner.temp }}/smoke-logs/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Show database logs after failure
+        if: failure()
+        run: docker logs spm-smoke-db || true
+
+      - name: Stop the stack and remove the disposable test database
+        if: always()
+        run: |
+          pkill -f "dist/main" || true
+          pkill -f "vite preview" || true
+          ./database/postgresql/scripts/test-db.sh down || true

@@ -69,7 +69,7 @@ describe.skipIf(!database)('SPM-159 approved tentative holds across the events m
     venueIds = [];
     dayOffset = 0;
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     coordinator = await createUser('COORDINATOR');
     staff = await createUser('VENUE_STAFF');

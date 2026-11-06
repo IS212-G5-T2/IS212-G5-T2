@@ -1,17 +1,13 @@
-import {
-  expect,
-  test,
-  type APIRequestContext,
-  type Page,
-} from "@playwright/test";
+import { type APIRequestContext } from "@playwright/test";
+import { atUtcHour } from "../../../../../e2e/dates";
+import { type Account, expect, test } from "../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
 const password = process.env.SPM40_TEST_PASSWORD ?? "P@55w0rd";
 const organiserEmail =
   process.env.SPM40_ORGANISER_EMAIL ?? "organiser1@connectsphere.test";
 const leadEmail = process.env.SPM40_LEAD_EMAIL ?? "lead@connectsphere.test";
-const defaultName =
-  process.env.SPM40_TEST_NAME ?? `SPM-40 approval functional ${Date.now()}`;
+const defaultName = "SPM-40 approval functional";
 
 type CreatedEvent = {
   id: string;
@@ -24,17 +20,17 @@ type CreateEventResponse = {
   event: CreatedEvent;
 };
 
-const coordinatorEmailByName: Record<string, string> = {
-  "Coordinator 1": "coordinator1@connectsphere.test",
-  "Coordinator 2": "coordinator2@connectsphere.test",
-  "Coordinator 3": "coordinator3@connectsphere.test",
+// The Lead assigns whichever coordinator is least loaded, so which account the test acts as is only known after the
+// event exists. That is why this spec picks its account at run time with `pageAs` instead of `test.use({ as })`.
+const coordinatorAccountByName: Record<string, Account> = {
+  "Coordinator 1": "coordinator1",
+  "Coordinator 2": "coordinator2",
+  "Coordinator 3": "coordinator3",
 };
 
 function futureWindow(daysFromNow: number) {
-  const start = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000);
-  start.setUTCHours(10, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCHours(12, 0, 0, 0);
+  const start = atUtcHour(daysFromNow, 10);
+  const end = atUtcHour(daysFromNow, 12);
   return { startDateTime: start.toISOString(), endDateTime: end.toISOString() };
 }
 
@@ -53,19 +49,6 @@ function eventPayload(name: string) {
     submissionKey: crypto.randomUUID(),
     registrationEnabled: false,
   };
-}
-
-async function login(page: Page, email: string) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
-}
-
-async function logout(page: Page) {
-  await page.getByRole("button", { name: "Log out" }).click();
-  await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
 }
 
 async function createSubmittedEvent(request: APIRequestContext, name: string) {
@@ -100,7 +83,7 @@ async function assignCoordinator(request: APIRequestContext, eventId: string) {
     activeAssignments: number;
   }[];
   const coordinator = coordinators
-    .filter((item) => item.available && coordinatorEmailByName[item.name] !== undefined)
+    .filter((item) => item.available && coordinatorAccountByName[item.name] !== undefined)
     .sort((a, b) => a.activeAssignments - b.activeAssignments)[0];
   expect(coordinator, "an available named coordinator").toBeTruthy();
 
@@ -114,19 +97,19 @@ async function assignCoordinator(request: APIRequestContext, eventId: string) {
 test.describe("SPM-40 approve request functional workflow", () => {
   // SPM-40 AC1-5: the assigned coordinator can find a Submitted request, approve it, and the organiser sees the confirmation.
   test("coordinator approves a submitted request and organiser receives the approval notification", async ({
-    page,
+    pageAs,
     request,
   }) => {
     const event = await createSubmittedEvent(
       request,
       `${defaultName} happy path`,
     );
-    const coordinatorEmail =
-      coordinatorEmailByName[event.coordinatorName ?? ""];
-    expect(coordinatorEmail).toBeTruthy();
+    const coordinatorAccount =
+      coordinatorAccountByName[event.coordinatorName ?? ""];
+    expect(coordinatorAccount).toBeTruthy();
 
     // Coordinator signs in and sees the request in the default Submitted queue.
-    await login(page, coordinatorEmail);
+    let page = await pageAs(coordinatorAccount);
     await page.goto("/events");
     await page.getByLabel("Filter by status").selectOption("submitted");
     await expect(
@@ -162,19 +145,17 @@ test.describe("SPM-40 approve request functional workflow", () => {
       page.getByRole("link", { name: new RegExp(event.name) }),
     ).toBeVisible();
 
-    // The organiser gets the persistent approval notification and can open the approved request.
-    await logout(page);
-    await login(page, organiserEmail);
-    await expect(
-      page.getByLabel("Request decision notifications"),
-    ).toContainText(
+    // The organiser's request decisions now live in the top-bar notification bell
+    // (SPM-88 AC4, 29 Oct 2026); no in-page panel remains. Open the bell and read the row.
+    page = await pageAs("organiser1");
+    await page.goto("/");
+    await page.getByRole("button", { name: /^Notifications/ }).click();
+    const bell = page.getByRole("dialog", { name: "Notifications" });
+    await expect(bell).toContainText(
       `Your event request "${event.name}" was approved and can proceed.`,
+      { timeout: 15_000 },
     );
-    await page
-      .getByLabel("Request decision notifications")
-      .getByRole("link", { name: "View request" })
-      .first()
-      .click();
+    await bell.getByRole("link", { name: /^View Request$/i }).first().click();
     await expect(page.getByRole("heading", { name: event.name })).toBeVisible();
     await expect(page.getByLabel("Event status timeline")).toContainText(
       "approved",
@@ -183,19 +164,19 @@ test.describe("SPM-40 approve request functional workflow", () => {
 
   // SPM-40 AC6: after approval, the same review workflow cannot move the request back to an earlier state.
   test("approved requests do not expose review controls for reverting to a previous state", async ({
-    page,
+    pageAs,
     request,
   }) => {
     const event = await createSubmittedEvent(
       request,
       `${defaultName} immutable`,
     );
-    const coordinatorEmail =
-      coordinatorEmailByName[event.coordinatorName ?? ""];
-    expect(coordinatorEmail).toBeTruthy();
+    const coordinatorAccount =
+      coordinatorAccountByName[event.coordinatorName ?? ""];
+    expect(coordinatorAccount).toBeTruthy();
 
     // First approval creates the Approved state that AC6 protects.
-    await login(page, coordinatorEmail);
+    const page = await pageAs(coordinatorAccount);
     await page.goto(`/events/${event.id}`);
     await page.getByRole("button", { name: "Review Event" }).click();
     await page.getByRole("radio", { name: "Approve" }).check();

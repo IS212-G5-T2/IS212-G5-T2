@@ -783,15 +783,17 @@ describe('SPM-125 venue history service', () => {
   const listBookingHistory = vi.fn();
   const markUnavailable = vi.fn();
   const endUnavailable = vi.fn();
+  const get = vi.fn();
   const hasPermission = vi.fn();
   const service = new VenuesService(
-    { listUnavailabilityHistory, listBookingHistory, markUnavailable, endUnavailable } as unknown as VenuesRepository,
+    { listUnavailabilityHistory, listBookingHistory, markUnavailable, endUnavailable, get } as unknown as VenuesRepository,
     { hasPermission } as unknown as RbacRepository,
   );
 
   beforeEach(() => {
     vi.resetAllMocks();
     hasPermission.mockResolvedValue(true);
+    get.mockResolvedValue({ ...venue, ownerId: staff.uid });
   });
 
   /** VEN-IMPACT-01-C, VEN-IMPACT-05-A (AC1, AC5): Venue Staff get the venue's histories as the repository reads them. */
@@ -849,6 +851,32 @@ describe('SPM-125 venue history service', () => {
     await expect(service.endUnavailable(staff, venue.id, periodId)).rejects.toThrow('Unavailable period not found.');
     expect(endUnavailable).toHaveBeenCalledWith(venue.id, periodId, staff.uid);
   });
+
+  /**
+   * SPM-121 AC7, E2E-29 R9: a Venue Staff member who did not create the venue gets 403 on both unavailability
+   * endpoints, and nothing is written or ended.
+   * Kills: dropping the ownership check, or running it after the repository write.
+   */
+  it('SPM-121 AC7 refuses marking or ending unavailability on a venue the caller did not create', async () => {
+    const periodId = '00000000-0000-4000-8000-0000000000aa';
+    get.mockResolvedValue({ ...venue, ownerId: 'staff-2' });
+
+    await expect(service.markUnavailable(staff, venue.id, {})).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.endUnavailable(staff, venue.id, periodId)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(markUnavailable).not.toHaveBeenCalled();
+    expect(endUnavailable).not.toHaveBeenCalled();
+  });
+
+  /** SPM-121 AC7: an unknown venue still answers 404 (not 403) with each endpoint's own message, before any write. */
+  it('SPM-121 AC7 answers 404 on both unavailability endpoints when the venue does not exist', async () => {
+    const periodId = '00000000-0000-4000-8000-0000000000aa';
+    get.mockResolvedValue(undefined);
+
+    await expect(service.markUnavailable(staff, venue.id, {})).rejects.toThrow('Venue not found.');
+    await expect(service.endUnavailable(staff, venue.id, periodId)).rejects.toThrow('Unavailable period not found.');
+    expect(markUnavailable).not.toHaveBeenCalled();
+    expect(endUnavailable).not.toHaveBeenCalled();
+  });
 });
 
 /** SPM-132 AC9/10: service boundaries preserve not-found, lifecycle and Completed-event refusals. */
@@ -891,7 +919,8 @@ describe('Venue unavailable-period service success', () => {
     const periodId = '00000000-0000-4000-8000-000000000122';
     const period = { id: periodId, start: '2030-01-12T04:00:00.000Z', end: '2030-01-12T04:30:00.000Z', reason: 'Maintenance' };
     const endUnavailable = vi.fn().mockResolvedValue(period);
-    const service = new VenuesService({ endUnavailable } as never, { hasPermission: vi.fn().mockResolvedValue(true) } as never);
+    const get = vi.fn().mockResolvedValue({ ...venue, ownerId: staff.uid });
+    const service = new VenuesService({ endUnavailable, get } as never, { hasPermission: vi.fn().mockResolvedValue(true) } as never);
     await expect(service.endUnavailable(staff, venue.id, periodId)).resolves.toEqual({ period });
     expect(endUnavailable).toHaveBeenCalledWith(venue.id, periodId, staff.uid);
   });
@@ -899,7 +928,8 @@ describe('Venue unavailable-period service success', () => {
   /** SPM-122 AC1: a valid blockout for an absent venue answers 404 after validation rather than returning success. */
   it('refuses a blockout when the venue no longer exists', async () => {
     const markUnavailable = vi.fn().mockResolvedValue(undefined);
-    const service = new VenuesService({ markUnavailable } as never, { hasPermission: vi.fn().mockResolvedValue(true) } as never, { now: () => new Date('2030-01-10T00:00:00.000Z') });
+    const get = vi.fn().mockResolvedValue({ ...venue, ownerId: staff.uid });
+    const service = new VenuesService({ markUnavailable, get } as never, { hasPermission: vi.fn().mockResolvedValue(true) } as never, { now: () => new Date('2030-01-10T00:00:00.000Z') });
     await expect(service.markUnavailable(staff, venue.id, { start: '2030-01-12T04:00:00.000Z', end: '2030-01-12T05:00:00.000Z', reason: 'Maintenance' })).rejects.toBeInstanceOf(NotFoundException);
     expect(markUnavailable).toHaveBeenCalledOnce();
   });

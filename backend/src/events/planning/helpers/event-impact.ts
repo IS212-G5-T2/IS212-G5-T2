@@ -17,10 +17,8 @@
  *   compatible: the booking still covers the event and nothing else moves.
  *   A new time outside it is a 'window' conflict (the booking must change),
  *   and is then also checked for overlap/turnaround at the new time.
- * - Setup/turnaround: the venue needs TURNAROUND_MINUTES free between this
- *   booking and any other event's booking at the same venue. A gap of exactly
- *   TURNAROUND_MINUTES is fine; anything shorter (including touching bookings)
- *   is a 'turnaround' conflict; any overlap is an 'overlap' conflict.
+ * - Setup/turnaround: adjacent bookings conflict when their occupied windows
+ *   (setup before, turnaround after) overlap. Exact boundary contact is fine.
  * - Overlap and turnaround are only assessed when the proposal moves the start
  *   or the end outside the held window; other changes are not blamed for a
  *   gap that already existed.
@@ -48,6 +46,8 @@ export interface NeighbourBooking {
   eventName: string;
   start: string;
   end: string;
+  setupTimeMinutes: number;
+  turnaroundTimeMinutes: number;
 }
 
 export interface VenueBookingInput {
@@ -57,6 +57,8 @@ export interface VenueBookingInput {
   capacity: number;
   start: string;
   end: string;
+  setupTimeMinutes: number;
+  turnaroundTimeMinutes: number;
   neighbours: NeighbourBooking[];
 }
 
@@ -91,7 +93,6 @@ export interface BookingImpact {
   conflicts: ImpactConflict[];
 }
 
-
 /** True when [start, end] lies inside the window [heldStart, heldEnd]. */
 export function withinWindow(
   start: number,
@@ -105,6 +106,7 @@ export function withinWindow(
 function timeConflicts(
   start: number,
   end: number,
+  booking: VenueBookingInput,
   neighbours: NeighbourBooking[],
 ): ImpactConflict[] {
   const conflicts: ImpactConflict[] = [];
@@ -124,11 +126,14 @@ function timeConflicts(
     const gapMinutes = Math.round(
       (before ? start - otherEnd : otherStart - end) / MINUTE,
     );
-    if (gapMinutes < TURNAROUND_MINUTES) {
+    const neededMinutes = before
+      ? other.turnaroundTimeMinutes + booking.setupTimeMinutes
+      : booking.turnaroundTimeMinutes + other.setupTimeMinutes;
+    if (gapMinutes < neededMinutes) {
       conflicts.push({
         kind: 'turnaround',
         withBookingId: other.id,
-        detail: `Only ${gapMinutes} min turnaround ${before ? 'after' : 'before'} ${other.eventName}; ${TURNAROUND_MINUTES} min needed for setup`,
+        detail: `Only ${gapMinutes} min between bookings ${before ? 'after' : 'before'} ${other.eventName}; ${neededMinutes} min needed for setup and turnaround`,
       });
     }
   }
@@ -162,7 +167,7 @@ export function assessVenueBookings(
         kind: 'window',
         detail: `Booking holds ${booking.venueName} ${sgtRange(heldStart, heldEnd)}; the event would run ${sgtRange(start, end)}, so the booking must change`,
       });
-      conflicts.push(...timeConflicts(start, end, booking.neighbours));
+      conflicts.push(...timeConflicts(start, end, booking, booking.neighbours));
     }
 
     if (

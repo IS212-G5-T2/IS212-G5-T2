@@ -45,7 +45,7 @@ describe.skipIf(!database)('SPM-177 clarification notifications over HTTP (e2e)'
   beforeEach(async () => {
     eventIds = [];
     userIds = [];
-    app = (await Test.createTestingModule({ imports: [AppModule] }).compile()).createNestApplication();
+    app = (await Test.createTestingModule({ imports: [AppModule] }).compile()).createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     // Bound to 127.0.0.1 so supertest cannot reach another local listener.
     await app.listen(0, '127.0.0.1');

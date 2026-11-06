@@ -867,9 +867,11 @@ describe('VenuesRepository', () => {
     expect(queries[2]).toContain("request_kind <> 'tentative_hold' OR hold_expires_at IS NULL OR hold_expires_at > $3::timestamptz");
     expect(parameters[2]).toEqual(['00000000-0000-4000-8000-000000000001', venue.id, now]);
     expect(queries[3]).toContain('b.hold_expires_at > $6::timestamptz');
-    expect(queries[3]).toContain('FROM venue_booking_requests r');
+    // E2E-09 [S2]: an event-linked pending booking request is no longer a blocker, so the submission check has no
+    // venue_booking_requests lookup; only approved bookings, unexpired pending holds and blockouts block.
+    expect(queries[3]).not.toContain('venue_booking_requests');
     expect(queries[3]).toContain("b.status = 'approved'");
-    expect(queries[3]).toContain("b.request_kind <> 'tentative_hold' AND EXISTS (");
+    expect(queries[3]).toContain("b.status = 'pending' AND b.hold_expires_at > $6::timestamptz");
     expect(parameters[3][5]).toBe(now);
     expect(
       queries.some((sql) => sql.includes('INSERT INTO venue_bookings')),
@@ -1684,6 +1686,8 @@ describe('SPM-124 venue reads', () => {
             start_at: new Date('2030-01-12T04:10:00Z'),
             end_at: new Date('2030-01-12T04:50:00Z'),
             status: 'approved',
+            setup_time_minutes: 30,
+            turnaround_time_minutes: 45,
           },
           {
             id: 'hold-1',
@@ -1694,6 +1698,8 @@ describe('SPM-124 venue reads', () => {
             end_at: new Date('2030-01-12T04:45:00Z'),
             status: 'pending',
             hold_expires_at: new Date('2030-01-13T00:00:00Z'),
+            setup_time_minutes: 0,
+            turnaround_time_minutes: 0,
           },
           {
             id: 'hold-null-expiry',
@@ -1705,6 +1711,8 @@ describe('SPM-124 venue reads', () => {
             status: 'approved',
             request_kind: 'tentative_hold',
             hold_expires_at: null,
+            setup_time_minutes: 0,
+            turnaround_time_minutes: 0,
           },
           {
             id: 'request-1',
@@ -1715,6 +1723,8 @@ describe('SPM-124 venue reads', () => {
             end_at: new Date('2030-01-12T04:45:00Z'),
             status: 'pending',
             hold_expires_at: null,
+            setup_time_minutes: 0,
+            turnaround_time_minutes: 0,
           },
         ],
       });
@@ -1739,12 +1749,18 @@ describe('SPM-124 venue reads', () => {
           id: 'booking-1',
           status: 'booked',
           affectedByUnavailablePeriod: true,
+          // SPM-122 AC7 / SPM-125 AC7: start 04:10 minus 30 minutes setup, end 04:50 plus 45 minutes turnaround.
+          occupiedStart: '2030-01-12T03:40:00.000Z',
+          occupiedEnd: '2030-01-12T05:35:00.000Z',
         },
         {
           id: 'hold-1',
           status: 'tentative',
           holdExpiresAt: '2030-01-13T00:00:00.000Z',
           affectedByUnavailablePeriod: true,
+          // A venue with no setup or turnaround occupies exactly the event window.
+          occupiedStart: '2030-01-12T04:15:00.000Z',
+          occupiedEnd: '2030-01-12T04:45:00.000Z',
         },
         {
           id: 'hold-null-expiry',
@@ -1780,6 +1796,8 @@ describe('SPM-124 venue reads', () => {
       start_at: new Date('2030-01-12T04:10:00Z'),
       end_at: new Date('2030-01-12T04:50:00Z'),
       status: 'approved',
+      setup_time_minutes: 0,
+      turnaround_time_minutes: 0,
     };
     const query = vi
       .fn()
@@ -2363,7 +2381,9 @@ describe('SPM-55 venue booking review repository', () => {
     expect(normalized).toContain("start_at AS occupied_start, end_at AS occupied_end");
     // Approved bookings: setup pads the existing booking's start and turnaround its end; both comparisons are strict.
     // The approved-booking branch is scoped to the venue being decided, with self-exclusion and active-hold check.
-    expect(normalized).toContain("WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid AND ((b.status = 'approved' AND (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL OR b.hold_expires_at > $7::timestamptz)) OR (b.status = 'pending' AND (b.hold_expires_at > $7::timestamptz OR (b.request_kind <> 'tentative_hold' AND EXISTS ( SELECT 1 FROM venue_booking_requests r WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id )))))");
+    expect(normalized).toContain("WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid AND ((b.status = 'approved' AND (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL OR b.hold_expires_at > $7::timestamptz)) OR (b.status = 'pending' AND b.hold_expires_at > $7::timestamptz))");
+    // E2E-09 [S2]: pending ordinary requests coexist, so the approval re-check no longer treats them as blockers.
+    expect(normalized).not.toContain('venue_booking_requests');
     expect(normalized).toContain(
       "b.start_at - make_interval(mins => $4::int) < $3::timestamptz + make_interval(mins => $5::int)",
     );
@@ -3953,6 +3973,8 @@ describe('SPM-125 venue unavailability history and notifications', () => {
     status: 'approved',
     request_kind: 'booking',
     hold_expires_at: null,
+    setup_time_minutes: 0,
+    turnaround_time_minutes: 0,
     ...overrides,
   });
 

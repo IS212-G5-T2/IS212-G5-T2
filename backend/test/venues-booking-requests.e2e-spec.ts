@@ -57,21 +57,16 @@ describe.skipIf(!databaseUrl)(
           ),
         );
       }
-      // Migration 022 adds venue_bookings.special_request and backfills it across every row. Only its schema half
-      // runs here (the init copy has no backfill, as in the CI database), so neither the real backfill nor a mutated
-      // one (VEN-REV-M55) can rewrite other suites' shared rows. VEN-REV-11-A runs the full file in isolation.
-      await pool.query(
-        await readFile(
-          new URL('../../database/postgresql/init/022_spm55_booking_special_request.sql', import.meta.url),
-          'utf8',
-        ),
-      );
+      // venue_bookings.special_request already exists: database/postgresql/init/001_schema.sql declares it. Migration
+      // 022 (which also backfills it across every row) is deliberately not replayed here, so neither the real backfill
+      // nor a mutated one (VEN-REV-M55) can rewrite other suites' shared rows. VEN-REV-11-A runs the full file in
+      // isolation.
 
       const module = await Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(CLOCK)
         .useValue({ now: () => testNow })
         .compile();
-      app = module.createNestApplication();
+      app = module.createNestApplication({ logger: ['warn', 'log'] });
       await app.init();
     });
 
@@ -715,8 +710,8 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-BKG-02-C: distinct assigned events race for a fresh venue; the serialized pending-request conflict permits only one request. */
-    it('VEN-BKG-02-C SPM-54 serializes different-event conflict checks on the venue row', async () => {
+    /** VEN-BKG-02-C: distinct assigned events race for a fresh venue; submissions are still serialized on the venue row, and since pending requests coexist (E2E-09 [S2]) both are recorded. */
+    it('VEN-BKG-02-C SPM-54 serializes different-event submissions on the venue row and records both pending requests', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
@@ -770,20 +765,19 @@ describe.skipIf(!databaseUrl)(
         lockClient.release();
       }
       const responses = await submissions;
-      expect(responses.map(({ status }) => status).sort()).toEqual([201, 409]);
+      expect(responses.map(({ status }) => status)).toEqual([201, 201]);
       const active = await pool.query<{ event_id: string; status: string }>(
         `SELECT event_id, status FROM venue_bookings
           WHERE venue_id = $1 AND status IN ('pending', 'approved')`,
         [venueId],
       );
-      expect(active.rows).toHaveLength(1);
-      expect(candidates).toContain(active.rows[0].event_id);
-      expect(active.rows[0].status).toBe('pending');
+      expect(active.rows.map((row) => row.event_id).sort()).toEqual([...candidates].sort());
+      expect(active.rows.map((row) => row.status)).toEqual(['pending', 'pending']);
       const requests = await pool.query<{ event_id: string }>(
         `SELECT event_id FROM venue_booking_requests WHERE venue_id = $1`,
         [venueId],
       );
-      expect(requests.rows).toEqual([{ event_id: active.rows[0].event_id }]);
+      expect(requests.rows.map((row) => row.event_id).sort()).toEqual([...candidates].sort());
       expect(waiting).toBe(2);
       expect(insertsWaiting).toBe(0);
     });
@@ -1192,6 +1186,24 @@ describe.skipIf(!databaseUrl)(
         "SELECT id FROM users WHERE email = 'coordinator1@connectsphere.test'",
       );
       expect(seedCoordinator.rows).toHaveLength(1);
+      // Earlier suites may TRUNCATE/DELETE events on the shared disposable DB. The SPM-51
+      // seed is fully idempotent (ON CONFLICT guards throughout), so replay it when any
+      // of the five sample events is missing so this regression check still runs.
+      const presentEvents = await pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM events
+         WHERE id BETWEEN $1::uuid AND $2::uuid`,
+        [
+          '00000000-0000-4000-8000-000000000201',
+          '00000000-0000-4000-8000-000000000205',
+        ],
+      );
+      if (Number(presentEvents.rows[0].count) < 5) {
+        const seedSql = await readFile(
+          new URL('../../database/postgresql/init/002_seed_data.sql', import.meta.url),
+          'utf8',
+        );
+        await pool.query(seedSql);
+      }
       const seededEvents = await pool.query<{ id: string; event_name: string }>(
         `SELECT id, event_name FROM events
          WHERE id BETWEEN $2::uuid AND $3::uuid AND coordinator_id = $1::text`,
@@ -1283,8 +1295,8 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows).toEqual([]);
     });
 
-    /** VEN-BKG-02-B / SPM-54 AC2: a pending request without hold expiry blocks an overlapping different event, while schedule visibility still distinguishes requests from time-bounded holds. */
-    it('VEN-BKG-02-B SPM-54 blocks overlap on an unbounded pending request without showing it as a schedule hold', async () => {
+    /** VEN-BKG-02-B / SPM-54 AC2, E2E-09 [S2]: a pending request without hold expiry does NOT block an overlapping different event (pending requests coexist; approval re-checks), and it is still not shown as a schedule hold. */
+    it('VEN-BKG-02-B SPM-54 lets an overlapping pending request coexist with an unbounded pending request, settled at approval', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
@@ -1320,19 +1332,50 @@ describe.skipIf(!databaseUrl)(
         .expect(200);
       expect(schedule.body.reservations).toEqual([]);
 
+      // E2E-09 [S2]: the second request is accepted although the first is still pending.
       await request(app.getHttpServer())
         .post(`/api/venues/${venueId}/booking-requests`)
         .set('Cookie', coordinator.cookie)
         .send({ eventId: secondEvent, ...period })
+        .expect(201);
+      const both = await pool.query<{ id: string; event_id: string; status: string }>(
+        'SELECT id, event_id, status FROM venue_bookings WHERE venue_id = $1 ORDER BY created_at, id',
+        [venueId],
+      );
+      expect(both.rows.map((row) => [row.event_id, row.status])).toEqual([
+        [firstEvent, 'pending'],
+        [secondEvent, 'pending'],
+      ]);
+
+      // The race is settled at approval: the first approval wins, the second is refused with a conflict that names
+      // the winner, and the loser stays pending.
+      const [first, second] = both.rows;
+      await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${first.id}/approve`)
+        .set('Cookie', owner.cookie)
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${second.id}/approve`)
+        .set('Cookie', owner.cookie)
         .expect(409)
         .expect(({ body }) => {
-          expect(body.message).toContain('Pending request without hold');
+          expect(body.code).toBe('BOOKING_SLOT_CONFLICT');
+          expect(body.conflicts).toEqual([
+            expect.objectContaining({
+              id: first.id,
+              reason: 'Pending request without hold',
+              status: 'approved',
+            }),
+          ]);
         });
-      const secondRequest = await pool.query(
-        'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
-        [venueId, secondEvent],
+      const settled = await pool.query<{ id: string; status: string }>(
+        'SELECT id, status FROM venue_bookings WHERE venue_id = $1',
+        [venueId],
       );
-      expect(secondRequest.rows).toEqual([]);
+      expect(Object.fromEntries(settled.rows.map((row) => [row.id, row.status]))).toEqual({
+        [first.id]: 'approved',
+        [second.id]: 'pending',
+      });
     });
 
     /** VEN-AVL-10-A: a pending row without hold expiry and without a booking request for its event is not an active hold, so an overlapping submission is accepted. Kills: pending request without a Venue Staff expiry counted as an active hold (B11). */
@@ -4709,7 +4752,7 @@ describe.skipIf(!databaseUrl)(
           .overrideProvider(CLOCK)
           .useValue({ now: () => testNow })
           .compile();
-        scheduledApp = scheduledModule.createNestApplication();
+        scheduledApp = scheduledModule.createNestApplication({ logger: ['warn', 'log'] });
         await scheduledApp.init();
 
         await vi.advanceTimersByTimeAsync(999);

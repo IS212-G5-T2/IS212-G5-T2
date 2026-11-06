@@ -2,7 +2,6 @@ import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
@@ -72,9 +71,12 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
     pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
-    // The venues suite re-applies migration 009 to this shared database, which restores the older
-    // venue_bookings constraints. Re-applying 011 (idempotent) makes this suite independent of that order.
-    await pool.query(await readFile(new URL('../migrations/011_spm136_cancel_event.sql', import.meta.url), 'utf8'));
+    // No migration replay here. This suite runs against a disposable database built from
+    // database/postgresql/init, which is already at final schema state (SPM-185), so there is nothing
+    // to repair. Replaying 011 actively broke things: it redefines trg_venue_bookings_invalidate_safety
+    // and trg_equipment_invalidate_safety with their pre-SPM-131 bodies, dropping the re-approval guard
+    // that init/031 and init/033 install, which made 7 tests in safety-officer.e2e-spec.ts fail whenever
+    // this file happened to run first.
   });
 
   afterAll(async () => {
@@ -127,7 +129,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
       .useValue({ now: () => new Date(T0) });
     if (releasers) builder = builder.overrideProvider(EVENT_RELEASERS).useValue(releasers);
     const moduleFixture = await builder.compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     // TR-136-08: bind the test server to 127.0.0.1 so supertest's 127.0.0.1 requests cannot reach another local listener.
     await app.listen(0, '127.0.0.1');

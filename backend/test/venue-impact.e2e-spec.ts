@@ -1,6 +1,5 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import pg from 'pg';
@@ -162,27 +161,32 @@ describe.skipIf(!databaseUrl)(
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: databaseUrl });
     pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
-      // Other suites re-apply older venue migrations that narrow the booking statuses; restore the SPM-54 statuses
-      // (init 019) and make sure the SPM-137 booking link (init 029) and the SPM-125 schema (init 030) are present. All
-      // three files are idempotent.
-      for (const file of [
-        '019_spm54_venue_booking_lifecycle.sql',
-        '029_spm137_booking_decision_notification.sql',
-        '030_spm125_venue_unavailability_history.sql',
-      ])
-        await pool.query(
-          await readFile(
-            new URL(`../../database/postgresql/init/${file}`, import.meta.url),
-            'utf8',
+      // Other suites re-apply older backend/migrations that can narrow the booking statuses. The init scripts
+      // build the database at its final schema state (notifications.related_booking_id and
+      // venue_unavailability_history are in 001_schema.sql), so the only thing to restore here is the widest
+      // venue_bookings status and kind constraint, as init/001_schema.sql declares them. Idempotent.
+      await pool.query(`
+        ALTER TABLE venue_bookings
+          DROP CONSTRAINT IF EXISTS venue_bookings_status_check,
+          DROP CONSTRAINT IF EXISTS venue_bookings_kind_check,
+          ADD CONSTRAINT venue_bookings_status_check CHECK (
+            status IN ('pending', 'approved', 'rejected', 'blocked', 'released', 'cancelled', 'expired')
           ),
-        );
+          ADD CONSTRAINT venue_bookings_kind_check CHECK (
+            (status = 'blocked' AND event_id IS NULL AND reason IS NOT NULL
+              AND length(btrim(reason)) BETWEEN 1 AND 500 AND hold_expires_at IS NULL)
+            OR (status IN ('pending', 'approved', 'rejected', 'released', 'cancelled')
+              AND event_id IS NOT NULL AND reason IS NULL)
+            OR (status = 'expired' AND request_kind = 'tentative_hold'
+              AND event_id IS NOT NULL AND reason IS NULL AND hold_expires_at IS NOT NULL)
+          )`);
       const moduleFixture = await Test.createTestingModule({
         imports: [AppModule],
       })
         .overrideProvider(CLOCK)
         .useValue({ now: () => fixedNow })
         .compile();
-      app = moduleFixture.createNestApplication();
+      app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
       await app.init();
       await signIn('staff', 'venue_staff1@connectsphere.test');
       await signIn('staff2', 'venue_staff2@connectsphere.test');
@@ -400,7 +404,7 @@ describe.skipIf(!databaseUrl)(
 
     /**
      * VEN-IMPACT-01-J (AC1): the history shows the period saved by Venue Staff 1; ending a current period early (by
-     * Venue Staff 2) adds an 'ended_early' entry with the new end, the end it replaced, the person and the time;
+     * the owner, Venue Staff 1; Venue Staff 2 is refused with 403 under SPM-121 AC7) adds an 'ended_early' entry with the new end, the end it replaced, the person and the time;
      * entries are newest first.
      */
     it('VEN-IMPACT-01-J records who created and who ended a period early, with the period, reason and time', async () => {
@@ -413,7 +417,22 @@ describe.skipIf(!databaseUrl)(
           reason: 'Burst pipe',
         })
         .expect(201);
+      // SPM-121 AC7 / E2E-29 R9: Venue Staff 2 did not create the venue, so neither adding a period nor ending
+      // Venue Staff 1's period is allowed, and the period stays current.
       await agents.staff2
+        .post(`/api/venues/${venueId}/unavailable-periods`)
+        .send({
+          start: '2030-01-10T10:00:00.000Z',
+          end: '2030-01-10T18:00:00.000Z',
+          reason: 'Not my venue',
+        })
+        .expect(403);
+      await agents.staff2
+        .post(
+          `/api/venues/${venueId}/unavailable-periods/${current.body.period.id}/end`,
+        )
+        .expect(403);
+      await agents.staff
         .post(
           `/api/venues/${venueId}/unavailable-periods/${current.body.period.id}/end`,
         )
@@ -431,7 +450,7 @@ describe.skipIf(!databaseUrl)(
         end: fixedNow.toISOString(),
         previousEnd: '2030-01-10T18:00:00.000Z',
         reason: 'Burst pipe',
-        changedBy: 'Venue Staff 2',
+        changedBy: 'Venue Staff 1',
         changedAt: fixedNow.toISOString(),
       });
       expect(

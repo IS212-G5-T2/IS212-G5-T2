@@ -35,7 +35,7 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
     userIds = [];
     auditFailureTriggerInstalled = false;
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
   });
 

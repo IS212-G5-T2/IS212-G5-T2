@@ -57,7 +57,7 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
 
     organiser = await createDatabaseUser('ORGANISER', 'HTTP Organiser');

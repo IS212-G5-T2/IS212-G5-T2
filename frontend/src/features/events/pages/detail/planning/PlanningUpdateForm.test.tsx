@@ -373,7 +373,8 @@ describe("PlanningUpdateForm: what is sent", () => {
     });
   });
 
-  // EVENT-UPDATE-03-A: a date change is sent as UTC instants the API accepts.
+  // EVENT-UPDATE-03-A: a date change is interpreted as Singapore wall time and
+  // sent as the matching UTC instant the API accepts, independent of the host timezone.
   it("EVENT-UPDATE-03-A sends changed dates as ISO UTC timestamps", async () => {
     const { onSave } = renderForm();
     fireEvent.change(screen.getByLabelText(/start date & time/i), {
@@ -384,8 +385,8 @@ describe("PlanningUpdateForm: what is sent", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith({
-      startDateTime: new Date("2026-11-12T09:00").toISOString(),
-      endDateTime: new Date("2026-11-12T12:00").toISOString(),
+      startDateTime: new Date("2026-11-12T09:00+08:00").toISOString(),
+      endDateTime: new Date("2026-11-12T12:00+08:00").toISOString(),
     });
   });
 });

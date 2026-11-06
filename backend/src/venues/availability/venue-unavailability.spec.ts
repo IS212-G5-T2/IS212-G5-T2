@@ -121,8 +121,10 @@ describe('SPM-122 venue unavailable periods', () => {
   const markUnavailable = vi.fn();
   const endUnavailable = vi.fn();
   const hasPermission = vi.fn().mockResolvedValue(true);
+  // SPM-121 AC7: the caller owns the venue unless a test says otherwise (ownership refusals are in venues.service.spec.ts).
+  const get = vi.fn().mockResolvedValue({ id: venueId, ownerId: staff.uid });
   const service = new VenuesService(
-    { markUnavailable, endUnavailable } as unknown as VenuesRepository,
+    { markUnavailable, endUnavailable, get } as unknown as VenuesRepository,
     { hasPermission } as unknown as RbacRepository,
     { now: () => fixedNow },
   );

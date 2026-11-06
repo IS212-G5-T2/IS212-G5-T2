@@ -52,7 +52,7 @@ describe.skipIf(!database)('SPM-135 Confirm gate against the real safety source 
       .overrideProvider(CLOCK)
       .useValue({ now: () => new Date(T0) })
       .compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     coordinator = await createSession('COORDINATOR', 'Coordinator 1');
     organiser = await createSession('ORGANISER', 'Organiser 1');

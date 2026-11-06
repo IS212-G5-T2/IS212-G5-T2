@@ -45,7 +45,7 @@ import type {
 } from "@/types";
 import { ApiError } from "@/utils/api";
 import { formatDateTime } from "@/utils/format";
-import { formatSgtDateTime } from "@/utils/sgtDate";
+import { formatSgtDateTime, sgtLocalDateTimeToDate, toSgtLocalInput } from "@/utils/sgtDate";
 import { useVenueOptions } from "@/features/venues/api/venue-options-api";
 import { ROOM_LAYOUT_OPTIONS } from "@/features/venues/lib/venueOptions";
 import {
@@ -94,17 +94,15 @@ const FIELD_KEYS: FieldKey[] = [
   "equipmentNeeds",
 ];
 
-// ISO (UTC) → value for <input type="datetime-local"> in the user's time zone.
+// ISO (UTC) → value for <input type="datetime-local"> in Singapore wall time.
+// Browser timezone must not matter: the field represents SGT like the rest of the app.
 export function toLocalInput(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return toSgtLocalInput(iso);
 }
 
-// datetime-local value (local time) → ISO UTC string the API expects.
+// datetime-local value (Singapore wall time) → ISO UTC string the API expects.
 function fromLocalInput(value: string): string {
-  return new Date(value).toISOString();
+  return sgtLocalDateTimeToDate(value).toISOString();
 }
 
 function initialValues(event: EventRecord): FormValues {

@@ -53,7 +53,7 @@ export class EquipmentRequestsService {
     return this.repository.listReservations();
   }
 
-  /** SPM-113: only Technical Support can approve/reserve a pending request. */
+  /** SPM-58 AC3: only Technical Support can approve/reserve a pending request. */
   async reserve(user: AuthenticatedUser | undefined, requestId: string) {
     if (!user?.uid) throw new UnauthorizedException('Authentication required.');
     if (!user.roles.includes('TECH_SUPPORT')) throw new ForbiddenException('Technical Support access required.');

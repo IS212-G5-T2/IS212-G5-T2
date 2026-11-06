@@ -1,7 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { DatabaseService } from '../../database/database.service.js';
-import { TURNAROUND_MINUTES } from './helpers/event-impact.js';
 import {
   EventPlanningRepository,
   type ChangeResolution,
@@ -203,44 +202,79 @@ describe('EventPlanningRepository writes', () => {
     const { repository, poolQuery } = makeDatabase([eventDbRow()]);
     await repository.applyFields(
       EVENT_ID,
-      { name: 'Renamed' } as unknown as Parameters<typeof repository.applyFields>[1],
+      { name: 'Renamed' } as unknown as Parameters<
+        typeof repository.applyFields
+      >[1],
       new Date('2026-10-05T08:00:00.000Z'),
     );
     const sqls = poolQuery.mock.calls.map(([sql]) => sql as string);
     expect(sqls.some((sql) => sql.includes('equipment_requests'))).toBe(false);
-    expect(sqls.some((sql) => sql.includes('equipment_reservations'))).toBe(false);
+    expect(sqls.some((sql) => sql.includes('equipment_reservations'))).toBe(
+      false,
+    );
   });
 
   // routes applyFields' queries by statement so a reschedule can be
   // asserted (the shared stub returns one fixed result for every call).
-  function rescheduleDatabase(oldWindow: { start: Date; end: Date }, newWindow: { start: Date; end: Date }) {
+  function rescheduleDatabase(
+    oldWindow: { start: Date; end: Date },
+    newWindow: { start: Date; end: Date },
+  ) {
     const calls: { sql: string; params: unknown[] }[] = [];
     const query: Query = vi.fn(async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
-      if (sql.startsWith('SELECT start_date_time')) return { rows: [{ start_date_time: oldWindow.start, end_date_time: oldWindow.end }] };
-      if (sql.startsWith('UPDATE events')) return { rows: [eventDbRow({ start_date_time: newWindow.start, end_date_time: newWindow.end })] };
+      if (sql.startsWith('SELECT start_date_time'))
+        return {
+          rows: [
+            { start_date_time: oldWindow.start, end_date_time: oldWindow.end },
+          ],
+        };
+      if (sql.startsWith('UPDATE events'))
+        return {
+          rows: [
+            eventDbRow({
+              start_date_time: newWindow.start,
+              end_date_time: newWindow.end,
+            }),
+          ],
+        };
       return { rows: [] };
     });
-    const database = { query, transaction: vi.fn() } as unknown as DatabaseService;
+    const database = {
+      query,
+      transaction: vi.fn(),
+    } as unknown as DatabaseService;
     return { repository: new EventPlanningRepository(database), calls };
   }
 
   /** EQUIP-RESERVE-11-A (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): a move outside the held window returns requests to review AND releases the reservations. */
   it('returns equipment to Pending Review and releases reservations when the event moves outside its window', async () => {
     const { repository, calls } = rescheduleDatabase(
-      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
-      { start: new Date('2026-11-10T09:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
+      {
+        start: new Date('2026-11-10T10:00:00.000Z'),
+        end: new Date('2026-11-10T12:00:00.000Z'),
+      },
+      {
+        start: new Date('2026-11-10T09:00:00.000Z'),
+        end: new Date('2026-11-10T12:00:00.000Z'),
+      },
     );
     await repository.applyFields(
       EVENT_ID,
-      { startDateTime: '2026-11-10T09:00:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      { startDateTime: '2026-11-10T09:00:00.000Z' } as unknown as Parameters<
+        typeof repository.applyFields
+      >[1],
       new Date('2026-10-05T08:00:00.000Z'),
     );
-    const reqUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_requests'));
+    const reqUpdate = calls.find((call) =>
+      call.sql.includes('UPDATE equipment_requests'),
+    );
     expect(reqUpdate?.sql).toContain("status = 'Pending Review'");
     expect(reqUpdate?.sql).toContain("status = 'Reserved'");
     expect(reqUpdate?.params[0]).toBe(EVENT_ID);
-    const resUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_reservations'));
+    const resUpdate = calls.find((call) =>
+      call.sql.includes('UPDATE equipment_reservations'),
+    );
     expect(resUpdate?.sql).toContain("status = 'Released'");
     expect(resUpdate?.sql).toContain("status = 'Reserved'");
     expect(resUpdate?.params[0]).toBe(EVENT_ID);
@@ -249,15 +283,25 @@ describe('EventPlanningRepository writes', () => {
   /** EQUIP-RESERVE-11-BND-1 (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): moving only the end later than the held window also releases reservations. */
   it('releases reservations when only the event end moves later than its window', async () => {
     const { repository, calls } = rescheduleDatabase(
-      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
-      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T13:00:00.000Z') },
+      {
+        start: new Date('2026-11-10T10:00:00.000Z'),
+        end: new Date('2026-11-10T12:00:00.000Z'),
+      },
+      {
+        start: new Date('2026-11-10T10:00:00.000Z'),
+        end: new Date('2026-11-10T13:00:00.000Z'),
+      },
     );
     await repository.applyFields(
       EVENT_ID,
-      { endDateTime: '2026-11-10T13:00:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      { endDateTime: '2026-11-10T13:00:00.000Z' } as unknown as Parameters<
+        typeof repository.applyFields
+      >[1],
       new Date('2026-10-05T08:00:00.000Z'),
     );
-    const resUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_reservations'));
+    const resUpdate = calls.find((call) =>
+      call.sql.includes('UPDATE equipment_reservations'),
+    );
     expect(resUpdate?.sql).toContain("status = 'Released'");
     expect(resUpdate?.params[0]).toBe(EVENT_ID);
   });
@@ -268,19 +312,31 @@ describe('EventPlanningRepository writes', () => {
    */
   it('returns the request to Pending Review and retains reservations for a one-minute change of only the start', async () => {
     const { repository, calls } = rescheduleDatabase(
-      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
-      { start: new Date('2026-11-10T10:01:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
+      {
+        start: new Date('2026-11-10T10:00:00.000Z'),
+        end: new Date('2026-11-10T12:00:00.000Z'),
+      },
+      {
+        start: new Date('2026-11-10T10:01:00.000Z'),
+        end: new Date('2026-11-10T12:00:00.000Z'),
+      },
     );
     await repository.applyFields(
       EVENT_ID,
-      { startDateTime: '2026-11-10T10:01:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      { startDateTime: '2026-11-10T10:01:00.000Z' } as unknown as Parameters<
+        typeof repository.applyFields
+      >[1],
       new Date('2026-10-05T08:00:00.000Z'),
     );
-    const reqUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_requests'));
+    const reqUpdate = calls.find((call) =>
+      call.sql.includes('UPDATE equipment_requests'),
+    );
     expect(reqUpdate?.sql).toContain("status = 'Pending Review'");
     expect(reqUpdate?.sql).toContain("status = 'Reserved'");
     expect(reqUpdate?.params[0]).toBe(EVENT_ID);
-    expect(calls.some((call) => call.sql.includes('UPDATE equipment_reservations'))).toBe(false);
+    expect(
+      calls.some((call) => call.sql.includes('UPDATE equipment_reservations')),
+    ).toBe(false);
   });
 
   /**
@@ -289,15 +345,25 @@ describe('EventPlanningRepository writes', () => {
    */
   it('returns the request to Pending Review for a one-minute change of only the end', async () => {
     const { repository, calls } = rescheduleDatabase(
-      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
-      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:01:00.000Z') },
+      {
+        start: new Date('2026-11-10T10:00:00.000Z'),
+        end: new Date('2026-11-10T12:00:00.000Z'),
+      },
+      {
+        start: new Date('2026-11-10T10:00:00.000Z'),
+        end: new Date('2026-11-10T12:01:00.000Z'),
+      },
     );
     await repository.applyFields(
       EVENT_ID,
-      { endDateTime: '2026-11-10T12:01:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      { endDateTime: '2026-11-10T12:01:00.000Z' } as unknown as Parameters<
+        typeof repository.applyFields
+      >[1],
       new Date('2026-10-05T08:00:00.000Z'),
     );
-    const reqUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_requests'));
+    const reqUpdate = calls.find((call) =>
+      call.sql.includes('UPDATE equipment_requests'),
+    );
     expect(reqUpdate?.sql).toContain("status = 'Pending Review'");
     expect(reqUpdate?.params[0]).toBe(EVENT_ID);
   });
@@ -308,33 +374,58 @@ describe('EventPlanningRepository writes', () => {
    */
   it('returns the request to Pending Review and retains reservations for a one-minute change of only the end to earlier', async () => {
     const { repository, calls } = rescheduleDatabase(
-      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
-      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T11:59:00.000Z') },
+      {
+        start: new Date('2026-11-10T10:00:00.000Z'),
+        end: new Date('2026-11-10T12:00:00.000Z'),
+      },
+      {
+        start: new Date('2026-11-10T10:00:00.000Z'),
+        end: new Date('2026-11-10T11:59:00.000Z'),
+      },
     );
     await repository.applyFields(
       EVENT_ID,
-      { endDateTime: '2026-11-10T11:59:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      { endDateTime: '2026-11-10T11:59:00.000Z' } as unknown as Parameters<
+        typeof repository.applyFields
+      >[1],
       new Date('2026-10-05T08:00:00.000Z'),
     );
-    const reqUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_requests'));
+    const reqUpdate = calls.find((call) =>
+      call.sql.includes('UPDATE equipment_requests'),
+    );
     expect(reqUpdate?.sql).toContain("status = 'Pending Review'");
     expect(reqUpdate?.params[0]).toBe(EVENT_ID);
-    expect(calls.some((call) => call.sql.includes('UPDATE equipment_reservations'))).toBe(false);
+    expect(
+      calls.some((call) => call.sql.includes('UPDATE equipment_reservations')),
+    ).toBe(false);
   });
 
   /** EQUIP-RESERVE-11-A (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): a move that stays inside the held window re-opens the request but keeps the reservations. */
   it('returns equipment to Pending Review but keeps reservations when the event stays within its window', async () => {
     const { repository, calls } = rescheduleDatabase(
-      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
-      { start: new Date('2026-11-10T10:30:00.000Z'), end: new Date('2026-11-10T11:30:00.000Z') },
+      {
+        start: new Date('2026-11-10T10:00:00.000Z'),
+        end: new Date('2026-11-10T12:00:00.000Z'),
+      },
+      {
+        start: new Date('2026-11-10T10:30:00.000Z'),
+        end: new Date('2026-11-10T11:30:00.000Z'),
+      },
     );
     await repository.applyFields(
       EVENT_ID,
-      { startDateTime: '2026-11-10T10:30:00.000Z', endDateTime: '2026-11-10T11:30:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      {
+        startDateTime: '2026-11-10T10:30:00.000Z',
+        endDateTime: '2026-11-10T11:30:00.000Z',
+      } as unknown as Parameters<typeof repository.applyFields>[1],
       new Date('2026-10-05T08:00:00.000Z'),
     );
-    expect(calls.some((call) => call.sql.includes('UPDATE equipment_requests'))).toBe(true);
-    expect(calls.some((call) => call.sql.includes('UPDATE equipment_reservations'))).toBe(false);
+    expect(
+      calls.some((call) => call.sql.includes('UPDATE equipment_requests')),
+    ).toBe(true);
+    expect(
+      calls.some((call) => call.sql.includes('UPDATE equipment_reservations')),
+    ).toBe(false);
   });
 
   /**
@@ -636,7 +727,10 @@ describe('EventPlanningRepository row mapping', () => {
       request_status: 'approved',
       neighbours: [],
     });
-    const { repository, poolQuery } = makeDatabase([hold('bk-1', 'Hold'), hold('bk-2', 'Hold expired')]);
+    const { repository, poolQuery } = makeDatabase([
+      hold('bk-1', 'Hold'),
+      hold('bk-2', 'Hold expired'),
+    ]);
 
     const rows = await repository.listVenueBookings(EVENT_ID);
 
@@ -645,10 +739,16 @@ describe('EventPlanningRepository row mapping', () => {
       ['bk-2', 'Hold expired'],
     ]);
     const sql = String(poolQuery.mock.calls[0][0]).replace(/\s+/g, ' ');
-    expect(sql).toContain("WHEN (b.request_kind = 'tentative_hold' AND (b.status = 'expired' OR (b.status = 'approved' AND b.hold_expires_at IS NOT NULL AND b.hold_expires_at <= now()))) THEN 'Hold expired'");
+    expect(sql).toContain(
+      "WHEN (b.request_kind = 'tentative_hold' AND (b.status = 'expired' OR (b.status = 'approved' AND b.hold_expires_at IS NOT NULL AND b.hold_expires_at <= now()))) THEN 'Hold expired'",
+    );
     expect(sql).toContain("THEN 'Hold' ");
-    expect(sql).toContain("WHEN (b.status = 'approved' AND b.request_kind <> 'tentative_hold') THEN 'Booked'");
-    expect(sql).toContain("((n.status = 'approved' AND NOT (n.request_kind = 'tentative_hold' AND (n.status = 'expired' OR (n.status = 'approved' AND n.hold_expires_at IS NOT NULL AND n.hold_expires_at <= now())))) AND n.event_id <> b.event_id) OR n.status = 'blocked'");
+    expect(sql).toContain(
+      "WHEN (b.status = 'approved' AND b.request_kind <> 'tentative_hold') THEN 'Booked'",
+    );
+    expect(sql).toContain(
+      "((n.status = 'approved' AND NOT (n.request_kind = 'tentative_hold' AND (n.status = 'expired' OR (n.status = 'approved' AND n.hold_expires_at IS NOT NULL AND n.hold_expires_at <= now())))) AND n.event_id <> b.event_id) OR n.status = 'blocked'",
+    );
   });
 
   /**
@@ -664,6 +764,8 @@ describe('EventPlanningRepository row mapping', () => {
         venue_id: 'venue-a',
         venue_name: 'Hall A',
         venue_capacity: 200,
+        setup_time_minutes: 20,
+        turnaround_time_minutes: 25,
         start_at: new Date('2026-11-10T10:00:00.000Z'),
         end_at: new Date('2026-11-10T13:00:00.000Z'),
         planning_status: 'Booked',
@@ -673,6 +775,8 @@ describe('EventPlanningRepository row mapping', () => {
             eventName: 'Other event',
             start: '2026-11-10T13:10:00+00:00',
             end: '2026-11-10T15:00:00+00:00',
+            setupTimeMinutes: 20,
+            turnaroundTimeMinutes: 25,
           },
         ],
       },
@@ -686,6 +790,8 @@ describe('EventPlanningRepository row mapping', () => {
         capacity: 200,
         start: '2026-11-10T10:00:00.000Z',
         end: '2026-11-10T13:00:00.000Z',
+        setupTimeMinutes: 20,
+        turnaroundTimeMinutes: 25,
         status: 'Booked',
         neighbours: [
           {
@@ -693,16 +799,17 @@ describe('EventPlanningRepository row mapping', () => {
             eventName: 'Other event',
             start: '2026-11-10T13:10:00.000Z',
             end: '2026-11-10T15:00:00.000Z',
+            setupTimeMinutes: 20,
+            turnaroundTimeMinutes: 25,
           },
         ],
       },
     ]);
-    expect(poolQuery.mock.calls[0][1]).toEqual([
-      EVENT_ID,
-      null,
-      null,
-      TURNAROUND_MINUTES,
-    ]);
+    expect(poolQuery.mock.calls[0][1]).toEqual([EVENT_ID, null, null]);
+    const sql = String(poolQuery.mock.calls[0][0]);
+    expect(sql).toContain("'setupTimeMinutes', v.setup_time_minutes");
+    expect(sql).toContain("'turnaroundTimeMinutes', v.turnaround_time_minutes");
+    expect(sql).toContain('v.setup_time_minutes + v.turnaround_time_minutes');
 
     await repository.listVenueBookings(EVENT_ID, {
       start: '2026-11-11T10:00:00.000Z',
@@ -712,7 +819,6 @@ describe('EventPlanningRepository row mapping', () => {
       EVENT_ID,
       '2026-11-11T10:00:00.000Z',
       '2026-11-11T12:00:00.000Z',
-      TURNAROUND_MINUTES,
     ]);
   });
 

@@ -72,7 +72,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
       .overrideProvider(CLOCK)
       .useValue({ now: () => new Date(T0) })
       .compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
 
     coordinator = await createSession('COORDINATOR', 'Coordinator 1');
@@ -581,7 +581,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
       .overrideProvider(CLOCK)
       .useValue({ now: () => new Date(T0) })
       .compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     const { eventId } = await seedReadyEvent();
 

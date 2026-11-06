@@ -101,7 +101,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       .overrideProvider(CLOCK)
       .useValue({ now: () => now })
       .compile();
-    app = module.createNestApplication();
+    app = module.createNestApplication({ logger: ['warn', 'log'] });
     await app.listen(0);
   });
   afterEach(async () => {

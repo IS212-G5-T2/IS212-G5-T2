@@ -156,3 +156,6 @@ tmp/
 
 # Temporary Codex agent reports and handoffs
 /ai/runtime/
+
+# SPM-187: saved browser logins (session tokens) written by frontend/e2e/auth.setup.ts on every Playwright run
+frontend/e2e/.auth/

@@ -46,7 +46,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     createdUserIds = [];
     createdEquipmentIds = [];
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     coordinator = await createSession('COORDINATOR', 'Coordinator 1');
   });

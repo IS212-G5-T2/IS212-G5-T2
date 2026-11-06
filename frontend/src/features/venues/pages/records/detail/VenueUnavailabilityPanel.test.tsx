@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api } from "@/utils/api";
+import { formatDateTimeRange } from "@/utils/format";
 import { VenueUnavailabilityPanel } from "./VenueUnavailabilityPanel";
 
 vi.mock("@/utils/api", async (importOriginal) => ({ ...(await importOriginal<object>()), api: vi.fn() }));
@@ -359,6 +360,25 @@ describe("SPM-125 notified Coordinators after saving an unavailable period", () 
     expect(items[0]).toHaveTextContent("Coordinator notified");
     expect(items[1]).toHaveTextContent("Coordinator notified");
     expect(items[2]).toHaveTextContent("No assigned Coordinator to notify");
+  });
+
+  /**
+   * SPM-122 AC7 / SPM-125 AC7: when the venue has setup or turnaround time, each affected booking shows the occupied
+   * window next to the event window; a booking whose occupied window equals its event window shows no extra line.
+   * Kills: the panel printing only the event start and end.
+   */
+  it("SPM-122 AC7 shows the occupied window including setup and turnaround only when it differs from the event window", async () => {
+    const region = await saveWith([
+      { ...affected("b1", "Buffered Event"), occupiedStart: "2030-01-12T03:50:00.000Z", occupiedEnd: "2030-01-12T05:25:00.000Z" },
+      { ...affected("b2", "Unbuffered Event"), occupiedStart: "2030-01-12T04:20:00.000Z", occupiedEnd: "2030-01-12T04:40:00.000Z" },
+      affected("b3", "Legacy Response"),
+    ]);
+
+    const items = within(region).getAllByRole("listitem");
+    // The expected text uses the same formatter, so the assertion does not depend on the machine time zone.
+    expect(items[0]).toHaveTextContent(`Occupied incl. setup and turnaround: ${formatDateTimeRange("2030-01-12T03:50:00.000Z", "2030-01-12T05:25:00.000Z")}`);
+    expect(items[1]).not.toHaveTextContent("Occupied incl. setup and turnaround");
+    expect(items[2]).not.toHaveTextContent("Occupied incl. setup and turnaround");
   });
 
   /** VEN-IMPACT-06-BND-2 (AC6): one notified Coordinator is worded in the singular. */

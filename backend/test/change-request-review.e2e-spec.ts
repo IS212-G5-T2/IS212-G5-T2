@@ -58,7 +58,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     organiser = await createDatabaseUser('ORGANISER', 'CR Organiser');
     coordinator = await createDatabaseUser('COORDINATOR', 'CR Coordinator');
@@ -190,7 +190,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
 
   /** REVIEW-CHANGE-03-A, REVIEW-CHANGE-03-C, REVIEW-CHANGE-03-E, REVIEW-CHANGE-03-H: the read-only preview lists venue and equipment conflicts and changes nothing. */
   it('REVIEW-CHANGE-03-A previews booking, turnaround and equipment conflicts without changing anything', async () => {
-    const venue = await insertVenue('CR Hall', 150);
+    const venue = await insertVenue('CR Hall', 150, 15, 15);
     const booking = await insertBooking(
       eventId,
       venue,
@@ -232,7 +232,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     const details = preview.body.venueBookings[0].details.join(' | ');
     expect(details).toContain('the booking must change');
     expect(details).toContain(
-      'Only 15 min turnaround before Data Night; 30 min needed for setup',
+      'Only 15 min between bookings before Data Night; 30 min needed for setup and turnaround',
     );
     expect(preview.body.equipment).toEqual([
       {
@@ -913,11 +913,11 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     return id;
   }
 
-  async function insertVenue(name: string, capacity: number) {
+  async function insertVenue(name: string, capacity: number, setup = 0, turnaround = 0) {
     const result = await pool.query<{ id: string }>(
       `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information, setup_time_minutes, turnaround_time_minutes)
-       VALUES ($1,$2,$3,$4,'Open weekdays',0,0) RETURNING id`,
-      [coordinator.uid, name, `E2E ${randomUUID()}`, capacity],
+       VALUES ($1,$2,$3,$4,'Open weekdays',$5,$6) RETURNING id`,
+      [coordinator.uid, name, `E2E ${randomUUID()}`, capacity, setup, turnaround],
     );
     createdVenueIds.push(result.rows[0].id);
     return result.rows[0].id;
