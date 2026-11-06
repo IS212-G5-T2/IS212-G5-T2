@@ -239,7 +239,7 @@ test.describe("E2E-17 equipment not available", () => {
     // Step 9: coordinator1 amends (update, not resubmit) to 8 microphones and removes the projector.
     await page.goto("/equipment/requests");
     await page.locator(`#equipment-request-${created.id}`).getByRole("link", { name: "Update Event" }).click();
-    await expect(page.getByRole("heading", { name: "Update equipment request" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Update Equipment Request" })).toBeVisible();
     await page.locator("#equipment-request-quantity-0").fill("8");
     await page.getByRole("button", { name: "Remove item 2" }).click();
     await page.getByRole("button", { name: "Update Event" }).click();
