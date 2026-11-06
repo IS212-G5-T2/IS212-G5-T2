@@ -1,8 +1,20 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+/*
+ * SPM-39 test case map (source: "SPM-39 Test Cases" document, REQ-CLAR-*). Unit level only; the PostgreSQL
+ * e2e file (backend/test/clarifications.e2e-spec.ts) holds the full-stack version of each case.
+ *   REQ-CLAR-01-A  AC1          valid message accepted, event status unchanged  -> "accepts a valid message ..."
+ *   REQ-CLAR-01-B  AC2          blank message rejected, no transaction           -> "rejects a blank message ..."
+ *   REQ-CLAR-01-C  AC2          whitespace-only rejected, no transaction         -> "rejects a whitespace-only ..."
+ *   REQ-CLAR-02-A  AC3, AC4     thread returned for the coordinator              -> "returns the thread for the assigned coordinator"
+ *                               (weak: asserts only the length; order, author and timestamp are not checked here)
+ *   REQ-CLAR-02-B  AC5          "awaiting reply" flag set on the new comment     -> "accepts a valid message ..."
+ *                               (state only; the on-screen badge is tested in the frontend file)
+ * AC numbers in this file refer to the five current SPM-39 ACs. A test with no SPM-39 AC behind it says so.
+ */
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import type { DatabaseService } from '../database/database.service.js';
-import type { CommentRow, EventForReview } from './clarifications.repository.js';
-import type { ClarificationsRepository } from './clarifications.repository.js';
+import type { CommentRow, EventForReview } from './repository/clarifications.repository.js';
+import type { ClarificationsRepository } from './repository/clarifications.repository.js';
 import { ClarificationsService } from './clarifications.service.js';
 
 const EVENT_ID = '00000000-0000-4000-8000-000000000042';
@@ -64,7 +76,8 @@ function buildService() {
 }
 
 describe('ClarificationsService.createClarification', () => {
-  // AC2/AC3
+  // SPM-39 REQ-CLAR-01-B (AC2), unit level
+  // Kills: a blank message reaching the transaction or the comment insert instead of failing before the database is touched.
   it('rejects a blank message without opening a transaction', async () => {
     const { service, database } = buildService();
 
@@ -74,6 +87,8 @@ describe('ClarificationsService.createClarification', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // SPM-39 REQ-CLAR-01-C (AC2), unit level
+  // Kills: whitespace-only text accepted because the trim step runs after the blank check.
   it('rejects a whitespace-only message without opening a transaction', async () => {
     const { service, database } = buildService();
 
@@ -83,9 +98,11 @@ describe('ClarificationsService.createClarification', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
-  // AC4/AC5. "Under Review" was retired as a distinct status (see SPM-38
-  // follow-up): a clarification request no longer changes the event's status.
-  it('accepts a valid message and flags it awaiting reply, without changing event status', async () => {
+  // REQ-CLAR-01-A (AC1): "Under Review" was retired as a distinct status (see SPM-38
+  // follow-up), so a clarification request no longer changes the event's status.
+  // SPM-39 REQ-CLAR-01-A (AC1) and REQ-CLAR-02-B (AC5, flag only), unit level
+  // Kills: insertComment not flagging awaitingReply, an event status change, or no 'clarification' notification to the organiser.
+  it('REQ-CLAR-SUP-01 accepts a valid message and flags it awaiting reply, without changing event status', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.insertComment).mockResolvedValue(commentRow());
@@ -114,8 +131,9 @@ describe('ClarificationsService.createClarification', () => {
     expect(result).toMatchObject({ awaitingReply: true, authorRole: 'coordinator' });
   });
 
+  // Kills: a Submitted or Approved event refused for a clarification (allowed-status list wrong).
   it.each(['Submitted', 'Approved'])(
-    'allows opening a clarification from %s status',
+    'REQ-CLAR-SUP-02 allows opening a clarification from %s status',
     async (status) => {
       const { service, repository } = buildService();
       vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow({ status }));
@@ -123,11 +141,12 @@ describe('ClarificationsService.createClarification', () => {
 
       await expect(
         service.createClarification(EVENT_ID, coordinator(), { message: 'Hi' }),
-      ).resolves.toBeDefined();
+      ).resolves.toMatchObject({ type: 'clarification', awaitingReply: true, resolved: false });
     },
   );
 
-  it('rejects a clarification request when the event status disallows it', async () => {
+  // Kills: a clarification accepted on a status outside the allowed list (draft) instead of a BadRequestException.
+  it('REQ-CLAR-SUP-03 rejects a clarification request when the event status disallows it', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(
       eventRow({ status: 'draft' }),
@@ -139,8 +158,23 @@ describe('ClarificationsService.createClarification', () => {
     expect(repository.insertComment).not.toHaveBeenCalled();
   });
 
-  // AC9
-  it('rejects a coordinator not assigned to the event, with no DB mutation', async () => {
+  // SPM-148 AC7: a Confirmed event closes posting; the refusal is a conflict and nothing is written.
+  // Kills: a clarification accepted on a Confirmed event, or refused with a status other than 409.
+  it('REQ-CLAR-SUP-04 refuses a clarification on a Confirmed event with a conflict and writes no comment', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(
+      eventRow({ status: 'Confirmed' }),
+    );
+
+    await expect(
+      service.createClarification(EVENT_ID, coordinator(), { message: 'Hi' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+
+  // SPM-39 AC1: only the coordinator assigned to the event may request a clarification.
+  // Kills: a clarification from an unassigned coordinator stored (assigned-coordinator comparison missing), or refused with the wrong error.
+  it('REQ-CLAR-SUP-05 rejects a coordinator not assigned to the event, with no DB mutation', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(
       eventRow({ coordinator_id: 'someone-else' }),
@@ -152,7 +186,8 @@ describe('ClarificationsService.createClarification', () => {
     expect(repository.insertComment).not.toHaveBeenCalled();
   });
 
-  it('rejects a caller without the COORDINATOR role even if uid matches', async () => {
+  // Kills: a caller whose uid matches but who lacks the COORDINATOR role allowed to post (role check dropped).
+  it('REQ-CLAR-SUP-06 rejects a caller without the COORDINATOR role even if uid matches', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
 
@@ -165,7 +200,8 @@ describe('ClarificationsService.createClarification', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('returns not found for an unknown event', async () => {
+  // Kills: an unknown event treated as accepted or as an empty result, instead of NotFound.
+  it('REQ-CLAR-SUP-07 returns not found for an unknown event', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(undefined);
 
@@ -174,7 +210,8 @@ describe('ClarificationsService.createClarification', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('returns not found for a malformed event id without querying', async () => {
+  // Kills: a malformed event id reaching findEventForUpdate instead of failing with NotFound first.
+  it('REQ-CLAR-SUP-08 returns not found for a malformed event id without querying', async () => {
     const { service, repository } = buildService();
 
     await expect(
@@ -185,7 +222,8 @@ describe('ClarificationsService.createClarification', () => {
 });
 
 describe('ClarificationsService.reply', () => {
-  it('rejects a blank reply without opening a transaction', async () => {
+  // Kills: a blank reply that opens a transaction instead of being rejected before any database work.
+  it('REQ-CLAR-SUP-09 rejects a blank reply without opening a transaction', async () => {
     const { service, database } = buildService();
 
     await expect(
@@ -194,8 +232,9 @@ describe('ClarificationsService.reply', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
-  // AC7/AC8 (inferred addition)
-  it('notifies the assigned coordinator when the organiser replies', async () => {
+  // Reply notification. Not one of the five SPM-39 ACs; kept as existing reply behaviour.
+  // Kills: an organiser reply that does not notify the assigned coordinator, or notifies the wrong recipient or type.
+  it('REQ-CLAR-SUP-10 notifies the assigned coordinator when the organiser replies', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
@@ -235,7 +274,8 @@ describe('ClarificationsService.reply', () => {
     expect(result.awaitingReply).toBe(false);
   });
 
-  it('allows the assigned coordinator to reply and notifies the organiser', async () => {
+  // Kills: a coordinator reply recorded with the wrong authorRole, or notified to the coordinator instead of the organiser.
+  it('REQ-CLAR-SUP-11 allows the assigned coordinator to reply and notifies the organiser', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
@@ -269,7 +309,8 @@ describe('ClarificationsService.reply', () => {
     );
   });
 
-  it('rejects a reply from someone who is neither the organiser nor the assigned coordinator', async () => {
+  // Kills: a reply accepted from a user who is neither the organiser nor the assigned coordinator (ownership check missing).
+  it('REQ-CLAR-SUP-12 rejects a reply from someone who is neither the organiser nor the assigned coordinator', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
 
@@ -281,7 +322,25 @@ describe('ClarificationsService.reply', () => {
     expect(repository.insertComment).not.toHaveBeenCalled();
   });
 
-  it('rejects a reply targeting a clarification that does not exist on this event', async () => {
+  // Kills: a null coordinator_id matching the caller uid, letting any coordinator reply to an unassigned event.
+  it('REQ-CLAR-SUP-64 refuses a reply by a coordinator role on an event with no assigned coordinator (defect D-1)', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow({ coordinator_id: null }));
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
+      id: CLARIFICATION_ID,
+      resolved: false,
+    });
+
+    await expect(
+      service.reply(EVENT_ID, CLARIFICATION_ID, coordinator({ uid: 'coordinator-2' }), {
+        message: 'Replying with no assigned coordinator.',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+
+  // Kills: a reply to a clarification that is not on this event accepted, or refused with a status other than 404.
+  it('REQ-CLAR-SUP-13 rejects a reply targeting a clarification that does not exist on this event', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.findClarificationForUpdate).mockResolvedValue(undefined);
@@ -292,7 +351,8 @@ describe('ClarificationsService.reply', () => {
     expect(repository.insertComment).not.toHaveBeenCalled();
   });
 
-  it('rejects a reply to an already-resolved clarification', async () => {
+  // Kills: a reply to a resolved clarification accepted, or refused with a status other than 400.
+  it('REQ-CLAR-SUP-14 rejects a reply to an already-resolved clarification', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
@@ -308,7 +368,8 @@ describe('ClarificationsService.reply', () => {
 });
 
 describe('ClarificationsService.resolve', () => {
-  it('marks the clarification resolved and notifies the organiser when the coordinator resolves it', async () => {
+  // Kills: resolve that does not set resolved, skips the organiser notification, or returns resolved false.
+  it('REQ-CLAR-SUP-15 marks the clarification resolved and notifies the organiser when the coordinator resolves it', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
@@ -329,7 +390,8 @@ describe('ClarificationsService.resolve', () => {
     expect(result.resolved).toBe(true);
   });
 
-  it('allows the organiser to resolve and notifies the assigned coordinator', async () => {
+  // Kills: an organiser resolve that notifies the organiser instead of the assigned coordinator, or is refused.
+  it('REQ-CLAR-SUP-16 allows the organiser to resolve and notifies the assigned coordinator', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
@@ -348,7 +410,8 @@ describe('ClarificationsService.resolve', () => {
     );
   });
 
-  it('rejects a resolve from someone who is neither the organiser nor the assigned coordinator', async () => {
+  // Kills: a resolve by an unassigned coordinator accepted, or resolveClarification reached before the refusal.
+  it('REQ-CLAR-SUP-17 rejects a resolve from someone who is neither the organiser nor the assigned coordinator', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
 
@@ -358,7 +421,8 @@ describe('ClarificationsService.resolve', () => {
     expect(repository.resolveClarification).not.toHaveBeenCalled();
   });
 
-  it('rejects resolving a clarification that does not exist on this event', async () => {
+  // Kills: resolve of a missing clarification accepted, or refused with a status other than 404.
+  it('REQ-CLAR-SUP-18 rejects resolving a clarification that does not exist on this event', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.findClarificationForUpdate).mockResolvedValue(undefined);
@@ -369,7 +433,8 @@ describe('ClarificationsService.resolve', () => {
     expect(repository.resolveClarification).not.toHaveBeenCalled();
   });
 
-  it('is idempotent when the clarification is already resolved', async () => {
+  // Kills: a repeat resolve that writes again or sends a second notification (no already-resolved short-circuit).
+  it('REQ-CLAR-SUP-19 is idempotent when the clarification is already resolved', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
@@ -389,18 +454,61 @@ describe('ClarificationsService.resolve', () => {
 });
 
 describe('ClarificationsService.listComments', () => {
-  // AC7
-  it('returns the thread for the assigned coordinator', async () => {
+  // SPM-39 REQ-CLAR-02-A (AC3, AC4), unit level. The repository returns rows in created_at order (SQL ORDER BY,
+  // checked in the e2e test). This test checks that the service keeps that order and maps every field.
+  it('REQ-CLAR-02-A: returns the thread in repository order with author, role, timestamp and flags', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEvent).mockResolvedValue(eventRow());
-    vi.mocked(repository.listComments).mockResolvedValue([commentRow()]);
+    vi.mocked(repository.listComments).mockResolvedValue([
+      commentRow({ id: 'comment-1', created_at: new Date('2026-09-18T09:15:00.000Z') }),
+      commentRow({
+        id: 'reply-1',
+        parent_id: 'comment-1',
+        type: 'reply',
+        author_id: 'organiser-1',
+        author_name: 'Priya Nair',
+        author_role: 'organiser',
+        message: 'Room layout will be Banquet.',
+        awaiting_reply: false,
+        created_at: new Date('2026-09-18T10:30:00.000Z'),
+      }),
+    ]);
 
     const result = await service.listComments(EVENT_ID, coordinator());
 
-    expect(result).toHaveLength(1);
+    // Kills: a sort that reverses the order, a dropped author or role, a wrong timestamp format, a lost flag.
+    expect(result).toEqual([
+      {
+        id: 'comment-1',
+        eventId: EVENT_ID,
+        parentId: null,
+        type: 'clarification',
+        authorId: 'coordinator-1',
+        authorName: 'Marcus Lee',
+        authorRole: 'coordinator',
+        message: 'Please confirm the layout.',
+        awaitingReply: true,
+        resolved: false,
+        createdAt: '2026-09-18T09:15:00.000Z',
+      },
+      {
+        id: 'reply-1',
+        eventId: EVENT_ID,
+        parentId: 'comment-1',
+        type: 'reply',
+        authorId: 'organiser-1',
+        authorName: 'Priya Nair',
+        authorRole: 'organiser',
+        message: 'Room layout will be Banquet.',
+        awaitingReply: false,
+        resolved: false,
+        createdAt: '2026-09-18T10:30:00.000Z',
+      },
+    ]);
   });
 
-  it('returns the thread for the organiser', async () => {
+  // Kills: the organiser thread returned empty or truncated (list length or mapping wrong).
+  it('REQ-CLAR-SUP-20 returns the thread for the organiser', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEvent).mockResolvedValue(eventRow());
     vi.mocked(repository.listComments).mockResolvedValue([commentRow()]);
@@ -410,8 +518,9 @@ describe('ClarificationsService.listComments', () => {
     expect(result).toHaveLength(1);
   });
 
-  // AC9
-  it('rejects a coordinator not assigned to the event', async () => {
+  // SPM-39 AC1: a coordinator not assigned to the event cannot read its thread (unit level).
+  // Kills: listComments returning the thread to a coordinator who is not assigned (no ForbiddenException).
+  it('REQ-CLAR-SUP-21 rejects a coordinator not assigned to the event', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEvent).mockResolvedValue(eventRow());
 
@@ -420,12 +529,200 @@ describe('ClarificationsService.listComments', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('rejects an unrelated authenticated user', async () => {
+  // Kills: listComments returning the thread to an unrelated attendee (role or ownership check missing).
+  it('REQ-CLAR-SUP-22 rejects an unrelated authenticated user', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEvent).mockResolvedValue(eventRow());
 
     await expect(
       service.listComments(EVENT_ID, { uid: 'attendee-1', roles: ['ATTENDEE'] }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+// The retired DEMO_ORGANISER_ENABLED switch must not widen access any more: with it set, ownership is still strict.
+describe('ClarificationsService ownership with the retired demo flag set', () => {
+  beforeEach(() => vi.stubEnv('DEMO_ORGANISER_ENABLED', 'true'));
+  afterEach(() => vi.unstubAllEnvs());
+
+  // Kills: the retired DEMO_ORGANISER_ENABLED flag read by the ownership check, so an unassigned coordinator can post.
+  it('REQ-CLAR-SUP-23 still rejects an unassigned coordinator asking for clarification', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+
+    await expect(
+      service.createClarification(EVENT_ID, coordinator({ uid: 'someone-else' }), { message: 'Hi' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+
+  // Kills: the retired demo flag widening read access for a non-owning organiser or unassigned coordinator, or listComments reached after the refusal.
+  it('REQ-CLAR-SUP-24 still rejects a non-owning organiser and an unassigned coordinator reading the thread', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEvent).mockResolvedValue(eventRow());
+
+    await expect(
+      service.listComments(EVENT_ID, organiser({ uid: 'someone-else' })),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.listComments(EVENT_ID, coordinator({ uid: 'someone-else' })),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.listComments).not.toHaveBeenCalled();
+  });
+
+  // Kills: the retired demo flag letting a non-owning organiser reply on an assigned event.
+  it('REQ-CLAR-SUP-25 still rejects a non-owning organiser replying on an assigned event', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+
+    await expect(
+      service.reply(EVENT_ID, CLARIFICATION_ID, organiser({ uid: 'someone-else' }), { message: 'Hi' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+});
+
+// Not-found paths and display-name fallbacks (SPM-39 AC1, AC3, AC4). Unit level; each refusal must happen
+// before any transaction is opened, except where the event lookup itself is the check.
+describe('ClarificationsService not-found paths and author names', () => {
+  it('REQ-CLAR-SUP-26 reply: a malformed clarification id -> 404 "Clarification request not found.", no transaction', async () => {
+    // Kills: the UUID check removed (a malformed id reaches the database)
+    const { service, database } = buildService();
+    await expect(
+      service.reply(EVENT_ID, 'not-a-uuid', organiser(), { message: 'Yes.' }),
+    ).rejects.toMatchObject({ status: 404, message: 'Clarification request not found.' });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  it('REQ-CLAR-SUP-27 reply: an unknown event -> 404 "Event not found.", no comment inserted', async () => {
+    // Kills: the event-existence check dropped inside the transaction
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(undefined as unknown as EventForReview);
+    await expect(
+      service.reply(EVENT_ID, CLARIFICATION_ID, organiser(), { message: 'Yes.' }),
+    ).rejects.toMatchObject({ status: 404, message: 'Event not found.' });
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+
+  it('REQ-CLAR-SUP-28 resolve: a malformed clarification id -> 404, no transaction', async () => {
+    // Kills: the UUID check removed from resolve
+    const { service, database } = buildService();
+    await expect(service.resolve(EVENT_ID, 'not-a-uuid', organiser())).rejects.toMatchObject({
+      status: 404,
+      message: 'Clarification request not found.',
+    });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  it('REQ-CLAR-SUP-29 resolve: an unknown event -> 404 "Event not found.", nothing resolved', async () => {
+    // Kills: the event-existence check dropped from resolve
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(undefined as unknown as EventForReview);
+    await expect(service.resolve(EVENT_ID, CLARIFICATION_ID, organiser())).rejects.toMatchObject({
+      status: 404,
+      message: 'Event not found.',
+    });
+    expect(repository.resolveClarification).not.toHaveBeenCalled();
+  });
+
+  it('REQ-CLAR-SUP-30 resolve: an already-resolved clarification missing from the thread -> 404, nothing written', async () => {
+    // Kills: the "already resolved" branch returning a comment that is not in the thread (undefined dto)
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({ id: CLARIFICATION_ID, resolved: true });
+    vi.mocked(repository.listComments).mockResolvedValue([]);
+    await expect(service.resolve(EVENT_ID, CLARIFICATION_ID, organiser())).rejects.toMatchObject({
+      status: 404,
+      message: 'Clarification request not found.',
+    });
+    expect(repository.resolveClarification).not.toHaveBeenCalled();
+  });
+
+  it('REQ-CLAR-SUP-31 listComments: an unknown event -> 404 "Event not found."', async () => {
+    // Kills: a missing event treated as an empty thread
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEvent).mockResolvedValue(undefined as unknown as EventForReview);
+    await expect(service.listComments(EVENT_ID, coordinator())).rejects.toMatchObject({
+      status: 404,
+      message: 'Event not found.',
+    });
+  });
+
+  it('REQ-CLAR-SUP-32 the author name falls back to the email, then to the uid, when no name is set', async () => {
+    // Kills: the fallback order changed (uid first, or the name always required)
+    const withEmail = buildService();
+    vi.mocked(withEmail.repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(withEmail.repository.insertComment).mockResolvedValue(commentRow({ author_name: 'marcus@example.test' }));
+    await withEmail.service.createClarification(EVENT_ID, coordinator({ name: undefined, email: 'marcus@example.test' }), {
+      message: 'Please confirm.',
+    });
+    expect(withEmail.repository.insertComment).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ authorName: 'marcus@example.test' }),
+    );
+
+    const withUid = buildService();
+    vi.mocked(withUid.repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(withUid.repository.insertComment).mockResolvedValue(commentRow({ author_name: 'coordinator-1' }));
+    await withUid.service.createClarification(EVENT_ID, coordinator({ name: undefined, email: undefined }), {
+      message: 'Please confirm.',
+    });
+    expect(withUid.repository.insertComment).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ authorName: 'coordinator-1' }),
+    );
+  });
+});
+
+describe('ClarificationsService notice wording (SPM-177)', () => {
+  const noticeMessage = (repository: ReturnType<typeof buildService>['repository']) =>
+    vi.mocked(repository.insertNotification).mock.calls[0][1].message;
+
+  /**
+   * CLARIFY-NOTIF-09-A (SPM-177 DoD2): a requested clarification names the Coordinator who asked.
+   * Kills: the old unnamed wording, the wrong actor name.
+   */
+  it('CLARIFY-NOTIF-09-A the request notice names the coordinator', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.insertComment).mockResolvedValue(commentRow());
+    await service.createClarification(EVENT_ID, coordinator(), { message: 'Please confirm the layout.' });
+    expect(noticeMessage(repository)).toBe('Marcus Lee requested clarification on "Community Welcome Evening".');
+  });
+
+  /**
+   * CLARIFY-NOTIF-09-B (SPM-177 DoD2): a reply names whoever replied, for both directions.
+   * Kills: the old "The organiser/coordinator replied" wording, the actor swapped with the recipient.
+   */
+  it.each([
+    ['the organiser', organiser, 'Priya Nair'],
+    ['the coordinator', coordinator, 'Marcus Lee'],
+  ])('CLARIFY-NOTIF-09-B the reply notice names %s', async (_label, actor, name) => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({ id: CLARIFICATION_ID, resolved: false });
+    vi.mocked(repository.insertComment).mockResolvedValue(commentRow());
+    await service.reply(EVENT_ID, CLARIFICATION_ID, actor(), { message: 'Hi' });
+    expect(noticeMessage(repository)).toBe(`${name} replied to a clarification on "Community Welcome Evening".`);
+  });
+
+  /**
+   * CLARIFY-NOTIF-09-C (SPM-177 DoD2): a resolve names whoever resolved, for both directions; an actor with no name
+   * falls back to the same value the comment author uses (email, then uid).
+   * Kills: the old wording, the actor swapped with the recipient, a different fallback than the comment's.
+   */
+  it.each([
+    ['the organiser', organiser(), 'Priya Nair'],
+    ['the coordinator', coordinator(), 'Marcus Lee'],
+    ['a coordinator with only an email', coordinator({ name: undefined, email: 'marcus@example.test' }), 'marcus@example.test'],
+  ])('CLARIFY-NOTIF-09-C the resolved notice names %s', async (_label, actor, name) => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({ id: CLARIFICATION_ID, resolved: false });
+    vi.mocked(repository.resolveClarification).mockResolvedValue(
+      commentRow({ id: CLARIFICATION_ID, resolved: true, awaiting_reply: false }),
+    );
+    await service.resolve(EVENT_ID, CLARIFICATION_ID, actor);
+    expect(noticeMessage(repository)).toBe(`${name} marked a clarification on "Community Welcome Evening" as resolved.`);
   });
 });

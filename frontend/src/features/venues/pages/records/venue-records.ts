@@ -1,0 +1,59 @@
+import type { Venue } from "@/types";
+
+export interface VenueUnavailablePeriod {
+  id: string;
+  start: string;
+  end: string;
+  reason: string;
+  current?: boolean;
+}
+
+interface VenueReservationBase {
+  id: string;
+  eventName: string;
+  start: string;
+  end: string;
+  affectedByUnavailablePeriod: boolean;
+}
+
+/** Mirrors the API: tentative reservations are active holds and include their expiry instant. */
+export type VenueReservation =
+  | (VenueReservationBase & { status: "booked"; holdExpiresAt?: never })
+  | (VenueReservationBase & { status: "tentative"; holdExpiresAt: string });
+
+/** Read-only venue catalogue view of the SPM-50 venue record and availability data. */
+export interface VenueRecord extends Venue {
+  availabilityStatus: "available" | "unavailable";
+  unavailablePeriods: VenueUnavailablePeriod[];
+  reservations: VenueReservation[];
+}
+
+export type VenueSortKey = "name" | "capacity" | "location" | "status";
+
+export function visibleVenues(
+  venues: VenueRecord[],
+  query: string,
+  sortKey: VenueSortKey,
+  descending: boolean,
+): VenueRecord[] {
+  const normalized = query.trim().toLocaleLowerCase();
+  return venues
+    .filter(
+      (venue) =>
+        !normalized ||
+        venue.name.toLocaleLowerCase().includes(normalized) ||
+        venue.location.toLocaleLowerCase().includes(normalized),
+    )
+    .sort((a, b) => {
+      const comparison =
+        sortKey === "capacity"
+          ? a.capacity - b.capacity
+          : (sortKey === "status"
+              ? a.availabilityStatus
+              : a[sortKey]
+            ).localeCompare(
+              sortKey === "status" ? b.availabilityStatus : b[sortKey],
+            );
+      return (descending ? -comparison : comparison) || a.id.localeCompare(b.id);
+    });
+}

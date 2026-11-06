@@ -1,0 +1,133 @@
+{
+  "story": "SPM-88",
+  "title": "Request Approval and Rejection Notifications",
+  "note": "RED authoring pass (2026-10-29): 31 DECISION-NOTIFY ids at first (PRIMARY, Confluence SPM-88 matrix to be created by the Orchestrator). Shared files use titleMatch ^DECISION-NOTIFY- so existing SPM-40, SPM-83 and SPM-65 tests are not in scope. Expected RED now: 02-A, 03-A, 03-INT-1, 05-B (both scenarios). Mutants are not defined yet (the features are implemented in a later assignment), so the mutation list is empty and every kills value is pending. The local PostgreSQL run used a disposable scratch database built from database/postgresql/init because the shared spm database was missing migrations 022 to 025. Iteration 3 (Test Code Review correction): 05-B gained an approval case (View Request on an unread approval); 04-C and 04-D cite mutants SPM88-FE-11 and SPM88-FE-12 on EventDetailPage.tsx; SPM88-FE-13 probes the approval exclusion. Accepted low or non-material review findings, recorded and not changed: F2a (getByText does not check visibility, so a display:none date would pass), F5 (atomicity relies on SQL ordering inside one transaction). Iteration 4 (follow-up fixes, 2026-10-29): F2b and F3 are closed by DECISION-NOTIFY-02-BND-1 (local calendar day, unpadded day, <time> element; SC-SPM88-08) and an invalid createdAt is guarded by DECISION-NOTIFY-02-BND-2; mutants SPM88-FE-14 to FE-17 probe them. FE-14 (UTC getters) is killed only when the run timezone is not UTC; the mutation runner uses the host timezone (Asia/Singapore). 33 DECISION-NOTIFY ids. Iteration 5 (2026-10-29, user decision option 1, SC-SPM88-09): the Request Decisions panel moves from AppShell to the My Events page (EventListPage) only, the unread view is capped at 5 rows with a 'more unread' line, and Show all scrolls. New ids DECISION-NOTIFY-04-E, 05-BND-2, 05-BND-3 (36 ids); mutants SPM88-FE-18 to FE-23. EventListPage.tsx and AppShell.tsx are measured; their pre-existing uncovered lines are in coverage-line-status.md. Iteration 5 Test Code Review (cycle-07-tcr) PASS; records corrected afterwards (registry Parent AC for 04-E, 05-BND-2 and 05-BND-3; 04-E moved to the AC4 Interaction tier). Accepted LOW: 04-E uses a stub event route, so it proves the panel is no longer mounted by AppShell but would not catch the panel being added inside EventDetailPage itself. Iteration 6 (2026-10-29, user decisions SC-SPM88-10): the in-page Request Decisions panel is replaced by an organiser notification bell in the top bar (NotificationBell.tsx in TopNav.tsx, row in NotificationRow.tsx); unread only, no Show all, no total, read items disappear, badge capped at 9+. RejectionNotifications.tsx and its test file are replaced by NotificationBell.tsx and NotificationBell.test.tsx; EventListPage.tsx and AppShell.tsx no longer hold SPM-88 code and leave the sources (04-E still renders AppShell and EventListPage as a test harness). 05-D retired (read decisions are no longer shown); 05-BND-3 repurposed to the 9+ badge cap; new 05-F (Esc and outside click). Mutants SPM88-FE-05 and FE-18 to FE-21 retired; FE-24 to FE-39 added and FE-22, FE-23 retargeted (34 mutants). Iteration 6 Test Code Review (cycle-08-tcr) corrections: an outside click closes the bell dropdown without moving focus and only Esc returns focus to the bell; closed-state listeners, bell toggle-off and the change-request link closing the dropdown are asserted (05-F, REVIEW-CHANGE-05-D); mutants SPM88-FE-40 to FE-44 added (39 mutants). Accepted LOW: the narrow-screen dropdown fit (fixed full-width under the top bar, no horizontal page scroll) is untested; layout needs a browser check. Code Quality Review corrections: new DECISION-NOTIFY-05-G covers the 30 s and window-focus feed refresh (useNotificationFeed.ts, now covered); mutants SPM88-FE-45 and FE-46 added (41 mutants); spm83.mutants.mjs retargeted to the bell. SC-SPM88-08 confirmed by the user on 2026-10-29 (unpadded day, \"5 Oct 2026\"); DECISION-NOTIFY-02-BND-1 oracle is now SPEC. Sync with dev (2026-10-29, SPM-150 merge): added linesFrom \"changed-lines\" like every other story scope, so G5 measures only the lines whose origin commit names SPM-88; coverageFloor is unchanged (100). The origin is read from commits, so the floor measures SPM-88 lines only once the work is committed with SPM-88 in the commit subject. Review fix (2026-10-29, PR #86 review F1/F2): NotificationRow splits only at its own type's verb and at the LAST quoted separator (DECISION-NOTIFY-03-INT-2, SUPPORTING, approval pending); the dropdown is a viewport-bounded flex column, proved in a browser by the Playwright spec DECISION-NOTIFY-05-VIEWPORT-1 (SUPPORTING, approval pending; listed in the scope for traceability, excluded from the vitest run by vitest.config); mutants FE-47 and FE-48 added and FE-03 retargeted (43 mutants); BE-04 now mutates to an executable statement. Confluence SPM-88 matrix needs the two new cases. AC3 amendment (2026-10-30, user/PO decision, SC-SPM88-07): the bell notification no longer shows the Coordinator's reason; it stays on the event detail page (AC4, DECISION-NOTIFY-04-C) and the change-requests page. The rejection message is now 'Your event request \"<name>\" was rejected' (reason still saved as rejection_reason); the row strips the reason only from SPM-65 denial messages. DECISION-NOTIFY-03-BND-1, 03-BND-2 and 03-INT-1 are retired; 03-A, 03-B and 03-INT-2 are reworked; mutants FE-03, FE-08 and FE-47 retargeted, FE-49, FE-50 and BE-10 added (45 frontend, 10 backend mutants); FE-51 added for the no-separator denial case of 03-INT-2 (46 frontend mutants); the Playwright spec now uses 12 short rows. Approval (2026-10-30): the story assignee (chaw678) approved the SUPPORTING ids DECISION-NOTIFY-03-INT-2 and 05-VIEWPORT-1 after Test Code Review cycle-13-tcr PASS; Requirement Review and Code Quality Review PASS on review-snapshot-13. PR #86 audit 2 (2026-10-30): the Playwright spec moved to its own tests key frontend-browser and suite frontend-browser (runner playwright, needs PLAYWRIGHT_BASE_URL), because vitest excludes *.playwright.spec.ts and the workflow had reported G7 PASS without ever running it; run-cycle now also marks any vitest suite NOT RUN when a scope file is missing from the vitest report. The headline cut for SPM-65 denials now uses the new relatedEventName field of the notifications API (03-INT-2 extended; mutants FE-52 to FE-54 and BE-11 added: 49 frontend, 11 backend mutants). PR #86 review corrections (2026-10-31, SC-SPM88-11, chaw678): a change request denial whose relatedEventName is missing or no longer matches the message now gets the generic headline 'Your change request was denied' when the message holds a separator (the last-separator fallback leaked reason text); DECISION-NOTIFY-03-INT-2 gained the renamed-event-with-separator-in-reason and no-name cases; mutants FE-03, FE-08 and FE-51 retargeted (all six INT-2 mutants killed). Playwright runs with report-level errors or a nonzero exit now block G7 (run-cycle.mjs).",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/review/events.approve.spec.ts",
+        "titleMatch": "^DECISION-NOTIFY-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/decision-notifications.e2e-spec.ts"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "^DECISION-NOTIFY-"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.decision.test.tsx",
+        "titleMatch": "^DECISION-NOTIFY-"
+      },
+      {
+        "glob": "frontend/src/components/layout/AppShell.decisions.test.tsx",
+        "titleMatch": "^DECISION-NOTIFY-"
+      }
+    ],
+    "frontend-browser": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.playwright.spec.ts",
+        "titleMatch": "^DECISION-NOTIFY-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/events.service.ts",
+      "backend/src/events/review/event-rejections.controller.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationBell.tsx",
+      "frontend/src/components/notifications/NotificationRow.tsx",
+      "frontend/src/components/layout/TopNav.tsx",
+      "frontend/src/components/notifications/useNotificationFeed.ts",
+      "frontend/src/features/events/pages/detail/EventDetailPage.tsx",
+      "frontend/src/utils/format.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    },
+    {
+      "id": "frontend-browser",
+      "cwd": "frontend",
+      "tests": "frontend-browser",
+      "config": "playwright.config.ts",
+      "coverage": null,
+      "env": [
+        "PLAYWRIGHT_BASE_URL"
+      ],
+      "runner": "playwright"
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm88",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm88.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm88.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm88",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm88.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm88.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

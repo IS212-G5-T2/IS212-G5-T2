@@ -1,0 +1,2687 @@
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { useAppStore } from "@/store/useAppStore";
+import { api } from "@/utils/api";
+import { deferred } from "@/test/deferred";
+import type { Notification } from "@/types";
+
+/**
+ * SPM-83 — AC6: the Organiser is notified of the rejection (the reason is on the event page since the SPM-88 AC3 amendment).
+ * Confluence: EVENT-REJECT-02-B (organiser visibility). Covers the rendered
+ * organiser view of the persisted rejection notifications.
+ */
+
+vi.mock("@/utils/api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  api: vi.fn(),
+}));
+
+const apiMock = vi.mocked(api);
+
+function rejectionNotification(overrides: Partial<Notification> = {}): Notification {
+  return {
+    id: "notif-1",
+    audienceRole: "organiser",
+    audienceUserId: "organiser-9",
+    type: "rejection",
+    message: 'Your event request "Welcome Evening" was rejected',
+    relatedEventId: "event-1",
+    read: false,
+    createdAt: "2026-09-14T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function approvalNotification(overrides: Partial<Notification> = {}): Notification {
+  return {
+    id: "notif-approval-1",
+    audienceRole: "organiser",
+    audienceUserId: "organiser-9",
+    type: "approval",
+    message: 'Your event request "Welcome Evening" was approved and can proceed.',
+    relatedEventId: "event-1",
+    read: false,
+    createdAt: "2026-09-14T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function setUserRole(role: "organiser" | "coordinator") {
+  useAppStore.setState({
+    currentUser: { id: "organiser-9", name: "Org", email: "o@example.test", role },
+  });
+}
+
+afterEach(cleanup);
+
+// The bell button in the top bar; its name is "Notifications" or "Notifications, N unread".
+const bellButton = () => screen.getByRole("button", { name: /^Notifications/ });
+
+// Renders the bell and opens its dropdown (the rows live inside it).
+function renderBell() {
+  const view = render(
+    <MemoryRouter>
+      <NotificationBell />
+    </MemoryRouter>,
+  );
+  fireEvent.click(bellButton());
+  return view;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("NotificationBell (SPM-83 AC6)", () => {
+  // Kills: the rejection headline dropped, a reason shown in the bell, or the 'View Request' link pointing anywhere other than /events/event-1.
+  it("EVENT-REJECT-SUP-01 shows the organiser the rejection without a reason and a link to the request", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([rejectionNotification()]);
+
+    renderBell();
+
+    expect(
+      await screen.findByText('Your event request "Welcome Evening" was rejected'),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Reason/)).toBeNull();
+    expect(apiMock).toHaveBeenCalledWith("/notifications");
+    expect(
+      screen.getByRole("link", { name: /View Request/i }).getAttribute("href"),
+    ).toBe("/events/event-1");
+  });
+
+  // Kills: 'Mark As Read' not posting to the notification's read route with method POST.
+  it("EVENT-REJECT-SUP-02 lets the organiser mark a rejection notification as read", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([rejectionNotification()]);
+
+    renderBell();
+
+    await screen.findByText(/Welcome Evening/);
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() =>
+      expect(apiMock).toHaveBeenCalledWith(
+        "/notifications/notif-1/read",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  // Kills: a read decision listed in the bell, or a Show all / Show unread toggle appearing (the dev-side toggle was retired by SPM-88).
+  /**
+   * EVENT-REJECT-02-D (changed by the 29 Oct 2026 bell decision): only unread rejection decisions are listed; there
+   * is no Show all / Show unread toggle, and a read decision is not shown.
+   */
+  it("SPM-83 lists only unread rejection decisions and offers no Show all toggle", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      rejectionNotification(),
+      rejectionNotification({
+        id: "notif-read",
+        message: 'Your event request "Past Event" was rejected',
+        read: true,
+      }),
+    ]);
+    renderBell();
+    expect(await screen.findByText(/Welcome Evening/)).toBeInTheDocument();
+    expect(screen.queryByText(/Past Event/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /show all|show unread/i })).not.toBeInTheDocument();
+  });
+
+  // Kills: a failed load not showing the 'Could not load request decisions.' alert, or Retry not re-fetching the feed.
+  /**
+   * EVENT-REJECT-02-E: organisers can retry after rejection-notification loading fails.
+   */
+  it("SPM-83 displays a rejection-notification load error and retries", async () => {
+    setUserRole("organiser");
+    apiMock
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce([rejectionNotification()]);
+    renderBell();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not load request decisions.",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+
+    expect(await screen.findByText(/Welcome Evening/)).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledTimes(2);
+  });
+
+  // Kills: an empty successful feed showing a badge, or the dropdown lacking the "You're all caught up" message.
+  /**
+   * EVENT-REJECT-02-F (through the bell, 29 Oct 2026 decision): an empty successful feed shows no badge and
+   * "You're all caught up" in the dropdown.
+   */
+  it("shows no badge and the caught-up message when the successful feed is empty", async () => {
+    setUserRole("organiser");
+    // Hold the feed request open so the assertion cannot pass on the pre-load state.
+    const pending = deferred<Notification[]>();
+    apiMock.mockReturnValue(pending.promise);
+    renderBell();
+    expect(apiMock).toHaveBeenCalled();
+
+    await act(async () => {
+      pending.resolve([]);
+      await pending.promise;
+    });
+
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.getByText("You're all caught up")).toBeTruthy();
+  });
+
+  // Kills: an all-read feed showing a badge or the 'All caught up' state missing, or a read decision still listed or reviewable.
+  /**
+   * EVENT-REJECT-02-G (through the bell, 29 Oct 2026 decision): an all-read feed shows no badge, lists no
+   * decision and offers no way to review read ones.
+   */
+  it("shows no badge and lists nothing when every decision is read", async () => {
+    setUserRole("organiser");
+    const pending = deferred<Notification[]>();
+    apiMock.mockReturnValue(pending.promise);
+    renderBell();
+    await act(async () => {
+      pending.resolve([rejectionNotification({ id: "notif-read", read: true })]);
+      await pending.promise;
+    });
+
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.getByText("You're all caught up")).toBeTruthy();
+    expect(screen.queryByText(/Welcome Evening/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /mark as read|show all/i })).toBeNull();
+  });
+
+  // Kills: the bell rendering for a role with no notification types, or calling the notifications API for it.
+  // SPM-77 changed this from a coordinator (who now has a bell) to an attendee.
+  it("EVENT-REJECT-SUP-03 renders no bell for a user who is neither an organiser nor a coordinator", () => {
+    useAppStore.setState({
+      currentUser: { id: "attendee-1", name: "Att", email: "a@example.test", role: "attendee", roles: ["attendee"] },
+    });
+
+    const { container } = render(
+      <MemoryRouter>
+        <NotificationBell />
+      </MemoryRouter>,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("NotificationBell (SPM-40 AC4)", () => {
+  // Kills: an approval notification shown with altered text, or its link pointing away from /events/event-1.
+  it("EVENT-APPROVE-SUP-02 shows the organiser that the approved event can proceed", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([approvalNotification()]);
+
+    renderBell();
+
+    expect(
+      await screen.findByText(
+        'Your event request "Welcome Evening" was approved and can proceed.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: /View Request/i }).getAttribute("href")).toBe(
+      "/events/event-1",
+    );
+  });
+
+  // Parent AC (SUPPORTING): SPM-65 AC not in pasted list (to confirm) (story reassigned on 23 Oct 2026)
+  // Kills: a denial shown with its reason, or the change-request link going to the event page instead of /change-requests.
+  /** SPM-65: change request decisions show without the reason (AC3 amendment) and open the Change Requests page. */
+  it("REVIEW-CHANGE-05-D shows a change request denial without its reason and an approval as a confirmation", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      rejectionNotification({
+        id: "cr-denied",
+        type: "change_request_denied",
+        message: 'Your change request for "Welcome Evening" was denied: The hall is too small.',
+        relatedEventName: "Welcome Evening",
+      }),
+      rejectionNotification({
+        id: "cr-approved",
+        type: "change_request_approved",
+        message: 'Your change request for "Welcome Evening" was approved.',
+      }),
+    ]);
+    renderBell();
+    expect(await screen.findByText(/Your change request for "Welcome Evening" was denied$/)).toBeTruthy();
+    expect(screen.queryByText(/hall is too small/)).toBeNull();
+    expect(screen.getByText('Your change request for "Welcome Evening" was approved.')).toBeTruthy();
+    const links = screen.getAllByRole("link", { name: "View Change Request" });
+    expect(links).toHaveLength(2);
+    expect(links[0].getAttribute("href")).toBe("/events/event-1/change-requests");
+
+    // Following a change request link does not mark it read (the Change Requests page does that).
+    fireEvent.click(links[0]);
+    expect(apiMock.mock.calls.filter(([path]) => String(path).endsWith("/read"))).toHaveLength(0);
+    // It also closes the dropdown.
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+  });
+
+  // Kills: a window focus refresh starting a second load while one is in flight (apiMock called twice).
+  /**
+   * A window focus refresh that arrives while a notification load is still in flight does not start a second load;
+   * the held load then fills the list when it resolves.
+   */
+  it("EVENT-APPROVE-SUP-03 does not start a second notification load while one is still in flight", async () => {
+    setUserRole("organiser");
+    const load = deferred<Notification[]>();
+    apiMock.mockReturnValueOnce(load.promise);
+    render(
+      <MemoryRouter>
+        <NotificationBell />
+      </MemoryRouter>,
+    );
+
+    fireEvent(window, new Event("focus"));
+
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    load.resolve([rejectionNotification()]);
+    // The bell badge appears once the held load fills the list; opening it shows the decision.
+    await waitFor(() => expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread"));
+    fireEvent.click(bellButton());
+    expect(await screen.findByText(/Welcome Evening/)).toBeTruthy();
+  });
+});
+
+/**
+ * SPM-88 request decision notifications. Dates are rendered against a fixed clock
+ * (Date only is faked; timers stay real so waitFor works). createdAt is
+ * 2026-10-28T12:00:00Z, which is 28 Oct in UTC, Asia/Singapore and America/Los_Angeles.
+ */
+const DECISION_CREATED_AT = "2026-10-28T12:00:00.000Z";
+
+function decisionClock() {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-29T12:00:00.000Z"));
+}
+
+function postReadCalls(notificationId: string) {
+  return apiMock.mock.calls.filter(([path]) => path === `/notifications/${notificationId}/read`);
+}
+
+function EventMarker() {
+  const { id } = useParams();
+  return <p>Event detail page for {id}</p>;
+}
+
+// Keeps the bell mounted while the child route changes, so read state can be asserted after navigation.
+// The dropdown is opened first, as a user would.
+function renderBellWithEventRoute() {
+  const view = render(
+    <MemoryRouter initialEntries={["/"]}>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <>
+              <NotificationBell />
+              <Outlet />
+            </>
+          }
+        >
+          <Route path="events/:id" element={<EventMarker />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+  fireEvent.click(bellButton());
+  return view;
+}
+
+describe("NotificationBell (SPM-88 AC2: approval content)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /**
+   * DECISION-NOTIFY-02-A: an approval shows the event name, the word approved and the
+   * decision date as visible text (not only in a title attribute).
+   * Kills: decision date left out of the row; date only exposed through title;
+   * approval wording dropped.
+   */
+  it("DECISION-NOTIFY-02-A: approval shows the event name, 'approved' and the visible date 28 Oct 2026", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([approvalNotification({ createdAt: DECISION_CREATED_AT })]);
+
+    renderBell();
+
+    expect(await screen.findByText(/Welcome Evening/)).toBeTruthy();
+    expect(screen.getByText(/approved/)).toBeTruthy();
+    expect(screen.getByText("28 Oct 2026")).toBeVisible();
+  });
+
+  /**
+   * DECISION-NOTIFY-02-C: an approval has no reason block.
+   * Kills: a Reason block rendered for an approval.
+   */
+  it("DECISION-NOTIFY-02-C: approval renders no Reason block", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([approvalNotification({ createdAt: DECISION_CREATED_AT })]);
+
+    renderBell();
+
+    expect(await screen.findByText(/Welcome Evening/)).toBeTruthy();
+    expect(screen.queryByText(/Reason:/)).toBeNull();
+  });
+});
+
+describe("NotificationBell (SPM-88 AC2: decision date boundaries)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /**
+   * DECISION-NOTIFY-02-BND-1: the visible date is the viewer's local calendar day, written
+   * without a leading zero, inside a <time> element. The two timestamps are 00:30 and 23:30
+   * local time on 5 Oct 2026, so in a timezone ahead of UTC (Asia/Singapore) the first one is
+   * 4 Oct in UTC, and in one behind UTC (America/Los_Angeles) the second one is 6 Oct in UTC.
+   * Kills: date read with UTC getters; day zero-padded ("05 Oct"); date not in a <time> element.
+   */
+  it("DECISION-NOTIFY-02-BND-1: decisions at 00:30 and 23:30 local on 5 Oct both show '5 Oct 2026' in a <time>", async () => {
+    setUserRole("organiser");
+    const earlyLocal = new Date(2026, 9, 5, 0, 30).toISOString();
+    const lateLocal = new Date(2026, 9, 5, 23, 30).toISOString();
+    apiMock.mockResolvedValue([
+      approvalNotification({ id: "n-early", createdAt: earlyLocal }),
+      approvalNotification({ id: "n-late", createdAt: lateLocal }),
+    ]);
+
+    renderBell();
+
+    const dates = await screen.findAllByText("5 Oct 2026");
+    expect(dates).toHaveLength(2);
+    expect(dates.map((el) => el.tagName)).toEqual(["TIME", "TIME"]);
+    expect(dates.map((el) => el.getAttribute("datetime")).sort()).toEqual([earlyLocal, lateLocal].sort());
+  });
+
+  /**
+   * DECISION-NOTIFY-02-BND-2: an unparseable createdAt still shows the decision, with no
+   * "NaN" or "undefined" date or relative time text.
+   * Kills: invalid timestamp rendered as "NaN undefined NaN" or "NaNd ago".
+   */
+  it("DECISION-NOTIFY-02-BND-2: an invalid createdAt shows the decision without any NaN date text", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([approvalNotification({ createdAt: "not-a-date" })]);
+
+    renderBell();
+
+    const section = await screen.findByRole("dialog", { name: "Notifications" });
+    expect(screen.getByText(/Welcome Evening/)).toBeTruthy();
+    expect(section.textContent).not.toMatch(/NaN|undefined/);
+    expect(section.querySelector("time")).toBeNull();
+  });
+});
+
+describe("NotificationBell (SPM-88 AC3: rejection content)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /**
+   * DECISION-NOTIFY-03-A: a rejection shows the event name, the word rejected and the visible decision
+   * date, and no reason (AC3 amended 30 Oct 2026; the reason is on the event page, AC4).
+   * Kills: date missing from the visible text; headline without the name; a Reason block in the bell.
+   */
+  it("DECISION-NOTIFY-03-A: rejection shows name, 'rejected' and visible 28 Oct 2026, with no reason", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([rejectionNotification({ createdAt: DECISION_CREATED_AT })]);
+
+    const { container } = renderBell();
+
+    expect(await screen.findByText('Your event request "Welcome Evening" was rejected')).toBeTruthy();
+    expect(screen.getByText("28 Oct 2026")).toBeTruthy();
+    expect(screen.queryByText(/Reason/)).toBeNull();
+    expect(container.querySelector("pre")).toBeNull();
+    expect(screen.getByRole("link", { name: "View Request" })).toHaveAttribute("href", "/events/event-1");
+  });
+
+  /**
+   * DECISION-NOTIFY-03-INT-2: an event name containing quoted decision phrases keeps its full name in the
+   * headline, and no reason appears, for a rejection and for an SPM-65 change request denial (whose backend
+   * message still carries the reason). When the API sends the current relatedEventName, the cut follows the
+   * name, so a reason that holds '" was denied: ' is hidden whole too. When the name is missing or the event was
+   * renamed (spec conflict 88-11), a message with a separator gets the generic headline, so no reason text can leak.
+   * Kills: a split at the first quote-anchored match (name cut at its own '" was denied: ' and part of the
+   * name hidden); a denial reason left in the headline; a cut at the last separator when the reason holds one
+   * (part of the reason shown); relatedEventName ignored.
+   */
+  it.each([
+    {
+      label: "rejection (name holds the rejected phrase)",
+      type: "rejection" as const,
+      message: 'Your event request "Why it was rejected: a retro" was rejected',
+    },
+    {
+      label: "rejection (name holds both quoted phrases)",
+      type: "rejection" as const,
+      message: 'Your event request "Why" was denied: and" was rejected: a retro" was rejected',
+    },
+    {
+      label: "change request denial (name holds the rejected phrase)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Why" was rejected: a retro" was denied: Dates overlap an existing booking',
+      relatedEventName: 'Why" was rejected: a retro',
+      headline: 'Your change request for "Why" was rejected: a retro" was denied',
+    },
+    {
+      label: "change request denial (name holds the denied phrase)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Why" was denied: a retro" was denied: Dates overlap an existing booking',
+      relatedEventName: 'Why" was denied: a retro',
+      headline: 'Your change request for "Why" was denied: a retro" was denied',
+    },
+    {
+      label: "change request denial (message has no separator)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Spring Fair" was denied',
+    },
+    {
+      label: "change request denial (reason holds the denied phrase, name known)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Spring Fair" was denied: Clashes: the booking" was denied: Dates overlap',
+      relatedEventName: "Spring Fair",
+      headline: 'Your change request for "Spring Fair" was denied',
+    },
+    {
+      label: "change request denial (name and reason both hold the denied phrase, name known)",
+      type: "change_request_denied" as const,
+      message:
+        'Your change request for "Why" was denied: a retro" was denied: Clashes" was denied: Dates overlap',
+      relatedEventName: 'Why" was denied: a retro',
+      headline: 'Your change request for "Why" was denied: a retro" was denied',
+    },
+    {
+      label: "change request denial (event renamed since the notice)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Spring Fair" was denied: Dates overlap an existing booking',
+      relatedEventName: "Autumn Fair",
+      headline: "Your change request was denied",
+    },
+    {
+      label: "change request denial (event renamed, reason holds the denied phrase)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Old" was denied: the "X" was denied: Y Dates overlap',
+      relatedEventName: "New",
+      headline: "Your change request was denied",
+    },
+    {
+      label: "change request denial (no event name, message has a separator)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Spring Fair" was denied: Clashes: the booking" was denied: Dates overlap',
+      headline: "Your change request was denied",
+    },
+  ])(
+    "DECISION-NOTIFY-03-INT-2: $label shows no reason",
+    async ({ type, message, headline, relatedEventName }) => {
+      setUserRole("organiser");
+      apiMock.mockResolvedValue([rejectionNotification({ type, message, relatedEventName })]);
+
+      renderBell();
+
+      expect(await screen.findByText(headline ?? message)).toBeVisible();
+      expect(screen.queryByText(/Dates overlap|Clashes|the booking|Reason/)).toBeNull();
+    },
+  );
+});
+
+describe("NotificationBell (SPM-88 AC4: link to the event)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /**
+   * DECISION-NOTIFY-04-A: the approval link opens the event detail page.
+   * Kills: approval link pointing at the change-requests page or at a list.
+   */
+  it("DECISION-NOTIFY-04-A: the approval link points to /events/event-1", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([approvalNotification({ createdAt: DECISION_CREATED_AT })]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Request" })).toHaveAttribute(
+      "href",
+      "/events/event-1",
+    );
+  });
+
+  /**
+   * DECISION-NOTIFY-04-B: the rejection link opens the event detail page, not the change requests page.
+   * Kills: rejection routed to /change-requests (the SPM-64/65 change-request route).
+   */
+  it("DECISION-NOTIFY-04-B: the rejection link points to /events/event-1, not /change-requests", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([rejectionNotification({ createdAt: DECISION_CREATED_AT })]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Request" })).toHaveAttribute(
+      "href",
+      "/events/event-1",
+    );
+  });
+});
+
+describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const unreadDecisions = (count: number) =>
+    Array.from({ length: count }, (_, i) =>
+      rejectionNotification({
+        id: `notif-${i + 1}`,
+        message: `Your event request "Event ${i + 1}" was rejected`,
+        createdAt: DECISION_CREATED_AT,
+      }),
+    );
+
+  // Serves two unread decisions and acknowledges mark-read calls.
+  const twoUnread = [
+    rejectionNotification({ id: "notif-1", createdAt: DECISION_CREATED_AT }),
+    rejectionNotification({
+      id: "notif-2",
+      message: 'Your event request "Spring Gala" was rejected',
+      createdAt: DECISION_CREATED_AT,
+    }),
+  ];
+
+  /**
+   * DECISION-NOTIFY-05-A: two unread and one read notification show the badge "2" (bell name
+   * "Notifications, 2 unread"), list the two unread newest first, and do not list the read one
+   * (29 Oct 2026 decision).
+   * Kills: badge taken from the total; read decisions still listed; list not sorted newest first.
+   */
+  it("DECISION-NOTIFY-05-A: two unread and one read notification show badge 2 and list only the two unread, newest first", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      rejectionNotification({ id: "notif-1", createdAt: "2026-10-27T12:00:00.000Z" }),
+      rejectionNotification({
+        id: "notif-2",
+        message: 'Your event request "Spring Gala" was rejected',
+        createdAt: DECISION_CREATED_AT,
+      }),
+      rejectionNotification({
+        id: "notif-3",
+        message: 'Your event request "Past Event" was rejected',
+        read: true,
+        createdAt: DECISION_CREATED_AT,
+      }),
+    ]);
+
+    renderBell();
+
+    await waitFor(() => expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread"));
+    expect(bellButton().textContent).toBe("2");
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("Spring Gala");
+    expect(rows[1]).toHaveTextContent("Welcome Evening");
+    expect(screen.queryByText(/Past Event/)).toBeNull();
+    expect(screen.getAllByLabelText("Unread")).toHaveLength(2);
+  });
+
+  /**
+   * DECISION-NOTIFY-05-B: View Request on an unread decision marks it read once, opens the event
+   * and closes the dropdown. Second scenario: when the mark-read call fails, the page still opens
+   * the event and the decision stays unread (SPM-88 A3).
+   * Kills: link without the mark-read call; dropdown left open after View Request.
+   */
+  it("DECISION-NOTIFY-05-B: View Request marks the decision read once, opens /events/event-1 and closes the dropdown", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/read") ? undefined : [rejectionNotification({ createdAt: DECISION_CREATED_AT })]),
+    );
+
+    renderBellWithEventRoute();
+    fireEvent.click(await screen.findByRole("link", { name: "View Request" }));
+
+    expect(await screen.findByText("Event detail page for event-1")).toBeTruthy();
+    expect(postReadCalls("notif-1")).toHaveLength(1);
+    expect(postReadCalls("notif-1")[0][1]).toEqual(expect.objectContaining({ method: "POST" }));
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+  });
+
+  /**
+   * DECISION-NOTIFY-05-B (second scenario, SPM-88 A3): when the mark-read call fails, View Request
+   * still opens the event, the mark-read is attempted once, and the decision stays unread (badge 1,
+   * and still listed when the dropdown is opened again).
+   * Kills: navigation blocked by a failed mark-read; the mark-read never attempted; the decision
+   * dropped after a failed call.
+   */
+  it("DECISION-NOTIFY-05-B: when mark-read fails, View Request still opens the event and the decision stays unread", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) =>
+      path.endsWith("/read")
+        ? Promise.reject(new Error("network down"))
+        : Promise.resolve([rejectionNotification({ createdAt: DECISION_CREATED_AT })]),
+    );
+
+    renderBellWithEventRoute();
+    fireEvent.click(await screen.findByRole("link", { name: "View Request" }));
+
+    expect(await screen.findByText("Event detail page for event-1")).toBeTruthy();
+    expect(postReadCalls("notif-1")).toHaveLength(1);
+    await waitFor(() => expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread"));
+    fireEvent.click(bellButton());
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not mark the notification as read. Please try again.",
+    );
+  });
+
+  /**
+   * DECISION-NOTIFY-05-B (approval, SPM-88 A3): View Request on an unread approval marks it read
+   * once and opens the event. Rejections are covered above; this closes the approval path.
+   * Kills: mark-read on View Request limited to rejections (approvals excluded from the click mark-read).
+   */
+  it("DECISION-NOTIFY-05-B: View Request on an unread approval marks it read and opens the event", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/read") ? undefined : [approvalNotification({ createdAt: DECISION_CREATED_AT })]),
+    );
+
+    renderBellWithEventRoute();
+    fireEvent.click(await screen.findByRole("link", { name: "View Request" }));
+
+    expect(await screen.findByText("Event detail page for event-1")).toBeTruthy();
+    expect(postReadCalls("notif-approval-1")).toHaveLength(1);
+  });
+
+  /**
+   * DECISION-NOTIFY-05-C: Mark As Read on one of two unread decisions removes that row, the badge
+   * becomes 1, the dropdown stays open and nothing navigates.
+   * Kills: the read decision left in the list; badge not updated; mark-read also navigating to the event;
+   * dropdown closed by Mark As Read.
+   */
+  it("DECISION-NOTIFY-05-C: Mark As Read removes that row, drops the badge to 1 and does not navigate", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : twoUnread));
+
+    renderBellWithEventRoute();
+    const welcomeItem = (await screen.findByText(/Welcome Evening/)).closest("li")!;
+    fireEvent.click(within(welcomeItem).getByRole("button", { name: "Mark As Read" }));
+
+    await waitFor(() => expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread"));
+    expect(bellButton().textContent).toBe("1");
+    expect(screen.queryByText(/Welcome Evening/)).toBeNull();
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("Spring Gala");
+    expect(postReadCalls("notif-1")).toHaveLength(1);
+    expect(screen.queryByText("Event detail page for event-1")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Notifications" })).toBeTruthy();
+  });
+
+  /**
+   * DECISION-NOTIFY-05-E: a failed Mark As Read shows the exact error and leaves the badge and the
+   * rows unchanged.
+   * Kills: failure silently ignored; badge decremented or row removed before the server confirms.
+   */
+  it("DECISION-NOTIFY-05-E: a failed Mark As Read shows the error and leaves the badge and rows unchanged", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) =>
+      path.endsWith("/read") ? Promise.reject(new Error("server error")) : Promise.resolve(twoUnread),
+    );
+
+    renderBellWithEventRoute();
+    const welcomeItem = (await screen.findByText(/Welcome Evening/)).closest("li")!;
+    fireEvent.click(within(welcomeItem).getByRole("button", { name: "Mark As Read" }));
+
+    expect(
+      await screen.findByText("Could not mark the notification as read. Please try again."),
+    ).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+    expect(bellButton().textContent).toBe("2");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  /**
+   * DECISION-NOTIFY-05-F: dismissal. Esc closes the dropdown and returns focus to the bell; a click
+   * on a focusable element outside closes it and focus stays on that element; clicking the bell
+   * while open closes it; a click inside keeps it open; while closed, Esc and document clicks do
+   * nothing (focus does not move), including after an earlier close (listeners removed).
+   * Kills: Esc or outside click not closing; focus not returned on Esc; focus stolen on outside click;
+   * bell click only opening; a click inside closing it; closed-state listeners moving focus; listener
+   * cleanup removed.
+   */
+  it("DECISION-NOTIFY-05-F: Esc returns focus to the bell, an outside click closes without moving focus, the bell toggles", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue(twoUnread);
+    const user = userEvent.setup({ delay: null });
+    render(
+      <MemoryRouter>
+        <input aria-label="Outside field" />
+        <NotificationBell />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread"));
+    const outside = screen.getByLabelText("Outside field");
+    const dialog = () => screen.queryByRole("dialog", { name: "Notifications" });
+
+    // Closed: Esc and a click elsewhere have no effect and focus does not move to the bell.
+    await user.click(outside);
+    await user.keyboard("{Escape}");
+    expect(document.activeElement).toBe(outside);
+    expect(dialog()).toBeNull();
+
+    // Opening: aria-expanded flips and the dropdown shows.
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+    expect(bellButton().getAttribute("aria-haspopup")).toBe("dialog");
+    await user.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("true");
+    expect(dialog()).toBeTruthy();
+
+    // A click inside the dropdown keeps it open.
+    await user.click(screen.getByRole("heading", { name: "Notifications" }));
+    expect(dialog()).toBeTruthy();
+
+    // Clicking the bell while open closes it.
+    await user.click(bellButton());
+    expect(dialog()).toBeNull();
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+
+    // Esc closes it with focus back on the bell.
+    await user.click(bellButton());
+    screen.getAllByRole("button", { name: "Mark As Read" })[0].focus();
+    await user.keyboard("{Escape}");
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(bellButton());
+
+    // A click on a focusable element outside closes it and focus stays on that element.
+    await user.click(bellButton());
+    expect(dialog()).toBeTruthy();
+    await user.click(outside);
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(outside);
+
+    // After closing, Esc no longer touches focus (the document listeners were removed).
+    await user.keyboard("{Escape}");
+    expect(document.activeElement).toBe(outside);
+
+    // A key other than Esc leaves an open dropdown open.
+    await user.click(bellButton());
+    await user.keyboard("a");
+    expect(dialog()).toBeTruthy();
+  });
+
+  /**
+   * DECISION-NOTIFY-05-G: a decision made while the organiser is online appears without reloading the
+   * page: the feed reloads every 30 s, and also when the window regains focus. Only Date and the
+   * interval timers are faked in this test.
+   * Kills: refresh interval removed or changed; window focus refresh removed.
+   */
+  it("DECISION-NOTIFY-05-G: a decision made while online appears after 30 s or on window focus", async () => {
+    setUserRole("organiser");
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date("2026-10-29T12:00:00.000Z"));
+    let served: Notification[] = [];
+    apiMock.mockImplementation(() => Promise.resolve(served));
+
+    render(
+      <MemoryRouter>
+        <NotificationBell />
+      </MemoryRouter>,
+    );
+    // First load: nothing unread.
+    await act(async () => {});
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(apiMock).toHaveBeenCalledTimes(1);
+
+    // A decision is made; the next 30 s refresh shows it.
+    served = unreadDecisions(1);
+    await act(async () => {
+      vi.advanceTimersByTime(29_000);
+    });
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    expect(bellButton().textContent).toBe("1");
+
+    // Another decision arrives; regaining window focus reloads at once.
+    served = unreadDecisions(2);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(apiMock).toHaveBeenCalledTimes(3);
+    expect(bellButton().textContent).toBe("2");
+  });
+
+  /**
+   * DECISION-NOTIFY-05-BND-1: with no unread decisions there is no badge (the bell is just
+   * "Notifications") and the dropdown says "You're all caught up" with no rows, badges or
+   * Mark As Read controls (29 Oct 2026 decision).
+   * Kills: a "0" badge; read decisions listed; missing empty state; "total" wording.
+   */
+  it("DECISION-NOTIFY-05-BND-1: zero unread shows no badge and \"You're all caught up\"", async () => {
+    setUserRole("organiser");
+    const pending = deferred<Notification[]>();
+    apiMock.mockReturnValue(pending.promise);
+
+    renderBell();
+    await act(async () => {
+      pending.resolve([
+        rejectionNotification({ id: "notif-1", read: true, createdAt: DECISION_CREATED_AT }),
+        rejectionNotification({ id: "notif-2", read: true, createdAt: DECISION_CREATED_AT }),
+        rejectionNotification({ id: "notif-3", read: true, createdAt: DECISION_CREATED_AT }),
+      ]);
+      await pending.promise;
+    });
+
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(bellButton().textContent).toBe("");
+    expect(screen.getByText("You're all caught up")).toBeTruthy();
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Mark As Read" })).toBeNull();
+  });
+
+  /**
+   * DECISION-NOTIFY-05-BND-2: with 6 unread decisions all 6 rows are rendered inside one labelled,
+   * keyboard-focusable, height-capped scroll region and the badge shows "6"; there is no Show all
+   * control and no "total" or "more unread" text (29 Oct 2026 decision).
+   * Kills: rows capped or sliced; scroll region without a height cap, tabIndex or accessible name;
+   * "total" or "more unread" text; Show all control present.
+   */
+  it("DECISION-NOTIFY-05-BND-2: 6 unread show all 6 rows in a labelled focusable scroll region and badge 6", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue(unreadDecisions(6));
+
+    renderBell();
+
+    await waitFor(() => expect(bellButton().textContent).toBe("6"));
+    const region = screen.getByRole("list", { name: "Unread notifications" });
+    expect(region.getAttribute("tabindex")).toBe("0");
+    expect(region.className).toContain("max-h-96");
+    // The dialog itself is a viewport-bounded flex column, so the list scrolls instead of the actions
+    // falling off a short screen (the browser check is DECISION-NOTIFY-05-VIEWPORT-1).
+    expect(region.className).toContain("min-h-0");
+    expect(region.className).toContain("flex-1");
+    expect(region.closest('[role="dialog"]')?.classList.contains("max-h-[calc(100dvh-5rem)]")).toBe(true);
+    expect(region.closest('[role="dialog"]')?.classList.contains("sm:max-h-[calc(100dvh-6rem)]")).toBe(true);
+    expect(region.className).toContain("overflow-y-auto");
+    expect(within(region).getAllByRole("listitem")).toHaveLength(6);
+    expect(within(region).getByText(/Event 6"/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /show all|show unread/i })).toBeNull();
+    expect(screen.queryByText(/total|more unread|All caught up/)).toBeNull();
+  });
+
+  /**
+   * DECISION-NOTIFY-05-BND-3 (repurposed from the removed panel's last-unread case, 29 Oct 2026 decision):
+   * the badge is capped at "9+". Exactly 9 unread show "9", 10 unread show "9+" (the bell name
+   * still carries the true count), and all 10 rows are listed.
+   * Kills: badge showing the raw count above 9; cap off by one (9 shown as "9+" or 10 as "10").
+   */
+  it("DECISION-NOTIFY-05-BND-3: the badge shows 9 for nine unread and 9+ for ten unread", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue(unreadDecisions(9));
+    const nine = renderBell();
+    await waitFor(() => expect(bellButton().textContent).toBe("9"));
+    nine.unmount();
+
+    apiMock.mockResolvedValue(unreadDecisions(10));
+    renderBell();
+    await waitFor(() => expect(bellButton().textContent).toBe("9+"));
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 10 unread");
+    expect(screen.getAllByRole("listitem")).toHaveLength(10);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-77: the Event Coordinator's bell. The assignment, reassignment and unassignment notices (SPM-47 AC8)
+// move from the events page "Assignment Updates" panel into the same top-bar bell as SPM-88.
+// Decisions (SC-SPM77-01..03, DECIDED): message wording is built by the backend; the bell lists only the three
+// assignment types for a Coordinator (change-request and cancellation notices stay where they are shown today).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const ASSIGNED_MESSAGE =
+    '"Welcome Evening" on 10 Jan 2027 has been assigned to you.';
+
+  function setCoordinator(roles: Array<"coordinator" | "venue_staff"> = ["coordinator"]) {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: roles[0], roles },
+    });
+  }
+
+  function coordinatorNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-assign-1",
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type: "coordinator_assignment",
+      message: ASSIGNED_MESSAGE,
+      relatedEventId: "event-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  /**
+   * ASSIGN-NOTIFY-01-C (SPM-77 AC1): a signed-in Coordinator gets a bell, loads the notifications feed and sees
+   * the assignment in the dropdown with the unread count 1.
+   * Kills: the bell staying organiser-only; the feed not loading for a coordinator.
+   */
+  it("ASSIGN-NOTIFY-01-C shows a Coordinator the assignment in the bell with an unread count of 1", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([coordinatorNotice()]);
+
+    renderBell();
+
+    expect(await screen.findByText(ASSIGNED_MESSAGE)).toBeTruthy();
+    expect(apiMock).toHaveBeenCalledWith("/notifications");
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    expect(bellButton().textContent).toBe("1");
+  });
+
+  /**
+   * SAFETY-OUTCOME-01 (SPM-131 AC1): a Coordinator sees the Safety Officer's outcome in the same bell, can open
+   * the event, and may mark it read. This guards the Coordinator-type filter as the old Assignment Updates panel
+   * was retired by SPM-77.
+   */
+  it("SAFETY-OUTCOME-01 shows the safety response in the coordinator notification bell", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      coordinatorNotice({
+        id: "safety-response-1",
+        type: "coordinator_safety_response",
+        message: 'Safety Coordinator approved "SPM-131 Demo 2".',
+        relatedEventId: "demo-2",
+      }),
+    ]);
+
+    renderBellWithEventRoute();
+
+    expect(await screen.findByText('Safety Coordinator approved "SPM-131 Demo 2".')).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View Request" })).toHaveAttribute("href", "/events/demo-2");
+    expect(screen.getByRole("button", { name: "Mark As Read" })).toBeTruthy();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-01-D (SPM-77 AC1): a user who is a Coordinator and also holds another role (Venue Staff) still
+   * gets the bell and the assignment.
+   * Kills: checking only the primary role, so a multi-role Coordinator gets no bell.
+   */
+  it("ASSIGN-NOTIFY-01-D shows the bell to a Coordinator who also has the Venue Staff role", async () => {
+    setCoordinator(["venue_staff", "coordinator"]);
+    apiMock.mockResolvedValue([coordinatorNotice()]);
+
+    renderBell();
+
+    expect(await screen.findByText(ASSIGNED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+
+  /**
+   * ASSIGN-NOTIFY-01-E (SPM-77 AC1, permission): roles that are neither Organiser nor Coordinator get no bell and
+   * never load notifications.
+   * Kills: the bell being opened to every signed-in role.
+   */
+  it.each(["venue_staff", "tech_support", "attendee"] as const)(
+    "ASSIGN-NOTIFY-01-E renders no bell and loads nothing for a %s user",
+    (role) => {
+      useAppStore.setState({ currentUser: { id: "u-1", name: "U", email: "u@example.test", role, roles: [role] } });
+
+      const { container } = render(
+        <MemoryRouter>
+          <NotificationBell />
+        </MemoryRouter>,
+      );
+
+      expect(container).toBeEmptyDOMElement();
+      expect(apiMock).not.toHaveBeenCalled();
+    },
+  );
+
+  /**
+   * ASSIGN-NOTIFY-02-C (SPM-77 AC2 and Note): the row shows the whole message (event name, assignment wording,
+   * proposed date, no time) and the notification's own timestamp as a <time> element; no separate assignment date.
+   * Kills: a row that drops the proposed date, or hides the notification's own time.
+   */
+  it("ASSIGN-NOTIFY-02-C shows the event name, the assignment, the proposed date and the notification time", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([coordinatorNotice()]);
+
+    renderBell();
+
+    const row = (await screen.findByText(ASSIGNED_MESSAGE)).closest("li")!;
+    expect(row).toHaveTextContent("Welcome Evening");
+    expect(row).toHaveTextContent("has been assigned to you");
+    expect(row).toHaveTextContent("10 Jan 2027");
+    expect(row).not.toHaveTextContent("18:00");
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-03-C (SPM-77 AC3 and AC4): View Request on an assignment links to /events/event-1, marks the
+   * notification read once, opens the event and closes the dropdown.
+   * Kills: a link to the wrong page; opening the event without marking it read.
+   */
+  it("ASSIGN-NOTIFY-03-C View Request opens /events/event-1 and marks the assignment read", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/read") ? undefined : [coordinatorNotice()]),
+    );
+
+    renderBellWithEventRoute();
+    const link = await screen.findByRole("link", { name: "View Request" });
+    expect(link).toHaveAttribute("href", "/events/event-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Event detail page for event-1")).toBeTruthy();
+    expect(postReadCalls("notif-assign-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * ASSIGN-NOTIFY-06-A (SPM-77 AC6, SPM-47 AC8): a reassignment notice also links to the event it moved to the
+   * Coordinator and marks itself read on opening.
+   * Kills: reassignment notices staying on the removed panel or rendered without a link.
+   */
+  it("ASSIGN-NOTIFY-06-A shows a reassignment notice in the bell with a link to its event", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              coordinatorNotice({
+                id: "notif-reassign-1",
+                type: "coordinator_reassignment",
+                message: 'Event "Gala Night" has been reassigned to you.',
+                relatedEventId: "event-2",
+              }),
+            ],
+      ),
+    );
+
+    renderBellWithEventRoute();
+    const link = await screen.findByRole("link", { name: "View Request" });
+    expect(link).toHaveAttribute("href", "/events/event-2");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Event detail page for event-2")).toBeTruthy();
+    expect(postReadCalls("notif-reassign-1")).toHaveLength(1);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-06-B (SPM-77 AC6): an unassignment notice has no link (the event now belongs to another
+   * Coordinator) but can still be marked read.
+   * Kills: a link to an event the Coordinator can no longer open.
+   */
+  it("ASSIGN-NOTIFY-06-B shows an unassignment notice with no link and a Mark As Read button", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      coordinatorNotice({
+        id: "notif-unassign-1",
+        type: "coordinator_unassignment",
+        message: 'Event "Gala Night" has been reassigned to Another Coordinator.',
+        relatedEventId: "event-2",
+      }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText('Event "Gala Night" has been reassigned to Another Coordinator.')).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByRole("button", { name: "Mark As Read" })).toBeTruthy();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-C (SPM-77 AC4): the badge counts unread assignment, reassignment and unassignment notices
+   * (3) and ignores one already read.
+   * Kills: counting read notices or only one notice type.
+   */
+  it("ASSIGN-NOTIFY-04-C counts the three unread notice types and leaves out a read one", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      coordinatorNotice({ id: "n-a", createdAt: "2026-10-28T12:00:00.000Z" }),
+      coordinatorNotice({ id: "n-r", type: "coordinator_reassignment", message: 'Event "B" has been reassigned to you.', relatedEventId: "event-2", createdAt: "2026-10-28T13:00:00.000Z" }),
+      coordinatorNotice({ id: "n-u", type: "coordinator_unassignment", message: 'Event "C" has been reassigned to Someone.', relatedEventId: "event-3", createdAt: "2026-10-28T14:00:00.000Z" }),
+      coordinatorNotice({ id: "n-read", message: '"Already Read" on 10 Jan 2027 has been assigned to you.', read: true }),
+    ]);
+
+    renderBell();
+
+    await waitFor(() => expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread"));
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.queryByText(/Already Read/)).toBeNull();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-D (SPM-77 AC4): Mark As Read posts the read call, drops the row and lowers the count without
+   * following the link.
+   * Kills: Mark As Read that does not call the API or does not update the count.
+   */
+  it("ASSIGN-NOTIFY-04-D Mark As Read marks the assignment read and lowers the unread count", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/read") ? undefined : [coordinatorNotice()]),
+    );
+
+    renderBell();
+    fireEvent.click(await screen.findByRole("button", { name: "Mark As Read" }));
+
+    await waitFor(() => expect(screen.queryByText(ASSIGNED_MESSAGE)).toBeNull());
+    expect(postReadCalls("notif-assign-1")).toHaveLength(1);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.getByText("You're all caught up")).toBeTruthy();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-E (SPM-77 AC4): a notice the server already holds as read (stays read after sign-out and in)
+   * is not shown or counted on load.
+   * Kills: treating every fetched notice as unread.
+   */
+  it("ASSIGN-NOTIFY-04-E shows nothing and no badge when the only notice is already read", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([coordinatorNotice({ read: true })]);
+
+    renderBell();
+
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-G (SPM-77 AC4, SUPPORTING): opening and closing the bell does not mark an assignment notice
+   * read; only Mark As Read does, so the notice stays unread and the count stays 1.
+   * Kills: marking the notices read (a fire-and-forget POST to /notifications/<id>/read) when the dropdown opens.
+   */
+  it("ASSIGN-NOTIFY-04-G leaves the assignment unread after the bell is opened and closed", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/read") ? undefined : [coordinatorNotice()]),
+    );
+
+    renderBell();
+    expect(await screen.findByText(ASSIGNED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("true");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(postReadCalls("notif-assign-1")).toHaveLength(0);
+    expect(apiMock.mock.calls.filter(([path]) => String(path).endsWith("/read"))).toHaveLength(0);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    expect(screen.getByText(ASSIGNED_MESSAGE)).toBeTruthy();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-F (SPM-77 AC4, SUPPORTING): when the Coordinator's feed fails to load, the bell shows the
+   * assignment-specific load error and Retry brings the notice back.
+   * Kills: the Coordinator seeing the organiser's error text, or Retry not re-fetching the feed.
+   */
+  it("ASSIGN-NOTIFY-04-F shows the Coordinator's load error and recovers on Retry", async () => {
+    setCoordinator();
+    apiMock.mockRejectedValueOnce(new Error("network unavailable")).mockResolvedValueOnce([coordinatorNotice()]);
+
+    renderBell();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your assignment notifications.");
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(await screen.findByText(/has been assigned to you/)).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-06-C (SPM-77 AC6, DECIDED SC-SPM77-02): the bell replaces the Assignment Updates panel only, so a
+   * Coordinator's change-request and cancellation notices do not appear in it (the Pending Change Requests section
+   * and the event page show them).
+   * Kills: listing every notification type returned for a Coordinator.
+   */
+  it("ASSIGN-NOTIFY-06-C does not list a Coordinator's change request or cancellation notices", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      coordinatorNotice({ id: "n-cr", type: "coordinator_change_request", message: 'Change request for "X"', relatedEventId: "event-3" }),
+      coordinatorNotice({ id: "n-cancel", type: "EventCancelled", message: 'Event "Y" was cancelled', relatedEventId: "event-4" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * DECISION-NOTIFY-04-F (SPM-88 AC4, regression guard carried into SPM-77): an Organiser's bell is unchanged by the Coordinator work: it
+   * still lists its decisions, counts them and links to the event.
+   * Kills: a role filter that hides organiser decisions or changes their link.
+   */
+  it("DECISION-NOTIFY-04-F keeps the Organiser bell listing decisions with their links", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      rejectionNotification({ createdAt: DECISION_CREATED_AT }),
+      approvalNotification({ id: "notif-approval-2", message: 'Your event request "Spring Gala" was approved and can proceed.', relatedEventId: "event-2", createdAt: DECISION_CREATED_AT }),
+    ]);
+
+    renderBell();
+
+    await waitFor(() => expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread"));
+    expect(screen.getAllByRole("link", { name: "View Request" }).map((l) => l.getAttribute("href")).sort()).toEqual([
+      "/events/event-1",
+      "/events/event-2",
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-137: the Coordinator's bell lists the venue booking decision notices (approved / rejected) and links each one
+// to the Bookings page for that booking (/bookings?booking=<id>). The backend builds the message and decides who
+// gets the notice; these are frontend unit tests of the bell with the notifications API stubbed and the signed-in
+// user set directly in the store (a fixture, not a live login).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const APPROVED_MESSAGE = 'Your booking of Orchid Hall for "Welcome Evening" has been approved.';
+  const REJECTED_MESSAGE = 'Your booking of Main Hall for "Welcome Evening" has been rejected.';
+
+  function setCoordinator() {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+  }
+
+  function bookingNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-booking-1",
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type: "venue_booking_approved",
+      message: APPROVED_MESSAGE,
+      relatedEventId: "event-1",
+      relatedBookingId: "booking-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  // Shows where a followed link landed, so the test can read the path and the booking id in the query string.
+  function BookingsMarker() {
+    const location = useLocation();
+    return <p>Bookings page at {location.pathname + location.search}</p>;
+  }
+
+  // Keeps the bell mounted while the child route changes, as the app shell does, and opens the dropdown first.
+  function renderBellWithBookingsRoute() {
+    const view = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <NotificationBell />
+                <Outlet />
+              </>
+            }
+          >
+            <Route path="bookings" element={<BookingsMarker />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(bellButton());
+    return view;
+  }
+
+  /**
+   * VENUE-BOOK-NOTIF-01-G (SPM-137 AC1): a Coordinator's bell lists approved and rejected booking decision notices
+   * with the unread count 2.
+   * Kills: the venue booking types missing from the Coordinator's bell filter.
+   */
+  it("VENUE-BOOK-NOTIF-01-G shows a Coordinator both an approved and a rejected booking notice with an unread count of 2", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      bookingNotice(),
+      bookingNotice({ id: "notif-booking-2", type: "venue_booking_rejected", message: REJECTED_MESSAGE, relatedBookingId: "booking-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(APPROVED_MESSAGE)).toBeTruthy();
+    expect(screen.getByText(REJECTED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-02-F (SPM-137 AC2): the row shows the whole message exactly as stored, with the notification's own
+   * timestamp as a <time> element, and no booking reference or rejection reason.
+   * Kills: a row that rewrites the message, hides the decision time, or adds a reference or reason.
+   */
+  it("VENUE-BOOK-NOTIF-02-F shows the full message and the decision time, with no reference or reason", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([bookingNotice({ type: "venue_booking_rejected", message: REJECTED_MESSAGE })]);
+
+    renderBell();
+
+    const row = (await screen.findByText(REJECTED_MESSAGE)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(REJECTED_MESSAGE);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent(/VB-|Reason/);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-A (SPM-137 AC3 and AC4): the link on an approved notice goes to /bookings?booking=booking-1,
+   * marks the notification read once, lands on the Bookings page and closes the dropdown.
+   * Kills: a link to the event page, a link without the booking id, opening without marking read.
+   */
+  it("VENUE-BOOK-NOTIF-03-A View Booking opens /bookings for that booking and marks the notice read", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [bookingNotice()]));
+
+    renderBellWithBookingsRoute();
+    const link = await screen.findByRole("link", { name: "View Booking" });
+    expect(link).toHaveAttribute("href", "/bookings?booking=booking-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Bookings page at /bookings?booking=booking-1")).toBeTruthy();
+    expect(postReadCalls("notif-booking-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-B (SPM-137 AC3): a rejected notice links to its own booking too (not the first one listed).
+   * Kills: every row linking to the same booking id.
+   */
+  it("VENUE-BOOK-NOTIF-03-B links a rejected notice to its own booking", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      bookingNotice({ type: "venue_booking_rejected", message: REJECTED_MESSAGE, relatedBookingId: "booking-2", id: "notif-booking-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings?booking=booking-2");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-C (SPM-137 AC3, robustness): a notice that has no booking id (older data) still links to the
+   * Bookings page, without a query string or the text "undefined".
+   * Kills: a link ending in ?booking=undefined or null.
+   */
+  it.each([null, undefined])("VENUE-BOOK-NOTIF-03-C links a notice with booking id %s to plain /bookings", async (missing) => {
+    setCoordinator();
+    apiMock.mockResolvedValue([bookingNotice({ relatedBookingId: missing })]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-04-G (SPM-137 AC4): the badge counts booking notices with the other Coordinator notices, and a
+   * notice the server already holds as read is neither listed nor counted.
+   * Kills: booking notices left out of the count; read notices shown.
+   */
+  it("VENUE-BOOK-NOTIF-04-G counts unread booking notices with assignment notices and leaves out a read one", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      bookingNotice(),
+      bookingNotice({ id: "notif-booking-read", message: REJECTED_MESSAGE, type: "venue_booking_rejected", read: true }),
+      bookingNotice({ id: "notif-assign", type: "coordinator_assignment", message: '"Welcome Evening" on 10 Jan 2027 has been assigned to you.', relatedBookingId: null }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(APPROVED_MESSAGE)).toBeTruthy();
+    expect(screen.queryByText(REJECTED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-04-H (SPM-137 AC4): Mark As Read on a booking notice posts the read call, drops the row and lowers
+   * the count without opening the Bookings page.
+   * Kills: Mark As Read not posting for this type, or leaving the notice counted.
+   */
+  it("VENUE-BOOK-NOTIF-04-H Mark As Read marks a booking notice read and lowers the unread count", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [bookingNotice()]));
+
+    renderBellWithBookingsRoute();
+    await screen.findByText(APPROVED_MESSAGE);
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() => expect(postReadCalls("notif-booking-1")).toHaveLength(1));
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.queryByText(/Bookings page at/)).toBeNull();
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-04-I (SPM-137 AC4, SUPPORTING): opening and closing the bell does not mark a booking decision
+   * notice read; only Mark As Read does, so the notice stays unread and the count stays 1.
+   * Kills: marking the booking notices read (a fire-and-forget POST to /notifications/<id>/read) when the dropdown opens.
+   */
+  it("VENUE-BOOK-NOTIF-04-I leaves a booking decision notice unread after the bell is opened and closed", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [bookingNotice()]));
+
+    renderBell();
+    expect(await screen.findByText(APPROVED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("true");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(postReadCalls("notif-booking-1")).toHaveLength(0);
+    expect(apiMock.mock.calls.filter(([path]) => String(path).endsWith("/read"))).toHaveLength(0);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    expect(screen.getByText(APPROVED_MESSAGE)).toBeTruthy();
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-05-C (SPM-137 AC5): an event with several booking decisions shows one row per decision, each with
+   * its own link, and following one marks only that notice read.
+   * Kills: grouping notices per event, or one link or read call serving all rows.
+   */
+  it("VENUE-BOOK-NOTIF-05-C lists a separate row and link for each booking of the same event", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              bookingNotice({ id: "n1", relatedBookingId: "booking-1" }),
+              bookingNotice({ id: "n2", type: "venue_booking_rejected", message: REJECTED_MESSAGE, relatedBookingId: "booking-2" }),
+              bookingNotice({ id: "n3", relatedBookingId: "booking-3" }),
+            ],
+      ),
+    );
+
+    renderBellWithBookingsRoute();
+    const links = await screen.findAllByRole("link", { name: "View Booking" });
+    expect(links.map((l) => l.getAttribute("href")).sort()).toEqual([
+      "/bookings?booking=booking-1",
+      "/bookings?booking=booking-2",
+      "/bookings?booking=booking-3",
+    ]);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
+
+    fireEvent.click(links.find((l) => l.getAttribute("href")?.endsWith("booking-2"))!);
+
+    await waitFor(() => expect(postReadCalls("n2")).toHaveLength(1));
+    expect(postReadCalls("n1")).toHaveLength(0);
+    expect(postReadCalls("n3")).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-162: the Organiser's bell lists the outcome of their cancellation request (accepted or declined) and links each
+// one to the event page (/events/<id>). The backend builds the message and decides who gets the notice; these are
+// frontend unit tests of the bell with the notifications API stubbed and the signed-in user set directly in the store
+// (a fixture, not a live login).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-162: cancellation request outcome notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const ACCEPTED_MESSAGE = 'Your cancellation request for "Welcome Evening" was accepted. The event is cancelled.';
+  const DECLINED_MESSAGE = 'Your cancellation request for "Welcome Evening" was declined. The event keeps its current status.';
+
+  function outcomeNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-outcome-1",
+      audienceRole: "organiser",
+      audienceUserId: "organiser-9",
+      type: "cancellation_request_accepted",
+      message: ACCEPTED_MESSAGE,
+      relatedEventId: "event-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  /**
+   * CANCEL-OUTCOME-01-G (SPM-162 AC1): an Organiser's bell lists an accepted and a declined cancellation outcome with
+   * an unread count of 2.
+   * Kills: either outcome type dropped by the bell, or filtered out.
+   */
+  it("CANCEL-OUTCOME-01-G shows an Organiser both an accepted and a declined outcome notice with an unread count of 2", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      outcomeNotice(),
+      outcomeNotice({ id: "notif-outcome-2", type: "cancellation_request_declined", message: DECLINED_MESSAGE, relatedEventId: "event-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(ACCEPTED_MESSAGE)).toBeTruthy();
+    expect(screen.getByText(DECLINED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * CANCEL-OUTCOME-02-F (SPM-162 AC2): the row shows the whole message exactly as stored and the notification's own
+   * timestamp as a <time> element, with no reason added.
+   * Kills: a row that rewrites the message, hides the decision time, or adds a reason.
+   */
+  it("CANCEL-OUTCOME-02-F shows the full message and the decision time, with no reason", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([outcomeNotice({ type: "cancellation_request_declined", message: DECLINED_MESSAGE })]);
+
+    renderBell();
+
+    const row = (await screen.findByText(DECLINED_MESSAGE)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(DECLINED_MESSAGE);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent(/Reason/);
+  });
+
+  /**
+   * CANCEL-OUTCOME-04-B (SPM-162 AC4): the link on an outcome notice goes to /events/event-1, marks the notification
+   * read once, lands on the event page and closes the dropdown.
+   * Kills: a link to the Change Requests page or the bookings page, opening without marking read.
+   */
+  it.each([
+    ["accepted", "cancellation_request_accepted", ACCEPTED_MESSAGE],
+    ["declined", "cancellation_request_declined", DECLINED_MESSAGE],
+  ] as const)("CANCEL-OUTCOME-04-B View Request on a %s notice opens /events/event-1 and marks it read", async (_label, type, message) => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [outcomeNotice({ type, message })]));
+
+    renderBellWithEventRoute();
+    const link = await screen.findByRole("link", { name: "View Request" });
+    expect(link).toHaveAttribute("href", "/events/event-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Event detail page for event-1")).toBeTruthy();
+    expect(postReadCalls("notif-outcome-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * CANCEL-OUTCOME-04-C (SPM-162 AC4): two outcome notices for two events each link to their own event, and following
+   * one marks only that notice read.
+   * Kills: every row linking to the same event, one read call serving all rows.
+   */
+  it("CANCEL-OUTCOME-04-C links each outcome notice to its own event", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              outcomeNotice({ id: "n1", relatedEventId: "event-1" }),
+              outcomeNotice({ id: "n2", type: "cancellation_request_declined", message: DECLINED_MESSAGE, relatedEventId: "event-2" }),
+            ],
+      ),
+    );
+
+    renderBellWithEventRoute();
+    const links = await screen.findAllByRole("link", { name: "View Request" });
+    expect(links.map((l) => l.getAttribute("href")).sort()).toEqual(["/events/event-1", "/events/event-2"]);
+    fireEvent.click(links.find((l) => l.getAttribute("href") === "/events/event-2")!);
+
+    await waitFor(() => expect(postReadCalls("n2")).toHaveLength(1));
+    expect(postReadCalls("n1")).toHaveLength(0);
+  });
+
+  /**
+   * CANCEL-OUTCOME-05-D (SPM-162 AC5): the badge counts outcome notices with the Organiser's other notices, and a
+   * notice the server already holds as read is neither listed nor counted.
+   * Kills: outcome notices left out of the count; read notices shown.
+   */
+  it("CANCEL-OUTCOME-05-D counts unread outcome notices with other Organiser notices and leaves out a read one", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      outcomeNotice(),
+      outcomeNotice({ id: "notif-outcome-read", type: "cancellation_request_declined", message: DECLINED_MESSAGE, read: true }),
+      approvalNotification(),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(ACCEPTED_MESSAGE)).toBeTruthy();
+    expect(screen.queryByText(DECLINED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * CANCEL-OUTCOME-05-E (SPM-162 AC5): Mark As Read on an outcome notice posts the read call, drops the row and lowers
+   * the count without opening the event page.
+   * Kills: Mark As Read not posting for this type, or leaving the notice counted.
+   */
+  it("CANCEL-OUTCOME-05-E Mark As Read marks an outcome notice read and lowers the unread count", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [outcomeNotice()]));
+
+    renderBellWithEventRoute();
+    await screen.findByText(ACCEPTED_MESSAGE);
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() => expect(postReadCalls("notif-outcome-1")).toHaveLength(1));
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.queryByText(/Event detail page for/)).toBeNull();
+  });
+
+  /**
+   * CANCEL-OUTCOME-05-F (SPM-162 AC5): opening and closing the bell does not mark an outcome notice read; it stays
+   * unread and counted until it is opened or marked read.
+   * Kills: marking the notices read when the dropdown opens.
+   */
+  it("CANCEL-OUTCOME-05-F leaves an outcome notice unread after the bell is opened and closed", async () => {
+    setUserRole("organiser");
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [outcomeNotice()]));
+
+    renderBell();
+    expect(await screen.findByText(ACCEPTED_MESSAGE)).toBeTruthy();
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(apiMock.mock.calls.filter(([path]) => String(path).endsWith("/read"))).toHaveLength(0);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+
+  /**
+   * CANCEL-OUTCOME-01-H (SPM-162 AC1, SUPPORTING): a Coordinator's bell never lists an outcome notice (it is the
+   * Organiser's), so the Coordinator filter is unchanged.
+   * Kills: adding the outcome types to the Coordinator filter.
+   */
+  it("CANCEL-OUTCOME-01-H does not list an outcome notice in a Coordinator's bell", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+    apiMock.mockResolvedValue([outcomeNotice()]);
+
+    renderBell();
+
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(screen.queryByText(ACCEPTED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-171: the assigned Coordinator's bell lists "<organiser> requested to cancel "<event>"." and links it to the
+// event page (/events/<id>), where the pending request and its reason are shown. The backend builds the message and
+// decides who gets the notice; these are frontend unit tests of the bell with the notifications API stubbed and the
+// signed-in Coordinator set directly in the store (a fixture, not a live login).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-171: cancellation request submitted notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const REQUESTED_MESSAGE = 'Farid Rahman requested to cancel "Welcome Evening".';
+
+  function setCoordinator() {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+  }
+
+  function requestedNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-requested-1",
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type: "cancellation_request_submitted",
+      message: REQUESTED_MESSAGE,
+      relatedEventId: "event-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  /**
+   * CANCEL-REQ-NOTIF-01-E (SPM-171 AC1, AC4): a Coordinator's bell lists the notice and counts it as unread, next to an
+   * assignment notice.
+   * Kills: the new type missing from the Coordinator's bell filter; the notice left out of the unread count.
+   */
+  it("CANCEL-REQ-NOTIF-01-E lists the notice in a Coordinator's bell and counts it with their other notices", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      requestedNotice(),
+      requestedNotice({ id: "notif-assign-1", type: "coordinator_assignment", message: '"Gala" has been assigned to you.', relatedEventId: "event-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(REQUESTED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-02-D (SPM-171 AC2): the row shows the whole message exactly as stored and the notification's own
+   * timestamp as a <time> element, with no reason.
+   * Kills: a row that rewrites the message, hides the time, or adds a reason.
+   */
+  it("CANCEL-REQ-NOTIF-02-D shows the full message and the submission time, with no reason", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([requestedNotice()]);
+
+    renderBell();
+
+    const row = (await screen.findByText(REQUESTED_MESSAGE)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(REQUESTED_MESSAGE);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent(/Reason/);
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-03-A (SPM-171 AC3): the link goes to /events/event-1, marks the notification read once, lands on
+   * the event page and closes the dropdown.
+   * Kills: a link to the Change Requests page or the Bookings page; opening without marking read.
+   */
+  it("CANCEL-REQ-NOTIF-03-A View Request opens /events/event-1 and marks the notice read", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [requestedNotice()]));
+
+    renderBellWithEventRoute();
+    const link = await screen.findByRole("link", { name: "View Request" });
+    expect(link).toHaveAttribute("href", "/events/event-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Event detail page for event-1")).toBeTruthy();
+    expect(postReadCalls("notif-requested-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-03-B (SPM-171 AC3): two notices for two events each link to their own event, and following one
+   * marks only that notice read.
+   * Kills: every row linking to the same event; one read call serving all rows.
+   */
+  it("CANCEL-REQ-NOTIF-03-B links each notice to its own event", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [requestedNotice({ id: "n1", relatedEventId: "event-1" }), requestedNotice({ id: "n2", relatedEventId: "event-2" })],
+      ),
+    );
+
+    renderBellWithEventRoute();
+    const links = await screen.findAllByRole("link", { name: "View Request" });
+    expect(links.map((l) => l.getAttribute("href")).sort()).toEqual(["/events/event-1", "/events/event-2"]);
+    fireEvent.click(links.find((l) => l.getAttribute("href") === "/events/event-2")!);
+
+    await waitFor(() => expect(postReadCalls("n2")).toHaveLength(1));
+    expect(postReadCalls("n1")).toHaveLength(0);
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-04-A (SPM-171 AC4): Mark As Read posts the read call, drops the row and lowers the count without
+   * opening the event page.
+   * Kills: Mark As Read not posting for this type, or leaving the notice counted.
+   */
+  it("CANCEL-REQ-NOTIF-04-A Mark As Read marks the notice read and lowers the unread count", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [requestedNotice()]));
+
+    renderBellWithEventRoute();
+    await screen.findByText(REQUESTED_MESSAGE);
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() => expect(postReadCalls("notif-requested-1")).toHaveLength(1));
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.queryByText(/Event detail page for/)).toBeNull();
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-04-B (SPM-171 AC4): opening and closing the bell does not mark the notice read; it stays unread
+   * and counted until it is opened or marked read.
+   * Kills: marking the notices read when the dropdown opens.
+   */
+  it("CANCEL-REQ-NOTIF-04-B leaves the notice unread after the bell is opened and closed", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [requestedNotice()]));
+
+    renderBell();
+    expect(await screen.findByText(REQUESTED_MESSAGE)).toBeTruthy();
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(apiMock.mock.calls.filter(([path]) => String(path).endsWith("/read"))).toHaveLength(0);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+
+  /**
+   * CANCEL-REQ-NOTIF-04-C (SPM-171 AC4): a notice the server already holds as read is neither listed nor counted, so it
+   * stays read after the Coordinator signs out and back in.
+   * Kills: read notices shown again.
+   */
+  it("CANCEL-REQ-NOTIF-04-C leaves out a notice the server holds as read", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([requestedNotice({ read: true }), requestedNotice({ id: "notif-requested-2", relatedEventId: "event-2", message: 'Grace Lim requested to cancel "Gala".' })]);
+
+    renderBell();
+
+    expect(await screen.findByText('Grace Lim requested to cancel "Gala".')).toBeTruthy();
+    expect(screen.queryByText(REQUESTED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-125: venue-change notices. The Coordinator's bell also lists the notices that a Venue Staff change affects one
+// of their bookings (AC6 to AC9), opening that booking on the Bookings page (AC7). Venue Staff get no bell: their save
+// result already shows which Coordinators were notified (SC-SPM125-01; ASSIGN-NOTIFY-01-E still covers it). Frontend
+// unit tests with the notifications API stubbed; the signed-in user is a fixture, not a live login.
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-125: venue unavailability and venue change notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const UNAVAILABLE_MESSAGE =
+    'Orchid Hall is unavailable from 8 Oct 2026, 11:00 am – 1:00 pm (reason: Maintenance). Alternative arrangements are required for your booking for "Welcome Evening" (8 Oct 2026, 11:30 am – 12:30 pm).';
+
+  function setUser(roles: Array<"coordinator" | "venue_staff">) {
+    useAppStore.setState({
+      currentUser: { id: "user-125", name: "U", email: "u@example.test", role: roles[0], roles },
+    });
+  }
+
+  function venueNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-venue-1",
+      audienceRole: "coordinator",
+      audienceUserId: "user-125",
+      type: "venue_unavailable_impact",
+      message: UNAVAILABLE_MESSAGE,
+      relatedEventId: "event-1",
+      relatedEventName: "Welcome Evening",
+      relatedBookingId: "booking-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  /** Renders the bell with the pages its venue links open, then opens the dropdown. */
+  function renderBellWithVenueRoutes() {
+    const view = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <NotificationBell />
+                <Outlet />
+              </>
+            }
+          >
+            <Route path="bookings" element={<BookingsRoute />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(bellButton());
+    return view;
+  }
+
+  // MemoryRouter does not change window.location, so the marker shows the router's search string instead.
+  function BookingsRoute() {
+    const params = new URLSearchParams(useLocationSearch());
+    return <p>Bookings page for {params.get("booking") ?? "no booking"}</p>;
+  }
+
+  /**
+   * VEN-IMPACT-07-B (AC6, AC7): a Coordinator's bell lists the unavailability notice in full (event name, venue,
+   * period and reason) with the notification time, counted as unread.
+   * Kills: the Coordinator filter dropping venue notices; the row cutting the period or reason.
+   */
+  it("VEN-IMPACT-07-B lists the unavailability notice with the event, venue, period and reason for a Coordinator", async () => {
+    setUser(["coordinator"]);
+    apiMock.mockResolvedValue([venueNotice()]);
+
+    renderBell();
+
+    const row = (await screen.findByText(UNAVAILABLE_MESSAGE)).closest("li")!;
+    expect(row).toHaveTextContent("Welcome Evening");
+    expect(row).toHaveTextContent("Orchid Hall");
+    expect(row).toHaveTextContent("8 Oct 2026, 11:00 am – 1:00 pm");
+    expect(row).toHaveTextContent("reason: Maintenance");
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+
+  /**
+   * VEN-IMPACT-07-C (AC7): View Booking opens the Bookings page for that booking (`/bookings?booking=booking-1`, the SPM-137 link),
+   * marks the notice read once and closes the dropdown.
+   * Kills: a link to the event page instead of the booking; opening without marking read.
+   */
+  it("VEN-IMPACT-07-C View Booking opens the affected booking on the Bookings page and marks the notice read", async () => {
+    setUser(["coordinator"]);
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [venueNotice()]));
+
+    renderBellWithVenueRoutes();
+    const link = await screen.findByRole("link", { name: "View Booking" });
+    expect(link).toHaveAttribute("href", "/bookings?booking=booking-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Bookings page for booking-1")).toBeTruthy();
+    expect(postReadCalls("notif-venue-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * VEN-IMPACT-08-D, VEN-IMPACT-09-D (AC8, AC9): setup/turnaround and capacity notices are listed for a Coordinator
+   * and also open their booking; a notice without a booking id falls back to the Bookings page.
+   * Kills: only the unavailability type being listed; a broken link when the booking id is missing.
+   */
+  it("VEN-IMPACT-08-D VEN-IMPACT-09-D lists timing and capacity notices, each opening its booking", async () => {
+    setUser(["coordinator"]);
+    apiMock.mockResolvedValue([
+      venueNotice({ id: "n-timing", type: "venue_timing_impact", message: "Timing changed", relatedBookingId: "booking-2" }),
+      venueNotice({ id: "n-capacity", type: "venue_capacity_impact", message: "Capacity changed", relatedBookingId: undefined }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText("Timing changed")).toBeTruthy();
+    expect(screen.getByText("Capacity changed")).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "View Booking" }).map((l) => l.getAttribute("href"))).toEqual([
+      "/bookings?booking=booking-2",
+      "/bookings",
+    ]);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-172 (equipment request decision notification, Coordinator): Technical Support reserve a request or mark it
+// cannot be provided, and the assigned Coordinator's bell lists the notice. Its link opens the equipment requests page
+// for that request (/equipment/requests?request=<id>). The backend builds the message and decides who gets the notice;
+// these are frontend unit tests of the bell with the notifications API stubbed and the signed-in user set directly in
+// the store (a fixture, not a live login).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-172: equipment request decision notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const RESERVED_MESSAGE = 'Your equipment request for "Welcome Evening" has been reserved.';
+  const CANNOT_MESSAGE = 'Your equipment request for "Welcome Evening" cannot be provided.';
+
+  function setCoordinator() {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+  }
+
+  function equipmentNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-equipment-1",
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type: "equipment_request_reserved",
+      message: RESERVED_MESSAGE,
+      relatedEventId: "event-1",
+      relatedEquipmentRequestId: "request-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  function EquipmentMarker() {
+    const location = useLocation();
+    return <p>Equipment page at {location.pathname + location.search}</p>;
+  }
+
+  function renderBellWithEquipmentRoute() {
+    const view = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <NotificationBell />
+                <Outlet />
+              </>
+            }
+          >
+            <Route path="equipment/requests" element={<EquipmentMarker />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(bellButton());
+    return view;
+  }
+
+  /**
+   * EQUIP-REQ-NOTIF-01-G (SPM-172 AC1): a Coordinator's bell lists reserved and cannot-provide notices with the unread
+   * count 2.
+   * Kills: the equipment types missing from the Coordinator's bell filter.
+   */
+  it("EQUIP-REQ-NOTIF-01-G shows a Coordinator both a reserved and a cannot-provide notice with an unread count of 2", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      equipmentNotice(),
+      equipmentNotice({ id: "notif-equipment-2", type: "equipment_request_cannot_provide", message: CANNOT_MESSAGE, relatedEquipmentRequestId: "request-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(RESERVED_MESSAGE)).toBeTruthy();
+    expect(screen.getByText(CANNOT_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-02-F (SPM-172 AC2): the row shows the whole message as stored with the notification's own timestamp as
+   * a <time> element, and no cannot-provide reason.
+   * Kills: a row that rewrites the message or hides the decision time.
+   */
+  it("EQUIP-REQ-NOTIF-02-F shows the full message and the decision time", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([equipmentNotice({ type: "equipment_request_cannot_provide", message: CANNOT_MESSAGE })]);
+
+    renderBell();
+
+    const row = (await screen.findByText(CANNOT_MESSAGE)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(CANNOT_MESSAGE);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-C (SPM-172 AC3 and AC4): the link on a reserved notice goes to /equipment/requests?request=request-1,
+   * marks the notification read once, lands on the equipment requests page and closes the dropdown.
+   * Kills: a link to the event page, a link without the request id, opening without marking read.
+   */
+  it("EQUIP-REQ-NOTIF-03-C View Request opens the equipment requests page for that request and marks the notice read", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [equipmentNotice()]));
+
+    renderBellWithEquipmentRoute();
+    const link = await screen.findByRole("link", { name: "View Request" });
+    expect(link).toHaveAttribute("href", "/equipment/requests?request=request-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Equipment page at /equipment/requests?request=request-1")).toBeTruthy();
+    expect(postReadCalls("notif-equipment-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-D (SPM-172 AC3): a cannot-provide notice links to its own request, with the id escaped in the query.
+   * Kills: every row linking to the same request id, an unescaped id.
+   */
+  it("EQUIP-REQ-NOTIF-03-D links a cannot-provide notice to its own request with the id escaped", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      equipmentNotice({ type: "equipment_request_cannot_provide", message: CANNOT_MESSAGE, relatedEquipmentRequestId: "request 2&x", id: "notif-equipment-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Request" })).toHaveAttribute("href", "/equipment/requests?request=request%202%26x");
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-03-E (SPM-172 AC3, robustness): a notice that has no request id still links to the equipment requests
+   * page, without a query string or the text "undefined".
+   * Kills: a link ending in ?request=undefined or null.
+   */
+  it.each([null, undefined])("EQUIP-REQ-NOTIF-03-E links a notice with request id %s to plain /equipment/requests", async (missing) => {
+    setCoordinator();
+    apiMock.mockResolvedValue([equipmentNotice({ relatedEquipmentRequestId: missing })]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Request" })).toHaveAttribute("href", "/equipment/requests");
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-04-C (SPM-172 AC4): Mark As Read on an equipment notice posts the read call, drops the row and lowers
+   * the unread count; a notice already read on the server is neither listed nor counted.
+   * Kills: a Mark As Read that does not call the server, a read notice still counted.
+   */
+  it("EQUIP-REQ-NOTIF-04-C Mark As Read marks an equipment notice read and lowers the unread count", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/read") ? undefined : [equipmentNotice(), equipmentNotice({ id: "notif-equipment-3", read: true })]),
+    );
+
+    renderBell();
+    expect(await screen.findByText(RESERVED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    fireEvent.click(screen.getByRole("button", { name: "Mark As Read" }));
+
+    await waitFor(() => expect(postReadCalls("notif-equipment-1")).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText(RESERVED_MESSAGE)).toBeNull());
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(postReadCalls("notif-equipment-3")).toHaveLength(0);
+  });
+
+  /**
+   * EQUIP-REQ-NOTIF-04-D (SPM-172 AC4): opening and closing the bell leaves an equipment notice unread.
+   * Kills: marking notices read when the dropdown opens.
+   */
+  it("EQUIP-REQ-NOTIF-04-D leaves an equipment notice unread after the bell is opened and closed", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([equipmentNotice()]);
+
+    renderBell();
+    expect(await screen.findByText(RESERVED_MESSAGE)).toBeTruthy();
+    fireEvent.click(bellButton());
+
+    expect(postReadCalls("notif-equipment-1")).toHaveLength(0);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+});
+
+/** The current router location's search string (used by the SPM-125 Bookings route marker). */
+function useLocationSearch() {
+  return useLocation().search;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-165: the Coordinator's bell lists the tentative hold decision notices (approved / rejected) and links each one
+// to the Bookings page for that hold (/bookings?booking=<id>, the SPM-137 link). The backend builds the message and
+// decides who gets the notice; these are frontend unit tests of the bell with the notifications API stubbed and the
+// signed-in user set directly in the store (a fixture, not a live login).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const APPROVED_MESSAGE = 'Your tentative hold of Orchid Hall for "Welcome Evening" has been approved.';
+  const REJECTED_MESSAGE = 'Your tentative hold of Main Hall for "Welcome Evening" has been rejected.';
+
+  function setCoordinator() {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+  }
+
+  function holdNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-hold-1",
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type: "tentative_hold_approved",
+      message: APPROVED_MESSAGE,
+      relatedEventId: "event-1",
+      relatedBookingId: "hold-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  function BookingsMarker() {
+    const location = useLocation();
+    return <p>Bookings page at {location.pathname + location.search}</p>;
+  }
+
+  // Keeps the bell mounted while the child route changes, as the app shell does, and opens the dropdown first.
+  function renderBellWithBookingsRoute() {
+    const view = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <NotificationBell />
+                <Outlet />
+              </>
+            }
+          >
+            <Route path="bookings" element={<BookingsMarker />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(bellButton());
+    return view;
+  }
+
+  /**
+   * VENUE-HOLD-NOTIF-01-G (SPM-165 AC1): a Coordinator's bell lists approved and rejected tentative hold notices with
+   * the unread count 2.
+   * Kills: the tentative hold types missing from the Coordinator's bell filter.
+   */
+  it("VENUE-HOLD-NOTIF-01-G shows a Coordinator both an approved and a rejected hold notice with an unread count of 2", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      holdNotice(),
+      holdNotice({ id: "notif-hold-2", type: "tentative_hold_rejected", message: REJECTED_MESSAGE, relatedBookingId: "hold-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(APPROVED_MESSAGE)).toBeTruthy();
+    expect(screen.getByText(REJECTED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-02-F (SPM-165 AC2): the row shows the whole message exactly as stored, with the notification's own
+   * timestamp as a <time> element, and no reference or rejection reason.
+   * Kills: a row that rewrites the message, hides the decision time, or adds a reference or reason.
+   */
+  it("VENUE-HOLD-NOTIF-02-F shows the full message and the decision time, with no reference or reason", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([holdNotice({ type: "tentative_hold_rejected", message: REJECTED_MESSAGE })]);
+
+    renderBell();
+
+    const row = (await screen.findByText(REJECTED_MESSAGE)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(REJECTED_MESSAGE);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent(/VB-|Reason/);
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-03-A (SPM-165 AC3 and AC4): the link on an approved hold notice goes to /bookings?booking=hold-1,
+   * marks the notification read once, lands on the Bookings page and closes the dropdown.
+   * Kills: a link to the event page, a link without the hold id, opening without marking read.
+   */
+  it("VENUE-HOLD-NOTIF-03-A View Booking opens /bookings for that hold and marks the notice read", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [holdNotice()]));
+
+    renderBellWithBookingsRoute();
+    const link = await screen.findByRole("link", { name: "View Booking" });
+    expect(link).toHaveAttribute("href", "/bookings?booking=hold-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Bookings page at /bookings?booking=hold-1")).toBeTruthy();
+    expect(postReadCalls("notif-hold-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-03-B (SPM-165 AC3): a rejected hold notice links to its own hold (not the first one listed).
+   * Kills: every row linking to the same id.
+   */
+  it("VENUE-HOLD-NOTIF-03-B links a rejected hold notice to its own hold", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      holdNotice({ type: "tentative_hold_rejected", message: REJECTED_MESSAGE, relatedBookingId: "hold-2", id: "notif-hold-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings?booking=hold-2");
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-03-C (SPM-165 AC3, robustness): a hold notice with no hold id still links to the Bookings page,
+   * without a query string or the text "undefined".
+   * Kills: a link ending in ?booking=undefined or null, or the event page link.
+   */
+  it.each([null, undefined])("VENUE-HOLD-NOTIF-03-C links a hold notice with id %s to plain /bookings", async (missing) => {
+    setCoordinator();
+    apiMock.mockResolvedValue([holdNotice({ relatedBookingId: missing })]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings");
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-04-D (SPM-165 AC4): a read hold notice is neither listed nor counted, and Mark As Read posts the
+   * read call, drops the row and lowers the count without opening the Bookings page.
+   * Kills: read notices shown, Mark As Read not posting for this type, a notice left counted.
+   */
+  it("VENUE-HOLD-NOTIF-04-D counts unread hold notices, leaves out a read one and Mark As Read clears the notice", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [holdNotice(), holdNotice({ id: "notif-hold-read", message: REJECTED_MESSAGE, type: "tentative_hold_rejected", read: true })],
+      ),
+    );
+
+    renderBellWithBookingsRoute();
+    await screen.findByText(APPROVED_MESSAGE);
+    expect(screen.queryByText(REJECTED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() => expect(postReadCalls("notif-hold-1")).toHaveLength(1));
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.queryByText(/Bookings page at/)).toBeNull();
+  });
+
+  /**
+   * VENUE-HOLD-NOTIF-05-C (SPM-165 AC5): an event with several hold decisions shows one row per decision, each with its
+   * own link, and following one marks only that notice read.
+   * Kills: grouping notices per event, or one link or read call serving all rows.
+   */
+  it("VENUE-HOLD-NOTIF-05-C lists a separate row and link for each hold of the same event", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              holdNotice({ id: "n1", relatedBookingId: "hold-1" }),
+              holdNotice({ id: "n2", type: "tentative_hold_rejected", message: REJECTED_MESSAGE, relatedBookingId: "hold-2" }),
+              holdNotice({ id: "n3", relatedBookingId: "hold-3" }),
+            ],
+      ),
+    );
+
+    renderBellWithBookingsRoute();
+    const links = await screen.findAllByRole("link", { name: "View Booking" });
+    expect(links.map((l) => l.getAttribute("href")).sort()).toEqual([
+      "/bookings?booking=hold-1",
+      "/bookings?booking=hold-2",
+      "/bookings?booking=hold-3",
+    ]);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
+
+    fireEvent.click(links.find((l) => l.getAttribute("href")?.endsWith("hold-2"))!);
+
+    await waitFor(() => expect(postReadCalls("n2")).toHaveLength(1));
+    expect(postReadCalls("n1")).toHaveLength(0);
+    expect(postReadCalls("n3")).toHaveLength(0);
+  });
+});
+
+describe("NotificationBell (SPM-134: tentative hold expiry, release and conversion notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const REMINDER_MESSAGE = 'Your tentative hold of Orchid Hall for "Welcome Evening" expires on 4 Jun 2030, 00:30 SGT.';
+  const EXPIRED_MESSAGE = 'Your tentative hold of Orchid Hall for "Welcome Evening" expired on 4 Jun 2030, 00:30 SGT.';
+  const RELEASED_MESSAGE = 'Your tentative hold of Orchid Hall for "Welcome Evening" has been released.';
+  const CONVERTED_MESSAGE = 'Your tentative hold of Orchid Hall for "Welcome Evening" has been confirmed as a booking.';
+  const NOTICES = [
+    ["tentative_hold_expiry_reminder", REMINDER_MESSAGE],
+    ["tentative_hold_expired", EXPIRED_MESSAGE],
+    ["tentative_hold_released", RELEASED_MESSAGE],
+    ["tentative_hold_converted", CONVERTED_MESSAGE],
+  ] as const;
+
+  function setCoordinator() {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+  }
+
+  function lifecycleNotice(type: Notification["type"], message: string, overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: `notif-${type}`,
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type,
+      message,
+      relatedEventId: "event-1",
+      relatedBookingId: `hold-${type}`,
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  function BookingsMarker() {
+    const location = useLocation();
+    return <p>Bookings page at {location.pathname + location.search}</p>;
+  }
+
+  function renderBellWithBookingsRoute() {
+    const view = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <NotificationBell />
+                <Outlet />
+              </>
+            }
+          >
+            <Route path="bookings" element={<BookingsMarker />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(bellButton());
+    return view;
+  }
+
+  /**
+   * HOLD-EXP-NOTIF-01-H (SPM-134 AC1): a Coordinator's bell lists the 48-hour hold reminder as an unread notice.
+   * Kills: the reminder type missing from the Coordinator's bell filter.
+   */
+  it("HOLD-EXP-NOTIF-01-H shows a Coordinator the hold expiry reminder as unread", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([lifecycleNotice("tentative_hold_expiry_reminder", REMINDER_MESSAGE)]);
+
+    renderBell();
+
+    expect(await screen.findByText(REMINDER_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-02-E (SPM-134 AC2): a Coordinator's bell lists the hold expired notice.
+   * Kills: the expired type missing from the Coordinator's bell filter.
+   */
+  it("HOLD-EXP-NOTIF-02-E shows a Coordinator the hold expired notice", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([lifecycleNotice("tentative_hold_expired", EXPIRED_MESSAGE)]);
+
+    renderBell();
+
+    expect(await screen.findByText(EXPIRED_MESSAGE)).toBeTruthy();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-03-G (SPM-134 AC3): a Coordinator's bell lists the released and the converted hold notices, with an
+   * unread count of 2.
+   * Kills: either type missing from the Coordinator's bell filter.
+   */
+  it("HOLD-EXP-NOTIF-03-G shows a Coordinator both a released and a converted hold notice", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      lifecycleNotice("tentative_hold_released", RELEASED_MESSAGE),
+      lifecycleNotice("tentative_hold_converted", CONVERTED_MESSAGE),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(RELEASED_MESSAGE)).toBeTruthy();
+    expect(screen.getByText(CONVERTED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-04-D (SPM-134 AC4): each row shows the whole message exactly as stored with the notification's own
+   * timestamp as a <time> element, and nothing added.
+   * Kills: a row that rewrites the message, hides the time, or adds a reference.
+   */
+  it.each(NOTICES)("HOLD-EXP-NOTIF-04-D a %s row shows the full message and its timestamp", async (type, message) => {
+    setCoordinator();
+    apiMock.mockResolvedValue([lifecycleNotice(type, message)]);
+
+    renderBell();
+
+    const row = (await screen.findByText(message)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(message);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent(/VB-/);
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-06-B (SPM-134 AC6): the link on each of the four notice types goes to /bookings?booking=<hold id>,
+   * lands on the Bookings page, closes the dropdown and marks the notification read once.
+   * Kills: a link to the event page, a link without the hold id, opening without marking read, one type with no link.
+   */
+  it.each(NOTICES)("HOLD-EXP-NOTIF-06-B View Booking on a %s notice opens /bookings for that hold and marks it read", async (type, message) => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [lifecycleNotice(type, message)]));
+
+    renderBellWithBookingsRoute();
+    const link = await screen.findByRole("link", { name: "View Booking" });
+    expect(link).toHaveAttribute("href", `/bookings?booking=hold-${type}`);
+    fireEvent.click(link);
+
+    expect(await screen.findByText(`Bookings page at /bookings?booking=hold-${type}`)).toBeTruthy();
+    expect(postReadCalls(`notif-${type}`)).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-07-B (SPM-134 AC7): unread hold notices are counted, a read one is neither listed nor counted, and Mark
+   * As Read posts the read call and clears the row without opening the Bookings page.
+   * Kills: read notices shown, Mark As Read not posting for these types, a notice left counted.
+   */
+  it("HOLD-EXP-NOTIF-07-B counts unread hold notices, leaves out a read one and Mark As Read clears the notice", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              lifecycleNotice("tentative_hold_expiry_reminder", REMINDER_MESSAGE),
+              lifecycleNotice("tentative_hold_expired", EXPIRED_MESSAGE, { read: true }),
+            ],
+      ),
+    );
+
+    renderBellWithBookingsRoute();
+    await screen.findByText(REMINDER_MESSAGE);
+    expect(screen.queryByText(EXPIRED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() => expect(postReadCalls("notif-tentative_hold_expiry_reminder")).toHaveLength(1));
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.queryByText(/Bookings page at/)).toBeNull();
+  });
+
+  /**
+   * HOLD-EXP-NOTIF-08-B (SPM-134 AC8): an event with several holds shows one row per notice, each with its own link, and
+   * following one marks only that notice read.
+   * Kills: grouping notices per event, or one link or read call serving all rows.
+   */
+  it("HOLD-EXP-NOTIF-08-B lists a separate row and link for each hold of the same event", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              lifecycleNotice("tentative_hold_expiry_reminder", REMINDER_MESSAGE, { id: "n1", relatedBookingId: "hold-1" }),
+              lifecycleNotice("tentative_hold_expiry_reminder", REMINDER_MESSAGE, { id: "n2", relatedBookingId: "hold-2" }),
+              lifecycleNotice("tentative_hold_released", RELEASED_MESSAGE, { id: "n3", relatedBookingId: "hold-3" }),
+            ],
+      ),
+    );
+
+    renderBellWithBookingsRoute();
+    const links = await screen.findAllByRole("link", { name: "View Booking" });
+    expect(links.map((l) => l.getAttribute("href")).sort()).toEqual([
+      "/bookings?booking=hold-1",
+      "/bookings?booking=hold-2",
+      "/bookings?booking=hold-3",
+    ]);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
+
+    fireEvent.click(links.find((l) => l.getAttribute("href")?.endsWith("hold-2"))!);
+
+    await waitFor(() => expect(postReadCalls("n2")).toHaveLength(1));
+    expect(postReadCalls("n1")).toHaveLength(0);
+    expect(postReadCalls("n3")).toHaveLength(0);
+  });
+});
+
+describe("NotificationBell clarification notices (SPM-177)", () => {
+  const CLARIFICATION_TYPES = ["clarification", "clarification_reply", "clarification_resolved"] as const;
+  const clarificationNotice = (type: (typeof CLARIFICATION_TYPES)[number], id: string): Notification =>
+    rejectionNotification({ id, type, message: `Notice ${type}`, relatedEventId: "event-1" });
+
+  /**
+   * CLARIFY-NOTIF-07-A (SPM-177 DoD1): an Organiser's bell lists and counts all three clarification notices.
+   * Kills: the Organiser bell filtering the new types out.
+   */
+  it("CLARIFY-NOTIF-07-A lists the three clarification notices in an Organiser's bell", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue(CLARIFICATION_TYPES.map((type, i) => clarificationNotice(type, `c-${i}`)));
+    renderBell();
+    for (const type of CLARIFICATION_TYPES) expect(await screen.findByText(`Notice ${type}`)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
+  });
+
+  /**
+   * CLARIFY-NOTIF-07-B (SPM-177 DoD1): a Coordinator's bell lists and counts all three clarification notices.
+   * Kills: a type missing from the Coordinator filter.
+   */
+  it("CLARIFY-NOTIF-07-B lists the three clarification notices in a Coordinator's bell", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+    apiMock.mockResolvedValue(
+      CLARIFICATION_TYPES.map((type, i) => ({ ...clarificationNotice(type, `c-${i}`), audienceRole: "coordinator" as const })),
+    );
+    renderBell();
+    for (const type of CLARIFICATION_TYPES) expect(await screen.findByText(`Notice ${type}`)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
+  });
+});

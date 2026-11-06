@@ -1,6 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuthRepository } from './auth.repository.js';
+import { AuthRepository } from './repository/auth.repository.js';
 import { AuthService } from './auth.service.js';
 
 describe('AuthService', () => {
@@ -56,6 +56,10 @@ describe('AuthService', () => {
     await expect(
       service.login('unknown@example.test', 'wrong'),
     ).rejects.toThrow(UnauthorizedException);
+    // One generic message for every cause, so the response does not reveal which part was wrong.
+    await expect(
+      service.login('unknown@example.test', 'wrong'),
+    ).rejects.toThrow('Invalid email or password');
     expect(repository.createSession).not.toHaveBeenCalled();
   });
 

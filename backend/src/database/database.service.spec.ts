@@ -4,6 +4,7 @@
  */
 import { InternalServerErrorException } from '@nestjs/common';
 import { vi } from 'vitest';
+import { runAsActor } from '../common/actor-context.js';
 import { DatabaseService } from './database.service.js';
 
 const poolMocks = vi.hoisted(() => ({
@@ -150,6 +151,70 @@ describe('DatabaseService', () => {
       await database.onModuleDestroy();
 
       expect(poolMocks.end).not.toHaveBeenCalled();
+    });
+  });
+  // SPM-157 AC5: the signed-in user reaches the audit triggers as app.actor_id.
+  describe('SPM-157 acting user', () => {
+    const SET_ACTOR = "SELECT set_config('app.actor_id', $1, true)";
+
+    function transactionClient() {
+      const client = { query: vi.fn().mockResolvedValue({ rows: [] }), release: vi.fn() };
+      poolMocks.connect.mockResolvedValueOnce(client);
+      return client;
+    }
+
+    /** AUDIT-HISTORY-05-C: a transaction run for a signed-in user sets app.actor_id right after BEGIN. */
+    it('AUDIT-HISTORY-05-C sets the transaction-local actor after BEGIN', async () => {
+      process.env.DATABASE_URL = 'postgresql://app:secret@localhost:5432/app';
+      const client = transactionClient();
+      const database = new DatabaseService();
+
+      await runAsActor('user-1', () => database.transaction(async () => 'done'));
+
+      expect(client.query.mock.calls).toEqual([['BEGIN'], [SET_ACTOR, ['user-1']], ['COMMIT']]);
+    });
+
+    /** AUDIT-HISTORY-05-C: a single write for a signed-in user runs in its own transaction with the actor. */
+    it.each([
+      'INSERT INTO t VALUES (1)',
+      '  update t SET a = 1',
+      'DELETE FROM t',
+      'WITH x AS (UPDATE t SET a = 1 RETURNING *) SELECT * FROM x',
+    ])('AUDIT-HISTORY-05-C wraps the write "%s"', async (sql) => {
+      process.env.DATABASE_URL = 'postgresql://app:secret@localhost:5432/app';
+      const client = transactionClient();
+      const database = new DatabaseService();
+
+      await runAsActor('user-1', () => database.query(sql, [1]));
+
+      expect(client.query.mock.calls).toEqual([['BEGIN'], [SET_ACTOR, ['user-1']], [sql, [1]], ['COMMIT']]);
+      expect(poolMocks.query).not.toHaveBeenCalled();
+    });
+
+    /** AUDIT-HISTORY-05-C: reads are sent as they are, even for a signed-in user. */
+    it('AUDIT-HISTORY-05-C sends a SELECT straight to the pool', async () => {
+      process.env.DATABASE_URL = 'postgresql://app:secret@localhost:5432/app';
+      poolMocks.query.mockResolvedValueOnce({ rows: [] });
+      const database = new DatabaseService();
+
+      await runAsActor('user-1', () => database.query('SELECT 1'));
+
+      expect(poolMocks.query).toHaveBeenCalledWith('SELECT 1', []);
+      expect(poolMocks.connect).not.toHaveBeenCalled();
+    });
+
+    /** AUDIT-HISTORY-05-D: outside a signed-in request nothing is set, so the triggers record the system. */
+    it('AUDIT-HISTORY-05-D sets no actor outside a signed-in request', async () => {
+      process.env.DATABASE_URL = 'postgresql://app:secret@localhost:5432/app';
+      poolMocks.query.mockResolvedValueOnce({ rows: [] });
+      const client = transactionClient();
+      const database = new DatabaseService();
+
+      await database.query('INSERT INTO t VALUES (1)');
+      await database.transaction(async () => undefined);
+
+      expect(poolMocks.query).toHaveBeenCalledWith('INSERT INTO t VALUES (1)', []);
+      expect(client.query.mock.calls).toEqual([['BEGIN'], ['COMMIT']]);
     });
   });
 });

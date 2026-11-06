@@ -1,0 +1,882 @@
+import { api } from "@/utils/api";
+import { hasRole } from "@/types";
+import type {
+  ChangeHistoryEntry,
+  EventComment,
+  EventRecord,
+  FlaggedChange,
+  PlanningUpdatePatch,
+  PlanningView,
+  ResolveChangeRequest,
+} from "@/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { acceptsChangeRequests } from "@/features/events/lib/changeRequests";
+import { ChangeRequestSummary } from "@/features/events/pages/change-requests/ChangeRequestSummary";
+import { useAppStore } from "@/store/useAppStore";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { SafetyIndicator } from "@/features/events/components/StatusIndicators";
+import { Button } from "@/components/ui/Button";
+import { RadioGroup, TextArea } from "@/components/ui/FormControls";
+import { ClarificationThread } from "@/features/events/pages/detail/ClarificationThread";
+import { formatDateTimeRange, formatDateTime } from "@/utils/format";
+import { PlanningInformationPanel } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
+import { PlanningUpdateForm } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
+import { FlaggedChangeReview } from "@/features/events/pages/detail/planning/FlaggedChangeReview";
+import { PlanningInformationPage } from "@/features/events/pages/detail/planning/PlanningInformationPage";
+import { CompleteEventPanel } from "@/features/events/pages/detail/planning/CompleteEventPanel";
+import { StatusHistory } from "@/features/events/pages/detail/planning/StatusHistory";
+import { ChangeHistoryList } from "@/features/events/pages/detail/planning/ChangeHistoryList";
+import { ConfirmedArrangementsPanel } from "@/features/events/pages/detail/planning/ConfirmedArrangementsPanel";
+import {
+  PLANNING_REFRESH_MS,
+  PLANNING_STATUSES,
+  fetchChangeHistory,
+  fetchPlanningView,
+  resolvePlanningChange,
+  updatePlanning,
+} from "@/utils/planning";
+import { canCancelEvent } from "@/features/events/lib/cancellation";
+import { CancelEventDialog } from "@/features/events/pages/detail/cancel/CancelEventDialog";
+import { CancellationDecisionPanel } from "@/features/events/pages/detail/cancellation-request/CancellationDecisionPanel";
+import { CancellationRequestPanel } from "@/features/events/pages/detail/cancellation-request/CancellationRequestPanel";
+import { EventPeople } from "@/features/events/pages/detail/planning/EventPeople";
+import { AttendeeEventView } from "@/features/events/pages/detail/AttendeeEventView";
+import { RegistrationSection } from "@/features/events/pages/detail/registration/RegistrationSection";
+import { RegistrationSettingsForm } from "@/features/events/pages/detail/registration/RegistrationSettingsForm";
+import { RegistrationsModal } from "@/features/registrations/components/report/RegistrationsModal";
+import { canViewRegistrationReport } from "@/features/registrations/lib/registrationReport";
+
+// SPM-148 PLAN-STATUS-07-A: a Coordinator may open a clarification in Planning (was hidden; AC7).
+// Mirrors the backend CLARIFICATION_OPEN_STATUSES (SPM-148 AC7): Planning stays open.
+const CLARIFIABLE_STATUSES = ["submitted", "approved", "planning"];
+
+// Venue and technical support staff only get involved once a request is
+// approved; anything earlier in the workflow is off-limits to them.
+const STAFF_ACCESSIBLE_STATUSES = ["approved", "planning", "confirmed", "completed"];
+
+const STATUS_FLOW = [
+  "draft",
+  "submitted",
+  "approved",
+  "planning",
+  "confirmed",
+  "completed",
+  "cancelled",
+] as const;
+
+// A rejection is terminal for this request, so it leaves the normal approval
+// path and clearly shows the decision that was reached.
+const REJECTED_FLOW = ["draft", "submitted", "rejected"] as const;
+
+/**
+ * The timeline shows only the stages an event has reached. A cancelled event shows the stages up to the one it was
+ * cancelled from (the status history records it), then "cancelled"; it does not show stages it never reached.
+ */
+function timelineStages(status: string, cancelledFrom: string | null): readonly string[] {
+  const flow = STATUS_FLOW as readonly string[];
+  if (status === "cancelled") {
+    // A cancelled event can never have reached Completed, so that stage is left out of its timeline.
+    const beforeCancel = flow.filter((stage) => stage !== "completed");
+    const reached = beforeCancel.indexOf(cancelledFrom ?? "");
+    // A history row that says "cancelled" as the origin must not add a second Cancelled step.
+    const cancelledAt = beforeCancel.indexOf("cancelled");
+    return reached >= 0 ? [...beforeCancel.slice(0, Math.min(reached + 1, cancelledAt)), "cancelled"] : ["cancelled"];
+  }
+  return flow.slice(0, flow.indexOf(status) + 1);
+}
+
+// Chrome and Firefox block top-level navigation of a link to a data: URL
+// (a phishing-hardening measure), so `target="_blank"` on an `<a
+// href="data:...">` silently fails to open a new tab in real browsers even
+// though jsdom-based tests don't enforce that restriction. Converting to a
+// Blob object URL first sidesteps the restriction entirely.
+function openAttachmentPreview(dataUrl: string, fallbackType: string): void {
+  const commaIndex = dataUrl.indexOf(",");
+  const header = dataUrl.slice(0, commaIndex);
+  const base64 = dataUrl.slice(commaIndex + 1);
+  const mimeMatch = /^data:(.*?);base64$/.exec(header);
+  const mime = mimeMatch?.[1] || fallbackType || "application/octet-stream";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  window.open(blobUrl, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
+export function EventDetailPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  useEffect(() => {
+    let active = true;
+    setLoading(true); setLoadError("");
+    api<EventRecord>(`/events/${id}`).then(event => {
+      if (active) useAppStore.setState(s => ({ events: [event, ...s.events.filter(e => e.id !== event.id)] }));
+    }).catch(e => { if (active) setLoadError(e.message); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [id]);
+  // SPM-120: a withdrawal frees a spot, so the event's capacity is refetched rather than guessed.
+  const refreshEvent = useCallback(() => {
+    api<EventRecord>(`/events/${id}`)
+      .then((event) => useAppStore.setState((s) => ({ events: [event, ...s.events.filter((e) => e.id !== event.id)] })))
+      .catch(() => undefined);
+  }, [id]);
+  const currentUser = useAppStore((s) => s.currentUser);
+  const events = useAppStore((s) => s.events);
+  const registrations = useAppStore((s) => s.registrations);
+  const submitEvent = useAppStore((s) => s.submitEvent);
+  const approveEvent = useAppStore((s) => s.approveEvent);
+  const rejectEvent = useAppStore((s) => s.rejectEvent);
+  const loadMyRegistration = useAppStore((s) => s.loadMyRegistration);
+  const setEventStatus = useAppStore((s) => s.setEventStatus);
+
+  // SPM-61 AC5: the server is the source of truth for "already registered".
+  useEffect(() => {
+    if (currentUser.role !== "attendee" || !id) return;
+    loadMyRegistration(id).catch(() => undefined);
+  }, [id, currentUser.role, loadMyRegistration]);
+
+  const [comments, setComments] = useState<EventComment[]>([]);
+  const [commentsError, setCommentsError] = useState("");
+
+  const [registrationsOpen, setRegistrationsOpen] = useState(false);
+  const [reviewNotice, setReviewNotice] = useState("");
+  const [showReviewControls, setShowReviewControls] = useState(false);
+  const [reviewDecision, setReviewDecision] = useState<"approve" | "reject" | "">("");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectionError, setRejectionError] = useState(false);
+  const [submittingDecision, setSubmittingDecision] = useState(false);
+  const [registrationDraft, setRegistrationDraft] = useState<{ eventId?: string; pending: boolean }>({ pending: false });
+  const reportRegistrationDraft = useCallback((pending: boolean) => {
+    setRegistrationDraft((current) =>
+      current.eventId === id && current.pending === pending
+        ? current
+        : { eventId: id, pending },
+    );
+  }, [id]);
+  const registrationDraftPending = registrationDraft.eventId === id && registrationDraft.pending;
+  // SPM-136: the cancel dialog is mounted only while it is open.
+  const [showCancel, setShowCancel] = useState(false);
+  // CQ F2: where focus goes when the dialog closes: the cancelled banner if the event is now cancelled, else the trigger.
+  const cancelTriggerRef = useRef<HTMLButtonElement>(null);
+  const cancelledBannerRef = useRef<HTMLParagraphElement>(null);
+
+  const event = events.find((e) => e.id === id);
+
+  // Planning data is read-only for the owning organiser and editable for the
+  // assigned coordinator. Refresh it while the page is visible so decisions
+  // made by either role are reflected without a reload.
+  const [planningView, setPlanningView] = useState<PlanningView | null>(null);
+  const [planningError, setPlanningError] = useState("");
+  const [changeHistory, setChangeHistory] = useState<ChangeHistoryEntry[]>([]);
+  // SPM-156: only the newest history request may set the list, so a slow reply for the previous
+  // event (or an older poll) never shows up under this one. Changing event clears the list.
+  const historyRequest = useRef(0);
+  useEffect(() => {
+    historyRequest.current += 1;
+    setChangeHistory([]);
+  }, [id]);
+  const isPlanningCoordinator =
+    hasRole(currentUser, "coordinator") && !!event && event.coordinatorId === currentUser.id;
+  const isPlanningOwner =
+    hasRole(currentUser, "organiser") && !!event && event.organiserId === currentUser.id;
+  const planningEnabled =
+    !!event && !loading && !loadError && PLANNING_STATUSES.includes(event.status) &&
+    (isPlanningOwner || isPlanningCoordinator);
+
+  const loadPlanning = useCallback(async () => {
+    /* v8 ignore next -- the route always supplies :id, so the planning view has an id. */
+    if (!id) return;
+    try {
+      const view = await fetchPlanningView(id);
+      setPlanningView(view);
+      setPlanningError("");
+      useAppStore.setState((s) => ({
+        events: s.events.map((e) => (e.id === view.event.id ? { ...e, ...view.event } : e)),
+      }));
+    } catch (e) {
+      setPlanningError(
+        e instanceof Error ? `Could not refresh planning information: ${e.message}` : "Could not refresh planning information.",
+      );
+    }
+  }, [id]);
+
+  const loadHistory = useCallback(async () => {
+    /* v8 ignore next -- the route always supplies :id, so the history view has an id. */
+    if (!id) return;
+    const request = ++historyRequest.current;
+    try {
+      const history = await fetchChangeHistory(id);
+      if (request === historyRequest.current) setChangeHistory(history);
+    } catch {
+      // History is supplementary; the review panel still works without it.
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (!planningEnabled) {
+      setPlanningView(null);
+      return;
+    }
+    // SPM-156: the owning organiser reads the change history too, and it
+    // refreshes with the planning view so either role sees the other's changes.
+    loadPlanning();
+    loadHistory();
+    const timer = setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState !== "hidden") {
+        loadPlanning();
+        loadHistory();
+      }
+    }, PLANNING_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [planningEnabled, loadPlanning, loadHistory]);
+
+  const savePlanning = async (patch: PlanningUpdatePatch) => {
+    const result = await updatePlanning(id!, patch);
+    await Promise.all([loadPlanning(), loadHistory()]);
+    return result;
+  };
+
+  const resolveChange = async (request: ResolveChangeRequest) => {
+    await resolvePlanningChange(id!, request);
+    await Promise.all([loadPlanning(), loadHistory()]);
+  };
+
+  const refreshComments = useCallback(async () => {
+    try {
+      const data = await api<EventComment[]>(`/events/${id}/comments`);
+      setComments(data);
+      setCommentsError("");
+    } catch (e) {
+      setCommentsError(e instanceof Error ? e.message : "Could not load comments.");
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (loading || loadError || !event) return;
+    const canView =
+      currentUser.role === "organiser" ||
+      (currentUser.role === "coordinator" && event.coordinatorId === currentUser.id);
+    if (canView) refreshComments();
+    // Only re-run when the values that decide *whether* we can view change;
+    // refreshComments itself is called explicitly after posting/replying.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, loadError, event?.coordinatorId, currentUser.role, currentUser.id]);
+
+  // The stage a cancelled event was in before it was cancelled, read from its status history (empty until it loads).
+  const [cancelledFrom, setCancelledFrom] = useState<string | null>(null);
+  const eventId = event?.id;
+  const eventStatus = event?.status;
+  useEffect(() => {
+    // A previous event's origin is never shown: it is cleared whenever the event or its status changes.
+    setCancelledFrom(null);
+    if (!eventId || eventStatus !== "cancelled") return;
+    let active = true;
+    api<{ fromStatus: string; toStatus: string }[]>(`/events/${encodeURIComponent(eventId)}/status-history`)
+      .then((entries) => {
+        // A reply that is not a list is read as no history (as StatusHistory does).
+        const cancellation = Array.isArray(entries) ? entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled") : undefined;
+        if (active) setCancelledFrom(cancellation ? cancellation.fromStatus.toLowerCase() : null);
+      })
+      // The origin was cleared above, so an unreadable history leaves only the Cancelled step.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [eventId, eventStatus]);
+
+  if (loading) return <p role="status">Loading event…</p>;
+  if (loadError) return <div role="alert">{loadError} <Link to="/events">Back To My Events</Link></div>;
+
+  if (!event) {
+    return (
+      <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+        Event not found. <Link to="/events" className="text-primary-700 dark:text-primary-300 underline">Back To Events</Link>
+      </div>
+    );
+  }
+
+  const isSupportStaff =
+    currentUser.role === "venue_staff" || currentUser.role === "tech_support";
+  if (isSupportStaff && !STAFF_ACCESSIBLE_STATUSES.includes(event.status)) {
+    return (
+      <div
+        role="alert"
+        className="rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300"
+      >
+        Access restricted: Venue and technical support staff cannot access unapproved submitted requests.{" "}
+        <Link to="/events" className="underline">
+          Back To Events
+        </Link>
+      </div>
+    );
+  }
+
+  const isOwner = currentUser.role === "organiser";
+  const isAssignedCoordinator = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
+  // SPM-136 AC7: a cancelled event shows no change controls; the action is offered only where the server accepts it.
+  const isCancelled = event.status === "cancelled";
+  const canCancel = canCancelEvent({ event, currentUser });
+
+  // The latest registration of any status: a withdrawn one still shows its status and time (SPM-120).
+  const myRegistration = registrations.find(
+    (r) => r.eventId === event.id && r.attendeeId === currentUser.id
+  );
+  // Registration is attendee-facing only after an organiser has configured
+  // both boundaries; an incomplete period is not useful information to show.
+  const hasRegistrationPeriod = Boolean(
+    event.registrationOpensAt && event.registrationClosesAt,
+  );
+
+  const canRequestClarification =
+    isAssignedCoordinator && CLARIFIABLE_STATUSES.includes(event.status);
+
+  const submitClarification = async (message: string) => {
+    await api(`/events/${event.id}/clarifications`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    });
+    const [refreshedEvent] = await Promise.all([
+      api<EventRecord>(`/events/${event.id}`),
+      refreshComments(),
+    ]);
+    useAppStore.setState((s) => ({
+      events: [
+        { ...event, ...refreshedEvent },
+        ...s.events.filter((e) => e.id !== refreshedEvent.id),
+      ],
+    }));
+  };
+
+  const submitClarificationReply = async (clarificationId: string, message: string) => {
+    await api(`/events/${event.id}/clarifications/${clarificationId}/reply`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    });
+    await refreshComments();
+  };
+
+  const submitClarificationResolve = async (clarificationId: string) => {
+    await api(`/events/${event.id}/clarifications/${clarificationId}/resolve`, {
+      method: "POST",
+    });
+    await refreshComments();
+  };
+
+  const isRejected = event.status === "rejected";
+  const statusFlow: readonly string[] = isRejected ? REJECTED_FLOW : timelineStages(event.status, cancelledFrom);
+
+  return (
+    <div>
+      {location.state?.submitted && <div role="status" className="mb-6 rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900"><strong>Your event request was submitted successfully.</strong><p className="mt-1">You can find it in My Events.</p><Link className="mt-2 inline-block underline" to="/events">View My Events</Link></div>}
+      {/* SPM-46 AC2: the coordinator sees who handed the event over, and when. */}
+      {isAssignedCoordinator && event.reassignedFrom && (
+        <p role="note" className="mb-4 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-100">
+          {`Reassigned to you from ${event.reassignedFrom.coordinatorName} on ${formatDateTime(event.reassignedFrom.reassignedAt)}`}
+        </p>
+      )}
+      <PageHeader
+        title={event.name}
+        description={event.purpose}
+        actions={
+          <>
+            {isOwner && event.status === "draft" && (
+              <>
+                <Link to={`/events/${event.id}/edit`}>
+                  <Button variant="secondary">Edit</Button>
+                </Link>
+                <Button onClick={() => submitEvent(event.id)}>Submit For Review</Button>
+              </>
+            )}
+            {/* SPM-64 AC1: the owner can request a change while the event accepts one. */}
+            {isOwner && acceptsChangeRequests(event) && (
+              <Link to={`/events/${event.id}/change-requests`} state={{ openForm: true }}>
+                <Button variant="secondary">Request Change</Button>
+              </Link>
+            )}
+            {isAssignedCoordinator && event.status === "submitted" && (
+              <Button onClick={() => setShowReviewControls((previous) => !previous)}>
+                Review Event
+              </Button>
+            )}
+            {isAssignedCoordinator && ["approved", "planning"].includes(event.status) && (
+              <Link to={`/venues?eventId=${event.id}`}>
+                <Button variant="secondary">Search Venues</Button>
+              </Link>
+            )}
+            {/* SPM-157 AC1, AC8: the assigned coordinator and the owner read the event history. */}
+            {(isAssignedCoordinator || (isOwner && event.status !== "draft")) && (
+              <Link to={`/events/${event.id}/history`}>
+                <Button variant="secondary">View History</Button>
+              </Link>
+            )}
+            {canCancel && (
+              <Button ref={cancelTriggerRef} variant="danger" onClick={() => setShowCancel(true)}>
+                Cancel Event
+              </Button>
+            )}
+          </>
+        }
+      />
+      {isCancelled && (
+        <p ref={cancelledBannerRef} tabIndex={-1} role="note" className="mb-6 rounded-lg border border-danger-300 bg-danger-50 p-4 text-sm font-medium text-danger-900 dark:border-danger-700 dark:bg-danger-900/20 dark:text-danger-300">
+          This event has been cancelled.
+        </p>
+      )}
+      {showCancel && (
+        <CancelEventDialog
+          eventId={event.id}
+          eventName={event.name}
+          onClose={() => setShowCancel(false)}
+          returnFocus={() => cancelledBannerRef.current ?? cancelTriggerRef.current}
+          onCancelled={() => setEventStatus(event.id, "cancelled")}
+        />
+      )}
+
+      {/* SPM-64 AC5: the owner sees the status of their latest change request.
+          AC3: the assigned coordinator sees it too, with the link to review the proposed changes. */}
+      {(isOwner || isAssignedCoordinator) && event.status !== "draft" && (
+        <ChangeRequestSummary
+          eventId={event.id}
+          reviewer={isAssignedCoordinator}
+          onDecided={() => {
+            // SPM-65 AC7: show the approved values (and the planning view's reset safety check).
+            refreshEvent();
+            if (planningEnabled) void loadPlanning();
+          }}
+        />
+      )}
+      {(isOwner || isAssignedCoordinator) && (
+        <>
+          {/* SPM-94 AC3: safety indicator on the detail page. */}
+          {isOwner && (
+            <div className="mb-6 flex flex-wrap gap-2">
+              <SafetyIndicator event={event} />
+            </div>
+          )}
+          <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs" aria-label="Event status timeline">
+            {statusFlow.map((s, i) => (
+              <li key={s} className="flex items-center gap-2">
+                <span
+                  className={`rounded-full px-2.5 py-1 font-medium ${
+                    isRejected && s === "rejected"
+                      ? "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300"
+                      : "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300"
+                  }`}
+                >
+                  {s.replace("_", " ")}
+                </span>
+                {i < statusFlow.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+
+      {showReviewControls && isAssignedCoordinator && event.status === "submitted" && (
+        <Card className="mb-6">
+          <CardHeader>
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Review Decision</h2>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <RadioGroup
+              label="Select Decision"
+              name="review-decision"
+              value={reviewDecision}
+              onChange={(value) => {
+                setReviewDecision(value as "approve" | "reject");
+                setRejectionError(false);
+              }}
+              options={[
+                { value: "approve", label: "Approve" },
+                { value: "reject", label: "Reject" },
+              ]}
+            />
+
+            {reviewDecision === "reject" && (
+              <div className="space-y-3">
+                <TextArea
+                  label="Rejection reason"
+                  value={rejectionReason}
+                  onChange={(event) => {
+                    setRejectionReason(event.target.value);
+                    if (rejectionError) setRejectionError(false);
+                  }}
+                  aria-invalid={rejectionError ? "true" : undefined}
+                />
+                {rejectionError && (
+                  <div role="alert" className="space-y-1 text-sm text-danger-600 dark:text-danger-400">
+                    <p>Please provide a reason that:</p>
+                    <ul className="list-disc pl-5">
+                      <li>between 10 and 500 characters</li>
+                      <li>at least 3 words</li>
+                      <li>real words, not just numbers or symbols</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div>
+              <Button
+                disabled={submittingDecision || !reviewDecision}
+                onClick={async () => {
+                  if (reviewDecision === "approve") {
+                    setSubmittingDecision(true);
+                    try {
+                      await approveEvent(event.id);
+                      setShowReviewControls(false);
+                      setReviewDecision("");
+                    } catch (error) {
+                      setReviewNotice(
+                        error instanceof Error ? error.message : "Failed to approve event.",
+                      );
+                    } finally {
+                      setSubmittingDecision(false);
+                    }
+                    return;
+                  }
+                  const raw = rejectionReason;
+                  const trimmed = raw.trim();
+                  const words = trimmed ? trimmed.split(/\s+/).filter(Boolean) : [];
+                  // EVENT-REJECT-01: only the trimmed reason is measured (10 to 500 characters).
+                  const isValid =
+                    trimmed.length >= 10 &&
+                    trimmed.length <= 500 &&
+                    words.length >= 3 &&
+                    /[a-zA-Z]/.test(trimmed);
+                  if (!isValid) {
+                    setRejectionError(true);
+                    return;
+                  }
+                  setSubmittingDecision(true);
+                  try {
+                    await rejectEvent(event.id, trimmed);
+                    setShowReviewControls(false);
+                    setReviewDecision("");
+                    setRejectionReason("");
+                    setRejectionError(false);
+                  } catch (error) {
+                    setReviewNotice(
+                      error instanceof Error ? error.message : "Failed to reject event.",
+                    );
+                  } finally {
+                    setSubmittingDecision(false);
+                  }
+                }}
+              >
+                {submittingDecision ? "Submitting…" : "Submit Decision"}
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
+      {reviewNotice && (
+        <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
+          {reviewNotice}
+        </div>
+      )}
+      {commentsError && (
+        <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
+          {commentsError}
+        </div>
+      )}
+      {event.rejectionReason && event.status === "rejected" && (
+        <div className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
+          <strong>Rejected:</strong> {event.rejectionReason}
+        </div>
+      )}
+
+      {planningView && !isAssignedCoordinator && (
+        <PlanningInformationPanel
+          view={planningView}
+          safetyIndicator={event.safetyIndicator}
+          refreshError={planningError}
+          people={
+            <EventPeople
+              event={event}
+              canViewRegistrations={canViewRegistrationReport(currentUser, event)}
+              onViewRegistrations={() => setRegistrationsOpen(true)}
+              showLastUpdated={false}
+            />
+          }
+        />
+      )}
+      {planningView && isAssignedCoordinator && !isCancelled && (
+        <PlanningInformationPage
+          view={planningView}
+          status={event.status}
+          registrationDraftPending={registrationDraftPending}
+          // SPM-139: the registration dates and capacity can be set from approval through confirmation, in their own tab.
+          registration={
+            ["approved", "planning", "confirmed"].includes(event.status) ? (
+              <>
+                <RegistrationSettingsForm
+                  eventId={event.id}
+                  startDateTime={event.startDateTime}
+                  status={event.status}
+                  onSaved={refreshEvent}
+                  onDraftStateChange={reportRegistrationDraft}
+                />
+                {event.status === "confirmed" && canViewRegistrationReport(currentUser, event) && (
+                  <div className="mt-4">
+                    <Button variant="secondary" size="sm" onClick={() => setRegistrationsOpen(true)}>
+                      View Registrations
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : undefined
+          }
+          refreshError={planningError}
+          people={
+            <EventPeople
+              event={event}
+              showLastUpdated={false}
+            />
+          }
+          onConfirmed={() => setEventStatus(event.id, "confirmed")}
+        />
+      )}
+      {isOwner && event.status === "confirmed" && event.organiserId === currentUser.id && (
+        <ConfirmedArrangementsPanel eventId={event.id} />
+      )}
+            {/* SPM-148 PLAN-STATUS-04-A: Status History for the owner or assigned Coordinator (Approved, Planning, Confirmed). */}
+      {planningEnabled && <StatusHistory eventId={event.id} />}
+      {/* SPM-156: change history outside the coordinator's editing view, e.g. for the owning organiser (read-only). */}
+      {planningView &&
+        !(isPlanningCoordinator && !planningView.readOnly && !isCancelled) &&
+        changeHistory.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Change History</h2>
+            </CardHeader>
+            <CardBody>
+              <ChangeHistoryList history={changeHistory} />
+            </CardBody>
+          </Card>
+        )}
+      {!planningView && planningEnabled && planningError && (
+        <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
+          {planningError}
+        </div>
+      )}
+      {planningView && isPlanningCoordinator && !planningView.readOnly && !isCancelled && (
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Update Event Information</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Compatible changes apply immediately. Changes that affect bookings stay under review until confirmed.
+              </p>
+            </CardHeader>
+            <CardBody>
+              <PlanningUpdateForm
+                event={planningView.event}
+                editableFields={planningView.editableFields}
+                lastUpdatedAt={planningView.lastUpdatedAt}
+                pendingChanges={planningView.pendingChanges.filter(
+                  (change): change is FlaggedChange => change.kind === "booking_conflict",
+                )}
+                history={changeHistory}
+                onSave={savePlanning}
+              />
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Changes Awaiting Review</h2>
+            </CardHeader>
+            <CardBody>
+              <FlaggedChangeReview
+                changes={planningView.pendingChanges.filter(
+                  (change): change is FlaggedChange => change.kind === "booking_conflict",
+                )}
+                history={changeHistory}
+                onResolve={resolveChange}
+              />
+            </CardBody>
+          </Card>
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Whenever the planning Information section is shown (approved, planning, confirmed), it carries the event details and People. */}
+        {!planningView && currentUser.role === "attendee" && (
+          <AttendeeEventView
+            event={event}
+            onViewAttachment={(attachment) => openAttachmentPreview(attachment.dataUrl, attachment.type)}
+          />
+        )}
+        {!planningView && currentUser.role !== "attendee" && (
+          <>
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Event Details</h2>
+          </CardHeader>
+          <CardBody>
+            <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
+            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Date & time</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">
+                  {formatDateTimeRange(event.startDateTime, event.endDateTime)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Expected attendance</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.expectedAttendance}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueName ?? "Not yet booked"}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Room layout</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueRequirements.layout || "—"}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-400 dark:text-gray-500">Required facilities</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">
+                  {event.venueRequirements.facilities.join(", ") || "None specified"}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-400 dark:text-gray-500">Accessibility needs</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">
+                  {event.venueRequirements.accessibility.join(", ") || "None specified"}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-400 dark:text-gray-500">Attached files</dt>
+                <dd className="space-y-2 font-medium text-gray-800 dark:text-gray-200">
+                  {event.attachments?.length ? (
+                    event.attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
+                      >
+                        <span>{attachment.name}</span>
+                        <span className="flex items-center gap-3 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => openAttachmentPreview(attachment.dataUrl, attachment.type)}
+                            className="text-primary-700 underline dark:text-primary-300"
+                          >
+                            View
+                          </button>
+                          <a
+                            href={attachment.dataUrl}
+                            download={attachment.name}
+                            className="text-primary-700 underline dark:text-primary-300"
+                          >
+                            Download
+                          </a>
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    "None specified"
+                  )}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-400 dark:text-gray-500">Equipment needs</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.equipmentNeeds || "None specified"}</dd>
+              </div>
+            </dl>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">People</h2>
+          </CardHeader>
+          <CardBody className="text-sm">
+            <EventPeople
+              event={event}
+              canViewRegistrations={canViewRegistrationReport(currentUser, event)}
+              onViewRegistrations={() => setRegistrationsOpen(true)}
+            />
+          </CardBody>
+        </Card>
+          </>
+        )}
+
+        {currentUser.role === "attendee" && (!event.registrationEnabled || hasRegistrationPeriod) && (
+          <RegistrationSection
+            event={event}
+            currentUser={currentUser}
+            registration={myRegistration}
+            onWithdrawn={refreshEvent}
+          />
+        )}
+
+        {/* SPM-153: a Completed event's arrangements are closed, so its clarifications and amendments are not shown. */}
+        {(isOwner || isAssignedCoordinator) && event.status !== "completed" && (
+          <div className="lg:col-span-3">
+            <ClarificationThread
+              comments={comments}
+              canRequestClarification={canRequestClarification}
+              onSubmitClarification={submitClarification}
+              // SPM-148 PLAN-STATUS-07-D: replies are hidden once Confirmed; the thread stays visible.
+              canReply={!isCancelled && (isOwner || isAssignedCoordinator) && event.status !== "confirmed"}
+              onSubmitReply={submitClarificationReply}
+              canResolve={!isCancelled && (isOwner || isAssignedCoordinator)}
+              onResolve={submitClarificationResolve}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* SPM-155: the owning organiser requests cancellation and follows the request (AC1, AC2). Shown below the
+          amendments and clarifications; the panel shows itself only to the owner, and drafts have no requests. */}
+      {event.status !== "draft" && (
+        <CancellationRequestPanel event={event} currentUser={currentUser} />
+      )}
+
+      {/* SPM-155: the assigned coordinator decides a cancellation request (AC3 to AC5). Shown last on the page; the
+          panel shows itself only to that coordinator, and drafts have no requests. */}
+      {event.status !== "draft" && (
+        <CancellationDecisionPanel
+          event={event}
+          currentUser={currentUser}
+          onAccepted={() => setEventStatus(event.id, "cancelled")}
+        />
+      )}
+
+      {registrationsOpen && (
+        <RegistrationsModal
+          eventId={event.id}
+          registrationOpensAt={event.registrationOpensAt}
+          registrationClosesAt={event.registrationClosesAt}
+          onClose={() => setRegistrationsOpen(false)}
+        />
+      )}
+
+      {/* Straight after submitting, "back" would return to the submitted form;
+          the success banner's "View My Events" link is the way on instead. */}
+      <div className="mt-4 flex items-end justify-between gap-4">
+        {!location.state?.submitted && (
+          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 dark:text-gray-400 hover:underline">
+            ← Back
+          </button>
+        )}
+        {/* SPM-153: Mark as Completed sits at the bottom right of the event, and a Completed event says so. */}
+        <CompleteEventPanel
+          eventId={event.id}
+          status={event.status}
+          endDateTime={event.endDateTime}
+          isAssignedCoordinator={isAssignedCoordinator}
+          onCompleted={() => setEventStatus(event.id, "completed")}
+        />
+      </div>
+    </div>
+  );
+}

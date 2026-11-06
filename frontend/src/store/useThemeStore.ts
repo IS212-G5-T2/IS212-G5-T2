@@ -4,8 +4,16 @@ export type Theme = "light" | "dark";
 
 const STORAGE_KEY = "connectsphere-theme";
 
-// This local event workflow starts in light mode, including previously dark browsers.
-function getInitialTheme(): Theme { return "light"; }
+// Dark is the default. A theme the user chose earlier is kept; anything else falls back to dark.
+function getInitialTheme(): Theme {
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+  } catch {
+    // Storage can be unavailable (private windows, blocked site data); use the default.
+  }
+  return "dark";
+}
 
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");

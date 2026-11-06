@@ -2,23 +2,35 @@
  * End-to-end tests for SPM-39 (coordinator clarification/amendment requests)
  * against a real PostgreSQL database and PostgreSQL-backed sessions, mirroring
  * test/auth.e2e-spec.ts's fixture pattern.
+ *
+ * SPM-39 test case map (source: "SPM-39 Test Cases" document, REQ-CLAR-*):
+ *   REQ-CLAR-01-A  AC1          valid request, status unchanged     -> it('REQ-CLAR-01-A ...')
+ *   REQ-CLAR-01-B  AC2          blank message rejected              -> it('REQ-CLAR-01-B ...')
+ *   REQ-CLAR-01-C  AC2          whitespace-only message rejected    -> it('REQ-CLAR-01-C ...')
+ *   REQ-CLAR-02-A  AC3, AC4     chronological history, attribution  -> it('REQ-CLAR-02-A ...')
+ *   REQ-CLAR-02-B  AC5          awaiting-reply state, cleared only by resolve -> it('REQ-CLAR-02-B ...')
+ *                               (the on-screen "Pending" badge is tested in the frontend file)
+ * Not in the SPM-39 document: REQ-CLAR-03 (cross-coordinator refusal) and the 401/403 cases below it.
  */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
-import { App } from 'supertest/types';
+import type { Server } from 'node:http';
 import { AppModule } from '../src/app.module.js';
 
 describe('Clarifications (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication<Server>;
   let pool: pg.Pool;
   let createdEventIds: string[];
   let createdUserIds: string[];
+  // Sequence for fixed fixture ids and emails; the rows are deleted in afterEach, so a fixed value is unique within a run.
+  let fixtureSeq = 0;
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
 
   afterAll(async () => {
@@ -33,7 +45,7 @@ describe('Clarifications (e2e)', () => {
       imports: [AppModule],
     }).compile();
 
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
   });
 
@@ -47,7 +59,8 @@ describe('Clarifications (e2e)', () => {
     }
   });
 
-  // REQ-CLAR-01-A
+  // SPM-39 REQ-CLAR-01-A (AC1): valid clarification request; status unchanged; organiser notified
+  // Kills: a clarification that changes the event status, is not attributed to the coordinator, is not notified to the organiser, or clears awaitingReply on reply instead of resolve.
   it('REQ-CLAR-01-A: Event Coordinator can send a clarification request without changing status, and Organiser is notified', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -81,7 +94,7 @@ describe('Clarifications (e2e)', () => {
     );
     expect(statusResult.rows[0].status).toBe('Submitted');
 
-    // CLAR-01-A / AC6: organiser is notified in-app when the clarification is opened.
+    // Organiser notified when the clarification is opened. Not one of the five SPM-39 ACs; kept as existing behaviour.
     const notificationsAfterCreate = await pool.query<{
       recipient_id: string;
       type: string;
@@ -97,7 +110,7 @@ describe('Clarifications (e2e)', () => {
       }),
     ]);
 
-    // AC7/AC8
+    // SPM-39 AC4: the thread is visible to the organiser before a reply.
     const threadBeforeReply = await request(app.getHttpServer())
       .get(`/api/events/${eventId}/comments`)
       .set('Cookie', organiser.cookie)
@@ -134,7 +147,7 @@ describe('Clarifications (e2e)', () => {
       authorName: 'Priya Nair',
     });
 
-    // CLAR-02-B / AC6: coordinator is notified in-app once the organiser replies.
+    // Coordinator notified once the organiser replies. Not one of the five SPM-39 ACs; kept as existing behaviour.
     const notificationsAfterReply = await pool.query<{ recipient_id: string; type: string }>(
       'SELECT recipient_id, type FROM notifications WHERE related_event_id = $1 ORDER BY created_at ASC',
       [eventId],
@@ -190,8 +203,8 @@ describe('Clarifications (e2e)', () => {
     );
   });
 
-  // AC2/AC3
-  // REQ-CLAR-01-B
+  // SPM-39 REQ-CLAR-01-B (AC2): blank message rejected, no comment written
+  // Kills: a blank message accepted with 201 instead of 400, or a comment or notification written for it.
   it('REQ-CLAR-01-B: Event Coordinator cannot submit a blank clarification message', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -225,7 +238,8 @@ describe('Clarifications (e2e)', () => {
     expect(notificationCount.rows[0].count).toBe('0');
   });
 
-  // REQ-CLAR-01-C
+  // SPM-39 REQ-CLAR-01-C (AC2): whitespace-only message rejected, no comment written
+  // Kills: a whitespace-only message accepted because the trim check is missing, leaving a comment row behind.
   it('REQ-CLAR-01-C: Event Coordinator cannot submit a whitespace-only clarification message', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -253,7 +267,8 @@ describe('Clarifications (e2e)', () => {
     expect(commentCount.rows[0].count).toBe('0');
   });
 
-  // REQ-CLAR-02-A
+  // SPM-39 REQ-CLAR-02-A (AC3, AC4): history in order with author and timestamp
+  // Kills: a thread returned out of order, a reply with the wrong parentId or author, or entries whose type does not separate clarification from reply.
   it('REQ-CLAR-02-A: Event Coordinator can see full chronological history with attribution and distinguishable types', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -320,7 +335,63 @@ describe('Clarifications (e2e)', () => {
     });
   });
 
-  // REQ-CLAR-03
+  // SPM-39 REQ-CLAR-02-B (AC5): the awaiting-reply state of a clarification, as both parties see it.
+  // Design (confirmed with the PO): a reply does NOT clear the state; only an explicit resolve does.
+  // Kills: a reply that clears awaitingReply, or a thread state that differs between the coordinator and organiser views.
+  it('REQ-CLAR-02-B: clarification is awaiting reply for both parties until resolved, not cleared by a reply', async () => {
+    const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const eventId = await seedEvent({
+      organiserId: organiser.uid,
+      coordinatorId: coordinator.uid,
+    });
+
+    const created = await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Cookie', coordinator.cookie)
+      .send({ message: 'Please confirm the room layout, required for final approval.' })
+      .expect(201);
+    const clarificationId = created.body.id as string;
+
+    // Open: the coordinator and the organiser both see it as awaiting a reply.
+    for (const actor of [coordinator, organiser]) {
+      const thread = await request(app.getHttpServer())
+        .get(`/api/events/${eventId}/comments`)
+        .set('Cookie', actor.cookie)
+        .expect(200);
+      expect(thread.body[0]).toMatchObject({ id: clarificationId, awaitingReply: true, resolved: false });
+    }
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${clarificationId}/reply`)
+      .set('Cookie', organiser.cookie)
+      .send({ message: 'Room layout confirmed: Classroom setup.' })
+      .expect(201);
+
+    // After the organiser replies: still awaiting and still open, for both parties.
+    for (const actor of [coordinator, organiser]) {
+      const thread = await request(app.getHttpServer())
+        .get(`/api/events/${eventId}/comments`)
+        .set('Cookie', actor.cookie)
+        .expect(200);
+      expect(thread.body[0]).toMatchObject({ id: clarificationId, awaitingReply: true, resolved: false });
+    }
+
+    // Only resolve clears it.
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${clarificationId}/resolve`)
+      .set('Cookie', coordinator.cookie)
+      .expect(201);
+
+    const threadAfterResolve = await request(app.getHttpServer())
+      .get(`/api/events/${eventId}/comments`)
+      .set('Cookie', organiser.cookie)
+      .expect(200);
+    expect(threadAfterResolve.body[0]).toMatchObject({ id: clarificationId, awaitingReply: false, resolved: true });
+  });
+
+  // Not in the SPM-39 document. Cross-coordinator refusal; kept as an extra case.
+  // Kills: a clarification from a coordinator not assigned to the event that is stored (no assigned-coordinator check), or refused with the wrong status.
   it('REQ-CLAR-03: Event Coordinator cannot request clarification on an event assigned to another Coordinator', async () => {
     const assignedCoordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const otherCoordinator = await createDatabaseUser('COORDINATOR', 'Someone Else');
@@ -341,9 +412,17 @@ describe('Clarifications (e2e)', () => {
       [eventId],
     );
     expect(statusResult.rows[0].status).toBe('Submitted');
+
+    // REQ-CLAR-03: the refused request writes no clarification entry.
+    const commentCount = await pool.query<{ count: string }>(
+      'SELECT count(*) FROM event_comments WHERE event_id = $1',
+      [eventId],
+    );
+    expect(commentCount.rows[0].count).toBe('0');
   });
 
-  it('returns 403 when someone unrelated to the event replies', async () => {
+  // Kills: a reply by an unrelated organiser that is accepted, or refused with a status other than 403.
+  it('REQ-CLAR-SUP-38 returns 403 when someone unrelated to the event replies', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
     const outsider = await createDatabaseUser('ORGANISER', 'Someone Else');
@@ -364,7 +443,8 @@ describe('Clarifications (e2e)', () => {
       .expect(403);
   });
 
-  it('returns 403 when someone unrelated to the event resolves a clarification', async () => {
+  // Kills: a resolve by an unrelated coordinator that is not refused with 403 (only the status is checked, not the thread state).
+  it('REQ-CLAR-SUP-39 returns 403 when someone unrelated to the event resolves a clarification', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
     const outsiderCoordinator = await createDatabaseUser('COORDINATOR', 'Someone Else');
@@ -384,7 +464,170 @@ describe('Clarifications (e2e)', () => {
       .expect(403);
   });
 
-  it('returns 401 when authentication is missing', async () => {
+  // SPM-39 isolation and security drafts (owner-confirmed 23 Oct 2026). Parent ACs are noted per test.
+  // Kills: the comment query not scoped to the event id, so event A's clarification appears in event B's thread.
+  /** SPM-39 AC1, AC3 and AC4 Isolation: a clarification on event A does not appear in event B's thread. */
+  it('REQ-CLAR-SUP-57 keeps a clarification on one event out of another event thread (AC1, AC3, AC4 Isolation)', async () => {
+    const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiserA = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const coordinatorB = await createDatabaseUser('COORDINATOR', 'Ana Ong');
+    const organiserB = await createDatabaseUser('ORGANISER', 'Ben Tan');
+    const eventA = await seedEvent({ organiserId: organiserA.uid, coordinatorId: coordinatorA.uid });
+    const eventB = await seedEvent({ organiserId: organiserB.uid, coordinatorId: coordinatorB.uid });
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventA}/clarifications`)
+      .set('Cookie', coordinatorA.cookie)
+      .send({ message: 'Please confirm the room layout for event A.' })
+      .expect(201);
+
+    for (const actor of [organiserB, coordinatorB]) {
+      const thread = await request(app.getHttpServer())
+        .get(`/api/events/${eventB}/comments`)
+        .set('Cookie', actor.cookie)
+        .expect(200);
+      expect(thread.body).toEqual([]);
+    }
+  });
+
+  // Kills: a reply that finds the clarification by id alone, so a reply through event B succeeds instead of 404.
+  /** SPM-39 AC1 Isolation: a clarification id from event A cannot be replied to through event B. */
+  it('REQ-CLAR-SUP-58 refuses a reply to an event A clarification sent through event B (AC1 Isolation)', async () => {
+    const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiserA = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const organiserB = await createDatabaseUser('ORGANISER', 'Ben Tan');
+    const coordinatorB = await createDatabaseUser('COORDINATOR', 'Ana Ong');
+    const eventA = await seedEvent({ organiserId: organiserA.uid, coordinatorId: coordinatorA.uid });
+    const eventB = await seedEvent({ organiserId: organiserB.uid, coordinatorId: coordinatorB.uid });
+    const created = await request(app.getHttpServer())
+      .post(`/api/events/${eventA}/clarifications`)
+      .set('Cookie', coordinatorA.cookie)
+      .send({ message: 'Please confirm the room layout for event A.' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventB}/clarifications/${created.body.id}/reply`)
+      .set('Cookie', organiserB.cookie)
+      .send({ message: 'Replying through the wrong event.' })
+      .expect(404);
+  });
+
+  // Kills: the comment history readable by an unrelated organiser (missing 403 on GET comments).
+  /** SPM-39 AC4 Security: an unrelated organiser cannot read the comment history of an event. */
+  it('REQ-CLAR-SUP-59 refuses the comment history to an unrelated organiser (AC4 Security)', async () => {
+    const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const outsider = await createDatabaseUser('ORGANISER', 'Someone Else');
+    const eventId = await seedEvent({ organiserId: organiser.uid, coordinatorId: coordinator.uid });
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Cookie', coordinator.cookie)
+      .send({ message: 'Please confirm the layout.' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(`/api/events/${eventId}/comments`)
+      .set('Cookie', outsider.cookie)
+      .expect(403);
+  });
+
+  // Kills: the awaitingReply field leaking into the 403 body returned to an unrelated coordinator.
+  /** SPM-39 AC5 Security: the awaiting-reply state of a thread is not returned to an unrelated user. */
+  it('REQ-CLAR-SUP-60 does not return the awaiting-reply state to an unrelated user (AC5 Security)', async () => {
+    const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const outsider = await createDatabaseUser('COORDINATOR', 'Someone Else');
+    const eventId = await seedEvent({ organiserId: organiser.uid, coordinatorId: coordinator.uid });
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Cookie', coordinator.cookie)
+      .send({ message: 'Please confirm the layout.' })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/events/${eventId}/comments`)
+      .set('Cookie', outsider.cookie);
+    expect(response.status).toBe(403);
+    expect(JSON.stringify(response.body)).not.toContain('awaitingReply');
+  });
+
+  // Kills: awaitingReply computed across events, so event B shows event A's pending clarification.
+  /** SPM-39 AC5 Isolation: an awaiting clarification on event A does not make event B show an awaiting reply. */
+  it('REQ-CLAR-SUP-61 does not show an awaiting reply on event B for a clarification on event A (AC5 Isolation)', async () => {
+    const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiserA = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const coordinatorB = await createDatabaseUser('COORDINATOR', 'Ana Ong');
+    const organiserB = await createDatabaseUser('ORGANISER', 'Ben Tan');
+    const eventA = await seedEvent({ organiserId: organiserA.uid, coordinatorId: coordinatorA.uid });
+    const eventB = await seedEvent({ organiserId: organiserB.uid, coordinatorId: coordinatorB.uid });
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventA}/clarifications`)
+      .set('Cookie', coordinatorA.cookie)
+      .send({ message: 'Awaiting a reply on event A.' })
+      .expect(201);
+
+    const threadA = await request(app.getHttpServer())
+      .get(`/api/events/${eventA}/comments`)
+      .set('Cookie', organiserA.cookie)
+      .expect(200);
+    expect(threadA.body[0]).toMatchObject({ awaitingReply: true });
+
+    const threadB = await request(app.getHttpServer())
+      .get(`/api/events/${eventB}/comments`)
+      .set('Cookie', organiserB.cookie)
+      .expect(200);
+    expect(threadB.body.some((entry: { awaitingReply?: boolean }) => entry.awaitingReply)).toBe(false);
+  });
+
+  // Kills: a clarification posted to event A by the coordinator of event B stored (ownership check on coordinator id missing).
+  /** SPM-39 Extra (REQ-CLAR-03) Isolation: a coordinator assigned to event B cannot clarify on event A. */
+  it('REQ-CLAR-SUP-62 refuses a clarification on event A by the coordinator assigned to event B (Extra, Isolation)', async () => {
+    const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiserA = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const coordinatorB = await createDatabaseUser('COORDINATOR', 'Ana Ong');
+    const organiserB = await createDatabaseUser('ORGANISER', 'Ben Tan');
+    const eventA = await seedEvent({ organiserId: organiserA.uid, coordinatorId: coordinatorA.uid });
+    const eventB = await seedEvent({ organiserId: organiserB.uid, coordinatorId: coordinatorB.uid });
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventA}/clarifications`)
+      .set('Cookie', coordinatorB.cookie)
+      .send({ message: 'Trying to act on event A from event B.' })
+      .expect(403);
+
+    const counts = await pool.query<{ event_id: string; count: string }>(
+      'SELECT event_id, count(*) FROM event_comments WHERE event_id = ANY($1::uuid[]) GROUP BY event_id',
+      [[eventA, eventB]],
+    );
+    expect(counts.rows).toEqual([]);
+  });
+
+  // Kills: reply or resolve allowed to any coordinator when the event has no assigned coordinator (null treated as a match).
+  /** SPM-39 AC4 Security, defect D-1: once an event has no assigned coordinator, another coordinator cannot reply or resolve. */
+  it('REQ-CLAR-SUP-63 refuses a reply and a resolve by a coordinator role on an event with no assigned coordinator (AC4 Security)', async () => {
+    const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const otherCoordinator = await createDatabaseUser('COORDINATOR', 'Someone Else');
+    const eventId = await seedEvent({ organiserId: organiser.uid, coordinatorId: coordinator.uid });
+    const created = await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Cookie', coordinator.cookie)
+      .send({ message: 'Please confirm the layout.' })
+      .expect(201);
+    await pool.query('UPDATE events SET coordinator_id = NULL WHERE id = $1', [eventId]);
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${created.body.id}/reply`)
+      .set('Cookie', otherCoordinator.cookie)
+      .send({ message: 'Replying with no assigned coordinator.' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${created.body.id}/resolve`)
+      .set('Cookie', otherCoordinator.cookie)
+      .expect(403);
+  });
+
+  // Kills: an unauthenticated clarification POST that is accepted or processed instead of rejected with 401.
+  it('REQ-CLAR-SUP-40 returns 401 when authentication is missing', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
     const eventId = await seedEvent({ organiserId: organiser.uid, coordinatorId: null });
 
@@ -399,7 +642,7 @@ describe('Clarifications (e2e)', () => {
     coordinatorId: string | null;
     status?: string;
   }): Promise<string> {
-    const eventId = randomUUID();
+    const eventId = `c1a00000-0000-4000-8000-${String(++fixtureSeq).padStart(12, '0')}`;
     await pool.query(
       `INSERT INTO events
        (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
@@ -418,24 +661,30 @@ describe('Clarifications (e2e)', () => {
     role: string,
     displayName: string,
   ): Promise<{ email: string; cookie: string; uid: string }> {
-    const email = `e2e-${randomUUID()}@example.com`;
+    const email = `e2e-fixture-${randomUUID()}@example.com`;
     const password = 'password123';
-    const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, $2, crypt($3, gen_salt('bf', 12))) RETURNING id`,
-      [email, displayName, password],
-    );
-    const uid = created.rows[0].id;
-    createdUserIds.push(uid);
-    await pool.query(
-      'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
-      [uid, role],
-    );
+    const client = await pool.connect();
+    let uid!: string;
+    try {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
+         VALUES ($1, $2, crypt($3, gen_salt('bf', 12))) RETURNING id`,
+        [email, displayName, password],
+      );
+      uid = created.rows[0].id;
+      createdUserIds.push(uid);
+      await client.query(
+        'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
+        [uid, role],
+      );
+    } finally {
+      client.release();
+    }
     const response = await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ email, password })
       .expect(201);
-    const cookie = response.headers['set-cookie']?.find((value) =>
+    const cookie = (response.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) =>
       value.startsWith('connectsphere_session='),
     );
     if (!cookie) throw new Error('Expected a PostgreSQL authentication session cookie');

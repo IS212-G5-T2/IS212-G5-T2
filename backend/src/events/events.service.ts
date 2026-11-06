@@ -2,23 +2,123 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { validateEvent, type EventAttachment } from './event-input.js';
-import { pickNextCoordinator } from './coordinator-roster.js';
+import { validateEvent, type EventAttachment } from './dto/event-input.js';
+import { VENUE_SUMMARY_SQL } from './venue-summary.js';
+import { approvedHoldState } from './venue-unavailable.js';
+import { deriveAssignmentIndicator, deriveSafetyIndicator } from './status/event-indicators.js';
+
+// SPM-94: the safety-check state the event's indicators read (null when no record exists).
+const SAFETY_STATUS = `(SELECT s.status FROM event_safety_checks s WHERE s.event_id = events.id) AS safety_status`;
+// SPM-94 planning cards: the latest venue request and every equipment reservation status (organiser and coordinator lists only).
+// SPM-159: the same latest request also reports its kind and hold expiry, so an approved tentative hold is a Hold or
+// Hold expired (venueHoldState) and never a confirmed venue.
+const LATEST_VENUE_REQUEST = (column: string, alias: string) =>
+  `(SELECT b.${column} FROM venue_bookings b WHERE b.event_id = events.id ORDER BY b.created_at DESC LIMIT 1) AS ${alias}`;
+const VENUE_REQUEST_STATUS = [
+  LATEST_VENUE_REQUEST('status', 'venue_request_status'),
+  LATEST_VENUE_REQUEST('request_kind', 'venue_request_kind'),
+  LATEST_VENUE_REQUEST('hold_expires_at', 'venue_hold_expires_at'),
+].join(', ');
+const EQUIPMENT_STATUSES = `(SELECT COALESCE(array_agg(r.status ORDER BY r.created_at), '{}') FROM equipment_reservations r WHERE r.event_id = events.id) AS equipment_statuses`;
+import { settleIfDue } from '../registrations/waitlist/settle.js';
+import { runRegistrationCloseJob } from '../registrations/waitlist/close-job.js';
+import { CLOCK, systemClock, type Clock } from '../common/clock.js';
+import {
+  BOOKING_APPROVED_NOTICE,
+  BOOKING_REJECTED_NOTICE,
+  HOLD_APPROVED_NOTICE,
+  HOLD_REJECTED_NOTICE,
+} from '../venues/review/booking-decision-notice.js';
+import { HOLD_LIFECYCLE_NOTICE_TYPES } from '../venues/review/hold-lifecycle-notice.js';
+import { EQUIPMENT_DECISION_NOTICE_TYPES } from '../equipment/requests/equipment-decision-notice.js';
+import { CANCELLATION_ACCEPTED_NOTICE, CANCELLATION_DECLINED_NOTICE, CANCELLATION_REQUESTED_NOTICE } from './cancellation-requests/cancellation-request-notice.js';
+import { COORDINATOR_NOTIFICATION_TYPES } from './coordinator-notification-types.js';
+import {
+  ATTENDEE_VISIBLE_STATUSES,
+  isRegistrationOpen,
+} from '../registrations/registration/registration-window.js';
+import { VENUE_IMPACT_COORDINATOR_TYPES } from '../venues/notifications/venue-impact-notifications.js';
+import { CLARIFICATION_NOTICE_TYPES } from '../clarifications/clarification-notice.js';
+
+// SPM-46: the event's most recent reassignment, read with each event so the
+// current coordinator can see who it came from and when.
+const LATEST_REASSIGNMENT = `(SELECT json_build_object(
+           'coordinatorName', r.from_coordinator_name,
+           'reassignedAt', r.reassigned_at,
+           'toCoordinatorId', r.to_coordinator_id)
+         FROM event_reassignments r
+        WHERE r.event_id = events.id
+        ORDER BY r.reassigned_at DESC, r.id DESC
+        LIMIT 1) AS latest_reassignment`;
+
+type LatestReassignment = { coordinatorName: string; reassignedAt: string; toCoordinatorId: string };
+
+// Only the event's current coordinator sees how they got it, and only from a
+// reassignment that was to them; organisers and attendees never receive it.
+function reassignedFrom(row: pg.QueryResultRow, viewerUid?: string) {
+  const latest = row.latest_reassignment as LatestReassignment | null | undefined;
+  if (!viewerUid || viewerUid !== row.coordinator_id) return undefined;
+  if (!latest || latest.toCoordinatorId !== row.coordinator_id) return undefined;
+  return { coordinatorName: latest.coordinatorName, reassignedAt: new Date(latest.reassignedAt).toISOString() };
+}
+
+// Who a stored notification is for, as the frontend labels it.
+interface AudienceRow {
+  type: string;
+  recipient_id: string;
+  /** The joined event's organiser and assigned coordinator (SPM-136); null when the event row is gone. */
+  event_organiser_id?: string | null;
+  event_coordinator_id?: string | null;
+}
+
+function audienceRoleFor(row: AudienceRow) {
+  if (row.type === 'WaitlistPromoted') return 'attendee';
+  // SPM-136: an EventCancelled notice goes to the organiser, the assigned coordinator and registered or waitlisted
+  // attendees. The reader's relation to that event decides the copy, whatever roles the account holds.
+  if (row.type === 'EventCancelled') {
+    if (row.event_organiser_id === row.recipient_id) return 'organiser';
+    if (row.event_coordinator_id === row.recipient_id) return 'coordinator';
+    return 'attendee';
+  }
+  if (row.type === 'coordinator_unavailable') return 'coordinator_lead';
+  // SPM-177: a clarification notice goes to whichever of the Organiser and the assigned Coordinator is the other party.
+  if ((CLARIFICATION_NOTICE_TYPES as readonly string[]).includes(row.type))
+    return row.event_coordinator_id === row.recipient_id ? 'coordinator' : 'organiser';
+  // SPM-171: the Organiser's cancellation request is told to the assigned Coordinator.
+  if (row.type === CANCELLATION_REQUESTED_NOTICE) return 'coordinator';
+  if (row.type.startsWith('coordinator_')) return 'coordinator';
+  // SPM-137: the venue booking decision notices are the assigned coordinator's.
+  if (row.type === BOOKING_APPROVED_NOTICE || row.type === BOOKING_REJECTED_NOTICE) return 'coordinator';
+  // SPM-165: so are the tentative hold decision notices.
+  if (row.type === HOLD_APPROVED_NOTICE || row.type === HOLD_REJECTED_NOTICE) return 'coordinator';
+  // SPM-134: and the hold expiry reminder, expired, released and converted notices.
+  if ((HOLD_LIFECYCLE_NOTICE_TYPES as readonly string[]).includes(row.type)) return 'coordinator';
+  // SPM-172: the equipment request decision notices are the assigned coordinator's.
+  if ((EQUIPMENT_DECISION_NOTICE_TYPES as readonly string[]).includes(row.type)) return 'coordinator';
+  // SPM-125: the Coordinator's notices that a venue change affects their booking.
+  if ((VENUE_IMPACT_COORDINATOR_TYPES as readonly string[]).includes(row.type)) return 'coordinator';
+  return 'organiser';
+}
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    @Optional() @Inject(CLOCK) private readonly clock: Clock = systemClock,
+  ) {}
 
   // SPM-38: never trust an organiser/coordinator id from a request body — the
-  // verified Firebase identity (set by FirebaseAuthenticationMiddleware) is
+  // verified local-session identity (set by AuthenticationMiddleware) is
   // the only source of truth for who is calling.
   private requireUser(identity: AuthenticatedUser | undefined): AuthenticatedUser {
     if (!identity?.uid) throw new UnauthorizedException('Authentication required.');
@@ -29,10 +129,49 @@ export class EventsService {
     const user = this.requireUser(identity);
     if (!user.roles.includes('ORGANISER'))
       throw new ForbiddenException('Organiser access required.');
-    return { id: user.uid, name: user.name ?? user.email ?? 'Organiser', email: user.email ?? '' };
+    return { id: user.uid, name: [user.name, user.email].find((value) => value?.trim()) ?? 'Organiser', email: user.email ?? '' };
   }
 
-  private record(row: pg.QueryResultRow) {
+  /**
+   * SPM-138 AC2 capacity fields. Confirmed is the Registered count; a place is free while it is below the limit. The
+   * waitlist is offered only for a full event that is open for registration.
+   */
+  private capacityFields(row: pg.QueryResultRow) {
+    const limit = Number(row.registration_limit);
+    const confirmed = Number(row.confirmed_registrations ?? 0);
+    const isFull = confirmed >= limit;
+    const registrationOpen = isRegistrationOpen(
+      {
+        registrationEnabled: row.registration_enabled,
+        status: row.status,
+        opensAt: row.registration_opens_at ?? null,
+        closesAt: row.registration_closes_at ?? null,
+      },
+      this.clock.now(),
+    );
+    return {
+      registrationLimit: limit,
+      isFull,
+      waitlistAvailable: isFull && registrationOpen,
+      availableSpots: Math.max(limit - confirmed, 0),
+    };
+  }
+
+  /** SPM-159: "Hold" or "Hold expired" for an approved tentative hold (the latest venue request); null otherwise. */
+  private venueHoldLabel(row: pg.QueryResultRow): 'Hold' | 'Hold expired' | null {
+    const hold = approvedHoldState(
+      {
+        status: row.venue_request_status,
+        requestKind: row.venue_request_kind,
+        holdExpiresAt: row.venue_hold_expires_at ?? null,
+      },
+      this.clock.now(),
+    );
+    return hold === null ? null : hold === 'expired' ? 'Hold expired' : 'Hold';
+  }
+
+  // SPM-94 F4: the safety state is shown only to the owning organiser and the assigned coordinator (showSafety).
+  private record(row: pg.QueryResultRow, viewerUid?: string, showSafety = false) {
     return {
       id: row.id,
       name: row.event_name,
@@ -42,7 +181,22 @@ export class EventsService {
       organiserName: row.organiser_name,
       coordinatorId: row.coordinator_id ?? undefined,
       coordinatorName: row.coordinator_name ?? undefined,
+      reassignedFrom: reassignedFrom(row, viewerUid),
+      // SPM-94 AC2/AC3: derived on read from the same row, so the list and the detail agree.
+      awaitingCoordinatorAssignment: deriveAssignmentIndicator(row.status, row.coordinator_id),
+      ...(showSafety ? { safetyIndicator: deriveSafetyIndicator(row.safety_status, row.status) } : {}),
+      // Planning arrangements are shown to the same viewers as the safety state (SPM-94 cards).
+      ...(showSafety
+        ? {
+            venueRequestStatus: row.venue_request_status ?? null,
+            venueRequestKind: row.venue_request_kind ?? null,
+            venueHoldExpiresAt: row.venue_hold_expires_at?.toISOString() ?? null,
+            venueHoldState: this.venueHoldLabel(row),
+            equipmentStatuses: row.equipment_statuses ?? [],
+          }
+        : {}),
       status: row.status.toLowerCase(),
+      venueName: row.venue_summary ?? undefined,
       rejectionReason: row.rejection_reason ?? undefined,
       startDateTime: row.start_date_time.toISOString(),
       endDateTime: row.end_date_time.toISOString(),
@@ -55,26 +209,69 @@ export class EventsService {
       },
       attachments: row.attachments ?? [],
       equipmentNeeds: row.equipment_needs,
-      registrationEnabled: false,
-      changeRequests: [],
+      registrationEnabled: row.registration_enabled,
+      registrationOpensAt: row.registration_opens_at?.toISOString(),
+      registrationClosesAt: row.registration_closes_at?.toISOString(),
+      // SPM-61: computed here so every client applies the same window rule
+      // (inclusive open, exclusive close) using the injected clock.
+      registrationOpen: isRegistrationOpen(
+        {
+          registrationEnabled: row.registration_enabled,
+          status: row.status,
+          opensAt: row.registration_opens_at ?? null,
+          closesAt: row.registration_closes_at ?? null,
+        },
+        this.clock.now(),
+      ),
+      // PostgreSQL owns the capacity calculation so every API consumer sees
+      // the same persisted registration availability.
+      // SPM-61: the signed-in attendee's own registration, list view only.
+      myRegistrationStatus: row.my_registration_status
+        ? String(row.my_registration_status).toLowerCase()
+        : undefined,
+      // SPM-138 AC2: capacity is read from the one Confirmed count (Registered rows only), never from waiting entries.
+      availableRegistrationSpots:
+        row.confirmed_registrations == null ? undefined : this.capacityFields(row).availableSpots,
+      ...this.capacityFields(row),
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
     };
   }
   // SPM-38 AC1/AC2/AC3: an organiser sees their own submitted requests; a
-  // coordinator sees only the requests round-robin has assigned to them —
-  // never another coordinator's. Every other role gets nothing from this
+  // coordinator sees only the requests the Event Coordinator Lead assigned to
+  // them (SPM-123) — never another coordinator's. Every other role gets nothing from this
   // organiser/coordinator-facing endpoint.
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
+    // SPM-94 F4: organisers and coordinators see the safety state on their lists; attendees never do.
+    const showSafety = user.roles.includes('ORGANISER') || user.roles.includes('COORDINATOR');
+    // The attendee list settles the waitlists that are due before it reads statuses. The job scans only due lists,
+    // so an event that is not due takes no lock and is not written.
+    if (user.roles.includes('ATTENDEE') && !user.roles.includes('COORDINATOR'))
+      await runRegistrationCloseJob(this.database, this.clock.now());
+    // SPM-148 PLAN-STATUS-05-A, 05-C: a Coordinator sees only their own events (no other Coordinator's events); Planning events appear here.
     const result = user.roles.includes('COORDINATOR')
       ? await this.database.query(
-          'SELECT * FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC',
+          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT}, ${SAFETY_STATUS}, ${VENUE_REQUEST_STATUS}, ${EQUIPMENT_STATUSES} FROM events WHERE coordinator_id = $1 ORDER BY start_date_time ASC, created_at DESC`,
+          [user.uid],
+        )
+      : user.roles.includes('ATTENDEE')
+      ? await this.database.query(
+          `SELECT events.*, ${VENUE_SUMMARY_SQL},
+           (SELECT r.status FROM event_registrations r
+             WHERE r.event_id = events.id AND r.attendee_id::text = $1
+           ) AS my_registration_status,
+           (SELECT COUNT(*)::integer FROM event_registrations
+             WHERE event_id = events.id AND status = 'Registered'
+           ) AS confirmed_registrations
+             FROM events
+            WHERE status IN (${ATTENDEE_VISIBLE_STATUSES.map((s) => `'${s}'`).join(', ')})
+            ORDER BY start_date_time ASC`,
           [user.uid],
         )
       : user.roles.includes('ORGANISER')
         ? await this.database.query(
-            'SELECT * FROM events WHERE organiser_id = $1 ORDER BY created_at DESC',
+            `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${SAFETY_STATUS}, ${VENUE_REQUEST_STATUS}, ${EQUIPMENT_STATUSES} FROM events WHERE organiser_id = $1 ORDER BY start_date_time ASC, created_at DESC`,
             [user.uid],
           )
         : { rows: [] as pg.QueryResultRow[] };
@@ -83,7 +280,7 @@ export class EventsService {
     // tens of MB per attached file and make the page time out; the detail
     // endpoint (get) still returns the full attachments including dataUrl.
     return result.rows.map((row) => {
-      const record = this.record(row);
+      const record = this.record(row, user.uid, showSafety);
       return {
         ...record,
         attachments: (record.attachments as EventAttachment[]).map(
@@ -103,46 +300,47 @@ export class EventsService {
       )
     )
       throw new NotFoundException('Event not found.');
-    const result = await this.database.query('SELECT * FROM events WHERE id = $1', [id]);
+    const result = await this.database.query(
+      `SELECT events.*,
+       (SELECT COUNT(*)::integer FROM event_registrations
+         WHERE event_id = events.id AND status = 'Registered'
+       ) AS confirmed_registrations,
+       ${LATEST_REASSIGNMENT}, ${VENUE_SUMMARY_SQL}, ${SAFETY_STATUS}, ${VENUE_REQUEST_STATUS}, ${EQUIPMENT_STATUSES}
+         FROM events WHERE id = $1`,
+      [id],
+    );
     const row = result.rows[0];
     if (!row) throw new NotFoundException('Event not found.');
     const isOwningOrganiser =
       user.roles.includes('ORGANISER') && row.organiser_id === user.uid;
     const isAssignedCoordinator =
       user.roles.includes('COORDINATOR') && row.coordinator_id === user.uid;
-    if (!isOwningOrganiser && !isAssignedCoordinator)
+    const isAttendeeViewable =
+      user.roles.includes('ATTENDEE') &&
+      ATTENDEE_VISIBLE_STATUSES.includes(row.status);
+    // SPM-94 D6: an organiser who is not the owner is refused with 403 and no event data.
+    const isOrganiserOnly = user.roles.includes('ORGANISER') && !user.roles.some((role) => role === 'COORDINATOR' || role === 'ATTENDEE');
+    if (!isOwningOrganiser && isOrganiserOnly) {
+      throw new ForbiddenException('You can only view your own events.');
+    }
+    if (!isOwningOrganiser && !isAssignedCoordinator && !isAttendeeViewable) {
+      // SPM-46 AC4: someone who held the event before is told it moved (without
+      // naming who has it now); anyone else still learns nothing.
+      if (user.roles.includes('COORDINATOR')) {
+        const held = await this.database.query(
+          'SELECT 1 AS held FROM event_reassignments WHERE event_id = $1 AND from_coordinator_id = $2 LIMIT 1',
+          [id, user.uid],
+        );
+        if (held.rows.length)
+          throw new ForbiddenException('This event has been reassigned to another Coordinator.');
+      }
       throw new NotFoundException('Event not found.');
-    return this.record(row);
+    }
+    // A closed waitlist is settled on read for an attendee who may see the event, so the response never shows a stale
+    // waiting entry. Organisers, coordinators and anyone not allowed to view the event take no lock and write nothing.
+    if (user.roles.includes('ATTENDEE') && isAttendeeViewable) await settleIfDue(this.database, id, this.clock.now());
+    return this.record(row, user.uid, isOwningOrganiser || isAssignedCoordinator);
   }
-  // Manual override for a coordinator claim/reassignment. Round-robin
-  // (see insert()) is now the primary path, so this mainly exists for
-  // reassignment edge cases; kept scoped by event id like before. Assignment
-  // never advances status — "Under Review" was retired as a distinct stage.
-  async assignCoordinator(id: string, body: unknown) {
-    if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    )
-      throw new NotFoundException('Event not found.');
-    const data = body as Record<string, unknown> | null;
-    const coordinatorId =
-      typeof data?.coordinatorId === 'string' ? data.coordinatorId.trim() : '';
-    const coordinatorName =
-      typeof data?.coordinatorName === 'string' ? data.coordinatorName.trim() : '';
-    if (!coordinatorId || !coordinatorName)
-      throw new BadRequestException('A coordinator id and name are required.');
-    const result = await this.database.query(
-      `UPDATE events
-         SET coordinator_id = $2,
-             coordinator_name = $3,
-             updated_at = now()
-       WHERE id = $1
-       RETURNING *`,
-      [id, coordinatorId, coordinatorName],
-    );
-    if (!result.rows[0]) throw new NotFoundException('Event not found.');
-    return this.record(result.rows[0]);
-  }
-
   private requireCoordinator(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
     if (!user.roles.includes('COORDINATOR'))
@@ -164,9 +362,9 @@ export class EventsService {
     const trimmed = raw.trim();
     const words = trimmed.split(/\s+/).filter(Boolean);
     const hasLetters = /[a-zA-Z]/.test(trimmed);
+    // EVENT-REJECT-01/03: only the trimmed reason is measured (10 to 500 characters).
     if (
       !trimmed ||
-      raw.length > 500 ||
       trimmed.length < 10 ||
       trimmed.length > 500 ||
       words.length < 3 ||
@@ -180,9 +378,9 @@ export class EventsService {
     return trimmed;
   }
 
-  // SPM-83: only the coordinator assigned by SPM-38's round-robin flow may
-  // reject a still-Submitted request. The decision and organiser notification
-  // share one transaction so a rejection is never persisted without its reason.
+  // SPM-83: only the coordinator the Lead assigned (SPM-123) may
+  // reject a still-Submitted request. The status change, the stored
+  // rejection_reason and the organiser notification commit together.
   async reject(id: string, body: unknown, identity?: AuthenticatedUser) {
     const coordinator = this.requireCoordinator(identity);
     this.eventId(id);
@@ -203,7 +401,7 @@ export class EventsService {
         );
       if (event.coordinator_id !== coordinator.uid)
         throw new ForbiddenException(
-          'This request is assigned to another coordinator.',
+          'Only the assigned coordinator can reject this request.',
         );
       const updated = await client.query(
         `UPDATE events
@@ -211,7 +409,7 @@ export class EventsService {
                rejection_reason = $2,
                updated_at = now()
          WHERE id = $1
-         RETURNING *`,
+         RETURNING *, ${VENUE_SUMMARY_SQL}`,
         [id, reason],
       );
       await client.query(
@@ -220,7 +418,7 @@ export class EventsService {
         [
           randomUUID(),
           event.organiser_id,
-          `Your event request "${event.event_name}" was rejected: ${reason}`,
+          `Your event request "${event.event_name}" was rejected`,
           id,
         ],
       );
@@ -228,30 +426,145 @@ export class EventsService {
     });
   }
 
+  // SPM-40: approval is a one-way decision made only by the coordinator
+  // assigned to a still-Submitted request. The status change and organiser
+  // notification are committed together so neither can exist without the
+  // other, and the row lock prevents concurrent decisions from both winning.
+  async approve(id: string, identity?: AuthenticatedUser) {
+    const coordinator = this.requireCoordinator(identity);
+    this.eventId(id);
+    return this.database.transaction(async (client) => {
+      const selected = await client.query(
+        'SELECT * FROM events WHERE id = $1 FOR UPDATE',
+        [id],
+      );
+      const event = selected.rows[0];
+      if (!event) throw new NotFoundException('Event not found.');
+      if (event.status !== 'Submitted')
+        throw new ConflictException(
+          'Only Submitted requests can be approved. Refresh the pending list.',
+        );
+      if (event.coordinator_id !== coordinator.uid)
+        throw new ForbiddenException(
+          'Only the assigned coordinator can approve this request.',
+        );
+      const updated = await client.query(
+        `UPDATE events
+           SET status = 'Approved',
+               updated_at = now()
+         WHERE id = $1
+         RETURNING *, ${VENUE_SUMMARY_SQL}`,
+        [id],
+      );
+      await client.query(
+        `INSERT INTO notifications (id, recipient_id, type, message, related_event_id)
+         VALUES ($1, $2, 'approval', $3, $4)`,
+        [
+          randomUUID(),
+          event.organiser_id,
+          `Your event request "${event.event_name}" was approved and can proceed.`,
+          id,
+        ],
+      );
+      return this.record(updated.rows[0]);
+    });
+  }
+
+  // Which notification types each role reads and marks read: organisers get
+  // their request decisions (SPM-83 rejection, SPM-40 approval); coordinators
+  // get new assignments from the Event Coordinator Lead (SPM-123) and
+  // reassignments to and away from them (SPM-47) and organisers' change
+  // requests on their events (SPM-64), and organisers get the decision on
+  // their change requests (SPM-65); the Lead is told when a
+  // coordinator with active events becomes unavailable (SPM-47).
+  private notificationTypesFor(identity: AuthenticatedUser | undefined) {
+    const user = this.requireUser(identity);
+    const types = [
+      ...(user.roles.includes('ORGANISER')
+        ? [
+            'rejection',
+            'approval',
+            'EventConfirmed',
+            'EventCancelled',
+            // SPM-65: the coordinator approved or denied the organiser's change request.
+            'change_request_approved',
+            'change_request_denied',
+            // SPM-162: the Coordinator accepted or declined the organiser's cancellation request.
+            CANCELLATION_ACCEPTED_NOTICE,
+            CANCELLATION_DECLINED_NOTICE,
+            // SPM-177: the Coordinator requested, replied to or resolved a clarification.
+            ...CLARIFICATION_NOTICE_TYPES,
+          ]
+        : []),
+      ...(user.roles.includes('COORDINATOR')
+        ? [
+            ...COORDINATOR_NOTIFICATION_TYPES,
+            // SPM-137: Venue Staff approved or rejected a booking for an event assigned to them.
+            BOOKING_APPROVED_NOTICE,
+            BOOKING_REJECTED_NOTICE,
+            // SPM-165: Venue Staff approved or rejected a tentative hold for an event assigned to them.
+            HOLD_APPROVED_NOTICE,
+            HOLD_REJECTED_NOTICE,
+            // SPM-134: the event's tentative hold is about to expire, has expired, or was released or converted.
+            ...HOLD_LIFECYCLE_NOTICE_TYPES,
+            // SPM-171: the Organiser requested to cancel an event assigned to them.
+            CANCELLATION_REQUESTED_NOTICE,
+            // SPM-172: Technical Support reserved or could not provide an equipment request for an event assigned to them.
+            ...EQUIPMENT_DECISION_NOTICE_TYPES,
+            // SPM-125 AC6 to AC9: a venue change (unavailability, setup or turnaround, capacity) affects a booking.
+            ...VENUE_IMPACT_COORDINATOR_TYPES,
+            // SPM-177: the Organiser replied to or resolved a clarification.
+            ...CLARIFICATION_NOTICE_TYPES,
+          ]
+        : []),
+      ...(user.roles.includes('COORDINATOR_LEAD') ? ['coordinator_unavailable'] : []),
+      // SPM-138 AC9/AC12: an attendee reads only their own waitlist notices (the query also filters by recipient).
+      ...(user.roles.includes('ATTENDEE') ? ['WaitlistPromoted', 'EventCancelled'] : []),
+    ];
+    if (!types.length) throw new ForbiddenException('Organiser or coordinator access required.');
+    return { user, types };
+  }
+
   async notifications(identity?: AuthenticatedUser) {
-    const organiser = this.requireOrganiser(identity);
+    const { user, types } = this.notificationTypesFor(identity);
     const result = await this.database.query(
-      "SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'rejection' ORDER BY created_at DESC",
-      [organiser.id],
+      `SELECT n.*, e.organiser_id AS event_organiser_id, e.coordinator_id AS event_coordinator_id,
+              e.event_name AS event_name
+         FROM notifications n
+         LEFT JOIN events e ON e.id = n.related_event_id
+        WHERE n.recipient_id = $1 AND n.type = ANY($2)
+        ORDER BY n.created_at DESC`,
+      [user.uid, types],
     );
     return result.rows.map((row) => ({
       id: row.id,
-      audienceRole: 'organiser',
+      audienceRole: audienceRoleFor({
+        type: row.type,
+        recipient_id: row.recipient_id,
+        event_organiser_id: row.event_organiser_id,
+        event_coordinator_id: row.event_coordinator_id,
+      }),
       audienceUserId: row.recipient_id,
       type: row.type,
       message: row.message,
       relatedEventId: row.related_event_id,
+      // SPM-137 and SPM-125 AC7: the booking a venue booking notice is about (null for every other type), the bell's link target.
+      relatedBookingId: row.related_booking_id ?? null,
+      // SPM-172: the equipment request an equipment decision notice is about (null for every other type), the bell's link target.
+      relatedEquipmentRequestId: row.related_equipment_request_id ?? null,
+      // SPM-88: the event's current name (null when the notice has no event), so the bell can tell a denial's name from its reason.
+      relatedEventName: row.event_name,
       read: row.read,
       createdAt: row.created_at.toISOString(),
     }));
   }
 
   async readNotification(id: string, identity?: AuthenticatedUser) {
-    const organiser = this.requireOrganiser(identity);
+    const { user, types } = this.notificationTypesFor(identity);
     this.eventId(id);
     const result = await this.database.query(
-      "UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND type = 'rejection' RETURNING id",
-      [id, organiser.id],
+      'UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND type = ANY($3) RETURNING id',
+      [id, user.uid, types],
     );
     if (!result.rows[0]) throw new NotFoundException('Notification not found.');
     return { success: true };
@@ -286,8 +599,9 @@ export class EventsService {
       `INSERT INTO events
         (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
         start_date_time, end_date_time, expected_attendance, preferred_room_layout,
-        required_facilities, accessibility_needs, attachments, equipment_needs, submission_key)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        required_facilities, accessibility_needs, attachments, equipment_needs, registration_enabled,
+        registration_limit, submission_key)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
         ON CONFLICT (organiser_id, submission_key) DO NOTHING RETURNING *`,
       [
         eventId ?? randomUUID(),
@@ -305,6 +619,8 @@ export class EventsService {
         data.accessibility,
         JSON.stringify(data.attachments),
         data.equipmentNeeds,
+        data.registrationEnabled,
+        data.expectedAttendance,
         data.submissionKey,
       ],
     );
@@ -316,36 +632,11 @@ export class EventsService {
           [user.id, data.submissionKey],
         )
       ).rows[0];
-    const assignedRow = await this.autoAssignCoordinator(row, client);
+    // SPM-123: the request waits unassigned in the Event Coordinator Lead's
+    // queue; it is never assigned automatically.
     return {
-      event: this.record(assignedRow),
+      event: this.record(row),
       message: 'Your event request was submitted successfully.',
     };
-  }
-
-  // SPM-38 AC5: round-robin assignment at submission time, so a request is
-  // never left waiting for a coordinator to manually claim it. A retried
-  // submission (ON CONFLICT above) reuses the row already assigned, so this
-  // only ever assigns once per event. Assignment never advances status. The
-  // roster is queried live from Postgres (see coordinator-roster.ts); if no
-  // active coordinator account exists yet, the event is left unassigned
-  // rather than failing the submission.
-  private async autoAssignCoordinator(row: pg.QueryResultRow, client: pg.PoolClient) {
-    if (row.coordinator_id) return row;
-    const { rows } = await client.query<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM events WHERE coordinator_id IS NOT NULL',
-    );
-    const coordinator = await pickNextCoordinator(client, Number(rows[0].count));
-    if (!coordinator) return row;
-    const updated = await client.query(
-      `UPDATE events
-         SET coordinator_id = $2,
-             coordinator_name = $3,
-             updated_at = now()
-       WHERE id = $1
-       RETURNING *`,
-      [row.id, coordinator.id, coordinator.name],
-    );
-    return updated.rows[0];
   }
 }

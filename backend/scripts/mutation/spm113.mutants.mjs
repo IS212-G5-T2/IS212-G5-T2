@@ -1,0 +1,162 @@
+export const SUITES = {
+  dto: { args: ['run', 'src/equipment/creation/dto/equipment-input.spec.ts'] },
+  service: { args: ['run', 'src/equipment/equipment.service.spec.ts'] },
+  e2e: {
+    args: ['run', '--config', './vitest.config.e2e.ts', 'test/equipment.e2e-spec.ts'],
+    needsEnv: ['DATABASE_URL'],
+  },
+  'update-e2e': {
+    args: ['run', '--config', './vitest.config.e2e.ts', 'test/equipment-update.e2e-spec.ts'],
+    needsEnv: ['DATABASE_URL'],
+  },
+};
+
+export const MUTANTS = [
+  {
+    id: 'BE-113-01',
+    name: 'derived total omits Under Maintenance quantity',
+    file: 'src/equipment/creation/dto/equipment-input.ts',
+    suites: ['dto', 'service'],
+    testMappings: [
+      { suite: 'dto', file: 'src/equipment/creation/dto/equipment-input.spec.ts', title: 'EQUIP-AVAIL-08-A stores the 10 Active, 30 Under Maintenance, and 10 Retired breakdown as total 50' },
+      { suite: 'service', file: 'src/equipment/equipment.service.spec.ts', title: 'EQUIP-AVAIL-08-A creates mixed-status equipment from the three quantity buckets' },
+    ],
+    edits: [['activeQuantity + underMaintenanceQuantity + retiredQuantity', 'activeQuantity + retiredQuantity']],
+  },
+  {
+    id: 'BE-113-02',
+    name: 'a zero status bucket is rejected even when total remains positive',
+    file: 'src/equipment/creation/dto/equipment-input.ts',
+    suites: ['dto'],
+      testMappings: [{ suite: 'dto', file: 'src/equipment/creation/dto/equipment-input.spec.ts', title: 'EQUIP-AVAIL-08-BND-1 accepts zero in each status bucket while the total remains positive' }],
+    edits: [['value[field] < 0', 'value[field] <= 0']],
+  },
+  {
+    id: 'BE-113-03',
+    name: 'creation persists maintenance and retired bucket values in reverse order',
+    file: 'src/equipment/equipment.service.ts',
+    suites: ['service'],
+    testMappings: [{ suite: 'service', file: 'src/equipment/equipment.service.spec.ts', title: 'EQUIP-AVAIL-08-A creates mixed-status equipment from the three quantity buckets' }],
+    edits: [[
+      '        input.activeQuantity,\n        input.underMaintenanceQuantity,\n        input.retiredQuantity,\n        input.location,',
+      '        input.activeQuantity,\n        input.retiredQuantity,\n        input.underMaintenanceQuantity,\n        input.location,',
+    ]],
+  },
+  {
+    id: 'BE-113-04',
+    name: 'legacy Retired quantity falls into the Active bucket',
+    file: 'src/equipment/equipment.service.ts',
+    suites: ['service'],
+    testMappings: [{ suite: 'service', file: 'src/equipment/equipment.service.spec.ts', title: 'EQUIP-AVAIL-08-D maps each legacy equipment status to its quantity bucket' }],
+    edits: [['row.maintenance_status === \'Retired\' ? row.quantity : 0', 'row.maintenance_status === \'Retired\' ? 0 : row.quantity']],
+  },
+  {
+    id: 'BE-113-05',
+    name: 'migration backfills Under Maintenance audit quantities into Retired',
+    file: 'migrations/015_spm113_equipment_status_quantities.sql',
+    suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment.e2e-spec.ts', title: 'EQUIP-AVAIL-08-D migrates legacy equipment and audit rows without losing their quantity or history' }],
+    edits: [[
+      "UPDATE equipment_audit_trail\nSET active_quantity = CASE WHEN maintenance_status = 'Active' THEN quantity ELSE 0 END,\n    under_maintenance_quantity = CASE WHEN maintenance_status = 'Under Maintenance' THEN quantity ELSE 0 END,",
+      "UPDATE equipment_audit_trail\nSET active_quantity = CASE WHEN maintenance_status = 'Active' THEN quantity ELSE 0 END,\n    under_maintenance_quantity = CASE WHEN maintenance_status = 'Retired' THEN quantity ELSE 0 END,",
+    ]],
+  },
+  {
+    id: 'BE-113-06',
+    name: 'update persists Retired quantity as Under Maintenance',
+    file: 'src/equipment/equipment.service.ts',
+    suites: ['service', 'update-e2e'],
+    testMappings: [
+      { suite: 'service', file: 'src/equipment/equipment.service.spec.ts', title: 'EQUIP-AVAIL-08-B updates retired quantity and includes the status breakdown in the audit snapshot' },
+      { suite: 'update-e2e', file: 'test/equipment-update.e2e-spec.ts', title: 'EQUIP-AVAIL-08-C updates status quantities without reactivating manually unavailable equipment' },
+    ],
+    edits: [[
+      '          input.underMaintenanceQuantity,\n          input.retiredQuantity,\n        ],',
+      '          input.retiredQuantity,\n          input.underMaintenanceQuantity,\n        ],',
+    ]],
+  },
+  {
+    id: 'BE-113-07',
+    name: 'negative status buckets are accepted by the DTO',
+    file: 'src/equipment/creation/dto/equipment-input.ts',
+    suites: ['dto'],
+    testMappings: [{ suite: 'dto', file: 'src/equipment/creation/dto/equipment-input.spec.ts', title: 'EQUIP-AVAIL-08-BND-1 rejects negative, fractional, non-number, and out-of-range bucket values' }],
+    edits: [['value[field] < 0', 'value[field] < -1']],
+  },
+  {
+    id: 'BE-113-08',
+    name: 'fractional status buckets are accepted by the DTO',
+    file: 'src/equipment/creation/dto/equipment-input.ts',
+    suites: ['dto'],
+    testMappings: [{ suite: 'dto', file: 'src/equipment/creation/dto/equipment-input.spec.ts', title: 'EQUIP-AVAIL-08-BND-1 rejects negative, fractional, non-number, and out-of-range bucket values' }],
+    edits: [['!Number.isInteger(value[field])', 'false']],
+  },
+  {
+    id: 'BE-113-09',
+    name: 'per-bucket maximum is not enforced by the DTO',
+    file: 'src/equipment/creation/dto/equipment-input.ts',
+    suites: ['dto'],
+    testMappings: [{ suite: 'dto', file: 'src/equipment/creation/dto/equipment-input.spec.ts', title: 'EQUIP-AVAIL-08-BND-1 rejects negative, fractional, non-number, and out-of-range bucket values' }],
+    edits: [['value[field] > MAX_EQUIPMENT_QUANTITY', 'false']],
+  },
+  {
+    id: 'BE-113-10',
+    name: 'mixed legacy quantity and status buckets are accepted by the DTO',
+    file: 'src/equipment/creation/dto/equipment-input.ts',
+    suites: ['dto'],
+    testMappings: [{ suite: 'dto', file: 'src/equipment/creation/dto/equipment-input.spec.ts', title: 'EQUIP-AVAIL-08-BND-1 rejects a request combining breakdown counts with legacy total or status fields' }],
+    edits: [[
+      "if (\n    hasBreakdown &&\n    (Object.hasOwn(value, 'quantity') || Object.hasOwn(value, 'maintenanceStatus'))\n  )",
+      'if (false)',
+    ]],
+  },
+  {
+    id: 'BE-113-11',
+    name: 'all-zero status buckets are accepted by the DTO',
+    file: 'src/equipment/creation/dto/equipment-input.ts',
+    suites: ['dto'],
+    testMappings: [{ suite: 'dto', file: 'src/equipment/creation/dto/equipment-input.spec.ts', title: 'EQUIP-AVAIL-08-BND-1 rejects an all-zero total' }],
+    edits: [['if (quantity < 1)', 'if (quantity < 0)']],
+  },
+  {
+    id: 'BE-113-12',
+    name: 'aggregate status quantity overflow is accepted by the DTO',
+    file: 'src/equipment/creation/dto/equipment-input.ts',
+    suites: ['dto', 'update-e2e'],
+    testMappings: [
+      { suite: 'dto', file: 'src/equipment/creation/dto/equipment-input.spec.ts', title: 'EQUIP-AVAIL-08-BND-1 rejects a bucket sum beyond the PostgreSQL integer maximum' },
+      { suite: 'update-e2e', file: 'test/equipment-update.e2e-spec.ts', title: 'EQUIP-AVAIL-08-BND-1 refuses an oversized status breakdown without changing the record' },
+    ],
+    edits: [['if (quantity > MAX_EQUIPMENT_QUANTITY)', 'if (quantity > MAX_EQUIPMENT_QUANTITY + 1)']],
+  },
+  {
+    id: 'BE-113-13',
+    name: 'authenticated inventory GET maps Retired counts into Under Maintenance',
+    file: 'src/equipment/equipment.service.ts',
+    suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment.e2e-spec.ts', title: 'EQUIP-AVAIL-08-A creates inventory from the status quantity breakdown' }],
+    edits: [[
+      "row.under_maintenance_quantity ??\n      (row.maintenance_status === 'Under Maintenance' ? row.quantity : 0)",
+      "row.retired_quantity ??\n      (row.maintenance_status === 'Under Maintenance' ? row.quantity : 0)",
+    ]],
+  },
+  {
+    id: 'BE-113-14',
+    name: 'editing an unavailable equipment record silently reactivates it',
+    file: 'src/equipment/equipment.service.ts',
+    suites: ['update-e2e'],
+    testMappings: [{ suite: 'update-e2e', file: 'test/equipment-update.e2e-spec.ts', title: 'EQUIP-AVAIL-08-C updates status quantities without reactivating manually unavailable equipment' }],
+    edits: [[
+      'under_maintenance_quantity = $8, retired_quantity = $9, updated_at = now()',
+      'under_maintenance_quantity = $8, retired_quantity = $9, is_available = true, updated_at = now()',
+    ]],
+  },
+  {
+    id: 'BE-113-15',
+    name: 'DTO legacy status summary treats zero Active quantity as Active',
+    file: 'src/equipment/creation/dto/equipment-input.ts',
+    suites: ['dto'],
+    testMappings: [{ suite: 'dto', file: 'src/equipment/creation/dto/equipment-input.spec.ts', title: 'EQUIP-AVAIL-08-B maps each legacy status summary to its matching label' }],
+    edits: [["if (input.activeQuantity > 0) return 'Active';", "if (input.activeQuantity >= 0) return 'Active';"]],
+  },
+];

@@ -1,7 +1,8 @@
 /*
- * End-to-end tests for SPM-37 coordinator assignment persistence
- * (POST /api/events/:id/assign) and the events list omitting attachment blobs,
- * against a real PostgreSQL database. Mirrors test/clarifications.e2e-spec.ts's
+ * End-to-end tests for the events list omitting attachment blobs and for
+ * coordinator-scoped event visibility, against a real PostgreSQL database.
+ * (SPM-37's open POST /api/events/:id/assign was removed by SPM-123; the Lead's
+ * assignment endpoint is covered in test/lead-assignment.e2e-spec.ts.) Mirrors test/clarifications.e2e-spec.ts's
  * fixture pattern. Protected event routes use real PostgreSQL-backed session
  * cookies, rather than a mocked identity provider.
  */
@@ -10,17 +11,18 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
-import { App } from 'supertest/types';
+import type { Server } from 'node:http';
 import { AppModule } from '../src/app.module.js';
 
 describe('Events coordinator assignment (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication<Server>;
   let pool: pg.Pool;
   let createdEventIds: string[];
   let createdUserIds: string[];
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    pool.on('error', (err) => { console.error('[pool-idle-error]', err.message); });
   });
 
   afterAll(async () => {
@@ -33,7 +35,7 @@ describe('Events coordinator assignment (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
   });
 
@@ -77,78 +79,9 @@ describe('Events coordinator assignment (e2e)', () => {
     return eventId;
   }
 
-  // Assignment alone no longer advances status — only a clarification
-  // request does that (see clarifications.e2e-spec.ts).
-  it('assigns a coordinator and persists it without changing status', async () => {
-    const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
-    const coordinator = await createDatabaseUser('COORDINATOR', 'Demo Coordinator');
-    const eventId = await seedEvent({ organiserId: organiser.uid, status: 'Submitted', coordinatorId: null });
-
-    const res = await request(app.getHttpServer())
-      .post(`/api/events/${eventId}/assign`)
-      .set('Cookie', organiser.cookie)
-      .send({ coordinatorId: coordinator.uid, coordinatorName: coordinator.name })
-      .expect(201);
-    expect(res.body).toMatchObject({
-      id: eventId,
-      coordinatorId: coordinator.uid,
-      coordinatorName: coordinator.name,
-      status: 'submitted',
-    });
-
-    // The assignment survives a fresh read by the now-assigned coordinator
-    // (this is what made it "stick").
-    const detail = await request(app.getHttpServer())
-      .get(`/api/events/${eventId}`)
-      .set('Cookie', coordinator.cookie)
-      .expect(200);
-    expect(detail.body).toMatchObject({ coordinatorId: coordinator.uid, status: 'submitted' });
-
-    const row = await pool.query(
-      'SELECT coordinator_id, coordinator_name, status FROM events WHERE id=$1',
-      [eventId],
-    );
-    expect(row.rows[0]).toMatchObject({
-      coordinator_id: coordinator.uid,
-      coordinator_name: coordinator.name,
-      status: 'Submitted',
-    });
-  });
-
-  it('leaves an already-approved event status unchanged while still recording the coordinator', async () => {
-    const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
-    const coordinator = await createDatabaseUser('COORDINATOR', 'Demo Coordinator');
-    const eventId = await seedEvent({ organiserId: organiser.uid, status: 'Approved', coordinatorId: null });
-
-    const res = await request(app.getHttpServer())
-      .post(`/api/events/${eventId}/assign`)
-      .set('Cookie', organiser.cookie)
-      .send({ coordinatorId: coordinator.uid, coordinatorName: coordinator.name })
-      .expect(201);
-    expect(res.body).toMatchObject({ coordinatorId: coordinator.uid, status: 'approved' });
-  });
-
-  it('rejects an assignment that is missing the coordinator identity', async () => {
-    const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
-    const eventId = await seedEvent({ organiserId: organiser.uid });
-    await request(app.getHttpServer())
-      .post(`/api/events/${eventId}/assign`)
-      .set('Cookie', organiser.cookie)
-      .send({ coordinatorName: 'No Id' })
-      .expect(400);
-  });
-
-  it('returns 404 when assigning a coordinator to a non-existent event', async () => {
-    const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
-    const coordinator = await createDatabaseUser('COORDINATOR', 'Demo Coordinator');
-    await request(app.getHttpServer())
-      .post(`/api/events/${randomUUID()}/assign`)
-      .set('Cookie', organiser.cookie)
-      .send({ coordinatorId: coordinator.uid, coordinatorName: coordinator.name })
-      .expect(404);
-  });
-
-  it('omits attachment dataUrl from the events list but keeps it on the detail', async () => {
+  // Parent AC (SUPPORTING): SPM-38 AC3
+  // Kills: the events list returning attachment dataUrl, or the detail route dropping dataUrl from the attachment.
+  it('EVE-REV-SUP-01 omits attachment dataUrl from the events list but keeps it on the detail', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
     const attachment = {
       id: 'att-1',
@@ -183,6 +116,7 @@ describe('Events coordinator assignment (e2e)', () => {
   // SPM-38 AC4: a coordinator the event is not assigned to gets the same 404
   // as a non-existent event when reading it through the real HTTP pipeline,
   // and an unauthenticated request is rejected before it ever reaches that check.
+  // Kills: the detail route answering 200 or 403 (not 404) to a coordinator not assigned to the event, or serving an unauthenticated request.
   it('EVE-REV-04-F returns 404 for a coordinator the event is not assigned to', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
     const coordinator = await createDatabaseUser('COORDINATOR', 'Demo Coordinator');
@@ -223,7 +157,7 @@ describe('Events coordinator assignment (e2e)', () => {
       .post('/api/auth/login')
       .send({ email, password })
       .expect(201);
-    const cookie = response.headers['set-cookie']?.find((value) =>
+    const cookie = (response.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) =>
       value.startsWith('connectsphere_session='),
     );
     if (!cookie) throw new Error('Expected a PostgreSQL authentication session cookie');

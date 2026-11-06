@@ -1,0 +1,3 @@
+test_id,file,title,line,ac,tier,tier_status,level,oracle_class,assumption_ref,kills,explained,comment_present,deterministic,result
+LEAD-REASN-08-F,backend/src/events/review/events.reject.spec.ts,LEAD-REASN-08-F labels reassignment notifications for the coordinator who receives them,470,needs review (no matrix row; family LEAD-REASN-08),Interaction,Present,Unit,SPEC,,mutants:backend-spm83/rejection(6),Yes,Yes,Yes,PASS
+LEAD-REASN-10-G,backend/src/events/review/events.reject.spec.ts,LEAD-REASN-10-G lets the Lead read and mark read only their coordinator-unavailable notifications,492,needs review (no matrix row; family LEAD-REASN-10),Isolation,Present,Unit,SPEC,,mutants:backend-spm83/rejection(6),Yes,Yes,Yes,PASS

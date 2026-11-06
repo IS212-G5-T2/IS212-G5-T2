@@ -1,0 +1,138 @@
+{
+  "story": "SPM-58",
+  "title": "Check availability and reserve equipment for events (Technical Support Staff)",
+  "note": "SPM-197 alignment pass (5 Nov 2026). Current Jira SPM-58 AC1-AC12 and Confluence matrix 33292299 (EQUIP-RESERVE-01..12, 34 PRIMARY ids; case pages 33292320, 33292340, 33259534, 33193999, 36765697, 33292367, 33226766, 33226786, 33259554, 33226806, 33292387, 33292407) are the requirements. Shared files use titleMatch EQUIP-RESERVE- so the other stories' tests in them are not in scope. The divergences between the matrix and the code are recorded as SC-SPM58-01 to SC-SPM58-06 in spec-conflicts.md and were all DECIDED by chaw678 on 2026-11-06 (keep the code, change the matrix); affected tests name the decided conflict in their comment. The 500-character Cannot Provide reason cap is SUPPORTING case 09-SUP-CAP and is part of this matrix scope. The overlap cases (02-BND-1, 03-BND-1, 05-C, 05-BND-1, 06-A, 06-B, 06-BND-1, 08-BND-1) run against a real database in backend/test/equipment-requests.e2e-spec.ts. The planning e2e is its own suite so it runs in a separate vitest process: running both real-database files in one process produced intermittent 404 and socket errors in createUser, requestOn and login.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/equipment/requests/equipment-requests.controller.spec.ts",
+        "titleMatch": "EQUIP-RESERVE-"
+      },
+      {
+        "glob": "backend/src/equipment/requests/equipment-requests.repository.spec.ts",
+        "titleMatch": "EQUIP-RESERVE-"
+      },
+      {
+        "glob": "backend/src/equipment/requests/equipment-requests.service.spec.ts",
+        "titleMatch": "EQUIP-RESERVE-"
+      },
+      {
+        "glob": "backend/src/events/planning/event-planning.repository.spec.ts",
+        "titleMatch": "EQUIP-RESERVE-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/equipment-requests.e2e-spec.ts",
+        "titleMatch": "EQUIP-RESERVE-"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/equipment/pages/EquipmentPage.test.tsx",
+        "titleMatch": "EQUIP-RESERVE-"
+      },
+      {
+        "glob": "frontend/src/features/equipment/pages/requests/EquipmentRequestsPage.test.tsx",
+        "titleMatch": "EQUIP-RESERVE-"
+      }
+    ],
+    "backend-e2e-planning": [
+      {
+        "glob": "backend/test/events-planning.http.e2e-spec.ts",
+        "titleMatch": "EQUIP-RESERVE-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/equipment/requests/equipment-requests.controller.ts",
+      "backend/src/equipment/requests/equipment-requests.repository.ts",
+      "backend/src/equipment/requests/equipment-requests.service.ts",
+      "backend/src/events/planning/event-planning.repository.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/equipment/pages/EquipmentPage.tsx",
+      "frontend/src/features/equipment/pages/requests/EquipmentRequestsPage.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "backend-e2e-planning",
+      "cwd": "backend",
+      "tests": "backend-e2e-planning",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-equipment-reserve",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm58.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm58.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-equipment-reserve",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm58.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm58.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

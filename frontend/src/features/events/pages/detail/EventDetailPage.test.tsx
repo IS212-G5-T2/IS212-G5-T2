@@ -1,0 +1,866 @@
+import { StrictMode } from "react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { EventDetailPage } from "@/features/events/pages/detail/EventDetailPage";
+import { useAppStore } from "@/store/useAppStore";
+import { deferred } from "@/test/deferred";
+import { api } from "@/utils/api";
+import type { EventRecord } from "@/types";
+
+vi.mock("@/utils/api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  api: vi.fn(),
+}));
+
+const apiMock = vi.mocked(api);
+
+function assignedEvent(): EventRecord {
+  const start = new Date();
+  start.setDate(start.getDate() + 7);
+  start.setHours(18, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(21, 0, 0, 0);
+
+  return {
+    id: "00000000-0000-4000-8000-000000000036",
+    name: "Welcome Evening",
+    purpose: "Community building",
+    description: "A welcome event for new members.",
+    organiserId: "current-user",
+    organiserName: "Demo Organiser",
+    coordinatorId: "coordinator-1",
+    coordinatorName: "Demo Coordinator",
+    status: "submitted",
+    startDateTime: start.toISOString(),
+    endDateTime: end.toISOString(),
+    expectedAttendance: 80,
+    venueRequirements: {
+      minCapacity: 80,
+      layout: "Banquet",
+      facilities: ["Catering"],
+      accessibility: ["Wheelchair ramps"],
+    },
+    attachments: [
+      {
+        id: "attachment-1",
+        name: "proposal.txt",
+        type: "text/plain",
+        size: 8,
+        dataUrl: "data:text/plain;base64,cHJvcG9zYWw=",
+      },
+    ],
+    equipmentNeeds: "Two microphones",
+    registrationEnabled: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  useAppStore.setState({
+    currentUser: {
+      id: "coordinator-1",
+      name: "Demo Coordinator",
+      email: "coordinator@example.test",
+      role: "coordinator",
+    },
+    events: [],
+  });
+  // jsdom does not implement the Blob-object-URL APIs the fixed "View" action
+  // relies on (see EventDetailPage.tsx's openAttachmentPreview).
+  window.URL.createObjectURL = vi.fn(() => "blob:mock-url");
+  window.URL.revokeObjectURL = vi.fn();
+});
+
+describe("EventDetailPage", () => {
+  /** SAFETY-OUTCOME-06: an unsaved registration edit in the real event-detail flow disables safety request until the draft is reverted. */
+  it("SAFETY-OUTCOME-06 connects registration drafts to the event safety request gate", async () => {
+    const event = { ...assignedEvent(), status: 'planning' as const };
+    const planning = {
+      event, venueBookings: [], equipmentArrangements: [], pendingChanges: [],
+      readOnly: false, editableFields: [], lastUpdatedAt: '2026-10-01T00:00:00.000Z',
+    };
+    const readiness = {
+      eventId: event.id, ready: true, outstanding: [],
+      checklist: {
+        venue: { status: 'confirmed', items: [{ id: 'booking-1', venueName: 'Main Hall', status: 'confirmed' }] },
+        equipment: { required: true, status: 'confirmed', items: [{ id: 'reservation-1', name: 'Projector', quantity: 1, status: 'confirmed' }], confirmedByCoordinator: false },
+        safetyCheck: { status: 'not_requested' },
+        registration: { enabled: false, status: 'confirmed' },
+        canRequestSafetyCheck: true, blocking: [],
+      },
+    };
+    apiMock.mockImplementation((path: string) => {
+      if (path.includes('/comments')) return Promise.resolve([]);
+      if (path.endsWith('/planning/history')) return Promise.resolve([]);
+      if (path.endsWith('/planning')) return Promise.resolve(planning);
+      if (path.endsWith('/arrangements-status')) return Promise.resolve(readiness);
+      if (path.endsWith('/registration-settings')) return Promise.resolve({
+        eventId: event.id, registrationEnabled: false, registrationOpensAt: null,
+        registrationClosesAt: null, capacity: 1, confirmedCount: 0, version: 0,
+      });
+      return Promise.resolve(event);
+    });
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+          <Routes>
+            <Route path="/events/:id" element={<EventDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Welcome Evening' })).toBeTruthy();
+    const requestButton = await screen.findByRole('button', { name: 'Request For Safety Check' });
+    await screen.findByRole('tab', { name: /Registration/ });
+    expect(await screen.findByRole('button', { name: 'Request For Safety Check' })).toBeEnabled();
+    await screen.findByRole('tab', { name: /Registration/ }).then((tab) => fireEvent.click(tab));
+    const enabled = await screen.findByRole('checkbox', { name: 'Registration enabled' });
+    fireEvent.click(enabled);
+    expect(await screen.findByText('Save or restore the Registration settings before requesting the safety check.')).toBeTruthy();
+    expect(requestButton).toBeDisabled();
+
+    fireEvent.click(enabled);
+    await screen.findByRole('button', { name: 'Request For Safety Check' }).then((button) => expect(button).toBeEnabled());
+  });
+
+  // SPM-38 Test Case EVE-REV-03-A
+  // Kills: the attachment list missing its View button, or the Download link lacking the file name or the data URL as href.
+  it("shows attached files with view and download actions", async () => {
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.getByText("Attached files")).toBeTruthy();
+    expect(screen.getByText("proposal.txt")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "View" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Download" })).toHaveProperty(
+      "download",
+      "proposal.txt",
+    );
+    expect(screen.getByRole("link", { name: "Download" })).toHaveProperty(
+      "href",
+      "data:text/plain;base64,cHJvcG9zYWw=",
+    );
+  });
+
+  // SPM-38 Test Case EVE-REV-03-B: Chrome/Firefox block top-level navigation
+  // of a link to a data: URL, so "View" previously opened nothing in a real
+  // browser (only jsdom's laxer <a href> checks made the old test pass). The
+  // fix converts the attachment to a Blob object URL before opening it.
+  // Kills: View opening the raw data: URL instead of a Blob object URL, or the Blob type not text/plain.
+  it("EVE-REV-03-B opens the attachment as a Blob object URL instead of navigating to the raw data: URL", async () => {
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+    expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1);
+    const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
+    expect(blob).toBeInstanceOf(Blob);
+    expect((blob as Blob).type).toBe("text/plain");
+    expect(openSpy).toHaveBeenCalledWith("blob:mock-url", "_blank", "noopener,noreferrer");
+  });
+
+  // SPM-38 Test Case EVE-REV-03-C: an event with no attachments shows a plain
+  // fallback and never renders View/Download controls.
+  // Kills: an event with no attachments showing View or Download controls, or not showing 'None specified'.
+  it("EVE-REV-03-C shows None specified and no view/download controls when there are no attachments", async () => {
+    const event = { ...assignedEvent(), attachments: [] };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.getByText("Attached files").nextElementSibling).toHaveTextContent(
+      "None specified",
+    );
+    expect(screen.queryByRole("button", { name: "View" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Download" })).toBeNull();
+  });
+
+  // SPM-38 Test Case EVE-REV-03-D: openAttachmentPreview falls back to the
+  // attachment's own `type` field when the data: URL header doesn't carry a
+  // recognizable `;base64` marker to extract a MIME type from.
+  // Kills: a missing MIME type in the data URL leaving the Blob type empty or defaulted to text/plain instead of the recorded type.
+  it("EVE-REV-03-D falls back to the attachment's type when the data URL has no extractable MIME type", async () => {
+    const event = {
+      ...assignedEvent(),
+      attachments: [
+        {
+          id: "attachment-2",
+          name: "notes.bin",
+          type: "application/octet-stream",
+          size: 4,
+          dataUrl: "data:base64,cHJvcG9zYWw=",
+        },
+      ],
+    };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+    const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
+    expect((blob as Blob).type).toBe("application/octet-stream");
+  });
+
+  // Parent AC (SUPPORTING): SPM-38 AC3
+  // SPM-38 Test Case EVE-REV-03-E: when the data URL has no MIME type, the
+  // preview uses the attachment's recorded type, not the generic default. A
+  // distinctive type makes it obvious if the recorded type is ignored.
+  // Kills: the generic octet-stream default used instead of the recorded application/x-notes type.
+  it("EVE-REV-03-E opens the attachment with its recorded type when the data URL has no MIME type", async () => {
+    // Arrange: an attachment with a distinctive recorded type and a data URL with no MIME type.
+    const event = {
+      ...assignedEvent(),
+      attachments: [
+        {
+          id: "attachment-5",
+          name: "notes.x-notes",
+          type: "application/x-notes",
+          size: 4,
+          dataUrl: "data:base64,cHJvcG9zYWw=",
+        },
+      ],
+    };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Act: open the attachment.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+    // Assert: the Blob handed to the browser carries the recorded type.
+    const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
+    expect((blob as Blob).type).toBe("application/x-notes");
+  });
+
+  // Parent AC (SUPPORTING): SPM-38 AC3
+  // SPM-38 Test Case EVE-REV-03-F: when the data URL has no MIME type and the
+  // attachment records no type either, the preview uses the generic
+  // application/octet-stream type. The upload helper always records a type, so
+  // this covers an event record returned by the API without one.
+  // Kills: an empty recorded type replaced by a type other than application/octet-stream.
+  it("EVE-REV-03-F uses the generic application/octet-stream type when neither the data URL nor the attachment has a type", async () => {
+    // Arrange: an attachment with an empty recorded type and a data URL with no MIME type.
+    const event = {
+      ...assignedEvent(),
+      attachments: [
+        {
+          id: "attachment-3",
+          name: "unknown.dat",
+          type: "",
+          size: 4,
+          dataUrl: "data:base64,cHJvcG9zYWw=",
+        },
+      ],
+    };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Act: open the attachment.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+    // Assert: the Blob handed to the browser has the generic type.
+    const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
+    expect((blob as Blob).type).toBe("application/octet-stream");
+  });
+
+  // Parent AC (SUPPORTING): SPM-38 AC3
+  // SPM-38 Test Case EVE-REV-03-G: the temporary link made for the preview is
+  // released 60 seconds after opening, not sooner and not never.
+  // Kills: the preview link revoked before 60 seconds (at 59,999 ms) or never revoked.
+  it("EVE-REV-03-G releases the preview's temporary link 60 seconds after the attachment opens", async () => {
+    // Arrange: render the event and open its attachment on the real clock.
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+
+    // Take control of the timer before the click so the 60-second release can be advanced by hand.
+    vi.useFakeTimers();
+    try {
+      // Act: open the attachment.
+      fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+      // Assert: the link is still in use just before 60 seconds have passed.
+      vi.advanceTimersByTime(59_999);
+      expect(window.URL.revokeObjectURL).not.toHaveBeenCalled();
+
+      // Assert: at 60 seconds the same link that was opened is released.
+      vi.advanceTimersByTime(1);
+      expect(window.URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+      expect(window.URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+    } finally {
+      // Restore real timers so the fake clock cannot leak into other tests.
+      vi.useRealTimers();
+    }
+  });
+
+  // Parent AC (SUPPORTING): SPM-38 AC1
+  // SPM-38 Test Case EVE-REV-01-C: StrictMode runs the load effect twice, so
+  // the first event load is superseded. If that stale load succeeds late, its
+  // event data must not replace what the user is waiting for.
+  // Kills: a superseded load's late data replacing the current event in the page or in the store.
+  it("EVE-REV-01-C ignores a superseded event load that succeeds after a newer load", async () => {
+    // Arrange: two pending event loads; the first one is superseded by the second.
+    const event = assignedEvent();
+    const stale = deferred<EventRecord>();
+    const current = deferred<EventRecord>();
+    const eventLoads: Promise<EventRecord>[] = [stale.promise, current.promise];
+    apiMock.mockImplementation((path: string) => {
+      if (path !== `/events/${event.id}`) return Promise.resolve([]);
+      return eventLoads.shift() ?? Promise.resolve(event);
+    });
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+          <Routes>
+            <Route path="/events/:id" element={<EventDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    expect(apiMock.mock.calls.filter(([path]) => path === `/events/${event.id}`)).toHaveLength(2);
+
+    // Act: settle only the superseded load with a different event name.
+    await act(async () => {
+      stale.resolve({ ...event, name: "Superseded Event" });
+      await stale.promise;
+    });
+
+    // Assert: the page still shows loading, and the stale data is neither shown nor stored.
+    expect(screen.getByText("Loading event…")).toBeTruthy();
+    expect(screen.queryByText("Superseded Event")).toBeNull();
+    expect(useAppStore.getState().events).toEqual([]);
+
+    // Act: settle the current load.
+    await act(async () => {
+      current.resolve(event);
+      await current.promise;
+    });
+
+    // Assert: the current event is shown.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByText("Superseded Event")).toBeNull();
+  });
+
+  // Parent AC (SUPPORTING): SPM-38 AC1
+  // SPM-38 Test Case EVE-REV-01-D: if a superseded event load fails late, its
+  // error must not be shown while the current load is still in progress.
+  // Kills: a superseded load's failure shown as an alert while the current load is still pending.
+  it("EVE-REV-01-D does not show a load error from a superseded event load that fails late", async () => {
+    // Arrange: two pending event loads; the first one is superseded by the second.
+    const event = assignedEvent();
+    const stale = deferred<EventRecord>();
+    const current = deferred<EventRecord>();
+    const eventLoads: Promise<EventRecord>[] = [stale.promise, current.promise];
+    apiMock.mockImplementation((path: string) => {
+      if (path !== `/events/${event.id}`) return Promise.resolve([]);
+      return eventLoads.shift() ?? Promise.resolve(event);
+    });
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+          <Routes>
+            <Route path="/events/:id" element={<EventDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    expect(apiMock.mock.calls.filter(([path]) => path === `/events/${event.id}`)).toHaveLength(2);
+
+    // Act: settle only the superseded load with a failure.
+    await act(async () => {
+      stale.reject(new Error("Network offline."));
+      await stale.promise.catch(() => undefined);
+    });
+
+    // Assert: the page still shows loading and no alert is shown.
+    expect(screen.getByText("Loading event…")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    // Act: settle the current load.
+    await act(async () => {
+      current.resolve(event);
+      await current.promise;
+    });
+
+    // Assert: the current event is shown with no error.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // Parent AC (SUPPORTING): SPM-36 AC7
+  // SPM-36 EVE-CRE-07-C: straight after submitting, the page must not offer "← Back": history -1 is
+  // the form that was just submitted. The success banner links on instead.
+  // Kills: the Back button shown straight after submission (the submitted navigation state ignored).
+  it("EVE-CRE-07-C hides the Back button right after a request is submitted", async () => {
+    // Arrive the way EventCreatePage navigates after a successful submit.
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
+    render(
+      <MemoryRouter initialEntries={[{ pathname: `/events/${event.id}`, state: { submitted: true } }]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // The success banner and its link are shown, but no Back button.
+    expect(await screen.findByText("Your event request was submitted successfully.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View My Events" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Back/ })).toBeNull();
+  });
+
+  // Parent AC (SUPPORTING): SPM-36 AC7
+  // Opening an event normally (not straight from submitting) keeps "← Back".
+  // Kills: the Back button missing when an event is opened normally, or the success banner shown without a submission.
+  it("EVE-CRE-07-D keeps the Back button when the event is opened normally", async () => {
+    // Arrive without the post-submission state.
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // No success banner, and Back is available.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByText("Your event request was submitted successfully.")).toBeNull();
+    expect(screen.getByRole("button", { name: /Back/ })).toBeTruthy();
+  });
+
+  // Parent AC (SUPPORTING): SPM-36 AC7
+  // "← Back" returns to whichever page the user came from.
+  // Kills: Back navigating to the wrong route or not returning to the previous page in history.
+  it("EVE-CRE-07-E takes the user back to the previous page when Back is clicked", async () => {
+    // Arrange: history is the events list, then this event's detail page.
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
+    render(
+      <MemoryRouter initialEntries={["/events", `/events/${event.id}`]} initialIndex={1}>
+        <Routes>
+          <Route path="/events" element={<p>Events list page</p>} />
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+
+    // Act: click Back.
+    fireEvent.click(screen.getByRole("button", { name: /Back/ }));
+
+    // Assert: the previous page (the events list) is shown again.
+    expect(await screen.findByText("Events list page")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
+  });
+
+  // SPM-38 AC5 / SPM-123: coordinators are assigned by the Event Coordinator
+  // Lead from the Assignment Queue, so there is no manual "claim this request"
+  // control for coordinators to see or use on the event page.
+  // Kills: a manual coordinator-assignment control (Assign Myself) rendered on the event page.
+  it("SPM-38 EVE-REV-05-E never renders a manual coordinator-assignment control", async () => {
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
+  });
+
+  // The coordinator "Edit" button only updated local browser state (no
+  // backend persistence existed for it), so an organiser viewing the same
+  // event never saw the change. Removed for this sprint; real post-submission
+  // editing is tracked separately under "Edit Event Details".
+  // Kills: an Edit control shown to the assigned coordinator on a submitted request.
+  it("does not show an Edit control to the assigned coordinator on a submitted request", async () => {
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+
+  // SPM-37 follow-up: submitting a draft must not pick a coordinator.
+  // Kills: submitEvent assigning a coordinator, omitting the submission notification, or changing its wording.
+  it("leaves a submitted draft unassigned and sends only a submission notification", () => {
+    // Start with a new draft and an empty notification list.
+    useAppStore.setState({ events: [], notifications: [] });
+    const draft = useAppStore.getState().createDraftEvent({ name: "Manual assignment" });
+    // Submit without taking the separate assignment action.
+    useAppStore.getState().submitEvent(draft.id);
+    // Submission is visible to coordinators without an assignment notification.
+    const state = useAppStore.getState();
+    expect(state.events[0].status).toBe("submitted");
+    expect(state.events[0].coordinatorId).toBeUndefined();
+    expect(state.events[0].coordinatorName).toBeUndefined();
+    expect(state.notifications).toHaveLength(1);
+    expect(state.notifications[0]).toMatchObject({
+      type: "submission", message: '"Manual assignment" was submitted for review.',
+    });
+  });
+
+  // SPM-38 Test Case EVE-REV-04-E: the backend now returns a real 404 for a
+  // coordinator the event isn't assigned to (see events.service.spec.ts for
+  // the server-side enforcement), so the page must surface that as an error
+  // rather than rendering event details it should never have received.
+  // Kills: event details rendered (heading shown) when the backend denies access, instead of the error alert.
+  it("EVE-REV-04-E shows an error instead of event details when the backend denies access", async () => {
+    apiMock.mockRejectedValue(new Error("Event not found."));
+
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator-other",
+        name: "Other Coordinator",
+        email: "other@example.test",
+        role: "coordinator",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/events/00000000-0000-4000-8000-000000000036"]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Event not found.");
+    expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
+  });
+
+  // SPM-83 builds the approve/reject decision controls behind the Review Event
+  // entrypoint, replacing the SPM-37 "not available yet" placeholder. Full
+  // coverage of the reject workflow lives in EventDetailPage.decision.test.tsx.
+  // Kills: Review Event not revealing both Approve and Reject radios with Submit Decision, or the 'not available yet' placeholder still shown.
+  it("reveals approve/reject decision controls when the assigned coordinator opens Review Event", async () => {
+    // Load a request already assigned to the signed-in coordinator.
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
+
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator-1",
+        name: "Demo Coordinator",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+    });
+
+    // Open the event detail page.
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    // The review entrypoint is present and enabled; clicking it now reveals the
+    // approve/reject decision controls (no more "not available yet" placeholder).
+    const reviewButton = screen.getByRole("button", { name: "Review Event" });
+    expect(reviewButton).toHaveProperty("disabled", false);
+    fireEvent.click(reviewButton);
+    expect(screen.queryByText("Event review is not available yet.")).toBeNull();
+    expect(screen.getByRole("radio", { name: "Approve" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Reject" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Submit Decision" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
+  });
+
+  // Kills: approval not POSTed to the approve route, the status not updated to approved, or Submit Decision still shown after approval.
+  it("persists an approval and updates the event after Submit Decision", async () => {
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) => {
+      if (path.includes("/comments")) return Promise.resolve([]);
+      if (path.endsWith("/approve")) return Promise.resolve({ ...event, status: "approved" });
+      return Promise.resolve(event);
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Review Event" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit Decision" }));
+
+    expect(apiMock).toHaveBeenCalledWith(
+      `/events/${event.id}/approve`,
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(await screen.findByText("approved")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Submit Decision" })).toBeNull();
+  });
+
+  // Kills: venue staff shown the details of an unapproved submitted request instead of the access restriction.
+  it("restricts venue staff from accessing unapproved submitted requests", async () => {
+    const event = assignedEvent();
+    apiMock.mockResolvedValue(event);
+
+    useAppStore.setState({
+      currentUser: {
+        id: "venue-1",
+        name: "Venue Staff",
+        email: "venue@example.test",
+        role: "venue_staff",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText(/Access restricted: Venue and technical support staff cannot access unapproved submitted requests/i),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
+  });
+
+  // Kills: tech support shown the details of an unapproved submitted request instead of the access restriction.
+  it("restricts tech support staff from accessing unapproved submitted requests", async () => {
+    const event = assignedEvent();
+    apiMock.mockResolvedValue(event);
+
+    useAppStore.setState({
+      currentUser: {
+        id: "tech-1",
+        name: "Tech Support",
+        email: "tech@example.test",
+        role: "tech_support",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText(/Access restricted: Venue and technical support staff cannot access unapproved submitted requests/i),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
+  });
+
+  // Kills: the Venue field showing a local value rather than the server venue text, including the '(pending)' label.
+  /** The detail page's Venue field shows the venue text the server sent, including the "(pending)" label. */
+  it("shows the server venue text, including a pending label, in the Venue field", async () => {
+    const event = { ...assignedEvent(), venueName: "Breakout Room 1 (pending)" };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    const venueTerm = screen.getByText("Venue", { selector: "dt" });
+    expect(venueTerm.nextElementSibling).toHaveTextContent("Breakout Room 1 (pending)");
+  });
+
+  // Kills: an event with no venue rendered blank or with another label instead of 'Not yet booked'.
+  /** An event with no venue shows the Not yet booked text in the Venue field. */
+  it("CONFIRM-EVENT-SUP-42 shows Not yet booked in the Venue field when the event has no venue", async () => {
+    const event = { ...assignedEvent(), venueName: undefined };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    const venueTerm = screen.getByText("Venue", { selector: "dt" });
+    expect(venueTerm.nextElementSibling).toHaveTextContent("Not yet booked");
+  });
+
+  function renderEvent(event: EventRecord) {
+    return render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  /** The organiser of a draft sees Edit and Submit For Review; submitting moves the event to submitted. */
+  it("lets an organiser submit a draft for review", async () => {
+    const event = { ...assignedEvent(), status: "draft" as const };
+    useAppStore.setState({
+      currentUser: { id: "current-user", name: "Demo Organiser", email: "o@example.test", role: "organiser" },
+    });
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    renderEvent(event);
+
+    expect(await screen.findByRole("link", { name: "Edit" })).toHaveAttribute("href", `/events/${event.id}/edit`);
+    fireEvent.click(screen.getByRole("button", { name: "Submit For Review" }));
+
+    expect(useAppStore.getState().events.find((e) => e.id === event.id)?.status).toBe("submitted");
+    expect(screen.queryByRole("button", { name: "Submit For Review" })).not.toBeInTheDocument();
+  });
+
+  /** An attendee opens an attached file from the attendee view as a Blob object URL. */
+  it("opens an attachment from the attendee view as a Blob object URL", async () => {
+    const event = { ...assignedEvent(), status: "confirmed" as const };
+    useAppStore.setState({
+      currentUser: { id: "att-1", name: "Attendee", email: "a@example.test", role: "attendee" },
+      registrations: [],
+    });
+    apiMock.mockImplementation((path: string) => {
+      if (path.includes("/comments")) return Promise.resolve([]);
+      if (path.endsWith("/registrations/me")) return Promise.resolve({ registration: null });
+      return Promise.resolve(event);
+    });
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+    renderEvent(event);
+
+    fireEvent.click(await screen.findByRole("button", { name: "View" }));
+
+    const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
+    expect((blob as Blob).type).toBe("text/plain");
+    expect(openSpy).toHaveBeenCalledWith("blob:mock-url", "_blank", "noopener,noreferrer");
+  });
+
+});

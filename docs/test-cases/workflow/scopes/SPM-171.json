@@ -1,0 +1,118 @@
+{
+  "story": "SPM-171",
+  "title": "Event Cancellation Request Notification (Coordinator)",
+  "note": "Implementation pass (3 Nov 2026): 37 CANCEL-REQ-NOTIF ids, all PRIMARY and proposed with the story's tests (test-first, RED pass first); the Confluence matrix (40402962) and case pages (folder 40435715) were written on 3 Nov 2026 and the story owner chaw678 approved all ids. Shared files use titleMatch ^CANCEL-REQ-NOTIF- so the SPM-155, SPM-162 and SPM-123 tests in them are not in scope. Spec conflicts SC-SPM171-01 (previous Coordinator's notice is marked read, not deleted), -02 (type name), -03 (timestamp of a notice delivered on assignment) and -04 (SPM-155/162 cases that said filing a request notifies nobody) are DECIDED (-01 to -03 confirmed by chaw678, 3 Nov 2026). The existing SPM-155 e2e snapshot helper, CANCEL-REQUEST-05-C and 04-B, the SPM-162 e2e CANCEL-OUTCOME-03-A and 06-D, the SPM-155 unit tests CANCEL-REQUEST-01-A and 01-B and the coordinator type list in events.reject.spec.ts (LEAD-REASN-08-F) were adjusted for the new notice and are not part of this scope. linesFrom changed-lines needs the story's commits; before the first commit G5 has no owned lines.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/cancellation-requests/cancellation-request-notice.spec.ts",
+        "titleMatch": "^CANCEL-REQ-NOTIF-"
+      },
+      {
+        "glob": "backend/src/events/cancellation-request-notifications.spec.ts",
+        "titleMatch": "^CANCEL-REQ-NOTIF-"
+      },
+      {
+        "glob": "backend/src/events/cancellation-requests/cancellation-requests.service.spec.ts",
+        "titleMatch": "^CANCEL-REQ-NOTIF-"
+      },
+      {
+        "glob": "backend/src/lead/lead-assignment.service.spec.ts",
+        "titleMatch": "^CANCEL-REQ-NOTIF-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/cancellation-request-submitted-notification.e2e-spec.ts"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "^CANCEL-REQ-NOTIF-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/cancellation-requests/cancellation-request-notice.ts",
+      "backend/src/events/cancellation-requests/cancellation-request.messages.ts",
+      "backend/src/events/cancellation-requests/cancellation-requests.service.ts",
+      "backend/src/lead/lead-assignment.service.ts",
+      "backend/src/events/events.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationBell.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm171",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm171.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm171.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm171",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm171.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm171.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

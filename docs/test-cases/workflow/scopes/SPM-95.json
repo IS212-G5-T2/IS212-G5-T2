@@ -1,0 +1,37 @@
+{
+  "story": "SPM-95",
+  "title": "Filter My Events by Status (Organiser)",
+  "note": "Jira is the source for AC1-AC7. Confluence matrix 28803536 (Filter My Events by Status (Organiser) Matrix) was created 18 Oct 2026 with 17 test cases FILTER-EVT-01-A through FILTER-EVT-07-A. The scope covers the four files with new or substantially changed SPM-95 logic: organiserStatusFilter.ts (new), StatusLabels.tsx (safetyCheckReady predicate added, Awaiting Equipment Request branch for empty equipment removed), StatusIndicators.tsx (SafetyIndicator now uses safetyCheckReady), and EventListPage.tsx (organiser CheckboxGroup filter). EventCard.tsx and EventDetailPage.tsx each had only 2-3 lines removed (AssignmentIndicator usage) and are excluded: their coverage is owned by SPM-94 (the reassignedFrom branches in EventCard are pre-existing SPM-94 code). AC6 (only own events shown) is server-enforced by SPM-38; the frontend test FILTER-EVT-06-A verifies that filtering makes no additional API request, which is the correct frontend gate for a server-side authz boundary. The mutants in spm95.mutants.mjs are M1-M8 covering the empty-set guard, OR vs AND logic, safetyCheckReady gate, AWAITING_CHECK indicator check, safetyCheckReady no-equipment vacuous truth, active-filter display, no-match message, and useState local reset semantics.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+  "tests": {
+    "frontend": [
+      { "glob": "frontend/src/features/events/lib/organiserStatusFilter.test.ts", "titleMatch": "FILTER-EVT-" },
+      { "glob": "frontend/src/features/events/components/StatusLabels.test.tsx", "titleMatch": "TRACK-EVENT-STATUS-01-A CARD" },
+      { "glob": "frontend/src/features/events/components/StatusIndicators.test.tsx", "titleMatch": "TRACK-EVENT-STATUS-03-B" },
+      { "glob": "frontend/src/features/events/pages/list/EventListPage.test.tsx", "titleMatch": "FILTER-EVT-" },
+      { "glob": "frontend/src/features/events/pages/list/EventListPage.planning.test.tsx" }
+    ]
+  },
+  "sources": {
+    "frontend": [
+      "frontend/src/features/events/lib/organiserStatusFilter.ts",
+      "frontend/src/features/events/components/StatusLabels.tsx",
+      "frontend/src/features/events/components/StatusIndicators.tsx",
+      "frontend/src/features/events/pages/list/EventListPage.tsx"
+    ]
+  },
+  "suites": [
+    { "id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": [] }
+  ],
+  "mutation": [
+    {
+      "id": "frontend-filter-status",
+      "cwd": "frontend",
+      "command": ["node", "scripts/testing/mutation/run.mjs", "--mutants", "spm95.mutants.mjs"],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm95.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

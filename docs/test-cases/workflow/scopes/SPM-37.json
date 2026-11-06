@@ -1,0 +1,100 @@
+{
+  "story": "SPM-37",
+  "title": "Save Event Request as a Draft",
+  "note": "Scope for SPM-37 (Save Event Request as a Draft), built for the SPM-150 Sprint 1 workflow records. Matrix: ai/runtime/test-cycles/SPM-37/cycle-02/confluence-matrix-ids.txt (saved from Confluence matrix pages). Shared files are narrowed with titleMatch on the story prefix; a test without its own ID in its title is not counted (see the G1 output). Parent ACs are matrix rows, not Jira ACs, until the Requirement reviewer confirms them.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      "backend/src/event-drafts/drafts.service.spec.ts",
+      "backend/src/event-drafts/dto/draft-boundaries.spec.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/pages/drafts/DraftWorkflow.test.tsx",
+      "frontend/src/utils/api.test.ts",
+      {
+        "glob": "frontend/src/features/events/pages/create/EventCreatePage.test.tsx",
+        "titleMatch": "EVE-DRF"
+      }
+    ],
+    "backend-e2e": [
+      "backend/test/drafts.e2e-spec.ts"
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/event-drafts/drafts.service.ts",
+      "backend/src/event-drafts/drafts.controller.ts"
+    ],
+    "frontend": [
+      "frontend/src/utils/api.ts",
+      "frontend/src/features/events/pages/create/EventCreatePage.tsx",
+      "frontend/src/features/events/pages/drafts/MyRequestsPage.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm37",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm37.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm37.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    },
+    {
+      "id": "frontend-spm37",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm37.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm37.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

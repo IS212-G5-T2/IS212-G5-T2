@@ -1,0 +1,67 @@
+{
+  "story": "SPM-128",
+  "title": "Safety Officer Login",
+  "note": "Confluence matrix 36896780 (SPM-128 Safety Officer Login Matrix) and case pages 36700215, 36732954, 36896798, 36732972 are the authoritative matrix; all 15 PRIMARY IDs SAFETY-LOGIN-01-A..D, 02-A..C, 03-A..C, 04-A..E are automated. SPM-128 adds the SAFETY_OFFICER role to the frontend role model and route tree; shared files auth.ts, navConfig.ts, App.tsx use linesFrom changed-lines to measure SPM-128 owned lines.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "frontend": [
+      {
+        "glob": "frontend/src/lib/auth.test.ts",
+        "titleMatch": "SAFETY-LOGIN-"
+      },
+      {
+        "glob": "frontend/src/components/layout/navConfig.test.ts",
+        "titleMatch": "SAFETY-LOGIN-"
+      },
+      {
+        "glob": "frontend/src/app/App.test.tsx",
+        "titleMatch": "SAFETY-LOGIN-"
+      }
+    ]
+  },
+  "sources": {
+    "frontend": [
+      "frontend/src/lib/auth.ts",
+      "frontend/src/types/index.ts",
+      "frontend/src/components/layout/navConfig.ts",
+      "frontend/src/app/App.tsx",
+      "frontend/src/features/safety/pages/SafetyEventsPage.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "frontend-safety-login",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm128.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm128.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

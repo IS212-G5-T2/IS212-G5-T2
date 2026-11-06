@@ -1,0 +1,668 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventsService } from '../events.service.js';
+import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
+import { DatabaseService } from '../../database/database.service.js';
+import { coordinator, eventRow, organiser, VALID_UUID } from './review.fixtures.js';
+
+/**
+ * SPM-83 — Reject a request. Backend unit tests for the real production endpoint
+ * `EventsService.reject(id, body, currentUser)` (the method wired to
+ * `EventRejectionsController`) and the rejection-notification endpoints that let
+ * the organiser see the reason (owned by SPM-89; closest SPM-83 AC4). Confluence: EVENT-REJECT-03 (per-condition
+ * validation), EVENT-REJECT-04 (authorization + state guards), EVENT-REJECT-02-B
+ * (organiser notification).
+ */
+
+// The single message the server returns for ANY invalid reason (mirrors the
+// client's requirements block — see EVENT-REJECT-01).
+const REASON_REQUIREMENTS_MESSAGE =
+  'Please provide a reason that: is between 10 and 500 characters; ' +
+  'contains at least 3 words; and includes real words, not just numbers or symbols.';
+
+// Kills: reason validation that accepts null or a number, so the request gets past validation instead of throwing the requirements message.
+/** EVENT-REJECT-03-J: non-string reason values fail server validation before database access. */
+it.each([null, 123])(
+  'SPM-83 rejects non-string rejection reason %j',
+  (reason) => {
+    expect(() =>
+      EventsService.validateRejectionReason(reason as unknown as string),
+    ).toThrowError(REASON_REQUIREMENTS_MESSAGE);
+  },
+);
+
+const db = {
+  query: vi.fn(),
+  transaction: vi.fn(),
+  release: vi.fn(),
+  end: vi.fn(),
+};
+
+const database = {
+  query: db.query,
+  transaction: vi.fn(),
+};
+
+const VALID_REASON = 'Venue unavailable for the requested date.';
+// Notification types a coordinator reads: SPM-123 assignment, SPM-47 reassignment to and away from them.
+// SPM-136 adds EventCancelled for coordinators (assigned coordinator is notified of a cancellation).
+// SPM-64 AC3 adds the organiser's change request notice to the coordinator's feed.
+// SPM-131 adds the Safety Officer's response notice to the coordinator's feed.
+// SPM-137 adds the two venue booking decision notices (approved, rejected); SPM-165 the two tentative hold ones.
+// SPM-134 adds the four tentative hold expiry, release and conversion notices.
+// SPM-171 adds the Organiser's cancellation request notice.
+const COORDINATOR_NOTIFICATION_TYPES = [
+  'coordinator_assignment',
+  'coordinator_reassignment',
+  'coordinator_unassignment',
+  'EventCancelled',
+  'coordinator_change_request',
+  'coordinator_safety_response',
+  'venue_booking_approved',
+  'venue_booking_rejected',
+  'tentative_hold_approved',
+  'tentative_hold_rejected',
+  // SPM-134: the hold expiry reminder, expired, released and converted notices.
+  'tentative_hold_expiry_reminder',
+  'tentative_hold_expired',
+  'tentative_hold_released',
+  'tentative_hold_converted',
+  'cancellation_request_submitted',
+  // SPM-172: Technical Support reserved or could not provide the Coordinator's equipment request.
+  'equipment_request_reserved',
+  'equipment_request_cannot_provide',
+  // SPM-125 AC6 to AC9: a venue change affects one of the Coordinator's bookings.
+  'venue_unavailable_impact',
+  'venue_timing_impact',
+  'venue_capacity_impact',
+  // SPM-177: clarification notices.
+  'clarification',
+  'clarification_reply',
+  'clarification_resolved',
+];
+
+// Build a letters-only, >=3-word reason of exactly n characters (n >= 10) with no
+// leading or trailing whitespace, so its trimmed length is n as well.
+function reasonOfLength(n: number): string {
+  const prefix = 'ab cd ef '; // three words, nine characters
+  return prefix + 'g'.repeat(n - prefix.length);
+}
+
+// Wire the transaction client (client.query === db.transaction) to answer the
+// query sequence reject() runs: BEGIN, SELECT … FOR UPDATE, UPDATE, INSERT, COMMIT.
+function wireReject(selected: Record<string, unknown> | null, updated: Record<string, unknown> | null) {
+  db.transaction.mockImplementation((sql: string) => {
+    const text = sql.trim();
+    if (text.startsWith('SELECT')) return Promise.resolve({ rows: selected ? [selected] : [] });
+    if (text.startsWith('UPDATE')) return Promise.resolve({ rows: updated ? [updated] : [] });
+    return Promise.resolve({ rows: [] }); // BEGIN / INSERT / COMMIT / ROLLBACK
+  });
+}
+
+function txSql() {
+  return db.transaction.mock.calls.map((c) => String(c[0]).trim());
+}
+
+let service: EventsService;
+
+beforeEach(async () => {
+  vi.resetAllMocks();
+  db.transaction.mockResolvedValue({ rows: [] });
+  database.transaction.mockImplementation(async (work) => {
+    await db.transaction('BEGIN');
+    try {
+      const result = await work({ query: db.transaction });
+      await db.transaction('COMMIT');
+      return result;
+    } catch (error) {
+      await db.transaction('ROLLBACK');
+      throw error;
+    } finally {
+      db.release();
+    }
+  });
+
+  const module = await Test.createTestingModule({
+    providers: [EventsService, { provide: DatabaseService, useValue: database }],
+  }).compile();
+
+  service = module.get(EventsService);
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+describe('EventsService.reject (SPM-83)', () => {
+  // EVENT-REJECT-03-A — happy path (AC5 + AC6)
+  // Kills: reject that does not write Rejected, skips FOR UPDATE, writes a reason other than the one supplied to the UPDATE, or sends no organiser notification INSERT.
+  it('rejects a Submitted request: sets Rejected, records the reason, notifies the organiser', async () => {
+    wireReject(
+      eventRow({ status: 'Submitted' }),
+      eventRow({ status: 'Rejected', rejection_reason: VALID_REASON }),
+    );
+
+    const result = await service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator());
+
+    expect(result).toMatchObject({ status: 'rejected', rejectionReason: VALID_REASON });
+
+    const sql = txSql();
+    expect(sql).toContain('BEGIN');
+    expect(sql.some((s) => /FOR UPDATE/.test(s))).toBe(true);
+    expect(sql.some((s) => s.startsWith('UPDATE') && /'Rejected'/.test(s))).toBe(true);
+    expect(sql.some((s) => s.startsWith('INSERT INTO notifications'))).toBe(true);
+    expect(sql).toContain('COMMIT');
+
+    // AC5: the status + reason update carries the trimmed reason.
+    const update = db.transaction.mock.calls.find((c) => String(c[0]).trim().startsWith('UPDATE'))!;
+    expect(update[1]).toEqual([VALID_UUID, VALID_REASON]);
+    // AC6: the notification targets the organiser; its message carries the event name but not the reason (SPM-88 AC3).
+    const insert = db.transaction.mock.calls.find((c) =>
+      String(c[0]).trim().startsWith('INSERT INTO notifications'),
+    )!;
+    expect(insert[1]).toEqual([
+      expect.any(String),
+      'organiser-9',
+      expect.not.stringContaining(VALID_REASON),
+      VALID_UUID,
+    ]);
+  });
+
+  // EVENT-REJECT-SUP-04 — defensive mapping: a stored row without a reason is returned without one (record(), line 143).
+  // Kills: a stored row without a reason mapped to a non-undefined rejectionReason (null or empty string leaking through).
+  it('EVENT-REJECT-SUP-04 returns no rejection reason when the stored row has none', async () => {
+    wireReject(eventRow({ status: 'Submitted' }), eventRow({ status: 'Rejected', rejection_reason: null }));
+
+    const result = await service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator());
+
+    expect(result.rejectionReason).toBeUndefined();
+  });
+
+  // EVENT-REJECT-03-B — empty / whitespace-only
+  // Kills: reason validation that accepts a missing, empty or whitespace-only reason, or opens a transaction before validating.
+  it('rejects an empty or whitespace-only reason before opening a transaction', async () => {
+    await expect(service.reject(VALID_UUID, {}, coordinator())).rejects.toThrow(
+      REASON_REQUIREMENTS_MESSAGE,
+    );
+    await expect(service.reject(VALID_UUID, { reason: '   ' }, coordinator())).rejects.toThrow(
+      REASON_REQUIREMENTS_MESSAGE,
+    );
+    await expect(service.reject(VALID_UUID, {}, coordinator())).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // Kills: a minimum-length check that accepts 'no fit ok' (9 characters) or rejects exactly 10 characters (< and <= confused).
+  /** EVENT-REJECT-03-C — below minimum length (<10) */
+  it('rejects a too-short reason and accepts exactly 10', async () => {
+    await expect(service.reject(VALID_UUID, { reason: 'no fit ok' }, coordinator())).rejects.toThrow(
+      REASON_REQUIREMENTS_MESSAGE,
+    );
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: 'No fit yet' }));
+    await expect(
+      service.reject(VALID_UUID, { reason: 'No fit yet' }, coordinator()),
+    ).resolves.toMatchObject({ status: 'rejected' });
+  });
+
+  // Kills: a maximum-length check that accepts 501 characters or rejects exactly 500 (off-by-one).
+  /** EVENT-REJECT-03-D — above maximum length (>500) on the trimmed reason */
+  it('rejects a too-long reason and accepts exactly 500', async () => {
+    await expect(
+      service.reject(VALID_UUID, { reason: reasonOfLength(501) }, coordinator()),
+    ).rejects.toThrow(REASON_REQUIREMENTS_MESSAGE);
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    const reason500 = reasonOfLength(500);
+    wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: reason500 }));
+    await expect(
+      service.reject(VALID_UUID, { reason: reason500 }, coordinator()),
+    ).resolves.toMatchObject({ status: 'rejected' });
+  });
+
+  // Kills: length measured on the raw reason, so surrounding spaces count toward a trimmed 501-character reason that should be rejected.
+  /** EVENT-REJECT-03-D — padding is not counted: a trimmed 501 stays rejected even when padded */
+  it('rejects a padded reason whose trimmed length is 501', async () => {
+    await expect(
+      service.reject(VALID_UUID, { reason: `  ${reasonOfLength(501)}  ` }, coordinator()),
+    ).rejects.toThrow(REASON_REQUIREMENTS_MESSAGE);
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // Kills: a maximum-length check on the raw value that rejects a 504-character raw reason with a trimmed length of 500, or stores the untrimmed text.
+  /** EVENT-REJECT-03-D — raw length over 500 is accepted when the trimmed reason is exactly 500, and the stored reason is the trimmed value. */
+  it('accepts a raw reason over 500 characters whose trimmed length is 500', async () => {
+    const reason500 = reasonOfLength(500);
+    const raw = `  ${reason500}  `; // raw 504, trimmed 500
+    wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: reason500 }));
+
+    await expect(service.reject(VALID_UUID, { reason: raw }, coordinator())).resolves.toMatchObject({
+      status: 'rejected',
+    });
+    const update = db.transaction.mock.calls.find((c) => String(c[0]).trim().startsWith('UPDATE'))!;
+    expect(update[1]).toEqual([VALID_UUID, reason500]);
+  });
+
+  // Kills: a minimum-length check on the raw value, so padded 'no fit ok' passes, or the stored reason keeps its padding.
+  /** EVENT-REJECT-03-C — padded reason: trimmed 9 stays rejected, trimmed 10 is accepted and stored trimmed */
+  it('measures length on the trimmed reason for padded input', async () => {
+    await expect(
+      service.reject(VALID_UUID, { reason: '  no fit ok  ' }, coordinator()),
+    ).rejects.toThrow(REASON_REQUIREMENTS_MESSAGE);
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: 'No fit yet' }));
+    await expect(
+      service.reject(VALID_UUID, { reason: '  No fit yet  ' }, coordinator()),
+    ).resolves.toMatchObject({ status: 'rejected', rejectionReason: 'No fit yet' });
+    const update = db.transaction.mock.calls.find((c) => String(c[0]).trim().startsWith('UPDATE'))!;
+    expect(update[1]).toEqual([VALID_UUID, 'No fit yet']);
+  });
+
+  // EVENT-REJECT-03-E — fewer than 3 words
+  // Kills: a word-count check accepting two words or one word, or requiring a different number of words than three.
+  it('rejects a reason with fewer than 3 words and accepts >=3 words', async () => {
+    await expect(service.reject(VALID_UUID, { reason: 'Reason today' }, coordinator())).rejects.toThrow(
+      REASON_REQUIREMENTS_MESSAGE,
+    );
+    await expect(service.reject(VALID_UUID, { reason: 'aaaaaaaaaa' }, coordinator())).rejects.toThrow(
+      REASON_REQUIREMENTS_MESSAGE,
+    );
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: 'Venue is not available' }));
+    await expect(
+      service.reject(VALID_UUID, { reason: 'Venue is not available' }, coordinator()),
+    ).resolves.toMatchObject({ status: 'rejected' });
+  });
+
+  // EVENT-REJECT-03-F — no letters (numbers / symbols only)
+  // Kills: a letter check removed, so '123 456 7890' or '!!! ??? ...' is accepted as a reason.
+  it('rejects a reason with no letters and accepts one containing letters', async () => {
+    await expect(service.reject(VALID_UUID, { reason: '123 456 7890' }, coordinator())).rejects.toThrow(
+      REASON_REQUIREMENTS_MESSAGE,
+    );
+    await expect(service.reject(VALID_UUID, { reason: '!!! ??? ...' }, coordinator())).rejects.toThrow(
+      REASON_REQUIREMENTS_MESSAGE,
+    );
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: 'Venue is not available' }));
+    await expect(
+      service.reject(VALID_UUID, { reason: 'Venue is not available' }, coordinator()),
+    ).resolves.toMatchObject({ status: 'rejected' });
+  });
+
+  // EVENT-REJECT-03-G — id / existence guard
+  // Kills: a malformed id that opens a transaction, or an unknown id that updates the row or succeeds instead of NotFound.
+  it('guards the event id: malformed id never opens a transaction, unknown id is not found', async () => {
+    await expect(
+      service.reject('not-a-uuid', { reason: VALID_REASON }, coordinator()),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    wireReject(null, null); // SELECT … FOR UPDATE returns no row
+    await expect(
+      service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator()),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(txSql()).toContain('ROLLBACK');
+  });
+
+  // EVENT-REJECT-03-H — variation: the current lifecycle has Submitted only.
+  // Kills: a status guard that accepts the retired Under_Review status, or refuses a Submitted request.
+  it('rejects a Submitted request and refuses the retired Under_Review status', async () => {
+    wireReject(
+      eventRow({ status: 'Submitted' }),
+      eventRow({ status: 'Rejected', rejection_reason: VALID_REASON }),
+    );
+    await expect(
+      service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator()),
+    ).resolves.toMatchObject({ status: 'rejected' });
+
+    wireReject(eventRow({ status: 'Under_Review' }), null);
+    await expect(
+      service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator()),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
+  // Kills: reject that admits an organiser or anonymous caller, or opens a transaction before the role check.
+  /** EVENT-REJECT-04-B: only a coordinator may reject, before opening a transaction. */
+  it('refuses a caller who is not a coordinator, before opening a transaction', async () => {
+    await expect(
+      service.reject(VALID_UUID, { reason: VALID_REASON }, organiser()),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.reject(VALID_UUID, { reason: VALID_REASON }, undefined),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // Kills: reject that lets a non-assigned coordinator update the request, or the wrong ForbiddenException message.
+  /** EVENT-REJECT-04-B: only the coordinator assigned to the request may reject it. */
+  it('refuses a coordinator who is not the one assigned to the request', async () => {
+    wireReject(eventRow({ coordinator_id: 'coordinator-1', status: 'Submitted' }), null);
+
+    const attempt = service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator('coordinator-2'));
+    await expect(attempt).rejects.toBeInstanceOf(ForbiddenException);
+    // Wording from the Confluence case EVENT-REJECT-04-B.
+    await expect(attempt).rejects.toHaveProperty(
+      'message',
+      'Only the assigned coordinator can reject this request.',
+    );
+
+    const sql = txSql();
+    expect(sql.some((s) => s.startsWith('UPDATE'))).toBe(false);
+    expect(sql).toContain('ROLLBACK');
+  });
+});
+
+describe('EventsService.reject — state guard (EVENT-REJECT-04-C)', () => {
+  // Kills: rejection of any non-reviewable status (UPDATE runs or no ConflictException).
+  /** EVENT-REJECT-04-C: requests outside the reviewable state are refused without an update. */
+  it.each(['Approved', 'Rejected', 'Cancelled', 'Completed'])(
+    'cannot reject a %s request (Conflict, no update)',
+    async (status) => {
+      wireReject(eventRow({ status }), null);
+
+      await expect(
+        service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator()),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      const sql = txSql();
+      expect(sql.some((s) => s.startsWith('UPDATE'))).toBe(false);
+      expect(sql).toContain('ROLLBACK');
+    },
+  );
+});
+
+describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () => {
+  const notificationRow = {
+    id: 'notif-1',
+    recipient_id: 'current-user',
+    type: 'rejection',
+    message: `Your event request "Welcome Evening" was rejected`,
+    related_event_id: VALID_UUID,
+    read: false,
+    created_at: new Date('2026-09-14T00:00:00.000Z'),
+  };
+
+  // Kills: notifications() dropping the rejection type, the headline, audience or read flag, or querying the wrong notification types.
+  /** EVENT-REJECT-03-I step 1–2: the organiser retrieves their rejection notification (the reason is on the event, SPM-88 AC3). */
+  it("returns the organiser's rejection notifications without the reason in the message", async () => {
+    db.query.mockResolvedValue({ rows: [notificationRow] });
+
+    const result = await service.notifications(organiser());
+
+    expect(result[0]).toMatchObject({
+      type: 'rejection',
+      audienceUserId: 'current-user',
+      relatedEventId: VALID_UUID,
+      read: false,
+    });
+    expect(result[0].message).toBe('Your event request "Welcome Evening" was rejected');
+    expect(result[0].message).not.toContain(VALID_REASON);
+    // The organiser's query asks only for their decision notification types.
+    expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied', 'cancellation_request_accepted', 'cancellation_request_declined', 'clarification', 'clarification_reply', 'clarification_resolved']]);
+  });
+
+  // Coordinators may now read their own assignment notifications (SPM-123), so
+  // the non-organiser here is a venue staff account, who has no notifications.
+  // Kills: notifications() that serves a venue-staff caller, or queries the database before the organiser check.
+  /** EVENT-REJECT-03-I step 4: another user cannot retrieve the organiser's notification. */
+  it('refuses a non-organiser caller and does not query', async () => {
+    await expect(
+      service.notifications({ uid: 'venue-1', roles: ['VENUE_STAFF'] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  // Kills: readNotification that returns a different success shape, or does not scope the update to the caller.
+  /** EVENT-REJECT-03-I step 3: the organiser can mark their rejection notification as read. */
+  it('marks a rejection notification as read', async () => {
+    db.query.mockResolvedValue({ rows: [{ id: 'notif-1' }] });
+    await expect(service.readNotification(VALID_UUID, organiser())).resolves.toEqual({
+      success: true,
+    });
+  });
+
+  // Kills: readNotification that reports success for an unknown notification id instead of throwing NotFound.
+  /** EVENT-REJECT-03-I step 4: an unknown notification returns NotFound. */
+  it('returns not found when marking an unknown notification', async () => {
+    db.query.mockResolvedValue({ rows: [] });
+    await expect(service.readNotification(VALID_UUID, organiser())).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+});
+
+describe('SPM-123 AC10: rejecting keeps the assigned coordinator', () => {
+  // Parent AC (SUPPORTING): SPM-123 AC10 (to confirm) (story reassigned on 23 Oct 2026)
+  // Rejection changes status and reason only; the coordinator stays on the event.
+  // Kills: rejection that writes coordinator_id or coordinator_name in the UPDATE, or a result that drops coordinatorId.
+  it('LEAD-ASN-10-B keeps the coordinator when a request is rejected', async () => {
+    // Arrange: an assigned, submitted request.
+    wireReject(
+      eventRow({ status: 'Submitted' }),
+      eventRow({ status: 'Rejected', rejection_reason: VALID_REASON }),
+    );
+
+    // Act: the assigned coordinator rejects it.
+    const result = await service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator());
+
+    // Assert: the update never writes the coordinator columns, and the result keeps them.
+    const update = txSql().find((s) => s.startsWith('UPDATE'))!;
+    expect(update).not.toMatch(/coordinator_(id|name)/);
+    expect(result).toMatchObject({ status: 'rejected', coordinatorId: 'coordinator-1' });
+  });
+});
+
+describe('SPM-123 AC9: coordinator assignment notifications', () => {
+  const assignmentRow = {
+    id: 'notif-9',
+    recipient_id: 'coordinator-1',
+    type: 'coordinator_assignment',
+    message: 'New event request "Welcome Evening" is awaiting your review.',
+    related_event_id: VALID_UUID,
+    read: false,
+    created_at: new Date('2026-10-06T00:00:00.000Z'),
+  };
+
+  // Parent AC (SUPPORTING): SPM-123 AC9 (to confirm) (story reassigned on 23 Oct 2026)
+  // A coordinator sees only their own assignment notifications and can mark them read.
+  // Kills: coordinator notifications not scoped to the coordinator uid or the assignment type, or another coordinator's notification marked read.
+  it('LEAD-ASN-09-C lets a coordinator read and mark read only their own assignment notifications', async () => {
+    // Arrange: the coordinator has one assignment notification.
+    db.query.mockResolvedValueOnce({ rows: [assignmentRow] });
+
+    // Act: read notifications.
+    const result = await service.notifications(coordinator());
+
+    // Assert: labelled for the coordinator, and the query is scoped to them and to the assignment type.
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'notif-9',
+        audienceRole: 'coordinator',
+        type: 'coordinator_assignment',
+        relatedEventId: VALID_UUID,
+        read: false,
+      }),
+    ]);
+    const [recipient, types] = db.query.mock.calls[0][1];
+    expect(recipient).toBe('coordinator-1');
+    expect(types).toContain('coordinator_assignment');
+
+    // Act + Assert: marking read is scoped the same way.
+    db.query.mockResolvedValueOnce({ rows: [{ id: 'notif-9' }] });
+    await expect(service.readNotification(VALID_UUID, coordinator())).resolves.toEqual({ success: true });
+    const [notificationId, readBy, readTypes] = db.query.mock.calls[1][1];
+    expect([notificationId, readBy]).toEqual([VALID_UUID, 'coordinator-1']);
+    expect(readTypes).toContain('coordinator_assignment');
+
+    // Assert: an organiser's query still asks only for their decision types.
+    db.query.mockResolvedValueOnce({ rows: [] });
+    await service.notifications(organiser());
+    expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied', 'cancellation_request_accepted', 'cancellation_request_declined', 'clarification', 'clarification_reply', 'clarification_resolved']]);
+  });
+});
+
+describe('SPM-47 AC8 and AC10: notifications for reassignment', () => {
+  // Parent AC (SUPPORTING): SPM-47 AC8 (story reassigned on 23 Oct 2026)
+  // Coordinators see reassignment to and away from them as coordinator notifications.
+  // Kills: reassignment notifications given the wrong audience role, or the query missing one of the three coordinator notification types.
+  it('LEAD-REASN-08-F labels reassignment notifications for the coordinator who receives them', async () => {
+    // Arrange: one notification of each reassignment type.
+    const row = { recipient_id: 'coordinator-1', related_event_id: VALID_UUID, read: false, created_at: new Date('2026-10-07T09:00:00.000Z') };
+    db.query.mockResolvedValueOnce({
+      rows: [
+        { ...row, id: 'notif-1', type: 'coordinator_reassignment', message: 'Event "Welcome Evening" has been reassigned to you.' },
+        { ...row, id: 'notif-2', type: 'coordinator_unassignment', message: 'Event "Spring Gala" has been reassigned to Coordinator 2.' },
+      ],
+    });
+
+    // Act: the coordinator reads notifications.
+    const result = await service.notifications(coordinator());
+
+    // Assert: the query asks for all three coordinator types, and both are labelled for the coordinator.
+    expect(db.query.mock.calls[0][1]).toEqual(['coordinator-1', COORDINATOR_NOTIFICATION_TYPES]);
+    expect(result.map((n) => [n.type, n.audienceRole])).toEqual([
+      ['coordinator_reassignment', 'coordinator'],
+      ['coordinator_unassignment', 'coordinator'],
+    ]);
+  });
+
+  // Parent AC (SUPPORTING): SPM-47 AC10 (story reassigned on 23 Oct 2026)
+  // The Lead reads only notifications about coordinators becoming unavailable, and can mark them read.
+  // Kills: the Lead's notification query widened to other types or recipients, or audienceRole not labelled coordinator_lead.
+  it("LEAD-REASN-10-G lets the Lead read and mark read only their coordinator-unavailable notifications", async () => {
+    // Arrange: the Lead has one such notification.
+    const lead: AuthenticatedUser = { uid: 'lead-1', roles: ['COORDINATOR_LEAD'], email: 'lead@example.test', name: 'Coordinator Lead' };
+    db.query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'notif-3',
+          recipient_id: 'lead-1',
+          type: 'coordinator_unavailable',
+          message: 'Coordinator One is now unavailable and has 3 active events that may need reassignment.',
+          related_event_id: null,
+          read: false,
+          created_at: new Date('2026-10-07T09:00:00.000Z'),
+        },
+      ],
+    });
+
+    // Act: the Lead reads notifications.
+    const result = await service.notifications(lead);
+
+    // Assert: labelled for the Lead, and the query is scoped to them and that type.
+    expect(result).toEqual([
+      expect.objectContaining({ id: 'notif-3', audienceRole: 'coordinator_lead', type: 'coordinator_unavailable', read: false }),
+    ]);
+    expect(db.query.mock.calls[0][1]).toEqual(['lead-1', ['coordinator_unavailable']]);
+
+    // Act + Assert: marking read is scoped the same way.
+    db.query.mockResolvedValueOnce({ rows: [{ id: 'notif-3' }] });
+    await expect(service.readNotification(VALID_UUID, lead)).resolves.toEqual({ success: true });
+    expect(db.query.mock.calls[1][1]).toEqual([VALID_UUID, 'lead-1', ['coordinator_unavailable']]);
+  });
+});
+
+/*
+ * SPM-125 AC6 to AC9: the notification feed carries the venue-change notices. Unit tests of EventsService in
+ * isolation; the database is a fixture and the callers are fixtures, not live logins.
+ */
+describe('SPM-125 venue notices in the notification feed', () => {
+  const created = new Date('2026-10-07T09:00:00.000Z');
+
+  /**
+   * VEN-IMPACT-07-E (AC7): a Coordinator's venue notices are labelled for the Coordinator and carry the booking they
+   * are about, so the bell can open that booking.
+   * Kills: a venue notice without its booking link, or labelled for the wrong audience.
+   */
+  it('VEN-IMPACT-07-E labels the three Coordinator venue notices and gives their booking', async () => {
+    const row = { recipient_id: 'coordinator-1', related_event_id: VALID_UUID, related_booking_id: 'booking-1', event_name: 'Gala', read: false, created_at: created };
+    db.query.mockResolvedValueOnce({
+      rows: [
+        { ...row, id: 'n-1', type: 'venue_unavailable_impact', message: 'unavailable' },
+        { ...row, id: 'n-2', type: 'venue_timing_impact', message: 'timing' },
+        { ...row, id: 'n-3', type: 'venue_capacity_impact', message: 'capacity' },
+      ],
+    });
+
+    const result = await service.notifications(coordinator());
+
+    expect(result.map((n) => [n.type, n.audienceRole, n.relatedBookingId])).toEqual([
+      ['venue_unavailable_impact', 'coordinator', 'booking-1'],
+      ['venue_timing_impact', 'coordinator', 'booking-1'],
+      ['venue_capacity_impact', 'coordinator', 'booking-1'],
+    ]);
+  });
+});
+
+/*
+ * SPM-131 AC1 (SAFETY-OUTCOME-01): the Event Coordinator is notified when the Safety Officer responds. Unit test of
+ * EventsService in isolation; the database is a fixture and the callers are fixtures, not live logins. The notice
+ * itself is written by the Safety Officer decision (covered in safety-officer.service.spec.ts and the PostgreSQL
+ * suite); this case covers the read side, the coordinator's notification feed.
+ */
+describe('SPM-131 AC1: the Safety Officer response notice in the coordinator feed', () => {
+  /**
+   * SAFETY-OUTCOME-01: the assigned coordinator's feed lists the safety response notice, labelled for the coordinator
+   * and carrying the event it is about; an organiser's feed does not ask for it.
+   * Kills: the coordinator feed omitting the safety response notice type, or labelling it for another audience.
+   */
+  it('SAFETY-OUTCOME-01 lists safety response notices for the assigned coordinator', async () => {
+    // Arrange: one safety response notice addressed to the assigned coordinator, for an event they coordinate
+    db.query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'notif-safety-1',
+          recipient_id: 'coordinator-1',
+          type: 'coordinator_safety_response',
+          message: 'The Safety Officer responded to the safety check for Welcome Evening.',
+          related_event_id: VALID_UUID,
+          event_coordinator_id: 'coordinator-1',
+          event_organiser_id: 'current-user',
+          event_name: 'Welcome Evening',
+          read: false,
+          created_at: new Date('2026-11-02T09:00:00.000Z'),
+        },
+      ],
+    });
+
+    // Act: the assigned coordinator reads the notification feed
+    const result = await service.notifications(coordinator());
+
+    // Assert: the query is scoped to this coordinator and asks for the safety response notice type
+    const [recipient, types] = db.query.mock.calls[0][1];
+    expect(recipient).toBe('coordinator-1');
+    expect(types).toContain('coordinator_safety_response');
+    // Assert: the notice is returned for the coordinator, unread, with its message and event
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'notif-safety-1',
+        type: 'coordinator_safety_response',
+        audienceRole: 'coordinator',
+        audienceUserId: 'coordinator-1',
+        message: 'The Safety Officer responded to the safety check for Welcome Evening.',
+        relatedEventId: VALID_UUID,
+        read: false,
+      }),
+    ]);
+
+    // Act + Assert: an organiser's feed does not ask for the coordinator's safety response notice
+    db.query.mockResolvedValueOnce({ rows: [] });
+    await service.notifications(organiser());
+    expect(db.query.mock.calls[1][1][1]).not.toContain('coordinator_safety_response');
+  });
+});

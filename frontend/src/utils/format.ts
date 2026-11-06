@@ -1,3 +1,7 @@
+// Explicit 3-letter months so the abbreviation is stable ("Sep", not the
+// locale-dependent "Sept" some environments produce).
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 export function formatDateRange(start: string, end: string): string {
   const s = new Date(start);
   const e = new Date(end);
@@ -18,9 +22,6 @@ export function formatDateRange(start: string, end: string): string {
 export function formatDateTimeRange(start: string, end: string): string {
   const s = new Date(start);
   const e = new Date(end);
-  // Explicit 3-letter months so the abbreviation is stable ("Sep", not the
-  // locale-dependent "Sept" some environments produce).
-  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const fmtDate = (d: Date) => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   const fmtTime = (d: Date) =>
     d
@@ -44,6 +45,15 @@ export function formatDateTime(value: string): string {
   });
 }
 
+// Visible decision date for notifications (SPM-88 A1): day, 3-letter month and year in the
+// viewer's local time, e.g. "28 Oct 2026" or "5 Oct 2026" (day not zero-padded, matching
+// formatDateTimeRange). Returns null for an unparseable timestamp so no "NaN" text is shown.
+export function formatDecisionDate(value: string): string | null {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 export function timeAgo(value: string): string {
   const diffMs = Date.now() - new Date(value).getTime();
   const diffMins = Math.round(diffMs / 60000);
@@ -53,4 +63,35 @@ export function timeAgo(value: string): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   const diffDays = Math.round(diffHours / 24);
   return `${diffDays}d ago`;
+}
+
+/** Shown in place of a detail that a legacy registration does not have (SPM-61 A-NULL). */
+export const NOT_PROVIDED = "Not provided";
+
+/** Formats an event window in Singapore time for the venue booking screens (SPM-55). */
+export function formatSingaporeRange(start: string, end: string): string {
+  const formatter = new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  return `${formatter.format(new Date(start))} – ${formatter.format(new Date(end))} SGT`;
+}
+
+/** One instant in Singapore time, for example "12 Nov 2026, 12:00 SGT" (SPM-48 AC8 hold expiry). */
+export function formatSingaporeDateTime(value: string): string {
+  const formatter = new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  return `${formatter.format(new Date(value))} SGT`;
 }

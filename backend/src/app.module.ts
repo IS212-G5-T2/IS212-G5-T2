@@ -1,26 +1,115 @@
-import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { EventsController } from './events/events.controller.js';
-import { EventRejectionsController } from './events/event-rejections.controller.js';
+import { EventRejectionsController } from './events/review/event-rejections.controller.js';
 import { EventsService } from './events/events.service.js';
-import { DraftsController } from './events/drafts.controller.js';
-import { DraftsService } from './events/drafts.service.js';
+import { CoordinatorQueueController } from './events/queue/coordinator-queue.controller.js';
+import { CoordinatorQueueService } from './events/queue/coordinator-queue.service.js';
+import { SafetyOfficerController } from './events/safety-officer/safety-officer.controller.js';
+import { SafetyOfficerService } from './events/safety-officer/safety-officer.service.js';
+import { EventPlanningController } from './events/planning/event-planning.controller.js';
+import { EventPlanningRepository } from './events/planning/event-planning.repository.js';
+import { EventPlanningService } from './events/planning/event-planning.service.js';
+import { ChangeRequestsController } from './events/change-requests/change-requests.controller.js';
+import { ChangeRequestsService } from './events/change-requests/change-requests.service.js';
+import { ChangeRequestReviewService } from './events/change-requests/review/change-request-review.service.js';
+import { DraftsController } from './event-drafts/drafts.controller.js';
+import { DraftsService } from './event-drafts/drafts.service.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AuthenticationMiddleware } from './auth/authentication/authentication.middleware.js';
 import { ClarificationsModule } from './clarifications/clarifications.module.js';
 import { ClarificationsController } from './clarifications/clarifications.controller.js';
+import { CLOCK, systemClock } from './common/clock.js';
+import { RegistrationsController } from './registrations/registrations.controller.js';
+import { RegistrationSettingsController } from './registrations/settings/registration-settings.controller.js';
+import { RegistrationSettingsService } from './registrations/settings/registration-settings.service.js';
+import { ExportService } from './registrations/report/export.service.js';
+import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
+import { EquipmentController } from './equipment/equipment.controller.js';
+import { EquipmentService } from './equipment/equipment.service.js';
+import { EquipmentRequestsController } from './equipment/requests/equipment-requests.controller.js';
+import { EquipmentRequestsRepository } from './equipment/requests/equipment-requests.repository.js';
+import { EquipmentRequestsService } from './equipment/requests/equipment-requests.service.js';
+import { CoordinatorAvailabilityController } from './coordinator-availability/coordinator-availability.controller.js';
+import { CoordinatorAvailabilityService } from './coordinator-availability/coordinator-availability.service.js';
+import { VenuesController } from './venues/venues.controller.js';
+import { VenuesModule } from './venues/venues.module.js';
+import { LeadAssignmentController } from './lead/lead-assignment.controller.js';
+import { LeadAssignmentService } from './lead/lead-assignment.service.js';
+import { StatusController } from './events/status/status.controller.js';
+import { StatusService } from './events/status/status.service.js';
+import { CompletionRecordController } from './events/completion/completion-record.controller.js';
+import { CompletionRecordService } from './events/completion/completion-record.service.js';
+import { ArrangementsReader, NoSafetyRecordSource, SAFETY_OUTCOME_SOURCE } from './events/status/arrangements.reader.js';
+import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
+import { EventHistoryController } from './events/history/event-history.controller.js';
+import { EventHistoryRepository } from './events/history/event-history.repository.js';
+import { EventHistoryService } from './events/history/event-history.service.js';
+import { CancelEventService } from './events/cancel/cancel-event.service.js';
+import { CancellationRequestsController } from './events/cancellation-requests/cancellation-requests.controller.js';
+import { CancellationRequestsService } from './events/cancellation-requests/cancellation-requests.service.js';
+import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.registry.js';
 
 @Module({
-  imports: [AuthModule, ClarificationsModule, DatabaseModule],
+  imports: [AuthModule, ClarificationsModule, DatabaseModule, VenuesModule],
   controllers: [
     AppController,
     EventsController,
+    CoordinatorQueueController,
+    SafetyOfficerController,
     EventRejectionsController,
+    EventPlanningController,
+    ChangeRequestsController,
     DraftsController,
+    RegistrationsController,
+    RegistrationSettingsController,
+    EquipmentController,
+    EquipmentRequestsController,
+    CoordinatorAvailabilityController,
+    LeadAssignmentController,
+    StatusController,
+    CompletionRecordController,
+    CancellationRequestsController,
+    EventHistoryController,
   ],
-  providers: [AppService, EventsService, DraftsService],
+  providers: [
+    AppService,
+    EventsService,
+    CoordinatorQueueService,
+    SafetyOfficerService,
+    DraftsService,
+    RegistrationsService,
+    RegistrationSettingsService,
+    ExportService,
+    EquipmentService,
+    EquipmentRequestsRepository,
+    EquipmentRequestsService,
+    CoordinatorAvailabilityService,
+    LeadAssignmentService,
+    EventPlanningService,
+    EventPlanningRepository,
+    ChangeRequestsService,
+    ChangeRequestReviewService,
+    ArrangementsReader,
+    NoSafetyRecordSource,
+    EventSafetyCheckSource,
+    { provide: SAFETY_OUTCOME_SOURCE, useExisting: EventSafetyCheckSource },
+    StatusService,
+    CompletionRecordService,
+    CancelEventService,
+    CancellationRequestsService,
+    EventHistoryRepository,
+    EventHistoryService,
+    { provide: EVENT_RELEASERS, useValue: DEFAULT_RELEASERS },
+    { provide: CLOCK, useValue: systemClock },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
@@ -29,9 +118,26 @@ export class AppModule implements NestModule {
       .forRoutes(
         { path: 'api/auth/me', method: RequestMethod.GET },
         EventsController,
+        CoordinatorQueueController,
+        SafetyOfficerController,
         EventRejectionsController,
+        EventPlanningController,
+        EventPlanningService,
+        EventPlanningRepository,
+        ChangeRequestsController,
         DraftsController,
+        RegistrationsController,
+        RegistrationSettingsController,
+        EquipmentController,
+        EquipmentRequestsController,
+        VenuesController,
         ClarificationsController,
+        CoordinatorAvailabilityController,
+        LeadAssignmentController,
+        StatusController,
+        CompletionRecordController,
+        CancellationRequestsController,
+        EventHistoryController,
       );
   }
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
-import { RejectionNotifications } from "@/components/domain/RejectionNotifications";
+import { WaitlistNotifications } from "@/components/notifications/WaitlistNotifications";
 import { TopNav } from "./TopNav";
 
 export function AppShell() {
@@ -20,7 +20,7 @@ export function AppShell() {
         <TopNav onMenuClick={() => setMobileNavOpen(true)} />
         <main id="main-content" className="flex-1 px-4 py-6 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <RejectionNotifications />
+            <WaitlistNotifications />
             <Outlet />
           </div>
         </main>

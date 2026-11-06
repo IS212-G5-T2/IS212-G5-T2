@@ -22,9 +22,8 @@ export default defineConfig({
     css: true,
     coverage: {
       thresholds: {
-        "src/pages/LoginPage.tsx": { 100: true },
+        "src/features/account/pages/login/LoginPage.tsx": { 100: true },
         "src/components/auth/Require*.tsx": { 100: true },
-        "src/lib/localAuth.ts": { 100: true },
       },
     },
   },

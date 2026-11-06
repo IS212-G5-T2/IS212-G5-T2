@@ -1,0 +1,168 @@
+{
+  "story": "SPM-125",
+  "title": "Manage Venue Unavailability Impact, History and Notifications",
+  "note": "Implementation pass (2026-11-01, taneishakaur with Claude): 64 active VEN-IMPACT ids (PRIMARY, approval pending) for AC1 to AC9 as reworded in Jira on 1 Nov 2026. Confluence matrix and case pages VEN-IMPACT-01 to 09 under folder 21529124 (case folder 21037711). Retired: VEN-IMPACT-02-B and 02-C (manual cases of 7 Oct 2026 when AC2 also held the blocking and boundary rules; replaced by 03-A and 04-A). Shared test files use titleMatch ^VEN-IMPACT- so the SPM-121, SPM-122, SPM-77 and other tests in them are not in scope. Decisions SC-SPM125-01 to 04. Revised 2 Nov 2026 (SC-SPM125-01): the Venue Staff bell and summary notice were removed; VEN-IMPACT-06-E to 06-I, 06-SEC-1 and 07-F are retired, and ASSIGN-NOTIFY-01-E is unchanged. Changed earlier tests: the SPM-122 service and repository tests that now pass the Venue Staff member, and the reject spec's Coordinator type list. Rebased on dev a983cd93 (2 Nov 2026) after SPM-137 merged: the schema moved to migration/init 030 and reuses SPM-137's notifications.related_booking_id (029); the notices open SPM-137's /bookings?booking=<id> details dialog, which now offers Find a replacement venue for an affected booking (VEN-IMPACT-07-C, 07-D and 07-BND-1 rewritten). PR #98 review (2 Nov 2026): reassignment now also marks the previous Coordinator's unread venue-change notices read (SC-SPM125-05, VEN-IMPACT-07-H) and capacity notices skip rows that no longer hold the venue (SC-SPM125-03 amended, VEN-IMPACT-09-BND-3). SPM-197 (6 Nov 2026): mutation suites added, backend/scripts/mutation/spm125.mutants.mjs and frontend/scripts/testing/mutation/spm125.mutants.mjs; every VEN-IMPACT test has a measured killer. The real-database cases are one ordered scenario whose cases build on each other, so their mutants carry no per-test mapping and the kills are measured (--measure-kills) from the whole file; the unit-level mutants name the exact test that fails under them.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/venues/notifications/venue-impact-notifications.spec.ts",
+        "titleMatch": "^VEN-IMPACT-"
+      },
+      {
+        "glob": "backend/src/venues/repository/venues.repository.spec.ts",
+        "titleMatch": "^VEN-IMPACT-"
+      },
+      {
+        "glob": "backend/src/venues/venues.service.spec.ts",
+        "titleMatch": "^VEN-IMPACT-"
+      },
+      {
+        "glob": "backend/src/venues/venues.controller.spec.ts",
+        "titleMatch": "^VEN-IMPACT-"
+      },
+      {
+        "glob": "backend/src/events/review/events.reject.spec.ts",
+        "titleMatch": "^VEN-IMPACT-"
+      },
+      {
+        "glob": "backend/src/lead/lead-assignment.service.spec.ts",
+        "titleMatch": "^VEN-IMPACT-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/venue-impact.e2e-spec.ts",
+        "titleMatch": "^VEN-IMPACT-"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "VEN-IMPACT-"
+      },
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx",
+        "titleMatch": "VEN-IMPACT-"
+      },
+      {
+        "glob": "frontend/src/features/venues/lib/venueSearch.test.ts",
+        "titleMatch": "VEN-IMPACT-"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx",
+        "titleMatch": "VEN-IMPACT-"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueUnavailabilityHistory.test.tsx",
+        "titleMatch": "VEN-IMPACT-"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueBookingHistory.test.tsx",
+        "titleMatch": "VEN-IMPACT-"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx",
+        "titleMatch": "VEN-IMPACT-"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueUnavailabilityPanel.test.tsx",
+        "titleMatch": "VEN-IMPACT-"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx",
+        "titleMatch": "VEN-IMPACT-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/venues/notifications/venue-impact-notifications.ts",
+      "backend/src/venues/repository/venues.repository.ts",
+      "backend/src/venues/venues.service.ts",
+      "backend/src/venues/venues.controller.ts",
+      "backend/src/events/events.service.ts",
+      "backend/src/lead/lead-assignment.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationBell.tsx",
+      "frontend/src/components/notifications/NotificationRow.tsx",
+      "frontend/src/features/bookings/pages/requests/CoordinatorBookingDialog.tsx",
+      "frontend/src/features/venues/pages/records/detail/VenueUnavailabilityHistory.tsx",
+      "frontend/src/features/venues/pages/records/detail/VenueBookingHistory.tsx",
+      "frontend/src/features/venues/pages/records/detail/bookingHistory.ts",
+      "frontend/src/features/venues/pages/records/detail/VenueUnavailabilityPanel.tsx",
+      "frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.tsx",
+      "frontend/src/features/venues/pages/edit/VenueEditPage.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-venue-impact",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm125.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm125.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-venue-impact",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm125.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm125.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

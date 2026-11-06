@@ -1,0 +1,103 @@
+{
+  "story": "SPM-36",
+  "title": "Create Event Request (Organiser)",
+  "note": "Scope for SPM-36 (Create Event Request (Organiser)), built for the SPM-150 Sprint 1 workflow records. Matrix: ai/runtime/test-cycles/SPM-36/cycle-02/confluence-matrix-ids.txt (saved from Confluence matrix pages). Shared files are narrowed with titleMatch on the story prefix; a test without its own ID in its title is not counted (see the G1 output). Parent ACs are matrix rows, not Jira ACs, until the Requirement reviewer confirms them.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      { "glob": "backend/src/events/dto/event-input.spec.ts", "titleMatch": "EVE-CRE" },
+      {
+        "glob": "backend/src/events/events.service.spec.ts",
+        "titleMatch": "EVE-CRE"
+      },
+      {
+        "glob": "backend/src/main.spec.ts",
+        "titleMatch": "EVE-CRE"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/events/pages/create/EventCreatePage.test.tsx",
+        "titleMatch": "EVE-CRE"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.test.tsx",
+        "titleMatch": "EVE-CRE"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/list/EventListPage.test.tsx",
+        "titleMatch": "EVE-CRE"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/drafts/DraftWorkflow.test.tsx",
+        "titleMatch": "EVE-CRE"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/dto/event-input.ts",
+      "backend/src/main.ts",
+      "backend/src/config/configure-app.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/pages/create/EventCreatePage.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm36",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm36.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm36.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    },
+    {
+      "id": "frontend-spm36",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm36.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm36.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

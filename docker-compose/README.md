@@ -59,6 +59,8 @@ Local services connect to PostgreSQL through the Compose service name `postgres:
 
 The `.env` file configures PostgreSQL, backend, and frontend defaults, including `DATABASE_URL`, `PORT`, `FRONTEND_ORIGIN`, and `VITE_API_BASE_URL`.
 
+The frontend health check allows up to 10 seconds for an in-container Vite response. This prevents a healthy dev server from being reported as unhealthy on slower local Docker hosts.
+
 Use local-only values in `.env`. Do not commit real credentials.
 
 `VITE_API_BASE_URL` is passed into the frontend container. PostgreSQL and backend settings stay on their respective containers.
@@ -107,6 +109,10 @@ The Compose configuration targets `backend`. To integrate a different service:
 
 PostgreSQL init scripts are built into the local image from `database/postgresql/init`. These scripts run only when Docker creates a fresh `postgres-data` volume. For already-initialized local databases, apply changes manually or explicitly reset data with `docker compose down -v` from this directory when it is safe to discard local state.
 
+This stack also mounts `database/postgresql/demo/demo_seed.sql` as `/docker-entrypoint-initdb.d/900_demo_seed.sql`. The entrypoint runs that directory in sorted order, so a fresh volume initialises with `init/` 001-003 and then swaps the sample events, venues, equipment and accounts for the demo campus dataset. Accounts here are `@connectsphere.sg`.
+
+The disposable test database is built from the same image **without** that mount, so `backend/test` and the Playwright specs keep `init/`'s fixed `@connectsphere.test` accounts and ids, which is what they authenticate and assert against. Do not point a test suite at this database; `backend/scripts/testing/run-e2e.mjs` refuses `DATABASE_URL` for that reason. Because the demo dataset's dates are relative to the moment it runs, `docker compose down -v` followed by `up` is also how you refresh them before a demo.
+
 To build and run only the database without the rest of Docker Compose:
 
 ```sh
@@ -122,7 +128,7 @@ This is the shared three-tier integration environment, with a persistent
 `postgres-data` volume. Automated integration tests should preserve the
 environment and existing data, remove their own test records and temporary
 resources, and report any services they started and left running. The
-[development lifecycle rules](../AGENTS.md#lifecycle-rules) define resource
+[development lifecycle rules](AGENTS.md#lifecycle-rules) define resource
 ownership and the exception to disposable-test teardown.
 
 When explicitly stopping the whole stack, run `docker compose down` from this directory. It removes the stack's containers and network while retaining the named database volume.
@@ -143,7 +149,7 @@ Choose shutdown or data reset according to the lifecycle guidance above.
 
 ## Events sample database
 
-The local `spm` PostgreSQL database stores requests in `events`. `001_schema.sql` defines every local table; `002_seed_data.sql` adds the local RBAC, accounts, health check, and fictional Submitted event. Records persist in Docker's `postgres-data` volume. Dates/times use `timestamptz`; the API/browser handles local-time display. These files are for fresh volumes; use backend migrations for existing-volume schema changes.
+The local `spm` PostgreSQL database stores requests in `events`. `001_schema.sql` defines every local table; `002_seed_data.sql` adds the local RBAC, accounts, health check, and sample data; `003_functions_triggers.sql` adds every function and trigger after the seed so loading it fires none. Records persist in Docker's `postgres-data` volume. Dates/times use `timestamptz`; the API/browser handles local-time display. These files are for fresh volumes; use backend migrations for existing-volume schema changes.
 
 As of SPM-38, `/api/events` and `/api/requests` (drafts) require a verified
 identity; `DEMO_ORGANISER_ENABLED` no longer applies to these routes
@@ -151,17 +157,60 @@ identity; `DEMO_ORGANISER_ENABLED` no longer applies to these routes
 session — this later replaced the original Firebase-token implementation,
 see the SPM-30 local-session-auth migration — is the only source of
 identity). An Organiser sees only their own requests; a Coordinator sees only
-requests round-robin has assigned to them. The coordinator roster
-(`backend/src/events/coordinator-roster.ts`) is queried live from
-Postgres (`users`/`user_roles`/`roles`, seeded in
-`database/postgresql/init/002_seed_data.sql`) rather than hardcoded —
-any active account holding the `COORDINATOR` role is eligible. A request is
-assigned a coordinator automatically at submission time — there is no manual
-"claim this request" step. Pre-SPM-38 event rows created under the old fixed
+requests assigned to them. Since SPM-123 a submitted request waits unassigned
+until the Event Coordinator Lead (`lead@connectsphere.test`)
+assigns it from the Assignment Queue (`/lead/queue`) to an available
+coordinator. Pre-SPM-38 event rows created under the old fixed
 demo identity (`current-user`, no coordinator) are legacy-owned and stay
 invisible under real-identity scoping; they are not automatically migrated
 (see `backend/AGENTS.md`'s events-boundary policy). After backend
 changes, rebuild and start it with `docker compose up -d --build backend`.
+The backend code is built into its image, so new API routes (for example
+SPM-64's `/api/events/:id/change-requests` and `/api/change-requests`) return
+404 until the image is rebuilt. An existing `postgres-data` volume also needs
+the new schema: apply each new file in `backend/migrations` once, for SPM-64
+`docker compose exec -T postgres psql -U spm -d spm < ../backend/migrations/012_spm64_change_requests.sql`
+(without it the Change Requests page shows "Could not load your change requests."), and for SPM-65
+`docker compose exec -T postgres psql -U spm -d spm < ../backend/migrations/013_spm65_change_request_review.sql`
+(without it reviewing, the audit log and cancelling an event with a pending request fail), and for SPM-48
+`docker compose exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 < ../backend/migrations/023_spm48_safety_rejected.sql`
+(it allows a `rejected` safety check; it is idempotent). SPM-48's coordinator queue (`GET /api/coordinator/queue`)
+is a new route: until the backend image is rebuilt, a coordinator's Events page shows "Cannot GET /api/coordinator/queue".
+For SPM-156 apply
+`docker compose exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 < ../backend/migrations/026_spm156_direct_update_history.sql`
+before rebuilding the backend (it is idempotent, so re-run it if you applied an earlier version of the file). It lets change
+history record updates applied immediately and approved change requests; without it every coordinator update that applies
+immediately, and every change request approval, is refused with a server error and nothing is saved.
+Then apply `../backend/migrations/027_spm156_retire_legacy_event_options.sql` the same way (idempotent). It replaces
+retired facility and accessibility values in stored events, change requests and drafts (for example
+"Wheelchair ramps" becomes "Wheelchair access"), so no form shows them or refuses to save because of them.
+Every event it rewrites loses its safety check (the SPM-135 trigger resets it when facilities or accessibility
+needs change), so coordinators must request those safety checks again. Flagged changes still awaiting review are
+not rewritten: confirming one that proposes a retired value writes it back.
+Both 026 and 027 run as one transaction each, so a failure leaves the database unchanged. Before applying 027,
+list the records it affects (read-only), then re-request the safety checks it resets after it runs:
+
+```sh
+docker compose exec -T postgres psql -U spm -d spm <<'SQL'
+-- Events migration 027 will rewrite, and whether each has a safety check it will reset.
+SELECT e.id, e.event_name, e.status, (s.event_id IS NOT NULL) AS safety_check_will_reset
+  FROM events e
+  LEFT JOIN event_safety_checks s ON s.event_id = e.id
+ WHERE EXISTS (SELECT 1 FROM unnest(e.accessibility_needs) v
+                WHERE v NOT IN (SELECT label FROM accessibility_features WHERE is_active))
+    OR EXISTS (SELECT 1 FROM unnest(e.required_facilities) v
+                WHERE v NOT IN (SELECT name FROM facilities WHERE is_active))
+ ORDER BY e.status, e.event_name;
+-- Flagged changes awaiting review that propose a retired facility (027 does not rewrite these).
+SELECT c.id, c.event_id, c.proposed_value
+  FROM event_flagged_changes c
+ WHERE c.status = 'Needs Review' AND c.field = 'facilities'
+   AND jsonb_typeof(c.proposed_value) = 'array'
+   AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(c.proposed_value) v
+                WHERE v NOT IN (SELECT name FROM facilities WHERE is_active));
+SQL
+```
+
 The frontend code is bind-mounted and
 refreshed by Vite. Visit http://localhost:5173/planning to create an event,
 then inspect it under My Events.

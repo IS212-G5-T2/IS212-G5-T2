@@ -1,0 +1,170 @@
+{
+  "story": "SPM-156",
+  "title": "Fix missing change history entry",
+  "note": "Jira SPM-156 is a Task (bug fix); its Definition of Done items and the follow-up recorded in Jira comment 10105 are the requirements. Confluence matrix 38010922 'Fix Missing Change History Entry Matrix' and case pages EVENT-UPDATE-07 (38141967), EVENT-UPDATE-08 (37748773) and EVENT-UPDATE-HTTP (21496341, case HTTP-07) are the PRIMARY oracles. The test ids keep the SPM-49 EVENT-UPDATE-* family. Every source file is shared with SPM-49, SPM-64, SPM-65, SPM-85, SPM-97, SPM-52 or SPM-144, so coverage is measured on the SPM-156 lines only (linesFrom changed-lines: lines whose origin commit names SPM-156). Shared test files are narrowed with titleMatch to the SPM-156 ids. Migrations 026 and 027 are SQL and are not measured by coverage; their behaviour is pinned by EVENT-UPDATE-07-SEC-1, 08-A and 08-SEC-1 against PostgreSQL. SAFETY-RESET-UPDATE-04 (also added on this branch) belongs to SPM-135 and is in its scope, not here. EVENT-UPDATE-HTTP-06 (SPM-49) and EVENT-FLAG-05-A (SPM-85) are registered here because the SPM-156 matrix lists them under DoD 11: SPM-156 changed their expected results (history now includes applied direct updates and the reviewed-change label). EventCreatePage.tsx is not measured here: its SPM-156 change only switches its options request to the shared fetchVenueOptions (same endpoint, same validation and message), and SPM-144's scope measures every line of that file with its EVE-FAC tests.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/planning/event-planning.service.spec.ts",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "backend/src/events/planning/event-planning.repository.spec.ts",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "backend/src/events/planning/dto/event-update-input.spec.ts",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "backend/src/events/change-requests/review/change-request-review.service.spec.ts",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/events-planning.e2e-spec.ts",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "backend/test/events-planning.http.e2e-spec.ts",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "backend/test/change-request-review.e2e-spec.ts",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "backend/test/event-options-migration.e2e-spec.ts",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/PlanningUpdateForm.test.tsx",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/ChangeHistoryList.test.tsx",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/FlaggedChangeReview.test.tsx",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.planning.test.tsx",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/change-requests/RequestChangeForm.test.tsx",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/edit/EventEditForm.test.tsx",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "frontend/src/features/venues/api/venue-options-api.test.ts",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      },
+      {
+        "glob": "frontend/src/utils/planning.test.ts",
+        "titleMatch": "EVENT-UPDATE-(0[78]|HTTP-0[67])|EVENT-FLAG-05-A"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/planning/event-planning.service.ts",
+      "backend/src/events/planning/event-planning.repository.ts",
+      "backend/src/events/planning/dto/event-update-input.ts",
+      "backend/src/events/planning/helpers/event-impact.ts",
+      "backend/src/events/change-requests/review/change-request-review.service.ts",
+      "backend/src/events/dto/event-input.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/venues/api/venue-options-api.ts",
+      "frontend/src/features/events/pages/detail/planning/PlanningUpdateForm.tsx",
+      "frontend/src/features/events/pages/detail/planning/ChangeHistoryList.tsx",
+      "frontend/src/features/events/pages/detail/planning/FlaggedChangeReview.tsx",
+      "frontend/src/features/events/pages/detail/EventDetailPage.tsx",
+      "frontend/src/features/events/pages/change-requests/RequestChangeForm.tsx",
+      "frontend/src/features/events/pages/edit/EventEditForm.tsx",
+      "frontend/src/features/venues/lib/venueSearch.ts",
+      "frontend/src/utils/planning.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL",
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm156",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm156.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm156.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL",
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm156",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm156.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm156.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

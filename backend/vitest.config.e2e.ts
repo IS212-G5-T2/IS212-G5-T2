@@ -7,9 +7,22 @@ export default defineConfig({
   test: {
     globals: true,
     root: './',
-    include: ['**/*.e2e-spec.ts'],
+    include: ['test/**/*.e2e-spec.ts'],
     // These suites share one mutable PostgreSQL container and clean up their
     // own fixtures, so parallel files can interfere with one another.
     fileParallelism: false,
+    // Each test creates users (bcrypt cost 12) and talks to PostgreSQL, so under full-suite load the default
+    // 5 s limit is hit. A timed-out test keeps running and can change rows the next test is reading.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+    // The real-database suites are the only tests that run the services which need PostgreSQL
+    // (for example status.service.ts), so `npm run test:cov` does not measure them.
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      reportsDirectory: './coverage/e2e',
+      include: ['src/**/*.ts'],
+      exclude: ['**/*.spec.ts', '**/*.e2e-spec.ts'],
+    },
   },
 });

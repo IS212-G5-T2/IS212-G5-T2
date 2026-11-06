@@ -1,0 +1,102 @@
+import { Link } from "react-router-dom";
+import clsx from "clsx";
+import type { Notification } from "@/types";
+import { timeAgo } from "@/utils/format";
+
+const iconByType: Record<Notification["type"], string> = {
+  submission: "📤",
+  clarification: "❓",
+  clarification_reply: "💬",
+  clarification_resolved: "✅",
+  approval: "✅",
+  rejection: "❌",
+  coordinator_assignment: "🧑‍💼",
+  coordinator_reassignment: "🔁",
+  coordinator_unassignment: "↪️",
+  coordinator_unavailable: "⏸️",
+  coordinator_change_request: "✏️",
+  coordinator_safety_response: "🦺",
+  change_request_approved: "✅",
+  change_request_denied: "❌",
+  venue_booking: "🏛️",
+  cancellation_request_accepted: "🚫",
+  cancellation_request_declined: "↩️",
+  cancellation_request_submitted: "🚫",
+  venue_booking_approved: "✅",
+  venue_booking_rejected: "❌",
+  tentative_hold_approved: "✅",
+  tentative_hold_rejected: "❌",
+  tentative_hold_expiry_reminder: "⏰",
+  tentative_hold_expired: "⌛",
+  tentative_hold_released: "🔓",
+  tentative_hold_converted: "✅",
+  equipment_request_reserved: "✅",
+  equipment_request_cannot_provide: "❌",
+  event_change: "✏️",
+  registration: "🎟️",
+  confirmation: "🎉",
+  cancellation: "🚫",
+  WaitlistPromoted: "🎟️",
+  EventCancelled: "🚫",
+  venue_unavailable_impact: "🏛️",
+  venue_timing_impact: "🏛️",
+  venue_capacity_impact: "🏛️",
+};
+
+const CHANGE_REQUEST_NOTICES: ReadonlySet<Notification["type"]> = new Set([
+  "coordinator_change_request",
+  "change_request_approved",
+  "change_request_denied",
+]);
+
+export function NotificationItem({
+  notification,
+  onRead,
+}: {
+  notification: Notification;
+  onRead: (id: string) => void;
+}) {
+  const rowClasses = clsx(
+    "flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:border-primary-200 dark:hover:border-primary-700",
+    notification.read ? "border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800" : "border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/30"
+  );
+
+  const inner = (
+    <>
+      <span aria-hidden="true" className="text-lg">
+        {iconByType[notification.type]}
+      </span>
+      <div className="flex-1">
+        <p className={clsx("text-sm", notification.read ? "text-gray-600 dark:text-gray-400" : "font-medium text-gray-900 dark:text-gray-100")}>
+          {notification.message}
+        </p>
+        <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{timeAgo(notification.createdAt)}</p>
+      </div>
+      {!notification.read && (
+        <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-600" aria-label="Unread" />
+      )}
+    </>
+  );
+
+  if (notification.relatedEventId) {
+    // SPM-64 AC3 / SPM-65: a change request notice or decision opens the Change Requests page, not the event page.
+    const to = CHANGE_REQUEST_NOTICES.has(notification.type)
+      ? `/events/${notification.relatedEventId}/change-requests`
+      : `/events/${notification.relatedEventId}`;
+    return (
+      <Link
+        to={to}
+        onClick={() => onRead(notification.id)}
+        className={rowClasses}
+      >
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <button onClick={() => onRead(notification.id)} className={rowClasses}>
+      {inner}
+    </button>
+  );
+}

@@ -1,0 +1,93 @@
+{
+  "story": "SPM-39",
+  "title": "Request Clarification or Amendment",
+  "note": "Scope for SPM-39 (Request Clarification or Amendment), built for the SPM-150 Sprint 1 workflow records. Matrix: ai/runtime/test-cycles/SPM-39/cycle-02/confluence-matrix-ids.txt (saved from Confluence matrix pages). Shared files are narrowed with titleMatch on the story prefix; a test without its own ID in its title is not counted (see the G1 output). Parent ACs are matrix rows, not Jira ACs, until the Requirement reviewer confirms them.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      "backend/src/clarifications/clarifications.service.spec.ts",
+      "backend/src/clarifications/dto/clarification-input.spec.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/pages/detail/ClarificationThread.test.tsx",
+      "frontend/src/features/events/pages/detail/EventDetailPage.clarifications.test.tsx"
+    ],
+    "backend-e2e": [
+      "backend/test/clarifications.e2e-spec.ts"
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/clarifications/clarifications.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/pages/detail/ClarificationThread.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm39",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm39.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm39.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    },
+    {
+      "id": "frontend-spm39",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm39.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm39.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}
