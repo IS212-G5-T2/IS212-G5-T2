@@ -106,16 +106,18 @@ jobs:
           frontend : VITE_API_BASE_URL is baked in at build time; rebuild to change it.
           INFO
 
-          ( cd "${RUNNER_TEMP:?}" && zip -qr "${name:?}.zip" "${name:?}" )
-          echo "zip=${RUNNER_TEMP}/${name}.zip" >> "$GITHUB_OUTPUT"
+          # actions/upload-artifact@v4 always wraps the uploaded contents in its own .zip the
+          # viewer downloads, so uploading a .zip gave people a double-nested archive. Upload the
+          # staged directory directly and the download extracts straight to the bundle layout.
+          echo "dir=${RUNNER_TEMP}/${name}" >> "$GITHUB_OUTPUT"
 
           {
             echo "### Delivery bundle"
             echo
             echo "| | |"
             echo "|---|---|"
-            echo "| Archive | \`$name.zip\` |"
-            echo "| Size | $(du -h "${RUNNER_TEMP}/${name}.zip" | cut -f1) |"
+            echo "| Artifact | \`$name\` |"
+            echo "| Size | $(du -sh "${RUNNER_TEMP}/${name}" | cut -f1) |"
             echo "| Commit | \`$(git rev-parse HEAD)\` |"
             echo "| Ref | \`$GITHUB_REF_NAME\` |"
             echo
@@ -126,7 +128,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.assemble.outputs.name }}
-          path: ${{ steps.assemble.outputs.zip }}
+          path: ${{ steps.assemble.outputs.dir }}
           if-no-files-found: error
           retention-days: 30
 
@@ -190,17 +192,12 @@ jobs:
           name: ${{ needs.package.outputs.bundle }}
           path: ${{ runner.temp }}/smoke-download
 
-      - name: Unpack the delivery bundle
+      - name: Point BUNDLE_DIR at the downloaded bundle
         shell: bash
-        env:
-          BUNDLE: ${{ needs.package.outputs.bundle }}
         run: |
           set -euo pipefail
-          # Fresh, empty directories every run, so a re-run never sees leftovers.
-          rm -rf "${RUNNER_TEMP:?}/smoke-bundle"
-          mkdir -p "${RUNNER_TEMP}/smoke-bundle"
-          unzip -q "${RUNNER_TEMP}/smoke-download/${BUNDLE}.zip" -d "${RUNNER_TEMP}/smoke-bundle"
-          bundle="${RUNNER_TEMP}/smoke-bundle/${BUNDLE}"
+          # Uploaded as a directory now, so download-artifact lays the files out directly.
+          bundle="${RUNNER_TEMP}/smoke-download"
           test -f "$bundle/backend/dist/main.js"
           test -f "$bundle/frontend/dist/index.html"
           echo "BUNDLE_DIR=$bundle" >> "$GITHUB_ENV"

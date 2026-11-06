@@ -97,8 +97,10 @@ jobs:
           Built at    : $(date -u '+%Y-%m-%d %H:%M:%S UTC')
           INFO
 
-          ( cd "${RUNNER_TEMP:?}" && zip -qr "${name:?}.zip" "${name:?}" )
-          echo "zip=${RUNNER_TEMP}/${name}.zip" >> "$GITHUB_OUTPUT"
+          # actions/upload-artifact@v4 always wraps the uploaded contents in its own .zip the
+          # viewer downloads, so uploading a .zip gave people a double-nested archive. Upload the
+          # staged directory directly and the download extracts straight to the bundle layout.
+          echo "dir=${RUNNER_TEMP}/${name}" >> "$GITHUB_OUTPUT"
 
       - name: Upload the pre-delivery bundle (short retention)
         # Retained only so a failing smoke run can be downloaded and reproduced locally. The real
@@ -106,7 +108,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.assemble.outputs.name }}
-          path: ${{ steps.assemble.outputs.zip }}
+          path: ${{ steps.assemble.outputs.dir }}
           if-no-files-found: error
           retention-days: 1
 
@@ -163,16 +165,11 @@ jobs:
           name: ${{ needs.package.outputs.bundle }}
           path: ${{ runner.temp }}/smoke-download
 
-      - name: Unpack the pre-delivery bundle
+      - name: Point BUNDLE_DIR at the downloaded bundle
         shell: bash
-        env:
-          BUNDLE: ${{ needs.package.outputs.bundle }}
         run: |
           set -euo pipefail
-          rm -rf "${RUNNER_TEMP:?}/smoke-bundle"
-          mkdir -p "${RUNNER_TEMP}/smoke-bundle"
-          unzip -q "${RUNNER_TEMP}/smoke-download/${BUNDLE}.zip" -d "${RUNNER_TEMP}/smoke-bundle"
-          bundle="${RUNNER_TEMP}/smoke-bundle/${BUNDLE}"
+          bundle="${RUNNER_TEMP}/smoke-download"
           test -f "$bundle/backend/dist/main.js"
           test -f "$bundle/frontend/dist/index.html"
           echo "BUNDLE_DIR=$bundle" >> "$GITHUB_ENV"
@@ -254,8 +251,7 @@ jobs:
           ----------------------------------------------------------------
           To reproduce locally against the same bundle:
           EOF
-          printf '  gh run download %s --name %s\n' "$RUN_ID" "$BUNDLE"
-          printf '  unzip %s.zip\n' "$BUNDLE"
+          printf '  gh run download %s --name %s --dir %s\n' "$RUN_ID" "$BUNDLE" "$BUNDLE"
           printf '  cd %s/backend && npm ci --omit=dev\n' "$BUNDLE"
           cat <<'EOF'
             TEST_DATABASE_URL=$(database/postgresql/scripts/test-db.sh up) \
