@@ -192,13 +192,15 @@ jobs:
 
       - name: Unpack the delivery bundle
         shell: bash
+        env:
+          BUNDLE: ${{ needs.package.outputs.bundle }}
         run: |
           set -euo pipefail
           # Fresh, empty directories every run, so a re-run never sees leftovers.
           rm -rf "${RUNNER_TEMP:?}/smoke-bundle"
           mkdir -p "${RUNNER_TEMP}/smoke-bundle"
-          unzip -q "${RUNNER_TEMP}/smoke-download/${{ needs.package.outputs.bundle }}.zip" -d "${RUNNER_TEMP}/smoke-bundle"
-          bundle="${RUNNER_TEMP}/smoke-bundle/${{ needs.package.outputs.bundle }}"
+          unzip -q "${RUNNER_TEMP}/smoke-download/${BUNDLE}.zip" -d "${RUNNER_TEMP}/smoke-bundle"
+          bundle="${RUNNER_TEMP}/smoke-bundle/${BUNDLE}"
           test -f "$bundle/backend/dist/main.js"
           test -f "$bundle/frontend/dist/index.html"
           echo "BUNDLE_DIR=$bundle" >> "$GITHUB_ENV"

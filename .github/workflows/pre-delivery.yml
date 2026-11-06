@@ -165,12 +165,14 @@ jobs:
 
       - name: Unpack the pre-delivery bundle
         shell: bash
+        env:
+          BUNDLE: ${{ needs.package.outputs.bundle }}
         run: |
           set -euo pipefail
           rm -rf "${RUNNER_TEMP:?}/smoke-bundle"
           mkdir -p "${RUNNER_TEMP}/smoke-bundle"
-          unzip -q "${RUNNER_TEMP}/smoke-download/${{ needs.package.outputs.bundle }}.zip" -d "${RUNNER_TEMP}/smoke-bundle"
-          bundle="${RUNNER_TEMP}/smoke-bundle/${{ needs.package.outputs.bundle }}"
+          unzip -q "${RUNNER_TEMP}/smoke-download/${BUNDLE}.zip" -d "${RUNNER_TEMP}/smoke-bundle"
+          bundle="${RUNNER_TEMP}/smoke-bundle/${BUNDLE}"
           test -f "$bundle/backend/dist/main.js"
           test -f "$bundle/frontend/dist/index.html"
           echo "BUNDLE_DIR=$bundle" >> "$GITHUB_ENV"
@@ -244,14 +246,19 @@ jobs:
 
       - name: Print local repro command on failure
         if: failure()
+        env:
+          RUN_ID: ${{ github.run_id }}
+          BUNDLE: ${{ needs.package.outputs.bundle }}
         run: |
-          cat <<EOF
+          cat <<'EOF'
           ----------------------------------------------------------------
           To reproduce locally against the same bundle:
-            gh run download ${{ github.run_id }} --name ${{ needs.package.outputs.bundle }}
-            unzip ${{ needs.package.outputs.bundle }}.zip
-            cd ${{ needs.package.outputs.bundle }}/backend && npm ci --omit=dev
-            TEST_DATABASE_URL=\$(database/postgresql/scripts/test-db.sh up) \\
+          EOF
+          printf '  gh run download %s --name %s\n' "$RUN_ID" "$BUNDLE"
+          printf '  unzip %s.zip\n' "$BUNDLE"
+          printf '  cd %s/backend && npm ci --omit=dev\n' "$BUNDLE"
+          cat <<'EOF'
+            TEST_DATABASE_URL=$(database/postgresql/scripts/test-db.sh up) \
               npm run test:smoke:integration
           ----------------------------------------------------------------
           EOF
