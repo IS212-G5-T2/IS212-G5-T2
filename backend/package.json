@@ -20,6 +20,8 @@
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "node scripts/testing/run-e2e.mjs",
     "test:cov:e2e": "node scripts/testing/run-e2e.mjs --coverage",
+    "test:smoke:unit": "vitest run --config ./vitest.config.smoke.ts",
+    "test:smoke:integration": "node scripts/testing/run-e2e.mjs test/events-planning-transition.e2e-spec.ts test/events-confirm.e2e-spec.ts test/safety-officer.e2e-spec.ts",
     "test:cov:spm37": "vitest run --config vitest.spm37.config.ts",
     "test:browser": "node scripts/testing/run-browser.mjs",
     "test:browser-fixtures": "node --test scripts/testing/browser-fixtures.test.mjs"
