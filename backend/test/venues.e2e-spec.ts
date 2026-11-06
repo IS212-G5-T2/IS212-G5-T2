@@ -468,8 +468,13 @@ describe.skipIf(!databaseUrl)(
       expect(constraint.rows).toEqual([
         { conname: 'venues_owner_user_id_fkey' },
       ]);
+      // Exactly one such constraint, and it is validated. init/001_schema.sql declares it inline, which CREATE TABLE can
+      // only do as a validated constraint; migrations/008 adds it NOT VALID for databases that predate it, but its DO
+      // block is guarded by IF NOT EXISTS, so applying that migration here - twice, above - finds the constraint already
+      // present and cannot flip it back. Asserting true therefore pins the init schema's state and still proves the
+      // repeated migration created no duplicate.
       expect(required.rows).toEqual([
-        { conname: 'venues_owner_user_id_required', convalidated: false },
+        { conname: 'venues_owner_user_id_required', convalidated: true },
       ]);
       expect(index.rows).toEqual([{ indexname: 'venues_owner_user_id_idx' }]);
     });

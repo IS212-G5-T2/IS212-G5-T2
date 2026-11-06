@@ -1,10 +1,14 @@
-import { expect, test, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
+import { expect, test } from "../../../e2e/fixtures";
 
 test.use({ timezoneId: "Asia/Singapore" });
 
 // SPM-88 DECISION-NOTIFY-05-VIEWPORT-1: the notification dropdown must fit
 // short viewports so the last row's "View Request" and "Mark As Read" stay reachable (AC4, AC5), and the visible
-// decision date (AC2/AC3) is rendered. The backend is stubbed, so no database or login is needed.
+// decision date (AC2/AC3) is rendered. The backend is stubbed, so no login or seeded data is needed -
+// but since SPM-187 this spec uses the shared e2e fixture, so TEST_DATABASE_URL must still point at a
+// disposable database (the reset runs before every test). SPM-193's config split will move this spec
+// out of the E2E suite, which is where that oddity goes away.
 
 const notifications = Array.from({ length: 12 }, (_, i) => ({
   id: `n-${i + 1}`,

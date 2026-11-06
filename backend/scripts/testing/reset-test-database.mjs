@@ -19,13 +19,13 @@ export const MARKER_TABLE = 'spm_disposable_test_db';
 // Reference and identity data, preserved across resets.
 //
 // Everything outside this list is truncated - and that includes the seeded demo data that
-// database/postgresql/init/011, 012, 018-020, 026, 028, 030 and 036 create (sample venues, sample
+// database/postgresql/init/002_seed_data.sql creates beyond the reference data (sample venues, sample
 // events, demo bookings). So a reset does NOT return the database to its freshly-initialised state:
 // it returns it to reference data only. Suites that assert on seeded demo rows - for instance
 // venues-booking-requests.e2e-spec.ts, which expects the SPM-51 sample venues - will fail after one.
-// That is why this helper is not yet wired into any runner: the browser suites need per-test fixture
-// builders first (SPM-187), and the backend suites either need the same or need seed restoration
-// adding here.
+// The browser (Playwright) suite calls this before every test through frontend/e2e/fixtures.ts and then
+// builds its own rows with browser-fixtures.mjs (SPM-187). The backend suites do NOT use it and still need
+// the seed data, so do not run it against a database they share: they would need seed restoration adding here.
 //
 // Preserving these is also a performance decision: the seeded accounts' password hashes are
 // bcrypt, so re-seeding 20 users on every reset would dominate the cost of the reset itself.
@@ -81,18 +81,46 @@ export async function listResettableTables(client, preserve = PRESERVED_TABLES) 
   return rows.map((row) => row.tablename);
 }
 
+// SQLSTATE for "deadlock detected". The TRUNCATE takes ACCESS EXCLUSIVE locks on every non-preserved table while
+// the backend under test (its tentative-hold expiry scheduler runs every second in the browser suite) takes
+// ACCESS SHARE locks in a different order; Postgres resolves the cycle by aborting one side, and one reset in ~96
+// was that side (SPM-187 test review, TR-02). Nothing was written, so running the same statement again is safe.
+// ONLY this code is retried, and only the TRUNCATE: any other error is a real failure and is rethrown at once.
+// Chosen over lock_timeout (which would fail a slow-but-healthy reset and still needs a retry) and over a lock
+// order (the other lock holder is the product's own code, which a test harness must not change).
+export const DEADLOCK_SQLSTATE = '40P01';
+const RESET_DEADLOCK_RETRIES = 5;
+const RESET_BACKOFF_MS = 100;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
  * Truncate every non-preserved table in the public schema and restart its identity sequences.
  * Returns the tables that were reset, so a caller can log or assert on them.
+ * A deadlock (40P01) is retried up to `deadlockRetries` times with a linear backoff, logging each attempt through
+ * `log` (stderr by default) so a flake is visible; the final deadlock, and every other error, is thrown.
  */
-export async function resetTestDatabase(client, { preserve = PRESERVED_TABLES } = {}) {
+export async function resetTestDatabase(client, {
+  preserve = PRESERVED_TABLES, deadlockRetries = RESET_DEADLOCK_RETRIES, backoffMs = RESET_BACKOFF_MS,
+  log = (message) => process.stderr.write(`${message}\n`), wait = sleep,
+} = {}) {
   await assertDisposable(client);
 
   const tables = await listResettableTables(client, preserve);
   if (tables.length > 0) {
     // One statement: TRUNCATE takes an ACCESS EXCLUSIVE lock per table, so truncating them
     // together avoids deadlocking against the foreign keys between them.
-    await client.query(`TRUNCATE TABLE ${tables.map(quoteIdentifier).join(', ')} RESTART IDENTITY CASCADE`);
+    const statement = `TRUNCATE TABLE ${tables.map(quoteIdentifier).join(', ')} RESTART IDENTITY CASCADE`;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await client.query(statement);
+        break;
+      } catch (error) {
+        if (error?.code !== DEADLOCK_SQLSTATE || attempt >= deadlockRetries) throw error;
+        const delay = backoffMs * (attempt + 1);
+        log(`reset-test-database: deadlock detected during TRUNCATE (attempt ${attempt + 1} of ${deadlockRetries + 1}); retrying in ${delay}ms`);
+        await wait(delay);
+      }
+    }
   }
 
   const damaged = [];

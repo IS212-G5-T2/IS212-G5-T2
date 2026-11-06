@@ -129,9 +129,6 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
       '036_spm134_hold_expiry_notifications.sql',
     ])
       await pool.query(await readFile(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'));
-    await pool.query(
-      await readFile(new URL('../../database/postgresql/init/022_spm55_booking_special_request.sql', import.meta.url), 'utf8'),
-    );
 
     foreignBookings = (await pool.query<ForeignBooking>(
       'SELECT id, status, hold_expiry_processed_at, hold_reminder_sent_at FROM venue_bookings ORDER BY id',

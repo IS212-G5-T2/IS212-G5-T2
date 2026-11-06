@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../../../../e2e/fixtures";
 
 test.use({ timezoneId: "Asia/Singapore" });
 
@@ -102,7 +102,9 @@ async function pointInSlot(
       year: "numeric",
     }).format(new Date(`${date}T12:00:00+08:00`)),
   });
-  const row = page.locator(`[data-time="${time}:00"]`).nth(1);
+  // slotLaneDidMount in VenueScheduleCalendar.tsx stamps this id, so the spec does not depend on
+  // FullCalendar's own class names.
+  const row = page.getByTestId(`slot-lane-${time}`);
   await row.scrollIntoViewIfNeeded();
   const [columnBox, rowBox] = await Promise.all([
     column.boundingBox(),
@@ -134,6 +136,14 @@ async function dragRange(
 // Out of scope for this Sprint 1 branch. The drag-to-create decision for SPM-51 belongs to a later sprint branch.
 // Known failure: kept failing on purpose so it is not hidden. test.fail() below makes the run pass while the assertions fail,
 // and reports an unexpected pass if they succeed. Remove test.fail() when the later sprint work lands.
+//
+// Measured 2026-11-06: it is NOT currently failing for the SPM-51 reason below. Lifting test.fail shows it
+// dying at the venue heading on line 177, before the first dragRange on line 183 - the same app-shell stub
+// failure that fails the two viewport tests at 216 and 258 (unstubbed /api/requests, /api/change-requests
+// and /api/cancellation-requests 401, so the app redirects to /login). test.fail cannot tell the two apart,
+// so this masks the stub problem rather than the drag bug. When the stubs are repaired, re-check what this
+// test actually fails on before trusting the reason above - and note dragRange's slot-lane locator is only
+// reached from here, so it is unexercised until then.
 /** SPM-51: a real FullCalendar drag updates event times across days regardless of retired operating-day fields. */
 test(
   "selects a real cross-day time range across any calendar day",
@@ -185,7 +195,7 @@ test(
   await expect(page.getByRole("status")).toContainText("available for this venue");
 
   // Clear the selected range before trying a second, separate interval.
-  await page.locator('[title="Click to clear the selected event time"]').click();
+  await page.getByTestId("selected-event-time").click();
 
   const mondayFive = await pointInSlot(page, "2030-01-07", "17:00");
   const tuesdayTen = await pointInSlot(page, "2030-01-08", "10:00");
@@ -257,11 +267,11 @@ test("keeps My Bookings summary and cancellation actions usable at phone widths"
     await expect(page.getByText("VB-MOBILE-001")).toBeVisible();
     await expect(page.getByText("Step-free access, please.")).toBeVisible();
     await expect(page.getByText("VB-MOBILE-002")).toBeVisible();
-    await expect(page.locator("article")).toHaveCount(2);
+    await expect(page.getByRole("article")).toHaveCount(2);
 
     const [firstCard, secondCard] = await Promise.all([
-      page.locator("article").nth(0).boundingBox(),
-      page.locator("article").nth(1).boundingBox(),
+      page.getByRole("article").nth(0).boundingBox(),
+      page.getByRole("article").nth(1).boundingBox(),
     ]);
     expect(firstCard).not.toBeNull();
     expect(secondCard).not.toBeNull();

@@ -53,12 +53,6 @@ describe.skipIf(!databaseUrl)(
           await readFile(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'),
         );
       }
-      await pool.query(
-        await readFile(
-          new URL('../../database/postgresql/init/022_spm55_booking_special_request.sql', import.meta.url),
-          'utf8',
-        ),
-      );
 
       const module = await Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(CLOCK)

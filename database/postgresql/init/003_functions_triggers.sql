@@ -1,55 +1,191 @@
--- SPM-157 Audit History of Important Actions.
---
--- event_audit_log is the append-only record of changes to an event and to its venue bookings,
--- equipment requests and registrations that no other table keeps a history of.
--- Also recorded: clarification requests, replies and resolution (event_comments), the coordinator's
--- response to safety feedback, the completion record, registration settings, and venue changes that
--- affect the event's booking (from the SPM-125 Coordinator notice). It is written by the
--- triggers below, so every path that changes those rows (service code, other triggers, the SPM-132 hold
--- decisions and expiry processing) is recorded without calling a helper.
---
--- Read together with the histories other stories already keep (read live by
--- backend/src/events/history/event-history.repository.ts, never copied here):
---   event_flagged_changes        flagged changes and applied information updates (SPM-85, SPM-156)
---   event_change_requests        change requests (SPM-64)
---   event_change_request_audit   change request outcomes (SPM-65)
---   event_cancellation_requests  cancellation requests and decisions (SPM-155)
---
--- Who made a change: the backend sets the transaction-local setting app.actor_id to the signed-in
--- user's id (backend/src/database/database.service.ts). A change made by another trigger
--- (pg_trigger_depth() > 1) or by a rule that is automatic by definition (waiting list promotion and
--- removal, safety check reset) is recorded as made by the system. actor_name keeps the person's
--- display name as it was at the time.
---
--- Entries loaded at release from earlier records (AC11) carry actor_kind 'unrecorded' when the earlier
--- record did not keep who made the change.
+-- All functions and triggers, in their final form. Run after 001_schema.sql and 002_seed_data.sql: the
+-- sample data is loaded without these triggers firing, so it is not rewritten by the safety-check
+-- invalidation rules and writes no audit entries of its own. Idempotent: CREATE OR REPLACE for
+-- functions, DROP TRIGGER IF EXISTS before each CREATE TRIGGER.
 
-CREATE TABLE IF NOT EXISTS event_audit_log (
-    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    -- No foreign key on purpose: a foreign key makes every recorded change take a key-share lock on the
-    -- event row, which would block other requests' SELECT ... FOR UPDATE on the event until commit
-    -- (found by the SPM-120 withdrawal race test). events_audit_cleanup removes an event's entries
-    -- when the event itself is deleted.
-    event_id uuid NOT NULL,
-    section text NOT NULL CHECK (section IN ('event', 'venue_booking', 'equipment', 'registration')),
-    action text NOT NULL CHECK (length(btrim(action)) > 0),
-    subject_id uuid,
-    subject_label text,
-    changes jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(changes) = 'array'),
-    reason text,
-    actor_id text,
-    actor_name text,
-    actor_kind text NOT NULL CHECK (actor_kind IN ('user', 'system', 'unrecorded')),
-    occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-    CONSTRAINT event_audit_log_actor_check CHECK (
-        (actor_kind = 'user' AND actor_name IS NOT NULL)
-        OR (actor_kind <> 'user' AND actor_id IS NULL AND actor_name IS NULL)
-    )
-);
+-- ---------------------------------------------------------------------------------------------------
+-- Safety check invalidation. A safety check only covers the arrangements it was requested for: any
+-- change to the event's details, venue bookings or equipment lines resets it to "not requested".
+-- Status-only changes (for example confirmation) do not reset it.
+-- ---------------------------------------------------------------------------------------------------
 
-ALTER TABLE event_audit_log DROP CONSTRAINT IF EXISTS event_audit_log_event_id_fkey;
+-- A reset removes the safety record and its feedback items and writes one event_safety_resets row so
+-- the coordinator sees why. Any status (pending, approved, changes needed, rejected) is reset.
+CREATE OR REPLACE FUNCTION invalidate_safety_check(
+  p_event_id uuid,
+  p_reason text DEFAULT 'Event details were updated'
+) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  DELETE FROM safety_check_feedback_items WHERE event_id = p_event_id;
+  IF EXISTS (SELECT 1 FROM event_safety_checks WHERE event_id = p_event_id) THEN
+    DELETE FROM event_safety_checks WHERE event_id = p_event_id;
+    -- The event may be mid-delete (cascade from events); only record a reset for a live event.
+    IF EXISTS (SELECT 1 FROM events WHERE id = p_event_id) THEN
+      INSERT INTO event_safety_resets (event_id, reset_at, reason)
+      VALUES (p_event_id, now(), p_reason)
+      ON CONFLICT (event_id) DO UPDATE SET reset_at = now(), reason = p_reason;
+    END IF;
+  END IF;
+END;
+$$;
 
-CREATE INDEX IF NOT EXISTS event_audit_log_event_idx ON event_audit_log (event_id, occurred_at, id);
+CREATE OR REPLACE FUNCTION trg_events_invalidate_safety() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF (NEW.event_name, NEW.purpose, NEW.description, NEW.start_date_time, NEW.end_date_time,
+      NEW.expected_attendance, NEW.preferred_room_layout, NEW.required_facilities,
+      NEW.accessibility_needs, NEW.equipment_needs)
+     IS DISTINCT FROM
+     (OLD.event_name, OLD.purpose, OLD.description, OLD.start_date_time, OLD.end_date_time,
+      OLD.expected_attendance, OLD.preferred_room_layout, OLD.required_facilities,
+      OLD.accessibility_needs, OLD.equipment_needs) THEN
+    PERFORM invalidate_safety_check(NEW.id, 'Event details were updated');
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- Releasing a venue booking leaves the safety record alone (the event is cancelled; nothing is
+-- re-requested), and so does the coordinator re-approving the venue booking or equipment a Safety Officer
+-- named in an open feedback item (reapproval_started_at). Every other change still resets the check.
+CREATE OR REPLACE FUNCTION trg_venue_bookings_invalidate_safety() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.status = 'released' AND OLD.status <> 'released' THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'UPDATE'
+     AND NEW.event_id = OLD.event_id
+     AND EXISTS (
+       SELECT 1
+         FROM event_safety_checks safety
+         JOIN safety_check_feedback_items feedback ON feedback.event_id = safety.event_id
+        WHERE safety.event_id = OLD.event_id
+          AND safety.status IN ('changes_needed', 'rejected')
+          AND feedback.reapproval_started_at IS NOT NULL
+          AND COALESCE(feedback.review_arrangements->'venueIds', '[]'::jsonb) ? OLD.id::text
+     ) THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.event_id IS NOT NULL THEN PERFORM invalidate_safety_check(OLD.event_id, 'The venue booking changed'); END IF;
+    RETURN OLD;
+  END IF;
+  IF TG_OP = 'INSERT' OR NEW IS DISTINCT FROM OLD THEN
+    IF NEW.event_id IS NOT NULL THEN PERFORM invalidate_safety_check(NEW.event_id, 'The venue booking changed'); END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION trg_equipment_invalidate_safety() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.status = 'Released' AND OLD.status <> 'Released' THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'UPDATE'
+     AND NEW.event_id = OLD.event_id
+     AND EXISTS (
+       SELECT 1
+         FROM event_safety_checks safety
+         JOIN safety_check_feedback_items feedback ON feedback.event_id = safety.event_id
+        WHERE safety.event_id = OLD.event_id
+          AND safety.status IN ('changes_needed', 'rejected')
+          AND feedback.reapproval_started_at IS NOT NULL
+          AND COALESCE(feedback.review_arrangements->'equipmentIds', '[]'::jsonb) ? OLD.id::text
+     ) THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    PERFORM invalidate_safety_check(OLD.event_id, 'The equipment request changed');
+    RETURN OLD;
+  END IF;
+  IF TG_OP = 'INSERT' OR (NEW.equipment_name, NEW.quantity, NEW.status) IS DISTINCT FROM
+                         (OLD.equipment_name, OLD.quantity, OLD.status) THEN
+    PERFORM invalidate_safety_check(NEW.event_id, 'The equipment request changed');
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS events_invalidate_safety ON events;
+CREATE TRIGGER events_invalidate_safety AFTER UPDATE ON events
+  FOR EACH ROW EXECUTE FUNCTION trg_events_invalidate_safety();
+
+DROP TRIGGER IF EXISTS venue_bookings_invalidate_safety ON venue_bookings;
+CREATE TRIGGER venue_bookings_invalidate_safety AFTER INSERT OR UPDATE OR DELETE ON venue_bookings
+  FOR EACH ROW EXECUTE FUNCTION trg_venue_bookings_invalidate_safety();
+
+DROP TRIGGER IF EXISTS equipment_reservations_invalidate_safety ON equipment_reservations;
+CREATE TRIGGER equipment_reservations_invalidate_safety AFTER INSERT OR UPDATE OR DELETE ON equipment_reservations
+  FOR EACH ROW EXECUTE FUNCTION trg_equipment_invalidate_safety();
+
+-- ---------------------------------------------------------------------------------------------------
+-- Change request audit (append-only)
+-- ---------------------------------------------------------------------------------------------------
+
+-- Append-only: entries are never edited (an UPDATE raises). See the known limit on delete protection in
+-- the event_change_request_audit comment in 001_schema.sql.
+CREATE OR REPLACE FUNCTION trg_change_request_audit_no_update() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'event_change_request_audit is append-only';
+END;
+$$;
+DROP TRIGGER IF EXISTS change_request_audit_no_update ON event_change_request_audit;
+CREATE TRIGGER change_request_audit_no_update BEFORE UPDATE ON event_change_request_audit
+  FOR EACH ROW EXECUTE FUNCTION trg_change_request_audit_no_update();
+
+-- ---------------------------------------------------------------------------------------------------
+-- Tentative holds
+-- ---------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION invalidate_pending_tentative_holds_on_event_timing_change()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.start_date_time IS DISTINCT FROM OLD.start_date_time
+     OR NEW.end_date_time IS DISTINCT FROM OLD.end_date_time THEN
+    UPDATE venue_bookings
+       SET status = 'cancelled', reassessment_required = false
+     WHERE event_id = NEW.id
+       AND request_kind = 'tentative_hold'
+       AND status = 'pending';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS events_invalidate_pending_tentative_holds ON events;
+CREATE TRIGGER events_invalidate_pending_tentative_holds
+AFTER UPDATE OF start_date_time, end_date_time ON events
+FOR EACH ROW EXECUTE FUNCTION invalidate_pending_tentative_holds_on_event_timing_change();
+
+CREATE OR REPLACE FUNCTION flag_tentative_holds_after_setup_change()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.setup_time_minutes IS DISTINCT FROM OLD.setup_time_minutes THEN
+    UPDATE venue_bookings
+       SET reassessment_required = true
+     WHERE venue_id = NEW.id
+       AND request_kind = 'tentative_hold'
+       AND status = 'pending';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS venues_flag_tentative_holds_after_setup_change ON venues;
+CREATE TRIGGER venues_flag_tentative_holds_after_setup_change
+AFTER UPDATE OF setup_time_minutes ON venues
+FOR EACH ROW EXECUTE FUNCTION flag_tentative_holds_after_setup_change();
+
+-- ---------------------------------------------------------------------------------------------------
+-- Event audit log (event_audit_log): append-only history of important actions. Written by the triggers
+-- below, so every path that changes those rows (service code, other triggers, the hold decisions and
+-- expiry processing) is recorded without calling a helper.
+-- ---------------------------------------------------------------------------------------------------
 
 -- AC10: entries cannot be updated or deleted. The only delete allowed is the clean-up after the event
 -- itself is deleted (tests and maintenance; the application never deletes events).

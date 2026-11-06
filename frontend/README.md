@@ -66,7 +66,7 @@ The view uses the credentialed backend API configured by
 `VITE_API_BASE_URL` (default `http://localhost:8080`). The backend database
 must have the SPM-50 venue structure and SPM-124 `venue_bookings` table. This branch's
 fresh local database initializer creates them and also seeds two sample venues
-from `database/postgresql/init/008_spm124_sample_venues.sql`.
+from `database/postgresql/init/002_seed_data.sql`.
 The Coordinator's existing venue-planning and booking view remains at `/venues`
 and `/venues/:id`, including for accounts that also hold the Venue Staff role.
 
@@ -202,16 +202,36 @@ The standard Vitest command loads `vitest.config.ts`, which selects both
 `src/**/*.test.ts` and `src/**/*.test.tsx`. Playwright specs use their separate
 browser runner.
 
-SPM-134 browser spec (`src/features/bookings/pages/requests/BookingsPage.hold-expiry.playwright.spec.ts`): it needs a
-backend started with `TENTATIVE_HOLD_EXPIRY_INTERVAL_MS=1000` (its own scheduler writes the notices), a Vite dev server
-pointing at it, and three seeded holds. Run it through the harness
-(`node scripts/testing/run-browser.mjs <spec path>` in `backend/`, with `TEST_DATABASE_URL`, `PLAYWRIGHT_BASE_URL` and
-`PLAYWRIGHT_API_URL`), which seeds and removes the fixtures only when that spec is selected. To run it from the
-test-workflow cycle (`ai/scripts/test-workflow/run-cycle.mjs`, which calls Playwright directly), seed first with
-`TEST_DATABASE_URL=<db> node backend/scripts/testing/spm134-hold-fixtures.mjs seed > fixtures.json`, export the variables
-in that file together with `PLAYWRIGHT_BASE_URL` and `PLAYWRIGHT_API_URL`, run the cycle, then remove the rows with
-`node backend/scripts/testing/spm134-hold-fixtures.mjs cleanup fixtures.json`. Run the cycle's real-database suites on a
-different database from the one the browser backend uses, because they drive the expiry processors with far-future clocks.
+Browser test isolation (SPM-187): every Playwright test imports `test` and `expect` from `e2e/fixtures.ts`, whose
+automatic fixture resets the disposable database to reference data before the test. A test then builds what it needs through the `db` fixture: `db.scene({ venues: { hall:
+{ setupMinutes: 30, turnaroundMinutes: 15 } }, events: { main: { status: "Approved", venue: "hall" } } })` in one call,
+the single-row `db.venue()`, `db.event()` and `db.equipment()`, or a named preset (`db.preset("withdrawal" |
+"auditTrail" | "holdExpiry")`). The builders live in `backend/scripts/testing/browser-fixtures.mjs`; the fixture runs
+that script as a child process, so `frontend/` takes no `pg` dependency (cost: about a quarter of a second per reset or
+seeding call). Run through the harness (`cd backend && TEST_DATABASE_URL=<db> npm run test:browser [-- <spec path>]`),
+which refuses a database without the disposable-test marker and starts the backend with
+`TENTATIVE_HOLD_EXPIRY_INTERVAL_MS=1000`, which the SPM-134 spec needs (its own scheduler writes the notices). Running
+`npx playwright test` directly resets whatever `TEST_DATABASE_URL` names, so point it at the database the backend uses.
+The old `spm134-hold-fixtures.mjs seed/cleanup` commands were replaced by the `holdExpiry` preset.
+Signing in (SPM-187 stage 2): a spec does not log in through the UI. It declares who it is in one line,
+`test.use({ as: "coordinator" })`, and starts logged in. `as` takes a role (`organiser`, `coordinator`, `lead`,
+`venue_staff`, `tech_support`, `safety_officer`, `attendee`, each mapped to its `...1` account) or one specific account
+such as `"organiser2"` or `"coordinator_venuestaff"` (the list is `ACCOUNTS` in `e2e/accounts.ts`). A test that needs a
+second user at the same time gets a separate signed-in browser context from the `pageAs("tech_support2")` fixture; use
+it too when the account is only known at run time (the SPM-40 spec). With no `as` the browser is anonymous, which the
+stubbed specs and the login test rely on. `playwright.config.ts` has two projects: `setup` (`e2e/auth.setup.ts`) runs
+first and `browser` depends on it. The setup generates a random session token per seeded account on every run, writes
+one storageState file per account plus `sessions.json` under `e2e/.auth/` (gitignored; never commit them), and asserts
+that each file authenticates as its own account through `GET /api/auth/me`, so a mislabelled state fails the run
+instead of letting a test pass as the wrong user. Because the per-test reset truncates `auth_sessions`, the reset
+re-inserts one fresh session row per account (`token_hash = sha256(token)`) straight after truncating
+(`browser-fixtures.mjs reset <sessions.json>`); a saved login is therefore valid from the first assertion, a logout in
+one test cannot affect the next, and no session state is carried between tests. `LoginPage.playwright.spec.ts` is the
+only spec that types into the login form: it keeps log in and log out covered end to end. The setup counts as one test
+in the run totals. If you run a spec with `--no-deps`, the state files must already exist.
+Playwright transpiles without type-checking and `tsconfig.json` excludes the specs, so `npm run typecheck:e2e`
+(`tsc --noEmit -p tsconfig.e2e.json`, covering `e2e/` and `src/**/*.playwright.spec.ts`) is the type gate for them; CI runs it
+in the `browser-e2e-tests` job.
 
 ## Authentication
 

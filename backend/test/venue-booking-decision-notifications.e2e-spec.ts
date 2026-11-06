@@ -62,10 +62,7 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
       '029_spm137_booking_decision_notification.sql',
     ])
       await pool.query(await readFile(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'));
-    // Only the schema half of migration 022 (the init copy has no backfill), as in the other venue suites.
-    await pool.query(
-      await readFile(new URL('../../database/postgresql/init/022_spm55_booking_special_request.sql', import.meta.url), 'utf8'),
-    );
+    // venue_bookings.special_request comes from init/001_schema.sql; migration 022's backfill is not replayed, as in the other venue suites.
 
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(CLOCK)

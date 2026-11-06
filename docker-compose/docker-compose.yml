@@ -59,6 +59,23 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      # The local stack is what people look at, so it initialises with the demo dataset instead of
+      # init/'s test fixtures. The image already carries init/ 001-003 in this directory; the
+      # entrypoint runs the directory in sorted order, so this file runs last on a fresh volume and
+      # replaces the sample events, venues, equipment and accounts that 002 seeded. init/'s
+      # reference catalogues (roles, permissions, facilities, layouts, accessibility) survive,
+      # because demo_seed.sql looks them up by name rather than creating them.
+      #
+      # Deliberately NOT part of init/: the disposable test database is built from the same image
+      # without this mount, so every suite keeps 002's fixed accounts and ids. Those are what the
+      # backend and Playwright tests authenticate and assert against; swapping them there would
+      # break every login.
+      #
+      # Only runs when the volume is created (docker compose down -v). demo_seed.sql dates are
+      # relative to the moment it runs, so recreate the volume, or re-run the file by hand, shortly
+      # before a demo to keep them current. Accounts here are @connectsphere.sg, not the
+      # @connectsphere.test ones init/ seeds.
+      - ../database/postgresql/demo/demo_seed.sql:/docker-entrypoint-initdb.d/900_demo_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s

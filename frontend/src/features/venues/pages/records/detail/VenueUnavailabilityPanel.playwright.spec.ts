@@ -1,20 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { calendarDayFromNow } from "../../../../../../e2e/dates";
+import { expect, test } from "../../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
-const venueName = process.env.SPM122_TEST_VENUE_NAME;
+const venueName = "SPM-122 unavailability browser";
 
-test.use({ timezoneId: "Asia/Singapore" });
+test.use({ timezoneId: "Asia/Singapore", as: "venue_staff" });
 
 // SPM-122 / VEN-UNAVAIL-01-A/03-A/04-A/06-A: review, confirm, persist, and reload a real venue blockout.
 test("creates an unavailable period through the browser and displays it after reload", async ({ page }) => {
-  if (!venueName) throw new Error("Run this spec through the browser harness with a dedicated test database.");
-
-  // Arrange: authenticate seeded Venue Staff and create an isolated venue through the real API.
-  await page.goto("/login");
-  await page.getByLabel("Email").fill("venue_staff1@connectsphere.test");
-  await page.getByLabel("Password").fill("P@55w0rd");
-  await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).not.toHaveURL(/\/login$/);
+  // Arrange: signed in as seeded Venue Staff (test.use above); create an isolated venue through the real API.
   const created = await page.request.post(`${apiBase}/api/venues`, {
     data: {
       name: venueName,
@@ -32,14 +26,14 @@ test("creates an unavailable period through the browser and displays it after re
   const venueId = (await created.json()).venue.id as string;
   await page.goto(`/venue-records/${venueId}`);
   await expect(page.getByRole("heading", { name: venueName })).toBeVisible();
-  const localTimes = await page.evaluate(() => {
-    const start = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
-    start.setHours(15, 0, 0, 0);
-    const end = new Date(start);
-    end.setHours(18, 0, 0, 0);
+  // The day is chosen by the shared date helper; the browser (Asia/Singapore via test.use) builds the local times.
+  const day = calendarDayFromNow(2);
+  const localTimes = await page.evaluate(({ year, month, day }) => {
+    const start = new Date(year, month - 1, day, 15, 0, 0, 0);
+    const end = new Date(year, month - 1, day, 18, 0, 0, 0);
     const input = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
     return { start: input(start), end: input(end), startIso: start.toISOString(), endIso: end.toISOString() };
-  });
+  }, day);
 
   // Act: enter the local interval, review it without writing, then confirm.
   await page.getByRole("button", { name: "Mark unavailable" }).click();

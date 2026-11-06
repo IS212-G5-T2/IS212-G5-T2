@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 const isCI = !!process.env.CI;
 
@@ -49,10 +49,27 @@ const webServer = process.env.PLAYWRIGHT_SKIP_WEB_SERVER
     ];
 
 export default defineConfig({
+  // Two projects (SPM-187 stage 2). `setup` writes a saved login per seeded account (e2e/auth.setup.ts) and `browser`
+  // runs the specs after it, so a spec declares `test.use({ as: "coordinator" })` instead of logging in through the UI.
+  // Neither project sets a default storageState: a spec is anonymous unless it asks, which the login test and the
+  // stubbed specs rely on.
   testDir: "./src",
-  testMatch: "**/*.playwright.spec.ts",
+  projects: [
+    { name: "setup", testDir: "./e2e", testMatch: "**/*.setup.ts" },
+    { name: "browser", testMatch: "**/*.playwright.spec.ts", testIgnore: "**/*.mobile.playwright.spec.ts", dependencies: ["setup"] },
+    // E2E-30 (SPM-192) and any other phone-only test: name the file `*.mobile.playwright.spec.ts` and it runs under a
+    // named device profile (viewport, touch, mobile UA) instead of calling page.setViewportSize. Pixel 7 is Chromium,
+    // so no extra browser is needed. Tests that deliberately sweep several widths in one test stay in `browser`.
+    { name: "mobile", testMatch: "**/*.mobile.playwright.spec.ts", dependencies: ["setup"], use: { ...devices["Pixel 7"] } },
+    // Self-tests for the e2e helpers (clock, dates). No database or login involved.
+    { name: "helpers", testDir: "./e2e", testMatch: "**/*.playwright.spec.ts" },
+  ],
 
-  // These suites share one database, so they run one at a time. Per-test isolation is SPM-187.
+  // These suites share one database and frontend/e2e/fixtures.ts truncates it before EVERY test
+  // (SPM-187), so two tests running at once would wipe each other's rows and sessions mid-test and the
+  // fixtures' fixed names would collide. workers: 1 is a correctness requirement here, not a tuning
+  // choice - do not raise it, enable fullyParallel, or shard two shards onto one database. The reset
+  // fixture asserts this and fails loudly rather than letting it corrupt a run.
   workers: 1,
   fullyParallel: false,
 

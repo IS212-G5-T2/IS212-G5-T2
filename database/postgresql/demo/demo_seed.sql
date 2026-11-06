@@ -16,6 +16,16 @@
 BEGIN;
 
 TRUNCATE TABLE users, venues, events, equipment CASCADE;
+-- event_drafts is named explicitly: organiser_id is plain text with no foreign key, so a
+-- draft is only removed by the cascade above through its event_id reference. Listing it
+-- keeps the reseed from leaving a draft that points at a deleted account.
+TRUNCATE TABLE event_drafts;
+-- event_audit_log has no foreign key to events (SPM-157: it outlives the rows it describes), so the
+-- cascade above never reaches it. Without this, every reseed leaves the previous dataset's history
+-- behind: a fresh Compose volume was carrying 80 rows for events that no longer existed, and the
+-- count grew with each run. The history page is per-event so those rows were unreachable, but they
+-- are still the deleted dataset's data. Triggers refill this for the rows seeded below.
+TRUNCATE TABLE event_audit_log;
 
 -- ---------------------------------------------------------------------------
 -- Session-local helpers (pg_temp vanishes when the connection closes)
@@ -151,6 +161,21 @@ INSERT INTO venue_accessibility (venue_id, accessibility_id)
 SELECT pg_temp.demo_venue_id(v.key), af.id
 FROM demo_venue v
 JOIN accessibility_features af ON af.label = ANY (v.accessibility);
+
+-- ---------------------------------------------------------------------------
+-- Venue images (three venues only). Tiny solid-colour PNGs, so the file stays small.
+-- byte_size is the decoded size of the PNG, which is how the venue API stores it.
+-- ---------------------------------------------------------------------------
+
+INSERT INTO venue_images (venue_id, file_name, mime_type, byte_size, data_url)
+SELECT pg_temp.demo_venue_id(i.vk), i.file_name, 'image/png',
+    octet_length(decode(i.png_base64, 'base64')),
+    'data:image/png;base64,' || i.png_base64
+FROM (VALUES
+    (1, 'main-auditorium.png', 'iVBORw0KGgoAAAANSUhEUgAAAGAAAABACAIAAABqVuVZAAAAaUlEQVR42u3QMQ0AAAgDsInCBI6QjwNujiZV0FQPhygQJEiQIEGCBAlCkCBBggQJEiQIQYIECRIkSJAgBAkSJEiQIEGCBCFIkCBBggQJEoQgQYIECRIkSBCCBAkSJEiQIEGCECRIkKB/Fojn+UuxTZ2vAAAAAElFTkSuQmCC'),
+    (3, 'community-hall.png', 'iVBORw0KGgoAAAANSUhEUgAAAGAAAABACAIAAABqVuVZAAAAaUlEQVR42u3QMQ0AAAgDsAlDGAIRhgNujiZV0EwXhygQJEiQIEGCBAlCkCBBggQJEiQIQYIECRIkSJAgBAkSJEiQIEGCBCFIkCBBggQJEoQgQYIECRIkSBCCBAkSJEiQIEGCECRIkKB/FqpxQg76PaksAAAAAElFTkSuQmCC'),
+    (8, 'rooftop-garden-terrace.png', 'iVBORw0KGgoAAAANSUhEUgAAAGAAAABACAIAAABqVuVZAAAAaUlEQVR42u3QMQ0AAAgDsKlDCXIQjQNujiZV0NQ0hygQJEiQIEGCBAlCkCBBggQJEiQIQYIECRIkSJAgBAkSJEiQIEGCBCFIkCBBggQJEoQgQYIECRIkSBCCBAkSJEiQIEGCECRIkKB/Fv/kEbRoIibDAAAAAElFTkSuQmCC')
+) AS i(vk, file_name, png_base64);
 
 -- ---------------------------------------------------------------------------
 -- Equipment and its audit trail
@@ -297,6 +322,46 @@ SELECT pg_temp.demo_event_id(p.key), org.id::text, org.display_name, org.email,
 FROM demo_plan p
 JOIN users org ON org.email = pg_temp.demo_email('org')
 LEFT JOIN users coord ON coord.email = pg_temp.demo_email(p.coord);
+
+-- ---------------------------------------------------------------------------
+-- Organiser drafts (SPM-37): saved but never submitted, so "My Drafts" has rows to resume.
+-- fields is read as the frontend's DraftFields, so the event name lives under 'name'
+-- (not 'eventName'). The second draft is deliberately partial: it stops at step 1.
+-- organiser_id is the user id as text, as for events.
+-- ---------------------------------------------------------------------------
+
+INSERT INTO event_drafts (id, organiser_id, fields, status, version, created_at, updated_at)
+SELECT d.id::uuid, org.id::text,
+    jsonb_build_object(
+        'formStep', d.form_step,
+        'name', d.event_name,
+        'purpose', d.purpose,
+        'description', d.description,
+        'startDate', d.start_date,
+        'startTime', d.start_time,
+        'endDate', d.end_date,
+        'endTime', d.end_time,
+        'expectedAttendance', d.attendance,
+        'layout', d.layout,
+        'facilities', to_jsonb(d.facilities),
+        'accessibility', to_jsonb(d.accessibility),
+        'attachments', '[]'::jsonb,
+        'equipmentNeeds', d.equipment_needs,
+        'registrationEnabled', false
+    ),
+    'Draft', d.version, d.created_at, d.updated_at
+FROM (VALUES
+    ('00000000-0000-4000-8000-0000000e0001', 3, 'Green Campus Week Kickoff', 'Launch a week of sustainability activities',
+        'Opening ceremony, a pledge wall and a short talk from the student sustainability council.',
+        to_char(pg_temp.demo_at(40, 9) AT TIME ZONE 'Asia/Singapore', 'YYYY-MM-DD'), '09:00',
+        to_char(pg_temp.demo_at(40, 12) AT TIME ZONE 'Asia/Singapore', 'YYYY-MM-DD'), '12:00',
+        '120', 'Standing', ARRAY['Wi-Fi', 'Power outlets'], ARRAY['Wheelchair access'],
+        'One portable PA speaker and a wireless microphone.', 4, now() - interval '5 days', now() - interval '1 day'),
+    ('00000000-0000-4000-8000-0000000e0002', 1, 'Photography Club Open Studio', 'Introduce new members to the club',
+        '', '', '', '', '', '', '', ARRAY[]::text[], ARRAY[]::text[], '', 1, now() - interval '2 days', now() - interval '2 days')
+) AS d(id, form_step, event_name, purpose, description, start_date, start_time, end_date, end_time, attendance, layout,
+    facilities, accessibility, equipment_needs, version, created_at, updated_at)
+JOIN users org ON org.email = pg_temp.demo_email('org');
 
 -- Status history: one row per transition, timestamped in the past, oldest first.
 INSERT INTO event_status_history (id, event_id, from_status, to_status, actor_id, created_at)
@@ -607,6 +672,70 @@ FROM (VALUES
 JOIN users f ON f.email = pg_temp.demo_email(r.from_login)
 JOIN users t ON t.email = pg_temp.demo_email(r.to_login)
 JOIN users lead ON lead.email = pg_temp.demo_email('lead');
+
+-- ---------------------------------------------------------------------------
+-- Event change history (event_flagged_changes, SPM-156): flagged, directly applied and
+-- change-request changes. Written after the events, bookings and change requests exist.
+-- ---------------------------------------------------------------------------
+
+-- A change request the demo shows as Approved is also recorded as an applied change:
+-- proposed by the organiser, applied by the approving coordinator at the decision time.
+INSERT INTO event_flagged_changes (id, event_id, kind, field, original_value, proposed_value, impacts, equipment_impacts,
+    status, proposed_by, proposed_by_id, created_at, resolved_by, resolved_by_id, resolved_at)
+SELECT gen_random_uuid(), cr.event_id, 'change_request', ch.item ->> 'field',
+    ch.item -> 'originalValue', ch.item -> 'proposedValue', '[]'::jsonb, '[]'::jsonb,
+    'Applied', cr.requested_by, cr.requested_by_id, cr.decided_at, cr.decided_by, cr.decided_by_id, cr.decided_at
+FROM event_change_requests cr
+CROSS JOIN LATERAL jsonb_array_elements(cr.changes) AS ch(item)
+WHERE cr.status = 'Approved';
+
+-- Changes a coordinator made straight to the event: proposed and applied by the same person.
+INSERT INTO event_flagged_changes (id, event_id, kind, field, original_value, proposed_value, impacts, equipment_impacts,
+    status, proposed_by, proposed_by_id, created_at, resolved_by, resolved_by_id, resolved_at)
+SELECT gen_random_uuid(), pg_temp.demo_event_id(d.ek), 'direct_update', d.field, to_jsonb(d.original_value), to_jsonb(d.proposed_value),
+    '[]'::jsonb, '[]'::jsonb, 'Applied', c.display_name, c.id::text, d.at, c.display_name, c.id::text, d.at
+FROM (VALUES
+    (25, 'coord1', 'description', 'A keynote and panel on sustainable urban design.',
+        'A keynote and panel on sustainable urban design. Registration is capped at 3 to show a waitlist.', now() - interval '9 days'),
+    (28, 'coord2', 'description', 'Team-building and leadership workshops over one day.',
+        'Team-building and leadership workshops over one day. Registration opens later.', now() - interval '7 days')
+) AS d(ek, login, field, original_value, proposed_value, at)
+JOIN users c ON c.email = pg_temp.demo_email(d.login);
+
+-- A booking-sensitive change the venue accepted without any conflict: flagged, reviewed and
+-- applied by the coordinator. The Science Open Day's expected attendance is 320, so this
+-- is how it got there (Main Auditorium holds 400).
+INSERT INTO event_flagged_changes (id, event_id, kind, field, original_value, proposed_value, impacts, equipment_impacts,
+    status, proposed_by, proposed_by_id, created_at, resolved_by, resolved_by_id, resolved_at)
+SELECT gen_random_uuid(), e.id, 'booking_conflict', 'expectedAttendance', '300'::jsonb, '320'::jsonb,
+    jsonb_build_array(jsonb_build_object('bookingId', b.id, 'venueId', b.venue_id, 'venueName', 'Main Auditorium',
+        'impacted', false, 'conflicts', '[]'::jsonb,
+        'decision', 'Applied', 'decidedBy', c.display_name, 'decidedAt', now() - interval '6 days')),
+    '[]'::jsonb, 'Applied', org.display_name, org.id::text, now() - interval '6 days' - interval '2 hours',
+    c.display_name, c.id::text, now() - interval '6 days'
+FROM events e
+JOIN venue_bookings b ON b.event_id = e.id AND b.status = 'approved'
+JOIN users c ON c.email = pg_temp.demo_email('coord_vs')
+JOIN users org ON org.email = pg_temp.demo_email('org')
+WHERE e.id = pg_temp.demo_event_id(27);
+
+-- The Community Health Fair story: the organiser asked to start at 4:30pm, which overlaps
+-- Community Hall's blocked period (4pm to 7:30pm), so the change is flagged and waits for review.
+INSERT INTO event_flagged_changes (id, event_id, kind, field, original_value, proposed_value, impacts, equipment_impacts,
+    status, proposed_by, proposed_by_id, created_at)
+SELECT gen_random_uuid(), e.id, 'booking_conflict', 'startDateTime',
+    to_jsonb(to_char(e.start_date_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+    to_jsonb(to_char(pg_temp.demo_at(20, 16.5) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+    jsonb_build_array(jsonb_build_object('bookingId', b.id, 'venueId', b.venue_id, 'venueName', 'Community Hall',
+        'impacted', true,
+        'conflicts', jsonb_build_array(jsonb_build_object('kind', 'overlap',
+            'withBookingId', '00000000-0000-4000-8000-0000000f0001',
+            'detail', 'Overlaps a blocked period: Reserved for a government grant briefing.')))),
+    '[]'::jsonb, 'Needs Review', org.display_name, org.id::text, now() - interval '1 day'
+FROM events e
+JOIN venue_bookings b ON b.event_id = e.id AND b.status = 'approved' AND b.request_kind = 'booking'
+JOIN users org ON org.email = pg_temp.demo_email('org')
+WHERE e.id = pg_temp.demo_event_id(26);
 
 -- ---------------------------------------------------------------------------
 -- Completion records for finished events

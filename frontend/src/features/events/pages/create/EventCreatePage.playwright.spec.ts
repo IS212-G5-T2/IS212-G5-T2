@@ -1,8 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { isoDateFromNow } from "../../../../../e2e/dates";
+import { expect, test } from "../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
-const organiserEmail = process.env.SPM37_ORGANISER_EMAIL ?? "organiser1@connectsphere.test";
-const password = process.env.SPM37_TEST_PASSWORD ?? "P@55w0rd";
+
+test.use({ as: "organiser" });
 const fields = {
   name: "",
   purpose: "",
@@ -23,14 +24,9 @@ const fields = {
 test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI", async ({
   page,
 }) => {
-  const name = process.env.SPM37_TEST_NAME ?? `Draft browser ${Date.now()}`;
+  const name = "Draft browser";
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(organiserEmail);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).not.toHaveURL(/\/login$/);
   await page.goto("/events/create");
   await expect(page).toHaveTitle(/ConnectSphere/);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
@@ -50,7 +46,7 @@ test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI
   await page.reload();
   const link = page.getByRole("link", { name, exact: true });
   await expect(link).toBeVisible();
-  await expect(link.locator("xpath=ancestor::li")).toContainText("Draft");
+  await expect(page.getByRole("listitem").filter({ has: link })).toContainText("Draft");
   if (process.env.SPM37_SCREENSHOT_DIR)
     await page.screenshot({
       path: `${process.env.SPM37_SCREENSHOT_DIR}/draft-list.png`,
@@ -89,7 +85,7 @@ test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI
     .getByRole("textbox", { name: /description/i })
     .fill("An event saved using the new UI.");
   await page.getByRole("button", { name: /Continue/ }).click();
-  const date = new Date(Date.now() + 86400000 * 30).toISOString().slice(0, 10);
+  const date = isoDateFromNow(30);
   await page.getByLabel("Start date", { exact: false }).fill(date);
   await page.getByLabel("Start time", { exact: false }).fill("10:00");
   await page.getByLabel("End date", { exact: false }).fill(date);

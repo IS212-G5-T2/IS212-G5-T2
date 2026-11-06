@@ -268,6 +268,15 @@ export function VenueScheduleCalendar({
           borderlessX
           height="auto"
           expandRows
+          // Browser tests need to aim at a specific hour's lane to drag a time range. FullCalendar
+          // renders these rows itself, so without this the only handle is its own class
+          // (.fc-timegrid-slot-lane), which a theme or a library upgrade can rename out from under the
+          // spec. Stamping our own test id through the public mount hook keeps that coupling here, in
+          // one line, instead of in the spec's selector.
+          slotLaneDidMount={({ el }) => {
+            const slot = el.getAttribute("data-time");
+            if (slot) el.setAttribute("data-testid", `slot-lane-${slot.slice(0, 5)}`);
+          }}
           slotMinTime="00:00:00"
           slotMaxTime="24:00:00"
           slotDuration="01:00:00"
@@ -303,6 +312,7 @@ export function VenueScheduleCalendar({
             info.event.extendedProps.category === "selected" ? (
               <div
                 className="venue-schedule-event"
+                data-testid="selected-event-time"
                 title="Click to clear the selected event time"
               >
                 {info.timeText}

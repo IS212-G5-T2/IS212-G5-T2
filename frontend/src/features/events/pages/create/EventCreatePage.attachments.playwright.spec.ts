@@ -1,9 +1,12 @@
 import { writeFileSync } from "node:fs";
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { type Page, type Route } from "@playwright/test";
+import { expect, test } from "../../../../../e2e/fixtures";
 
 // SPM-36 AC9 in a real browser: an invalid supporting file must show an error to the organiser.
-// The API is mocked with page.route, so these run against the Vite dev server without the
-// backend or database. Expected messages are the ones the create page uses.
+// The API is mocked with page.route, so these assert against the Vite dev server without the backend.
+// Since SPM-187 the spec uses the shared e2e fixture, so TEST_DATABASE_URL must still point at a
+// disposable database (the reset runs before every test) even though no seeded data is read.
+// Expected messages are the ones the create page uses.
 const appOrigin = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 const corsHeaders = {
   "Access-Control-Allow-Origin": appOrigin,

@@ -26,10 +26,9 @@ readonly DB_USER="${POSTGRES_USER:-spm}"
 readonly DB_PASSWORD="${POSTGRES_PASSWORD:-spm_dev_password}"
 readonly DB_NAME="${POSTGRES_DB:-spm}"
 
-# Everything this database needs comes from the image's own init/ directory. That was not always
-# true: event_drafts used to be defined only in backend/migrations/, so this script had to mount
-# that file into initdb the way docker-compose.yml still does. init/003_event_drafts.sql closed
-# that gap, so there is nothing to keep in step here any more.
+# Everything this database needs comes from the image's own init/ directory: 001_schema.sql (every
+# table, including event_drafts), 002_seed_data.sql and 003_functions_triggers.sql, so there is
+# nothing to mount here.
 
 # Stamp the database so automated resets can prove they are pointed at a disposable database and
 # not at a developer's. A dev database has no marker, so backend/scripts/testing/
