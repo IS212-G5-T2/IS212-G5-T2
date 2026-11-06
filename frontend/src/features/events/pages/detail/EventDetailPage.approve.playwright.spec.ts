@@ -96,10 +96,7 @@ async function assignCoordinator(request: APIRequestContext, eventId: string) {
 
 test.describe("SPM-40 approve request functional workflow", () => {
   // SPM-40 AC1-5: the assigned coordinator can find a Submitted request, approve it, and the organiser sees the confirmation.
-  // Quarantined: the approval POST succeeds but the organiser's notification feed does not
-  // refetch in time for the dropdown's live-region to receive the row. Needs either a polled
-  // assertion on the feed or a window-focus dispatch to force the refetch.
-  test.fixme("coordinator approves a submitted request and organiser receives the approval notification", async ({
+  test("coordinator approves a submitted request and organiser receives the approval notification", async ({
     pageAs,
     request,
   }) => {
@@ -148,19 +145,17 @@ test.describe("SPM-40 approve request functional workflow", () => {
       page.getByRole("link", { name: new RegExp(event.name) }),
     ).toBeVisible();
 
-    // The organiser gets the persistent approval notification and can open the approved request.
+    // The organiser's request decisions now live in the top-bar notification bell
+    // (SPM-88 AC4, 29 Oct 2026); no in-page panel remains. Open the bell and read the row.
     page = await pageAs("organiser1");
     await page.goto("/");
-    await expect(
-      page.getByLabel("Request decision notifications"),
-    ).toContainText(
+    await page.getByRole("button", { name: /^Notifications/ }).click();
+    const bell = page.getByRole("dialog", { name: "Notifications" });
+    await expect(bell).toContainText(
       `Your event request "${event.name}" was approved and can proceed.`,
+      { timeout: 15_000 },
     );
-    await page
-      .getByLabel("Request decision notifications")
-      .getByRole("link", { name: "View request" })
-      .first()
-      .click();
+    await bell.getByRole("link", { name: /^View Request$/i }).first().click();
     await expect(page.getByRole("heading", { name: event.name })).toBeVisible();
     await expect(page.getByLabel("Event status timeline")).toContainText(
       "approved",
