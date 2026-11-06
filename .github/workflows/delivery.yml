@@ -87,7 +87,8 @@ jobs:
             --exclude='playwright-report' \
             --exclude='.DS_Store' \
             --exclude='*.tsbuildinfo' \
-            .github backend database docker-compose frontend README.md \
+            .github backend database docker-compose frontend \
+            README.md AGENTS.md CLAUDE.md AI_USAGE.md docs/archived \
             | tar -xf - -C "$staging"
 
           # dist/ is the built output the smoke job runs; fail here rather than in smoke if the
@@ -109,6 +110,10 @@ jobs:
           Contents
           --------
           README.md           Project overview.
+          AGENTS.md,
+          CLAUDE.md           Contributor and agent working agreement.
+          AI_USAGE.md         AI usage log; history under docs/archived/.
+          docs/archived/       Archived AI usage history, grouped by Jira ticket.
           .github/            Workflows that build, test and package this bundle.
           frontend/           Sources, tests and config. dist/ is the built static site:
                               serve it with any static web server.

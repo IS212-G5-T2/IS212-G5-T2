@@ -91,7 +91,8 @@ jobs:
             --exclude='playwright-report' \
             --exclude='.DS_Store' \
             --exclude='*.tsbuildinfo' \
-            .github backend database docker-compose frontend README.md \
+            .github backend database docker-compose frontend \
+            README.md AGENTS.md CLAUDE.md AI_USAGE.md docs/archived \
             | tar -xf - -C "$staging"
 
           test -f "$staging/backend/dist/main.js"
