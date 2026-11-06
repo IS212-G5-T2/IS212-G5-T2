@@ -81,6 +81,9 @@ jobs:
           cp -R database "$staging/database"
           tar -cf - --exclude='.env' docker-compose | tar -xf - -C "$staging"
 
+          # README.md travels with the bundle so the artifact carries the project overview.
+          cp README.md "$staging/README.md"
+
           cat > "$staging/BUILD-INFO.txt" <<INFO
           ConnectSphere delivery bundle
           =============================

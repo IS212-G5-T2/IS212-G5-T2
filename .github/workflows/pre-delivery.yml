@@ -86,6 +86,7 @@ jobs:
           cp backend/package.json backend/package-lock.json "$staging/backend/"
           cp -R database "$staging/database"
           tar -cf - --exclude='.env' docker-compose | tar -xf - -C "$staging"
+          cp README.md "$staging/README.md"
 
           cat > "$staging/BUILD-INFO.txt" <<INFO
           ConnectSphere PR pre-delivery bundle
