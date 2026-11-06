@@ -1,5 +1,7 @@
 # IS212-G5-T2
 
+Link to Github repo: https://github.com/IS212-G5-T2/IS212-G5-T2
+
 Student Project Management workspace for IS212 G5 T2. This repository documents the shared project context, workspace setup, architecture direction, contributor expectations, and the team's Jira/GitHub workflow.
 
 This repository contains the project code, local development setup, and GitHub Actions workflows in one GitHub repository. Deployment, Terraform, and Kubernetes platform configuration have been removed.
