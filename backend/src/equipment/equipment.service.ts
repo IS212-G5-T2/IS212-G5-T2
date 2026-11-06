@@ -193,7 +193,7 @@ export class EquipmentService {
   }
 
   /**
-   * SPM-113 AC1–AC7: calculates stock usable during an event window.  Only a
+   * Legacy availability endpoint (cancelled SPM-113 AC1–AC7): calculates stock usable during an event window.  Only a
    * Reserved request consumes stock.  Intervals are half-open, so a request
    * ending at the selected start (or starting at the selected end) does not
    * overlap it.

@@ -266,7 +266,7 @@ describe('getLegacyMaintenanceStatus', () => {
   });
 });
 
-describe('SPM-113 AC8 status-quantity validation', () => {
+describe('Legacy status-quantity validation (cancelled SPM-113 AC8)', () => {
   /** EQUIP-AVAIL-08-A: create and edit accept a mixed status breakdown and derive the total quantity. */
   it('EQUIP-AVAIL-08-A stores the 10 Active, 30 Under Maintenance, and 10 Retired breakdown as total 50', () => {
     expect(

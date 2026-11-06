@@ -119,8 +119,11 @@ export class DraftsService {
       if (!row) throw new NotFoundException('Request not found.');
       // A lost submission response is safely retried without creating another event.
       if (row.status === 'Submitted') {
+        const event = await this.events.get(identity, row.event_id);
+        if (event.status !== 'Submitted')
+          throw new ConflictException('This event request is no longer Submitted.');
         return {
-          event: await this.events.get(identity, row.event_id),
+          event,
           message: 'Your event request was submitted successfully.',
         };
       }

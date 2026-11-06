@@ -29,7 +29,6 @@ import {
   occupiesVenueSql,
 } from '../venue-unavailable.js';
 import {
-  TURNAROUND_MINUTES,
   type BookingImpact,
   type NeighbourBooking,
 } from './helpers/event-impact.js';
@@ -64,11 +63,7 @@ export interface PlanningEventRow {
 }
 
 export type VenueBookingStatus =
-  | 'Booked'
-  | 'Hold'
-  | 'Hold expired'
-  | 'Unavailable'
-  | 'Cancelled';
+  'Booked' | 'Hold' | 'Hold expired' | 'Unavailable' | 'Cancelled';
 
 export interface VenueBookingRow {
   id: string;
@@ -77,6 +72,8 @@ export interface VenueBookingRow {
   capacity: number;
   start: string;
   end: string;
+  setupTimeMinutes: number;
+  turnaroundTimeMinutes: number;
   status: VenueBookingStatus | string;
   neighbours: NeighbourBooking[];
 }
@@ -112,7 +109,8 @@ export type FlaggedChangeStatus = 'Needs Review' | 'Applied' | 'Rejected';
  * (SPM-65 AC4), recorded as Applied: proposed by the organiser, applied by the
  * approving coordinator (SPM-156).
  */
-export type ChangeKind = 'booking_conflict' | 'direct_update' | 'change_request';
+export type ChangeKind =
+  'booking_conflict' | 'direct_update' | 'change_request';
 
 /** Kinds that are recorded already Applied, never reviewed (SPM-156). */
 export type AppliedChangeKind = Exclude<ChangeKind, 'booking_conflict'>;
@@ -206,7 +204,7 @@ export class EventPlanningRepository {
   private readonly context = new AsyncLocalStorage<pg.PoolClient>();
 
   constructor(private readonly database: DatabaseService) {}
-/* v8 ignore stop */
+  /* v8 ignore stop */
 
   /** Runs `work` in one transaction; nested calls reuse the outer one. */
   runInTransaction<T>(work: () => Promise<T>): Promise<T> {
@@ -266,6 +264,7 @@ export class EventPlanningRepository {
     // ('blocked', no event), the same rows SPM-124 treats as occupying a venue.
     const result = await this.db().query(
       `SELECT b.id, b.venue_id, v.name AS venue_name, v.capacity AS venue_capacity,
+              v.setup_time_minutes, v.turnaround_time_minutes,
               b.start_at, b.end_at, b.created_at,
               CASE
                 WHEN ${expiredApprovedHoldSql('b')} THEN 'Hold expired'
@@ -287,7 +286,9 @@ export class EventPlanningRepository {
                 json_agg(
                   json_build_object('id', n.id,
                                     'eventName', COALESCE(e.event_name, 'Venue unavailable'),
-                                    'start', n.start_at, 'end', n.end_at)
+                                    'start', n.start_at, 'end', n.end_at,
+                                    'setupTimeMinutes', v.setup_time_minutes,
+                                    'turnaroundTimeMinutes', v.turnaround_time_minutes)
                   ORDER BY n.start_at
                 ) FILTER (WHERE n.id IS NOT NULL),
                 '[]'::json
@@ -298,13 +299,13 @@ export class EventPlanningRepository {
            ON n.venue_id = b.venue_id
           AND n.id <> b.id
           AND ((${occupiesVenueSql('n')} AND n.event_id <> b.event_id) OR n.status = 'blocked')
-          AND n.start_at < GREATEST(b.end_at, $3::timestamptz) + make_interval(mins => $4)
-          AND n.end_at > LEAST(b.start_at, $2::timestamptz) - make_interval(mins => $4)
+          AND n.start_at < GREATEST(b.end_at, $3::timestamptz) + make_interval(mins => v.setup_time_minutes + v.turnaround_time_minutes)
+          AND n.end_at > LEAST(b.start_at, $2::timestamptz) - make_interval(mins => v.setup_time_minutes + v.turnaround_time_minutes)
          LEFT JOIN events e ON e.id = n.event_id
         WHERE b.event_id = $1
         GROUP BY b.id, v.id
         ORDER BY b.start_at, b.created_at`,
-      [eventId, window.start ?? null, window.end ?? null, TURNAROUND_MINUTES],
+      [eventId, window.start ?? null, window.end ?? null],
     );
     return result.rows.map((row) => ({
       id: row.id,
@@ -313,6 +314,8 @@ export class EventPlanningRepository {
       capacity: row.venue_capacity,
       start: iso(row.start_at),
       end: iso(row.end_at),
+      setupTimeMinutes: row.setup_time_minutes,
+      turnaroundTimeMinutes: row.turnaround_time_minutes,
       status: row.planning_status,
       requestStatus: row.request_status,
       neighbours: (row.neighbours as NeighbourBooking[]).map((n) => ({
@@ -391,16 +394,27 @@ export class EventPlanningRepository {
     // SPM-58 AC11: a date/time change puts the event's equipment back under review.
     // Read the current window first so we can tell a move that keeps the equipment
     // valid from one that leaves it (which also frees the held reservations).
-    const reschedules = patch.startDateTime !== undefined || patch.endDateTime !== undefined;
+    const reschedules =
+      patch.startDateTime !== undefined || patch.endDateTime !== undefined;
     const previousWindow = reschedules
-      ? (await this.db().query('SELECT start_date_time, end_date_time FROM events WHERE id = $1', [eventId])).rows[0]
+      ? (
+          await this.db().query(
+            'SELECT start_date_time, end_date_time FROM events WHERE id = $1',
+            [eventId],
+          )
+        ).rows[0]
       : undefined;
     const result = await this.db().query(
       `UPDATE events SET ${assignments.join(', ')} WHERE id = $1 RETURNING *`,
       values,
     );
     if (reschedules && previousWindow)
-      await this.rescheduleEquipment(eventId, previousWindow, result.rows[0], now);
+      await this.rescheduleEquipment(
+        eventId,
+        previousWindow,
+        result.rows[0],
+        now,
+      );
     const venue = await this.db().query(
       `SELECT ${VENUE_SUMMARY_SQL} FROM events WHERE id = $1`,
       [eventId],

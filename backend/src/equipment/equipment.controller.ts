@@ -44,7 +44,7 @@ export class EquipmentController {
     return this.equipment.getAuditTrail(request[CURRENT_USER_REQUEST_KEY]);
   }
 
-  /** SPM-113: event-window availability, distinct from the inventory list. */
+  /** Legacy event-window availability (cancelled SPM-113), distinct from the inventory list. */
   @Get('availability')
   availability(
     @Query('startDateTime') startDateTime: string | undefined,

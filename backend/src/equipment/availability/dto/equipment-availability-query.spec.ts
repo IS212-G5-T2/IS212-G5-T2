@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { validateEquipmentAvailabilityQuery } from './equipment-availability-query.js';
 
-describe('SPM-113 equipment availability period validation', () => {
+describe('Legacy equipment availability (cancelled SPM-113) period validation', () => {
   /** EQUIP-AVAIL-01-A: a one-minute ISO event window is accepted. */
   it('EQUIP-AVAIL-01-A accepts a one-minute period and optional type', () => {
     expect(validateEquipmentAvailabilityQuery({ startDateTime: '2030-01-01T10:00:00.000Z', endDateTime: '2030-01-01T10:01:00.000Z', equipmentType: 'Lighting' })).toMatchObject({ equipmentType: 'Lighting' });

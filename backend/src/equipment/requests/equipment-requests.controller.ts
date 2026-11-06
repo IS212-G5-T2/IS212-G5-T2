@@ -40,7 +40,7 @@ export class EquipmentRequestsController {
     return this.requests.listReservations(request[CURRENT_USER_REQUEST_KEY]);
   }
 
-  /** Technical Support turns a submitted request into the reservation used by SPM-113. */
+  /** Technical Support turns a submitted request into the reservation in SPM-58. */
   @Patch(':requestId/reserve')
   reserve(@Req() request: AuthenticatedRequest, @Param('requestId', new ParseUUIDPipe()) requestId: string) {
     return this.requests.reserve(request[CURRENT_USER_REQUEST_KEY], requestId);

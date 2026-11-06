@@ -80,6 +80,8 @@ function venueBooking(overrides: Record<string, unknown> = {}) {
     capacity: 200,
     start: START,
     end: END,
+    setupTimeMinutes: 0,
+    turnaroundTimeMinutes: TURNAROUND_MINUTES,
     status: 'Booked',
     neighbours: [],
     ...overrides,
@@ -335,21 +337,29 @@ describe('SPM-49 coordinator update', () => {
 
   // SAFETY-RESET-UPDATE: any applied detail resets an existing safety check; the response says so.
   it('SAFETY-RESET-UPDATE-01 reports a reset when an applied change removed an existing safety check', async () => {
-    repo.safetyCheckExists.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    const result = await service.updateEvent(coordinator(), EVENT_ID, { name: 'Renamed Event' });
+    repo.safetyCheckExists
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      name: 'Renamed Event',
+    });
     expect(result.applied).toEqual(['name']);
     expect(result.safetyCheckReset).toBe(true);
   });
 
   it('SAFETY-RESET-UPDATE-02 reports no reset when there was no safety check to reset', async () => {
-    const result = await service.updateEvent(coordinator(), EVENT_ID, { name: 'Renamed Event' });
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      name: 'Renamed Event',
+    });
     expect(result.applied).toEqual(['name']);
     expect(result.safetyCheckReset).toBe(false);
   });
 
   it('SAFETY-RESET-UPDATE-03 reports no reset when nothing changed', async () => {
     const same = eventRow().name as string;
-    const result = await service.updateEvent(coordinator(), EVENT_ID, { name: same });
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      name: same,
+    });
     expect(result.applied).toEqual([]);
     expect(result.safetyCheckReset).toBe(false);
     expect(repo.safetyCheckExists).not.toHaveBeenCalled();
@@ -690,6 +700,8 @@ describe('SPM-85 flagged changes', () => {
           {
             id: 'nb-1',
             eventName: 'Chemistry Workshop',
+            setupTimeMinutes: 0,
+            turnaroundTimeMinutes: TURNAROUND_MINUTES,
             start: neighbourStart,
             end: neighbourEnd,
           },
@@ -729,6 +741,8 @@ describe('SPM-85 flagged changes', () => {
           {
             id: 'nb-2',
             eventName: 'Chemistry Workshop',
+            setupTimeMinutes: 0,
+            turnaroundTimeMinutes: TURNAROUND_MINUTES,
             start: '2026-11-10T14:00:00.000Z',
             end: '2026-11-10T16:00:00.000Z',
           },
@@ -1106,6 +1120,8 @@ describe('SPM-97 view: lifecycle and privacy', () => {
           {
             id: 'nb-1',
             eventName: 'Chemistry Workshop',
+            setupTimeMinutes: 0,
+            turnaroundTimeMinutes: TURNAROUND_MINUTES,
             start: START,
             end: END,
           },
@@ -1242,6 +1258,8 @@ describe('SPM-85 flagging: which bookings count', () => {
           {
             id: 'nb-1',
             eventName: 'Chemistry Workshop',
+            setupTimeMinutes: 0,
+            turnaroundTimeMinutes: TURNAROUND_MINUTES,
             start: '2026-11-11T11:00:00.000Z',
             end: '2026-11-11T12:00:00.000Z',
           },
@@ -1365,6 +1383,8 @@ describe('SPM-85 flagging: impacts are specific to the changed field', () => {
         {
           id: 'nb-1',
           eventName: 'Chemistry Workshop',
+          setupTimeMinutes: 0,
+          turnaroundTimeMinutes: TURNAROUND_MINUTES,
           start: '2026-11-10T08:00:00.000Z',
           end: '2026-11-10T09:50:00.000Z',
         },
@@ -1419,7 +1439,11 @@ describe('SPM-156 change history for updates applied immediately', () => {
     expect(repo.recordAppliedChanges).toHaveBeenCalledWith(
       EVENT_ID,
       [
-        { field: 'name', originalValue: 'Welcome Evening', newValue: 'Welcome Night' },
+        {
+          field: 'name',
+          originalValue: 'Welcome Evening',
+          newValue: 'Welcome Night',
+        },
         { field: 'expectedAttendance', originalValue: 80, newValue: 120 },
       ],
       by,
@@ -1436,13 +1460,22 @@ describe('SPM-156 change history for updates applied immediately', () => {
 
   // EVENT-UPDATE-07-A: every SPM-49 AC5 field group is recorded on an Approved event.
   it.each([
-    ['date & time', { startDateTime: '2026-11-11T10:00:00.000Z', endDateTime: '2026-11-11T13:00:00.000Z' }],
+    [
+      'date & time',
+      {
+        startDateTime: '2026-11-11T10:00:00.000Z',
+        endDateTime: '2026-11-11T13:00:00.000Z',
+      },
+    ],
     ['attendance', { expectedAttendance: 120 }],
     ['venue requirements (layout)', { layout: 'Theatre' }],
     ['venue requirements (facilities)', { facilities: ['AV System'] }],
     ['accessibility needs', { accessibility: ['Hearing loop'] }],
     ['equipment requirements', { equipmentNeeds: 'Four microphones' }],
-    ['purpose and description', { purpose: 'Orientation', description: 'Updated.' }],
+    [
+      'purpose and description',
+      { purpose: 'Orientation', description: 'Updated.' },
+    ],
   ])(
     'EVENT-UPDATE-07-A records %s applied on an Approved event',
     async (_label, patch) => {
@@ -1470,7 +1503,9 @@ describe('SPM-156 change history for updates applied immediately', () => {
       layout: 'Theatre',
     });
     expect(result.applied).toEqual(['expectedAttendance']);
-    expect(result.flagged.map((c: { field: string }) => c.field)).toEqual(['layout']);
+    expect(result.flagged.map((c: { field: string }) => c.field)).toEqual([
+      'layout',
+    ]);
     expect(repo.recordAppliedChanges).toHaveBeenCalledWith(
       EVENT_ID,
       [{ field: 'expectedAttendance', originalValue: 80, newValue: 150 }],
@@ -1484,7 +1519,9 @@ describe('SPM-156 change history for updates applied immediately', () => {
   it('EVENT-UPDATE-07-B writes no direct entry when every change is flagged or nothing changed', async () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking()]);
     await service.updateEvent(coordinator(), EVENT_ID, { layout: 'Theatre' });
-    await service.updateEvent(coordinator(), EVENT_ID, { name: 'Welcome Evening' });
+    await service.updateEvent(coordinator(), EVENT_ID, {
+      name: 'Welcome Evening',
+    });
     expect(repo.recordAppliedChanges).not.toHaveBeenCalled();
     expect(repo.createFlaggedChange).toHaveBeenCalledTimes(1);
   });

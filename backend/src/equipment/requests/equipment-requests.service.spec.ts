@@ -213,7 +213,7 @@ describe('SPM-57 equipment request service', () => {
   });
 });
 
-describe('SPM-113 reserve authentication and lookup', () => {
+describe('SPM-58 reserve authentication and lookup', () => {
   /** EQUIP-RESERVE-03-SEC-1: an unauthenticated reserve is refused (401) without reading or writing. */
   it('refuses an unauthenticated reserve without touching the repository', async () => {
     reserve.mockClear();
