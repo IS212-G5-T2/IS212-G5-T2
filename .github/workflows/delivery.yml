@@ -23,6 +23,8 @@ jobs:
     name: Build and package
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      bundle: ${{ steps.assemble.outputs.name }}
 
     steps:
       - name: Checkout
@@ -127,3 +129,160 @@ jobs:
           path: ${{ steps.assemble.outputs.zip }}
           if-no-files-found: error
           retention-days: 30
+
+  # Post-delivery smoke test (docs/ci/smoke.md). Unpacks the archive the package job produced and
+  # proves the packaged backend and frontend work, cheapest tier first: unit -> integration -> P0 browser.
+  # A failure here fails the run; the archive stays attached to the run either way. Nothing is deployed.
+  smoke:
+    name: Smoke test the delivery bundle
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # Isolated from the dev stack (5432) and from test-db.sh's default (55432).
+      SPM_TEST_DB_PORT: "55433"
+      SPM_TEST_DB_CONTAINER: spm-smoke-db
+      BACKEND_PORT: "8080"
+      FRONTEND_PORT: "5173"
+
+    steps:
+      - name: Checkout
+        # The tests and their runners come from the repository at the delivered commit. The code under
+        # test (backend/dist and frontend/dist) comes from the archive, unpacked below.
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies (test tooling)
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend dependencies (test tooling)
+        run: npm ci
+        working-directory: frontend
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      # Tier 1: unit tests. Seconds, no database. Fail here before paying for anything else.
+      - name: Smoke tier 1 - unit tests
+        run: npm run test:smoke:unit
+        working-directory: backend
+
+      - name: Download the delivery bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.package.outputs.bundle }}
+          path: ${{ runner.temp }}/smoke-download
+
+      - name: Unpack the delivery bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Fresh, empty directories every run, so a re-run never sees leftovers.
+          rm -rf "${RUNNER_TEMP:?}/smoke-bundle"
+          mkdir -p "${RUNNER_TEMP}/smoke-bundle"
+          unzip -q "${RUNNER_TEMP}/smoke-download/${{ needs.package.outputs.bundle }}.zip" -d "${RUNNER_TEMP}/smoke-bundle"
+          bundle="${RUNNER_TEMP}/smoke-bundle/${{ needs.package.outputs.bundle }}"
+          test -f "$bundle/backend/dist/main.js"
+          test -f "$bundle/frontend/dist/index.html"
+          echo "BUNDLE_DIR=$bundle" >> "$GITHUB_ENV"
+          cat "$bundle/BUILD-INFO.txt"
+
+      - name: Install production dependencies of the unpacked backend
+        # What the BUILD-INFO.txt tells an operator to run, so a broken manifest or lockfile fails here.
+        run: npm ci --omit=dev
+        working-directory: ${{ env.BUNDLE_DIR }}/backend
+
+      - name: Start the disposable test database
+        run: echo "TEST_DATABASE_URL=$(./database/postgresql/scripts/test-db.sh up)" >> "$GITHUB_ENV"
+
+      # Tier 2: backend integration tests against real PostgreSQL. These run the Nest app in-process from
+      # source (vitest), so they prove the schema, SQL and HTTP flows at this commit, not the compiled bundle.
+      - name: Smoke tier 2 - backend integration tests
+        run: npm run test:smoke:integration
+        working-directory: backend
+
+      - name: Recreate the disposable test database
+        # Two of the suites replay schema SQL over the database. Tier 3 starts from a fresh one rather than
+        # inheriting whatever tier 2 left behind.
+        run: |
+          ./database/postgresql/scripts/test-db.sh down
+          echo "TEST_DATABASE_URL=$(./database/postgresql/scripts/test-db.sh up)" >> "$GITHUB_ENV"
+
+      - name: Start the packaged backend and frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/smoke-logs"
+
+          # The backend exactly as BUILD-INFO.txt says to run it: node dist/main from the unpacked bundle.
+          (
+            cd "$BUNDLE_DIR/backend"
+            DATABASE_URL="$TEST_DATABASE_URL" PORT="$BACKEND_PORT" \
+              FRONTEND_ORIGIN="http://localhost:${FRONTEND_PORT}" \
+              TENTATIVE_HOLD_EXPIRY_INTERVAL_MS=1000 \
+              setsid nohup node dist/main > "${RUNNER_TEMP}/smoke-logs/backend.log" 2>&1 &
+          )
+
+          # The built frontend served as static files with SPA fallback. vite comes from the repository's
+          # tooling install; the files served are the archive's.
+          (
+            cd frontend
+            setsid nohup npx vite preview --outDir "$BUNDLE_DIR/frontend/dist" \
+              --port "$FRONTEND_PORT" --strictPort > "${RUNNER_TEMP}/smoke-logs/frontend.log" 2>&1 &
+          )
+
+          for url in "http://127.0.0.1:${BACKEND_PORT}/healthz" "http://localhost:${FRONTEND_PORT}/"; do
+            for i in $(seq 1 60); do
+              curl -fsS -o /dev/null "$url" && break
+              [ "$i" -eq 60 ] && { echo "Timed out waiting for $url"; tail -n 40 "${RUNNER_TEMP}"/smoke-logs/*.log; exit 1; }
+              sleep 1
+            done
+          done
+
+      # Tier 3: every @P0 browser test, against the packaged stack above. workers is 1 and each test resets
+      # the database, so this is serial by design (about 52 tests).
+      - name: Smoke tier 3 - P0 browser tests
+        run: npm run test:browser -- --grep @P0
+        working-directory: backend
+        env:
+          PLAYWRIGHT_SKIP_WEB_SERVER: "1"
+
+      - name: Upload Playwright report, traces and screenshots
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            ${{ runner.temp }}/smoke-logs/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Show database logs after failure
+        if: failure()
+        run: docker logs spm-smoke-db || true
+
+      - name: Stop the stack and remove the disposable test database
+        if: always()
+        run: |
+          pkill -f "dist/main" || true
+          pkill -f "vite preview" || true
+          ./database/postgresql/scripts/test-db.sh down || true
