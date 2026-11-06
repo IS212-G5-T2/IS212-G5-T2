@@ -79,14 +79,23 @@ jobs:
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
           staging="${RUNNER_TEMP:?}/${name:?}"
-          mkdir -p "$staging/frontend" "$staging/backend"
+          mkdir -p "$staging"
 
-          cp -R frontend/dist "$staging/frontend/dist"
-          cp -R backend/dist "$staging/backend/dist"
-          cp backend/package.json backend/package-lock.json "$staging/backend/"
-          cp -R database "$staging/database"
-          tar -cf - --exclude='.env' docker-compose | tar -xf - -C "$staging"
-          cp README.md "$staging/README.md"
+          # Same layout delivery.yml ships, so the smoke tiers below exercise what main would.
+          tar -cf - \
+            --exclude='node_modules' \
+            --exclude='.env' \
+            --exclude='.auth' \
+            --exclude='coverage' \
+            --exclude='test-results' \
+            --exclude='playwright-report' \
+            --exclude='.DS_Store' \
+            --exclude='*.tsbuildinfo' \
+            .github backend database docker-compose frontend README.md \
+            | tar -xf - -C "$staging"
+
+          test -f "$staging/backend/dist/main.js"
+          test -f "$staging/frontend/dist/index.html"
 
           cat > "$staging/BUILD-INFO.txt" <<INFO
           ConnectSphere PR pre-delivery bundle
