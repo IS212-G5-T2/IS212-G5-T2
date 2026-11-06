@@ -1,7 +1,7 @@
 {
   "story": "SPM-136",
   "title": "Cancel an Event and Release its Reservations",
-  "note": "Jira is the source for AC1 to AC8. The Confluence matrix 'Cancel an Event & Release its Reservations Matrix' and its CANCEL-EVENT-01-A to 08-B case pages are the PRIMARY oracles (21 IDs). The matrix was not re-fetched in this cycle (Atlassian access denied to the agent); the IDs are those recorded in docs/specs/SPM-136-test-results.md. The waiting-list rows (06-B, the waiting half of 08-A) are covered by JOIN-WAITLIST-12 cases from SPM-138, listed in the scope's waitlist e2e entry. Decisions D2, D5, D9, D10, D11, F1, F3 are in docs/specs/SPM-136-test-results.md.",
+  "note": "Jira is the source for AC1 to AC8. The Confluence matrix 'Cancel an Event & Release its Reservations Matrix' and its CANCEL-EVENT-01-A to 08-B case pages are the PRIMARY oracles (21 IDs). The matrix (page 23691421, v1, 26 Oct 2026) was re-fetched from Confluence on 6 Nov 2026: 21 IDs, identical to the registry's PRIMARY rows. The waiting-list rows (06-B, the waiting half of 08-A) are covered by JOIN-WAITLIST-12 cases from SPM-138, listed in the scope's waitlist e2e entry (titleMatch JOIN-WAITLIST-12); the waitlist e2e file is shared with SPM-138, whose own JOIN-WAITLIST ids are registered under SPM-138 (foreign ids) and are skipped by this scope. Decisions D2, D5, D9, D10, D11, F1, F3 are in docs/specs/SPM-136-test-results.md.",
   "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
   "coverageFloor": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
   "tests": {

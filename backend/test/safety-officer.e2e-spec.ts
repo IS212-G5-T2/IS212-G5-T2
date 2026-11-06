@@ -557,6 +557,95 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     });
   });
 
+  /**
+   * SAFETY-OUTCOME-01-SUP-ISOLATION (AC1, Isolation): only the coordinator assigned to the event is notified.
+   * A second coordinator, assigned to nothing, receives no safety response notice for it.
+   */
+  it('SAFETY-OUTCOME-01-SUP-ISOLATION sends no safety response notice to a coordinator who is not assigned to the event', async () => {
+    const event = await createSafetyEvent('Isolated Safety Response Event', true, 'approved', 'Reserved');
+    await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [event.eventId, coordinator.uid]);
+    const unassigned = await createSession('COORDINATOR', 'SPM-131 Unassigned Coordinator');
+
+    await http().post(`/api/safety-officer/queue/${event.eventId}/decision`).set('Cookie', officer.cookie)
+      .send({ decision: 'approved' }).expect(201);
+
+    // Control: the assigned coordinator did receive exactly one notice, so an empty result below is not vacuous.
+    const assigned = await http().get('/api/notifications').set('Cookie', coordinator.cookie).expect(200);
+    expect(assigned.body.filter((n: { relatedEventId: string }) => n.relatedEventId === event.eventId)).toHaveLength(1);
+    // The unassigned coordinator sees nothing about this event, over HTTP and in storage.
+    const other = await http().get('/api/notifications').set('Cookie', unassigned.cookie).expect(200);
+    expect(other.body.filter((n: { relatedEventId: string; type: string }) =>
+      n.relatedEventId === event.eventId || n.type === 'coordinator_safety_response')).toEqual([]);
+    expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE recipient_id = $1', [unassigned.uid])).rows[0].count).toBe(0);
+  });
+
+  /**
+   * SAFETY-OUTCOME-01-SUP-SECURITY (AC1, Security): the coordinator's safety response notice is private to the assigned
+   * coordinator. An organiser and an unassigned coordinator cannot list it or mark it read.
+   */
+  it('SAFETY-OUTCOME-01-SUP-SECURITY keeps the coordinator safety response notice unreadable by an organiser or an unassigned coordinator', async () => {
+    const event = await createSafetyEvent('Private Safety Response Event', true, 'approved', 'Reserved');
+    await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [event.eventId, coordinator.uid]);
+    const unassigned = await createSession('COORDINATOR', 'SPM-131 Unassigned Coordinator');
+    const organiser = await createSession('ORGANISER', 'SPM-131 Organiser');
+    await http().post(`/api/safety-officer/queue/${event.eventId}/decision`).set('Cookie', officer.cookie)
+      .send({ decision: 'approved' }).expect(201);
+    const notice = (await http().get('/api/notifications').set('Cookie', coordinator.cookie).expect(200)).body
+      .find((n: { type: string }) => n.type === 'coordinator_safety_response');
+    expect(notice).toBeDefined();
+
+    for (const intruder of [organiser, unassigned]) {
+      // Listing: the notice and the event never appear in the intruder's feed.
+      const feed = await http().get('/api/notifications').set('Cookie', intruder.cookie).expect(200);
+      expect(feed.body.map((n: { id: string }) => n.id)).not.toContain(notice.id);
+      expect(JSON.stringify(feed.body)).not.toContain('Private Safety Response Event');
+      // Direct access by id: refused as not found, and the notice stays unread for its owner.
+      await http().post(`/api/notifications/${notice.id}/read`).set('Cookie', intruder.cookie).expect(404);
+    }
+    await http().get('/api/notifications').expect(401);
+    expect((await pool.query('SELECT read FROM notifications WHERE id = $1', [notice.id])).rows[0].read).toBe(false);
+  });
+
+  /**
+   * SAFETY-OUTCOME-02-SUP-SECURITY (AC2, Security): the decision and comments are shown only to the coordinator assigned
+   * to the event. An unassigned coordinator, an organiser and an anonymous caller are refused and receive no comment text.
+   */
+  it('SAFETY-OUTCOME-02-SUP-SECURITY refuses the safety decision and comments to a coordinator who is not assigned to the event', async () => {
+    const event = await createSafetyEvent('Confidential Safety Outcome Event', true, 'approved', 'Reserved');
+    await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [event.eventId, coordinator.uid]);
+    const unassigned = await createSession('COORDINATOR', 'SPM-131 Unassigned Coordinator');
+    const organiser = await createSession('ORGANISER', 'SPM-131 Organiser');
+    await http().post(`/api/safety-officer/queue/${event.eventId}/decision`).set('Cookie', officer.cookie)
+      .send({ decision: 'changes_needed', changes: [{ text: 'Provide the confidential evacuation plan.', venueIds: [event.venueBookingId] }] }).expect(201);
+    const url = `/api/events/${event.eventId}/arrangements-status`;
+
+    // Control: the assigned coordinator sees the decision and the comment.
+    const visible = await http().get(url).set('Cookie', coordinator.cookie).expect(200);
+    expect(visible.body.checklist.safetyCheck.feedback[0].text).toBe('Provide the confidential evacuation plan.');
+    for (const intruder of [unassigned, organiser]) {
+      const refused = await http().get(url).set('Cookie', intruder.cookie).expect(403);
+      expect(JSON.stringify(refused.body)).not.toContain('confidential evacuation plan');
+      expect(refused.body).not.toHaveProperty('checklist');
+    }
+    await http().get(url).expect(401);
+  });
+
+  /**
+   * SAFETY-OUTCOME-02-SUP-NO-DECISION (AC2, Sad): while the Safety Officer has not responded, the coordinator's planning
+   * view shows the check as awaiting a decision, with no decision outcome, approver or comments.
+   */
+  it('SAFETY-OUTCOME-02-SUP-NO-DECISION shows no decision or comments to the coordinator before the Safety Officer responds', async () => {
+    const event = await createSafetyEvent('Awaiting Safety Decision Event', true, 'approved', 'Reserved');
+    await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [event.eventId, coordinator.uid]);
+
+    const result = await http().get(`/api/events/${event.eventId}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+
+    expect(result.body.checklist.safetyCheck.status).toBe('pending');
+    expect(result.body.checklist.safetyCheck).not.toHaveProperty('approverName');
+    expect(result.body.checklist.safetyCheck).not.toHaveProperty('feedback');
+    expect(['approved', 'changes_needed', 'rejected']).not.toContain(result.body.checklist.safetyCheck.status);
+  });
+
   /** SAFETY-OUTCOME-04: selected arrangements return to real staff review; feedback acknowledgement alone cannot resubmit. */
   it('SAFETY-OUTCOME-04 requires selected staff re-approval as well as coordinator acknowledgement', async () => {
     const event = await createSafetyEvent('Requested Safety Changes Event', true, 'approved', 'Reserved');

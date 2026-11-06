@@ -25,7 +25,7 @@ describe('CANCEL-EVENT-07-A: assertEventNotCancelled', () => {
     });
   });
 
-  // Kills: none identified
+  // Kills: G1
   it.each(['Submitted', 'Approved', 'Planning', 'Confirmed', 'Completed', 'Rejected'])(
     'CANCEL-EVENT-07-A: does not refuse a %s event (the guard only applies to Cancelled)',
     (status) => {

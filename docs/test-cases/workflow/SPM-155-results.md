@@ -92,6 +92,8 @@ Runner: `node scripts/mutation/run.mjs --mutants spm155.mutants.mjs` (backend, w
 
 G6 reconciliation: 170 killed, 1 equivalent (FM95), 0 survived, score 100 (171 mutants: backend 81, frontend 90). Per-test kills are measured, not assumed: `--measure-kills` ran every test of both suites against every mutant (`mutation/*.kills.json`), every mutant's `testMappings` names only tests observed failing under it, every one of the 196 tests has at least one measured killer, and the `// Kills:` comment above each test lists exactly the mutants that failed it.
 
+SPM-197 correction (6 Nov 2026): FM95 was removed because its edit is identical to FM107 and the line-226 test (`a status history reply that is not a list leaves only the Cancelled step`) kills it, so it was never equivalent. FM56 to FM58 were re-anchored on the refactored timeline code. Frontend now: 92 mutants, 92 killed, 0 equivalent, 0 survived, 0 misapplied.
+
 Concurrency guards (correction round 1). Several layers guard each race, so a mutant that removes one layer leaves the race test green and is killed elsewhere:
 
 | Mutant | What is removed | Observed |

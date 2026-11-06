@@ -275,7 +275,7 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     }
   });
 
-  // a date/time change within the held window returns the request to
+  // EQUIP-RESERVE-11-A (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): a date/time change within the held window returns the request to
   // the review queue but keeps the equipment reserved.
   it('EVENT-UPDATE-HTTP-AC11-within re-opens the request and keeps reservations for an in-window reschedule', async () => {
     const { requestId } = await seedReservedEquipment();
@@ -293,7 +293,7 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     });
   });
 
-  // EQUIP-RESERVE-10-A: a date/time change outside the held window is flagged; confirming it
+  // EQUIP-RESERVE-11-A (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): a date/time change outside the held window is flagged; confirming it
   // returns the request to review and releases the held equipment.
   it('EVENT-UPDATE-HTTP-AC11-outside re-opens the request and releases equipment for an out-of-window reschedule', async () => {
     const { requestId } = await seedReservedEquipment();

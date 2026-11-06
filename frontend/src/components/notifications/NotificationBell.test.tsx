@@ -450,7 +450,7 @@ describe("NotificationBell (SPM-88 AC3: rejection content)", () => {
    * headline, and no reason appears, for a rejection and for an SPM-65 change request denial (whose backend
    * message still carries the reason). When the API sends the current relatedEventName, the cut follows the
    * name, so a reason that holds '" was denied: ' is hidden whole too. When the name is missing or the event was
-   * renamed (SC-SPM88-11), a message with a separator gets the generic headline, so no reason text can leak.
+   * renamed (spec conflict 88-11), a message with a separator gets the generic headline, so no reason text can leak.
    * Kills: a split at the first quote-anchored match (name cut at its own '" was denied: ' and part of the
    * name hidden); a denial reason left in the headline; a cut at the last separator when the reason holds one
    * (part of the reason shown); relatedEventName ignored.

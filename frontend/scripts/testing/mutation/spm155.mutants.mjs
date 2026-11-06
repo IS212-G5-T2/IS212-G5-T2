@@ -3,6 +3,8 @@
 // Each edit is [from, to]; `from` must occur exactly once in its file. Each mutant names the test that must go red.
 export const SUITES = {
   events: { args: ['run', 'src/features/events'] },
+  // SPM-197: the three timeline-origin tests (CANCEL-REQUEST-04-SUP-TIMELINE) added after the last mutation cycle.
+  timeline: { args: ['run', 'src/features/events/pages/detail/EventDetailPage.cancellationLayout.test.tsx'] },
 };
 
 const API = 'src/features/events/api/cancellation-requests-api.ts';
@@ -216,13 +218,13 @@ export const MUTANTS = [
 
   // ---- Commit 02e56aa3 (UI): the stages reached, the panels last, the Coordinator list label, the Reason label, the dots.
   { id: 'FM56', name: 'the timeline shows every stage, not only those reached', file: PAGE,
-    edits: [['return current >= 0 ? flow.slice(0, current + 1) : flow;', 'return flow;']],
+    edits: [['return flow.slice(0, flow.indexOf(status) + 1);', 'return flow;']],
     suites: ['events'], testMappings: [t(layoutPageTest, 'CANCEL-REQUEST-04-SUP-TIMELINE: a %s event shows exactly %j')] },
   { id: 'FM57', name: 'the timeline shows one stage ahead of the current one', file: PAGE,
-    edits: [['flow.slice(0, current + 1)', 'flow.slice(0, current + 2)']],
+    edits: [['flow.slice(0, flow.indexOf(status) + 1)', 'flow.slice(0, flow.indexOf(status) + 2)']],
     suites: ['events'], testMappings: [t(layoutPageTest, 'CANCEL-REQUEST-04-SUP-TIMELINE: a %s event shows exactly %j')] },
   { id: 'FM58', name: 'a cancelled event shows the whole flow instead of the stages up to the one it was cancelled from', file: PAGE,
-    edits: [['return reached >= 0 ? [...flow.slice(0, Math.min(reached + 1, cancelledAt)), "cancelled"] : ["cancelled"];', 'return flow;']],
+    edits: [['return reached >= 0 ? [...beforeCancel.slice(0, Math.min(reached + 1, cancelledAt)), "cancelled"] : ["cancelled"];', 'return flow;']],
     suites: ['events'], testMappings: [t(layoutPageTest, 'CANCEL-REQUEST-04-SUP-TIMELINE: cancelled from %s shows exactly %j')] },
   { id: 'FM59', name: 'a cancelled event drops the stage it was cancelled from (off by one)', file: PAGE,
     edits: [['Math.min(reached + 1, cancelledAt)', 'Math.min(reached, cancelledAt)']],
@@ -300,9 +302,6 @@ export const MUTANTS = [
     edits: [['setCancelledFrom(null);\n    if (!eventId || eventStatus !== "cancelled") return;', 'if (!eventId || eventStatus !== "cancelled") return;']],
     suites: ['events'], testMappings: [t(layoutPageTest, 'CANCEL-REQUEST-04-SUP-TIMELINE: moving to another cancelled event shows only cancelled until its own history arrives'),
       t(layoutPageTest, "CANCEL-REQUEST-04-SUP-TIMELINE: moving to another cancelled event whose history cannot be read drops the earlier event's stages")] },
-  { id: 'FM95', equivalent: true, name: 'equivalent: the Array.isArray guard on the history reply is removed (a reply that is not a list then raises a TypeError inside the then, which the catch handler swallows, leaving the same cleared origin, so no screen or request differs)', file: PAGE,
-    edits: [['Array.isArray(entries) ? entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled") : undefined', 'entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled")']],
-    suites: ['events'], testMappings: [t(layoutPageTest, 'CANCEL-REQUEST-04-SUP-TIMELINE: %s shows only cancelled')] },
   { id: 'FM102', name: 'the Organiser request panel has no gap above it (mt-6 removed)', file: REQ,
     edits: [['className="mt-6 mb-6"', 'className="mb-6"']],
     suites: ['events'], testMappings: [t(panelsLayoutTest, 'CANCEL-REQUEST-02-SUP-LAYOUT: the Organiser request panel has a gap above (mt-6) and below (mb-6)')] },
@@ -318,4 +317,14 @@ export const MUTANTS = [
   { id: 'FM106', name: 'a cancellation row whose origin is Cancelled adds a second Cancelled step', file: PAGE,
     edits: [['Math.min(reached + 1, cancelledAt)', 'reached + 1']],
     suites: ['events'], testMappings: [t(layoutPageTest, 'CANCEL-REQUEST-04-SUP-TIMELINE: a cancellation row whose origin is Cancelled shows Cancelled once')] },
+  // SPM-197: mutants for the three timeline-origin guards of the status-history effect (EventDetailPage.tsx).
+  { id: 'FM107', name: 'the status-history reply is not checked to be a list: an object with a find method is read as history rows', file: PAGE,
+    edits: [['Array.isArray(entries) ? entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled") : undefined', 'entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled")']],
+    suites: ['timeline'], testMappings: [{ suite: 'timeline', file: layoutPageTest, title: 'CANCEL-REQUEST-04-SUP-TIMELINE: a status history reply that is not a list leaves only the Cancelled step' }] },
+  { id: 'FM108', name: 'a late history reply of the previous event is applied (the active guard removed)', file: PAGE,
+    edits: [['if (active) setCancelledFrom(cancellation ? cancellation.fromStatus.toLowerCase() : null);', 'setCancelledFrom(cancellation ? cancellation.fromStatus.toLowerCase() : null);']],
+    suites: ['timeline'], testMappings: [{ suite: 'timeline', file: layoutPageTest, title: "CANCEL-REQUEST-04-SUP-TIMELINE: a delayed history reply for the previous cancelled event does not change the next event's timeline" }] },
+  { id: 'FM109', name: 'a history without a cancellation row falls back to its first row as the origin', file: PAGE,
+    edits: [['entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled") : undefined;', 'entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled") ?? entries[0] : undefined;']],
+    suites: ['timeline'], testMappings: [{ suite: 'timeline', file: layoutPageTest, title: 'CANCEL-REQUEST-04-SUP-TIMELINE: a status history without a cancellation row leaves only the Cancelled step' }] },
 ];

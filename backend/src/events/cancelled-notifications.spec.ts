@@ -93,12 +93,19 @@ describe('CANCEL-EVENT-06-A (TR-136-05, RR-136-05): audience of the EventCancell
     expect(item).toMatchObject({ type: 'EventCancelled', audienceRole: 'coordinator' });
   });
 
+  /**
+   * SPM-138 (not an SPM-136 case): a WaitlistPromoted notice is labelled for the attendee whatever the event relation,
+   * so the EventCancelled audience derivation does not relabel it.
+   */
   it('SPM-138 a WaitlistPromoted notice is labelled for the attendee whatever the event relation', async () => {
+    // Arrange: one WaitlistPromoted notice for an attendee who is neither organiser nor coordinator of the event
     db.query.mockResolvedValue({ rows: [{ ...notice('att-04', 'org-01'), type: 'WaitlistPromoted', message: 'You have been promoted.' }] });
     const attendee: AuthenticatedUser = { uid: 'att-04', roles: ['ATTENDEE'], email: 'a4@example.test', name: 'Attendee 4' };
 
+    // Act: the attendee reads the notifications
     const [item] = await service.notifications(attendee);
 
+    // Assert: the notice keeps the attendee label and the attendee as audience user
     expect(item).toMatchObject({ type: 'WaitlistPromoted', audienceRole: 'attendee', audienceUserId: 'att-04' });
   });
 });

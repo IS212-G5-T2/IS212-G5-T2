@@ -198,7 +198,7 @@ describe('EventPlanningRepository writes', () => {
     expect(row.name).toBe('Renamed');
   });
 
-  /** EQUIP-RESERVE-10-B: a non-reschedule update never touches the event's equipment. */
+  /** EQUIP-RESERVE-11-B: a non-reschedule update never touches the event's equipment. */
   it('leaves equipment untouched when the date/time is unchanged', async () => {
     const { repository, poolQuery } = makeDatabase([eventDbRow()]);
     await repository.applyFields(
@@ -225,7 +225,7 @@ describe('EventPlanningRepository writes', () => {
     return { repository: new EventPlanningRepository(database), calls };
   }
 
-  /** EQUIP-RESERVE-10-A: a move outside the held window returns requests to review AND releases the reservations. */
+  /** EQUIP-RESERVE-11-A (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): a move outside the held window returns requests to review AND releases the reservations. */
   it('returns equipment to Pending Review and releases reservations when the event moves outside its window', async () => {
     const { repository, calls } = rescheduleDatabase(
       { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
@@ -246,7 +246,7 @@ describe('EventPlanningRepository writes', () => {
     expect(resUpdate?.params[0]).toBe(EVENT_ID);
   });
 
-  /** EQUIP-RESERVE-10-BND-1: moving only the end later than the held window also releases reservations. */
+  /** EQUIP-RESERVE-11-BND-1 (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): moving only the end later than the held window also releases reservations. */
   it('releases reservations when only the event end moves later than its window', async () => {
     const { repository, calls } = rescheduleDatabase(
       { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
@@ -262,7 +262,67 @@ describe('EventPlanningRepository writes', () => {
     expect(resUpdate?.params[0]).toBe(EVENT_ID);
   });
 
-  /** a move that stays inside the held window re-opens the request but keeps the reservations. */
+  /**
+   * EQUIP-RESERVE-11-BND-1 (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag):
+   * moving only the start by the smallest supported increment (+1 minute) returns the Reserved request to Pending Review and retains the reservation.
+   */
+  it('returns the request to Pending Review and retains reservations for a one-minute change of only the start', async () => {
+    const { repository, calls } = rescheduleDatabase(
+      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
+      { start: new Date('2026-11-10T10:01:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
+    );
+    await repository.applyFields(
+      EVENT_ID,
+      { startDateTime: '2026-11-10T10:01:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      new Date('2026-10-05T08:00:00.000Z'),
+    );
+    const reqUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_requests'));
+    expect(reqUpdate?.sql).toContain("status = 'Pending Review'");
+    expect(reqUpdate?.sql).toContain("status = 'Reserved'");
+    expect(reqUpdate?.params[0]).toBe(EVENT_ID);
+    expect(calls.some((call) => call.sql.includes('UPDATE equipment_reservations'))).toBe(false);
+  });
+
+  /**
+   * EQUIP-RESERVE-11-BND-1 (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag):
+   * moving only the end by one minute returns the Reserved request to Pending Review.
+   */
+  it('returns the request to Pending Review for a one-minute change of only the end', async () => {
+    const { repository, calls } = rescheduleDatabase(
+      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
+      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:01:00.000Z') },
+    );
+    await repository.applyFields(
+      EVENT_ID,
+      { endDateTime: '2026-11-10T12:01:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      new Date('2026-10-05T08:00:00.000Z'),
+    );
+    const reqUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_requests'));
+    expect(reqUpdate?.sql).toContain("status = 'Pending Review'");
+    expect(reqUpdate?.params[0]).toBe(EVENT_ID);
+  });
+
+  /**
+   * EQUIP-RESERVE-11-BND-1 (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag):
+   * moving only the end one minute earlier (still inside the held window) returns the request to Pending Review and retains the reservation.
+   */
+  it('returns the request to Pending Review and retains reservations for a one-minute change of only the end to earlier', async () => {
+    const { repository, calls } = rescheduleDatabase(
+      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
+      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T11:59:00.000Z') },
+    );
+    await repository.applyFields(
+      EVENT_ID,
+      { endDateTime: '2026-11-10T11:59:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      new Date('2026-10-05T08:00:00.000Z'),
+    );
+    const reqUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_requests'));
+    expect(reqUpdate?.sql).toContain("status = 'Pending Review'");
+    expect(reqUpdate?.params[0]).toBe(EVENT_ID);
+    expect(calls.some((call) => call.sql.includes('UPDATE equipment_reservations'))).toBe(false);
+  });
+
+  /** EQUIP-RESERVE-11-A (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): a move that stays inside the held window re-opens the request but keeps the reservations. */
   it('returns equipment to Pending Review but keeps reservations when the event stays within its window', async () => {
     const { repository, calls } = rescheduleDatabase(
       { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
