@@ -44,7 +44,7 @@ describe.skipIf(!database)('SAFETY-STALE: safety approval is invalidated by arra
     createdVenueIds = [];
     createdUserIds = [];
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     coordinator = await createSession('COORDINATOR', 'Coordinator 1');
   });

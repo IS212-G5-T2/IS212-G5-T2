@@ -26,7 +26,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     for (const file of ['010_spm135_confirm_event.sql', '012_spm57_equipment_requests.sql', '014_spm57_request_reservations.sql', '020_spm58_cannot_provide.sql', '035_spm172_equipment_decision_notification.sql'])
       await pool.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = module.createNestApplication();
+    app = module.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
   });
 

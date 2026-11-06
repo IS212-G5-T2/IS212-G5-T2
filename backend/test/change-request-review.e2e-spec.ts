@@ -58,7 +58,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     organiser = await createDatabaseUser('ORGANISER', 'CR Organiser');
     coordinator = await createDatabaseUser('COORDINATOR', 'CR Coordinator');

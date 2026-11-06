@@ -47,7 +47,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     createdEventIds = [];
     createdUserIds = [];
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
 
     organiser = await createDatabaseUser('ORGANISER', 'CR Organiser');

@@ -57,7 +57,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     createdUserIds = [];
     createdDraftIds = [];
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
   });
 

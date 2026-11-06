@@ -66,7 +66,7 @@ describe.skipIf(!databaseUrl)(
         .overrideProvider(CLOCK)
         .useValue({ now: () => testNow })
         .compile();
-      app = module.createNestApplication();
+      app = module.createNestApplication({ logger: ['warn', 'log'] });
       await app.init();
     });
 
@@ -4752,7 +4752,7 @@ describe.skipIf(!databaseUrl)(
           .overrideProvider(CLOCK)
           .useValue({ now: () => testNow })
           .compile();
-        scheduledApp = scheduledModule.createNestApplication();
+        scheduledApp = scheduledModule.createNestApplication({ logger: ['warn', 'log'] });
         await scheduledApp.init();
 
         await vi.advanceTimersByTimeAsync(999);

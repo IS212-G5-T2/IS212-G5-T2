@@ -62,7 +62,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
       .overrideProvider(CLOCK)
       .useValue({ now: () => fixedNow })
       .compile();
-    app = module.createNestApplication();
+    app = module.createNestApplication({ logger: ['warn', 'log'] });
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
   });

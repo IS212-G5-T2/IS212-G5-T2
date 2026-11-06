@@ -58,7 +58,7 @@ describe.skipIf(!databaseUrl)(
         .overrideProvider(CLOCK)
         .useValue({ now: () => testNow })
         .compile();
-      app = module.createNestApplication();
+      app = module.createNestApplication({ logger: ['warn', 'log'] });
       await app.init();
     });
 

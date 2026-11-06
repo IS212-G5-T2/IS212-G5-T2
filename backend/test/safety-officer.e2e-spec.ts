@@ -47,7 +47,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
 
   beforeEach(async () => {
     const fixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = fixture.createNestApplication();
+    app = fixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     officer = await createSession('SAFETY_OFFICER', 'SPM-129 Safety Officer');
     coordinator = await createSession('COORDINATOR', 'SPM-129 Coordinator');

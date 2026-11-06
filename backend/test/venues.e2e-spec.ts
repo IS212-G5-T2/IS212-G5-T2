@@ -255,7 +255,7 @@ describe.skipIf(!databaseUrl)(
         .overrideProvider(CLOCK)
         .useValue({ now: () => fixedNow })
         .compile();
-      app = moduleFixture.createNestApplication();
+      app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
       await app.init();
     });
 

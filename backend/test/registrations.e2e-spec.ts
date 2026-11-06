@@ -41,7 +41,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
       .overrideProvider(CLOCK)
       .useValue({ now: () => now })
       .compile();
-    app = module.createNestApplication();
+    app = module.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
   });
   afterEach(async () => {

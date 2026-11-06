@@ -129,7 +129,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
       .useValue({ now: () => new Date(T0) });
     if (releasers) builder = builder.overrideProvider(EVENT_RELEASERS).useValue(releasers);
     const moduleFixture = await builder.compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     // TR-136-08: bind the test server to 127.0.0.1 so supertest's 127.0.0.1 requests cannot reach another local listener.
     await app.listen(0, '127.0.0.1');

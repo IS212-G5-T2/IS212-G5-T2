@@ -42,7 +42,7 @@ describe.skipIf(!database)('EQUIPMENT-REMOVE: coordinator removes an unavailable
     createdVenueIds = [];
     createdUserIds = [];
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     coordinator = await createSession('COORDINATOR', 'Coordinator 1');
   });

@@ -68,7 +68,7 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
       .overrideProvider(CLOCK)
       .useValue({ now: () => fixedNow })
       .compile();
-    app = module.createNestApplication({ logger: false });
+    app = module.createNestApplication({ logger: ['warn', 'log'] });
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
   });

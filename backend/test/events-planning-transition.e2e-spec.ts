@@ -67,7 +67,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       .overrideProvider(CLOCK)
       .useValue({ now: () => now })
       .compile();
-    app = module.createNestApplication();
+    app = module.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
   });
 

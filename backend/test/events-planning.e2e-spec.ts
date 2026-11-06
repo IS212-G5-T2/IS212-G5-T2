@@ -156,7 +156,7 @@ describe.skipIf(!database)(
           EventPlanningService,
         ],
       }).compile();
-      app = module.createNestApplication();
+      app = module.createNestApplication({ logger: ['warn', 'log'] });
       app.use((req: Request, _res: Response, next: NextFunction) => {
         req[CURRENT_USER_REQUEST_KEY] = organiser;
         next();

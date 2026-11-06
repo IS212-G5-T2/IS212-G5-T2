@@ -90,7 +90,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     await closeApp();
     let builder = Test.createTestingModule({ imports: [AppModule] }).overrideProvider(CLOCK).useValue({ now: () => new Date(T0) });
     if (releasers) builder = builder.overrideProvider(EVENT_RELEASERS).useValue(releasers);
-    app = (await builder.compile()).createNestApplication();
+    app = (await builder.compile()).createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     // Bound to 127.0.0.1 so supertest cannot reach another local listener.
     await app.listen(0, '127.0.0.1');

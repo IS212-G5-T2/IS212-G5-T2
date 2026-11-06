@@ -59,7 +59,7 @@ describe.skipIf(!database)('SPM-136 cancelled events refuse every arrangement ch
       .overrideProvider(CLOCK)
       .useValue({ now: () => new Date(T0) })
       .compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     // TR-136-08: bind the test server to 127.0.0.1 so supertest's 127.0.0.1 requests cannot reach another local listener.
     await app.listen(0, '127.0.0.1');

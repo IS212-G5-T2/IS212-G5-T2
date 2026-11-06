@@ -36,7 +36,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     auditFailureTriggerInstalled = false;
     app = (
       await Test.createTestingModule({ imports: [AppModule] }).compile()
-    ).createNestApplication();
+    ).createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
   });
   afterEach(async () => {

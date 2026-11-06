@@ -79,7 +79,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       .overrideProvider(CLOCK)
       .useValue({ now: () => now })
       .compile();
-    app = module.createNestApplication();
+    app = module.createNestApplication({ logger: ['warn', 'log'] });
     // Listening once up front lets the parallel requests share one server.
     await app.listen(0);
   });

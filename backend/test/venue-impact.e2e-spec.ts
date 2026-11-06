@@ -186,7 +186,7 @@ describe.skipIf(!databaseUrl)(
         .overrideProvider(CLOCK)
         .useValue({ now: () => fixedNow })
         .compile();
-      app = moduleFixture.createNestApplication();
+      app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
       await app.init();
       await signIn('staff', 'venue_staff1@connectsphere.test');
       await signIn('staff2', 'venue_staff2@connectsphere.test');

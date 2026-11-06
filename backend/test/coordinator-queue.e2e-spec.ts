@@ -107,7 +107,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       .overrideProvider(CLOCK)
       .useValue(clock)
       .compile();
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ logger: ['warn', 'log'] });
     await app.init();
     coo1 = await createUser('COORDINATOR', 'COO-01 Coordinator');
     coo2 = await createUser('COORDINATOR', 'COO-02 Coordinator');
