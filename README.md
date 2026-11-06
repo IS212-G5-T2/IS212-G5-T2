@@ -15,15 +15,16 @@ This repository contains the project code, local development setup, and GitHub A
 |-- ai/agents/            # One shared Markdown playbook per agent case
 |-- ai/docs/              # Agent workflow and invocation examples
 |-- ai/runtime/           # Ignored local agent reports and handoffs
-|-- assets/               # README and documentation images
 |-- backend/              # NestJS backend service
 |-- database/             # Local database image and initialization assets
 |-- docs/                 # Project workflow documentation
 |-- docker-compose/       # Local Docker Compose integration stack
 |-- frontend/             # React/Vite frontend application
+|-- README.md             # This file
 |-- AGENTS.md             # Agent working instructions
 |-- AI_USAGE.md           # Current AI-assisted work log
-`-- opencode.json
+|-- CLAUDE.md             # Claude Code project instructions
+`-- CONTEXT.md            # Shared project context
 ```
 
 ## Codex development workflow
@@ -42,93 +43,41 @@ At a high level:
 - `backend` is the NestJS backend service.
 - `docker-compose` owns the Docker Compose environment for local integration testing.
 - `database` owns the local PostgreSQL image and initialization assets used by Compose.
-- `.github/workflows` owns the GitHub Actions security and test workflows.
+- `.github/workflows` owns the GitHub Actions security, test, pre-delivery and delivery workflows.
 - `docs` owns project workflow documentation.
 
 No deployment target is defined in this repository. `dev` is the latest shared branch; create new work branches from the latest `dev` and open pull requests back into `dev`.
 
 ## Setup
 
-### System Architecture
+### Running The Delivery Bundle
 
-The system is organized around clear ownership boundaries:
+The Delivery workflow attaches a `connectsphere-<short-sha>` artifact to every run on `main`. Download it from the **Artifacts** section of the run and extract it once; `BUILD-INFO.txt` at the top records which commit it was built from.
 
-| Layer | Repository | Responsibility |
-| --- | --- | --- |
-| Project coordination | Repository root and `docs` | README, AI usage notes, agent instructions, project workflow documentation |
-| Frontend | `frontend` | React/Vite user-facing client application, frontend package scripts, and frontend Dockerfile |
-| Backend service | `backend` | NestJS backend service code, service-specific tests, service Dockerfile, and service CI entrypoint |
-| Database assets | `database` | Local PostgreSQL image and initialization assets used by Docker Compose |
-| Local integration | `docker-compose` | Docker Compose frontend/backend runtime targets and PostgreSQL |
-| CI | `.github/workflows` | GitHub Actions workflows for security and tests |
+The bundle carries the same sources the Compose stack builds from, so the quickest path needs no clone and no GitHub access. You need Docker Desktop or Docker Engine with Docker Compose:
 
-The local development stack supports integration work without deployment infrastructure:
-
-| Local concern | Local implementation |
-| --- | --- |
-| Compose network | `spm` |
-| Local gateway | Nginx gateway at `http://localhost:8080` |
-| Frontend container | `frontend` container at `http://localhost:5173` |
-| Backend container | `backend` container through the gateway at `http://localhost:8080` |
-| PostgreSQL | PostgreSQL at `localhost:5432` |
-| Object storage emulator | Fake GCS server at `http://localhost:4443` |
-| Pub/Sub emulator | Pub/Sub emulator at `localhost:8085` |
-| Runtime configuration | `.env` file |
-| Service readiness | Docker Compose health checks |
-
-### C4 Diagram
-
-```mermaid
-C4Context
-    title IS212 G5 T2 - C4 Context
-
-    Person(student, "Student/User", "Uses the SPM platform through the frontend.")
-    System_Boundary(spm, "Student Project Management Platform") {
-        Container(frontend, "Frontend", "React / Vite", "User interface for project workflows.")
-        Container(services, "Backend Services", "Service components", "Own backend business logic and service contracts.")
-        ContainerDb(postgres, "Local PostgreSQL", "PostgreSQL 16", "Stores local relational application data.")
-        Container(storage, "Local Object Storage Emulator", "fake-gcs-server", "Stores local uploaded or generated files.")
-        ContainerQueue(pubsub, "Local Pub/Sub Emulator", "Messaging emulator", "Supports local asynchronous events.")
-    }
-    System_Ext(identity, "External Identity Provider", "Issues tokens used for authenticated requests.")
-    System_Ext(github, "GitHub", "Source control, pull requests, and CI evidence.")
-    System_Ext(jira, "Jira", "Scrum board, sprint tracking, and acceptance criteria.")
-
-    Rel(student, frontend, "Uses")
-    Rel(frontend, identity, "Authenticates with")
-    Rel(frontend, services, "Calls service APIs")
-    Rel(services, postgres, "Reads/writes data")
-    Rel(services, storage, "Stores/retrieves files")
-    Rel(services, pubsub, "Publishes/subscribes to events")
-    Rel(github, frontend, "Builds/checks")
-    Rel(github, services, "Runs checks when configured")
-    Rel(github, jira, "References Jira issue keys in branches, commits, and pull requests")
+```sh
+cd connectsphere-<short-sha>/docker-compose
+cp .env.example .env
+docker compose up --build
 ```
 
-```mermaid
-C4Container
-    title IS212 G5 T2 - Local Development Containers
+Then open `http://localhost:5173`, and check the backend with `curl http://localhost:8080/healthz`.
 
-    Person(dev, "Developer", "Runs the full local stack.")
-    System_Boundary(local, "docker-compose") {
-        Container(frontendLocal, "frontend", "React / Vite dev container", "Frontend development server on localhost:5173.")
-        Container(gateway, "gateway", "Nginx", "Local reverse proxy on localhost:8080.")
-        Container(service, "backend", "NestJS backend container", "Service target expected by the Compose stack.")
-        ContainerDb(postgres, "postgres", "PostgreSQL 16", "Local relational database on localhost:5432.")
-        Container(pubsub, "pubsub-emulator", "Google Cloud SDK emulator", "Local Pub/Sub emulator on localhost:8085.")
-        Container(gcs, "gcs", "fake-gcs-server", "Local Cloud Storage emulator on localhost:4443.")
-        Container(adminer, "db-admin", "Adminer", "Optional database UI on localhost:8081.")
-    }
+To run it without Docker, use the prebuilt output the bundle already contains. This needs a PostgreSQL 16 of your own, initialised from `database/postgresql/init/` (which is the complete schema):
 
-    Rel(dev, frontendLocal, "Opens UI")
-    Rel(frontendLocal, gateway, "Calls backend API through localhost:8080")
-    Rel(dev, gateway, "Sends direct API requests")
-    Rel(gateway, service, "Routes /healthz and service traffic")
-    Rel(service, postgres, "Uses DATABASE_URL / DB_HOST / DB_PORT")
-    Rel(service, pubsub, "Uses emulator config")
-    Rel(service, gcs, "Uses storage emulator")
-    Rel(dev, adminer, "Opens with tools profile")
+```sh
+cd connectsphere-<short-sha>/backend
+npm ci --omit=dev
+DATABASE_URL=postgresql://<user>:<password>@localhost:5432/<database> \
+  FRONTEND_ORIGIN=http://localhost:5173 \
+  PORT=8080 \
+  node dist/main
 ```
+
+Serve `frontend/dist/` with any static web server. `VITE_API_BASE_URL` is baked in at build time, so point the backend at the origin the frontend was built for, or rebuild the frontend to change it.
+
+`node_modules` is not in the bundle: both components reinstall from their committed lockfiles. Local `.env` files are excluded, which is why the Compose path starts by copying `.env.example`.
 
 ### How To Actually Run The Whole Project
 
@@ -146,62 +95,6 @@ Make sure you have:
 - GitHub authentication configured locally through SSH and/or HTTPS credentials.
 - Optional but recommended: GitHub CLI (`gh`) authenticated against `github.com`.
 
-Before cloning, configure GitHub access. The team manual standardizes on an ed25519 SSH key:
-
-```sh
-chmod 700 ~/.ssh
-ssh-keygen -t ed25519 -C "your_email@example.com" -f ~/.ssh/id_ed25519_github
-chmod 600 ~/.ssh/id_ed25519_github
-chmod 644 ~/.ssh/id_ed25519_github.pub
-```
-
-Add this to `~/.ssh/config`:
-
-```text
-Host github.com
-HostName github.com
-User git
-IdentityFile ~/.ssh/id_ed25519_github
-IdentitiesOnly yes
-```
-
-Start the SSH agent and add the key:
-
-```sh
-eval "$(ssh-agent -s)"
-ssh-add ~/.ssh/id_ed25519_github
-chmod 600 ~/.ssh/config
-```
-
-Copy the public key and add it in GitHub under **Settings > SSH and GPG keys**:
-
-```sh
-cat ~/.ssh/id_ed25519_github.pub
-```
-
-On macOS, copy directly to the clipboard:
-
-```sh
-cat ~/.ssh/id_ed25519_github.pub | pbcopy
-```
-
-Test the SSH connection:
-
-```sh
-ssh -T git@github.com
-```
-
-For Windows PowerShell, generate and add the same key name:
-
-```powershell
-ssh-keygen -t ed25519 -C "your_email@example.com" -f "$HOME\.ssh\id_ed25519_github"
-notepad "$HOME\.ssh\config"
-Start-Service ssh-agent
-Set-Service ssh-agent -StartupType Automatic
-ssh-add "$HOME\.ssh\id_ed25519_github"
-Get-Content "$HOME\.ssh\id_ed25519_github.pub" | Set-Clipboard
-```
-
 To run the local development stack, move into the Compose environment:
 
 ```sh
@@ -210,7 +103,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Check the gateway:
+Check the backend:
 
 ```sh
 curl http://localhost:8080/healthz
@@ -221,28 +114,9 @@ Common local URLs:
 | Service | URL |
 | --- | --- |
 | Frontend | `http://localhost:5173` |
-| Local gateway | `http://localhost:8080` |
-| Backend through gateway | `http://localhost:8080/healthz` |
+| Backend | `http://localhost:8080` |
+| Backend health check | `http://localhost:8080/healthz` |
 | PostgreSQL | `localhost:5432` |
-| Pub/Sub emulator | `localhost:8085` |
-| Storage emulator | `http://localhost:4443` |
-| Adminer, optional | `http://localhost:8081` |
-
-Start Adminer only when needed:
-
-```sh
-docker compose --profile tools up db-admin
-```
-
-Use these Adminer values:
-
-| Field | Value |
-| --- | --- |
-| System | `PostgreSQL` |
-| Server | `postgres` |
-| Username | `spm` |
-| Password | `spm_dev_password` |
-| Database | `spm` |
 
 Stop the local stack without deleting data:
 
@@ -250,7 +124,7 @@ Stop the local stack without deleting data:
 docker compose down
 ```
 
-Reset local database and storage volumes only when a full data reset is intended:
+Reset the local database and frontend dependency volumes only when a full data reset is intended:
 
 ```sh
 docker compose down -v
@@ -258,12 +132,161 @@ docker compose down -v
 
 The local Compose stack builds `../frontend` for the frontend container, `../backend` for the backend container, and `../database/postgresql` for the local PostgreSQL image.
 
+### System Architecture
+
+The system is organized around clear ownership boundaries:
+
+| Layer | Repository | Responsibility |
+| --- | --- | --- |
+| Project coordination | Repository root and `docs` | README, AI usage notes, agent instructions, project workflow documentation |
+| Frontend | `frontend` | React/Vite user-facing client application, frontend package scripts, and frontend Dockerfile |
+| Backend service | `backend` | NestJS backend service code, service-specific tests, service Dockerfile, and service CI entrypoint |
+| Database assets | `database` | Local PostgreSQL image and initialization assets used by Docker Compose |
+| Local integration | `docker-compose` | Docker Compose frontend/backend runtime targets and PostgreSQL |
+| CI/CD | `.github/workflows` | GitHub Actions workflows for security, tests, and the pre-delivery and delivery bundles |
+
+The local development stack supports integration work without deployment infrastructure:
+
+| Local concern | Local implementation |
+| --- | --- |
+| Compose network | `spm` |
+| Frontend container | `frontend` container at `http://localhost:5173` |
+| Backend container | `backend` container at `http://localhost:8080` |
+| PostgreSQL | PostgreSQL at `localhost:5432` |
+| Runtime configuration | `.env` file |
+| Service readiness | Docker Compose health checks |
+
+### C4 Diagrams
+
+#### Level 1 — System Context
+
+```mermaid
+flowchart TB
+    ATT(["👤 Attendee<br/>[Person]<br/>Registers for events"])
+    ORG(["👤 Event Organiser<br/>[Person]<br/>Creates event requests"])
+    COO(["👤 Event Coordinator<br/>[Person]<br/>Plans events"])
+    LEAD(["👤 Coordinator Lead<br/>[Person]<br/>Assigns coordinators"])
+    VEN(["👤 Venue Staff<br/>[Person]<br/>Manages venues"])
+    TECH(["👤 Technical Support Staff<br/>[Person]<br/>Manages equipment"])
+    SAFE(["👤 Safety Officer<br/>[Person]<br/>Reviews safety checks"])
+
+    subgraph CS["ConnectSphere"]
+        SYS["ConnectSphere<br/>[Software System]<br/>Event-management system for planning,<br/>resources and attendance"]
+    end
+
+    ATT -->|Uses| SYS
+    ORG -->|Submits requests| SYS
+    COO -->|Plans events| SYS
+    LEAD -->|Assigns work| SYS
+    VEN -->|Updates venue information| SYS
+    TECH -->|Updates equipment information| SYS
+    SAFE -->|Reviews safety arrangements| SYS
+
+    classDef person fill:#10467D,color:#FFFFFF,stroke:#08335D,stroke-width:2px;
+    classDef system fill:#249FD1,color:#FFFFFF,stroke:#0C6597,stroke-width:2px;
+
+    class ATT,ORG,COO,LEAD,VEN,TECH,SAFE person;
+    class SYS system;
+```
+
+#### Level 2 — Containers
+
+```mermaid
+flowchart TB
+    ATT(["👤 Attendee<br/>[Person]"])
+    ORG(["👤 Event Organiser<br/>[Person]"])
+    COO(["👤 Event Coordinator<br/>[Person]"])
+    LEAD(["👤 Coordinator Lead<br/>[Person]"])
+    VEN(["👤 Venue Staff<br/>[Person]"])
+    TECH(["👤 Technical Support Staff<br/>[Person]"])
+    SAFE(["👤 Safety Officer<br/>[Person]"])
+
+    subgraph CS["ConnectSphere"]
+        direction LR
+
+        WEB["Web Application<br/>[Container: React / Vite]<br/>Role-aware single-page application"]
+        API["Backend API<br/>[Container: NestJS]<br/>REST API, authentication,<br/>business rules and reports"]
+        DB[("PostgreSQL<br/>[Container: PostgreSQL 16]<br/>Persistent application data")]
+
+        WEB -->|"REST / JSON"| API
+        API -->|"SQL"| DB
+    end
+
+    ATT -->|"HTTPS"| WEB
+    ORG -->|"HTTPS"| WEB
+    COO -->|"HTTPS"| WEB
+    LEAD -->|"HTTPS"| WEB
+    VEN -->|"HTTPS"| WEB
+    TECH -->|"HTTPS"| WEB
+    SAFE -->|"HTTPS"| WEB
+
+    classDef person fill:#10467D,color:#FFFFFF,stroke:#08335D,stroke-width:2px;
+    classDef container fill:#249FD1,color:#FFFFFF,stroke:#0C6597,stroke-width:2px;
+    classDef database fill:#287CB7,color:#FFFFFF,stroke:#0C6597,stroke-width:2px;
+
+    class ATT,ORG,COO,LEAD,VEN,TECH,SAFE person;
+    class WEB,API container;
+    class DB database;
+```
+
+#### Level 3 — Components (Backend API)
+
+```mermaid
+flowchart TB
+    WEB["Web Application<br/>[External Container]<br/>React client calls /api/*"]
+
+    subgraph API["Backend API - NestJS"]
+        direction TB
+
+        AUTH["Authentication<br/>[Component]<br/>Login, logout and sessions"]
+        EVENTS["Event Lifecycle<br/>[Component]<br/>Drafts, planning, review,<br/>status and cancellation"]
+        VENUES["Venue and Booking<br/>[Component]<br/>Venues, availability,<br/>booking requests and holds"]
+        EQUIP["Equipment<br/>[Component]<br/>Inventory, requests<br/>and reservations"]
+        REG["Registrations<br/>[Component]<br/>Registration, withdrawal,<br/>waitlist and PDF/CSV reports"]
+        COORD["Coordination and Safety<br/>[Component]<br/>Assignment, availability<br/>and safety decisions"]
+        CLARIFY["Clarifications and Notifications<br/>[Component]"]
+        DATA["Data Access<br/>[Component]<br/>Database service and repositories"]
+    end
+
+    DB[("PostgreSQL<br/>[Database]<br/>Persistent application data")]
+
+    WEB -->|"REST / JSON"| AUTH
+    WEB -->|"REST / JSON"| EVENTS
+    WEB -->|"REST / JSON"| VENUES
+    WEB -->|"REST / JSON"| EQUIP
+    WEB -->|"REST / JSON"| REG
+    WEB -->|"REST / JSON"| COORD
+    WEB -->|"REST / JSON"| CLARIFY
+
+    AUTH --> DATA
+    EVENTS --> DATA
+    VENUES --> DATA
+    EQUIP --> DATA
+    REG --> DATA
+    COORD --> DATA
+    CLARIFY --> DATA
+    DATA -->|"SQL"| DB
+
+    classDef external fill:#6D8195,color:#FFFFFF,stroke:#455A70,stroke-width:2px;
+    classDef component fill:#249FD1,color:#FFFFFF,stroke:#0C6597,stroke-width:2px;
+    classDef dataAccess fill:#287CB7,color:#FFFFFF,stroke:#0C6597,stroke-width:2px;
+    classDef database fill:#287CB7,color:#FFFFFF,stroke:#0C6597,stroke-width:2px;
+
+    class WEB external;
+    class AUTH,EVENTS,VENUES,EQUIP,REG,COORD,CLARIFY component;
+    class DATA dataAccess;
+    class DB database;
+```
+
 ## Developers
 
 Current contributors visible in this repository history:
 
-- JacobSoh
 - Wei Rong
+- Wei Zhi
+- Kishore
+- Taneisha
+- Ei Chaw
 
 Team members should keep GitHub author names, Jira assignees, and pull request reviewers aligned so ownership is visible across Jira, GitHub, and sprint review evidence.
 

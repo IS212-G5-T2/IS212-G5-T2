@@ -107,28 +107,8 @@ jobs:
           Built by    : GitHub Actions on $RUNNER_OS
           Node        : $(node --version)
 
-          Contents
-          --------
-          README.md           Project overview.
-          AGENTS.md,
-          CLAUDE.md           Contributor and agent working agreement.
-          AI_USAGE.md         AI usage log; history under docs/archived/.
-          docs/archived/       Archived AI usage history, grouped by Jira ticket.
-          .github/            Workflows that build, test and package this bundle.
-          frontend/           Sources, tests and config. dist/ is the built static site:
-                              serve it with any static web server.
-          backend/            Sources, tests and config. dist/ is the compiled NestJS:
-                              run cd backend && npm ci --omit=dev && node dist/main
-          database/           PostgreSQL image and initialisation SQL (init/ is the complete schema).
-          docker-compose/     Compose stack. Copy .env.example to .env first.
-
-          node_modules/ is not included; reinstall from the committed lockfiles.
-          Local .env files and saved Playwright logins are deliberately excluded.
-
-          Required environment
-          --------------------
-          backend  : DATABASE_URL, FRONTEND_ORIGIN, PORT (default 8080)
-          frontend : VITE_API_BASE_URL is baked in at build time; rebuild to change it.
+          To run this bundle, see "Running The Delivery Bundle" in README.md,
+          next to this file. This file records only which build produced it.
           INFO
 
           # actions/upload-artifact@v4 always wraps the uploaded contents in its own .zip the
