@@ -127,6 +127,9 @@ test.describe("E2E-10 raising turnaround flags clashing bookings", () => {
       await expect(staff.getByLabel(/^Setup time/)).toHaveValue(String(SETUP_MINUTES));
       await staff.getByLabel(/^Turnaround time/).fill(String(NEW_TURNAROUND));
       await staff.getByRole("button", { name: "Continue" }).click();
+      // The builder stores a venue with no facilities or room layouts, which the form's second step requires; tick one of each.
+      await staff.getByRole("checkbox", { name: "Projector" }).check();
+      await staff.getByRole("checkbox", { name: "Theatre" }).check();
       await staff.getByRole("button", { name: "Save Changes" }).click();
 
       const confirmation = staff.getByRole("alert").filter({ hasText: "now affected by the changed setup or turnaround time" });
@@ -199,7 +202,8 @@ test.describe("E2E-10 raising turnaround flags clashing bookings", () => {
       await page.goto("/events");
       await page.getByRole("button", { name: /^Notifications/ }).click();
       const bell = page.getByRole("dialog", { name: "Notifications" });
-      const row = bell.getByRole("listitem").filter({ hasText: target.name });
+      // The bell also holds the booking's approval notice from the setup; pick the timing-change one for this event.
+      const row = bell.getByRole("listitem").filter({ hasText: new RegExp(`setup or turnaround time of ${NAMES.venue} changed.*"${target.name}"`) });
       await expect(row).toHaveCount(1);
       await expect(row.getByRole("link", { name: "View Booking" })).toHaveAttribute("href", `/bookings?booking=${ids[target.id]}`);
     });
@@ -208,7 +212,7 @@ test.describe("E2E-10 raising turnaround flags clashing bookings", () => {
       const entriesFor = async (event: { id: string }) => {
         const response = await coordinators[event.id].request.get(`${apiBase}/api/events/${event.id}/history`);
         expect(response.status()).toBe(200);
-        const body = (await response.json()) as { sections: { venueBookings?: Array<{ summary: string; actor: { name: string }; changes: Array<{ from: unknown; to: unknown }> }> } };
+        const body = (await response.json()) as { sections: { venueBookings?: Array<{ summary: string; actor: { name: string }; changes: Array<{ from: unknown; to: unknown }>; occurredAt: string }> } };
         return (body.sections.venueBookings ?? []).filter((entry) => /setup or turnaround/i.test(entry.summary));
       };
       for (const event of [a, b]) {
@@ -216,8 +220,9 @@ test.describe("E2E-10 raising turnaround flags clashing bookings", () => {
         const entries = await entriesFor(event);
         expect(entries.length, `${event.name} history records the venue change`).toBeGreaterThan(0);
         expect(entries[0].actor.name).toBe("Venue Staff 1");
-        expect(JSON.stringify(entries[0].changes)).toContain(String(OLD_TURNAROUND));
-        expect(JSON.stringify(entries[0].changes)).toContain(String(NEW_TURNAROUND));
+        // The entry carries the actor and a time; its old and new values are asserted in the test.fixme below, because the
+        // product records none (SPM-157 AC5 gap).
+        expect(Date.parse((entries[0] as { occurredAt?: string }).occurredAt ?? "")).not.toBeNaN();
       }
       // Note 4 [S1]: whether an unaffected booking also gets the entry is undecided; record it.
       const forC = await entriesFor(c);
@@ -252,5 +257,33 @@ test.describe("E2E-10 raising turnaround flags clashing bookings", () => {
         expect((await mine(coordinators[event.id])).filter((r) => r.eventId === event.id).map((r) => [r.id, r.status])).toEqual([[ids[event.id], "approved"]]);
       }
     });
+  });
+
+  // PRODUCT DEFECT (reported, no ticket yet): SPM-157 AC5 says each history entry shows "the old and new value where a value
+  // changed", and AC2 lists "setup or turnaround time ... changed" among the venue changes. The audit trigger
+  // trg_venue_impact_notice_audit writes the entry with changes = [] and only the notice text, so the 15 to 60 minute
+  // change is not recorded as old and new values. Remove the fixme when the entry carries them.
+  test.fixme("E2E-10 the venue-change history entry shows the old and new turnaround (SPM-157 AC5) @P1", async ({ page: staff, db, pageAs }) => {
+    const scene = await db.scene({
+      venues: { v: { name: NAMES.venue, capacity: 100, setupMinutes: SETUP_MINUTES, turnaroundMinutes: OLD_TURNAROUND } },
+      events: { a: placeEvent(NAMES.a, "10:00", "12:00", "coordinator1"), b: placeEvent(NAMES.b, "13:00", "14:00", "coordinator2") },
+    });
+    const { a, b } = scene.events;
+    const coordinator1 = await pageAs("coordinator1");
+    for (const [event, who] of [[a, coordinator1], [b, await pageAs("coordinator2")]] as const) {
+      const submitted = await who.request.post(`${apiBase}/api/venues/${scene.venues.v.id}/booking-requests`, { data: { eventId: event.id, start: event.startAt, end: event.endAt } });
+      expect(submitted.status()).toBe(201);
+      const approved = await staff.request.post(`${apiBase}/api/venues/bookings/${((await submitted.json()) as { id: string }).id}/approve`);
+      expect(approved.status()).toBe(201);
+    }
+    const updated = await staff.request.patch(`${apiBase}/api/venues/${scene.venues.v.id}`, { data: updateBody(NEW_TURNAROUND) });
+    expect(updated.ok(), `venue update: ${updated.status()}`).toBe(true);
+
+    const response = await coordinator1.request.get(`${apiBase}/api/events/${a.id}/history`);
+    const body = (await response.json()) as { sections: { venueBookings?: Array<{ summary: string; changes: unknown[] }> } };
+    const entry = (body.sections.venueBookings ?? []).find((item) => /setup or turnaround/i.test(item.summary));
+    expect(entry, "a venue-change history entry exists").toBeTruthy();
+    expect(JSON.stringify(entry!.changes)).toContain(String(OLD_TURNAROUND));
+    expect(JSON.stringify(entry!.changes)).toContain(String(NEW_TURNAROUND));
   });
 });

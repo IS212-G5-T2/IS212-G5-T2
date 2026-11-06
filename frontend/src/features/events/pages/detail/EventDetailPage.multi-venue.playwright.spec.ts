@@ -122,15 +122,16 @@ test.describe("E2E-15 main hall plus three breakout rooms", () => {
     await ok(await venueStaff.post(url(`/api/venues/bookings/${rivalBooking.id}/approve`)));
     expect(byVenue(await myBookings(api, "coordinator2", rival.id), b3.id).status).toBe("approved");
 
-    // Step 5 (SPM-56 AC1/AC2/AC3): approving the main Breakout 3 request is refused with the occupied window
-    // (start - 30 min to end + 45 min) and the request stays pending.
+    // Step 5 (SPM-56 AC1/AC2/AC3): approving the main Breakout 3 request is refused with the BLOCKING booking's occupied
+    // window (the rival's start - 30 min to its end + 45 min; the builder gives each event its own start instant, a few
+    // milliseconds apart) and the request stays pending.
     const blocked = await venueStaff.post(url(`/api/venues/bookings/${created[b3.id].id}/approve`));
     expect(blocked.status()).toBe(409);
     const conflict = await blocked.json();
     expect(conflict.code).toBe("BOOKING_SLOT_CONFLICT");
     expect(conflict.message).toContain("E2E-15 Rival workshop");
-    const windowStart = new Date(main.startAt).getTime() - SETUP * 60_000;
-    const windowEnd = new Date(main.endAt).getTime() + TURNAROUND * 60_000;
+    const windowStart = new Date(rival.startAt).getTime() - SETUP * 60_000;
+    const windowEnd = new Date(rival.endAt).getTime() + TURNAROUND * 60_000;
     expect(conflict.conflicts).toHaveLength(1);
     expect(new Date(conflict.conflicts[0].occupiedStart).getTime()).toBe(windowStart);
     expect(new Date(conflict.conflicts[0].occupiedEnd).getTime()).toBe(windowEnd);
@@ -192,8 +193,17 @@ test.describe("E2E-15 main hall plus three breakout rooms", () => {
     const freed = await ok(await request(api, "coordinator2", b2.id, rival.id, rival), 201);
     expect(freed.status).toBe("pending");
 
-    // Steps 14 and 15 (SPM-129 AC2/AC3): the safety check is requested and the Safety Officer sees every APPROVED venue only.
+    // Step 14 precondition (case corrected, E2E-15 step 14a): a rejected venue request counts as unavailable and blocks the
+    // safety check request (422 SAFETY_PREREQUISITES_NOT_MET, "Pending venue confirmation") until the Coordinator removes it.
     await ok(await (await api("coordinator")).post(url(`/api/events/${main.id}/confirm-no-equipment`)));
+    const blockedRequest = await (await api("coordinator")).post(url(`/api/events/${main.id}/safety-check/request`));
+    expect(blockedRequest.status()).toBe(422);
+    const blockedBody = await blockedRequest.json();
+    expect(blockedBody.code).toBe("SAFETY_PREREQUISITES_NOT_MET");
+    expect(blockedBody.message, "only the venue blocks it").toBe("Pending venue confirmation to proceed.");
+    await ok(await (await api("coordinator")).delete(url(`/api/events/${main.id}/venue-requests/${created[b3.id].id}`)), 200);
+
+    // Steps 14 and 15 (SPM-129 AC2/AC3): the safety check is requested and the Safety Officer sees every APPROVED venue only.
     await ok(await (await api("coordinator")).post(url(`/api/events/${main.id}/safety-check/request`)));
     const detail = await ok(await (await api("safety_officer")).get(url(`/api/safety-officer/queue/${main.id}`)), 200);
     expect(detail.expectedAttendance).toBe(150);

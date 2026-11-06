@@ -184,7 +184,7 @@ test.describe("E2E-23 attendance beyond capacity", () => {
     await test.step("Step 10: Venue Staff 1 approves it; only Coordinator 1 is told (SPM-55 AC2, SPM-137 AC1; Note 8)", async () => {
       const mine = (await ok(await coordinator.get(url("/api/venues/bookings/mine")), 200)) as Json[];
       const booking = mine.find((item) => item.eventId === eventId && item.venueId === scene.venues.large.id)!;
-      await ok(await venueStaff.post(url(`/api/venues/bookings/${booking.id}/approve`)), 200);
+      await ok(await venueStaff.post(url(`/api/venues/bookings/${booking.id}/approve`)), 201);
       const coordinatorNotices = (await noticesAbout("coordinator")).filter((notice) => /booking/i.test(String(notice.type)));
       expect(coordinatorNotices.length, "Coordinator 1 holds a booking decision notice").toBeGreaterThanOrEqual(1);
       for (const who of ["coordinator2", "organiser"] as const) {

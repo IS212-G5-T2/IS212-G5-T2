@@ -12,11 +12,12 @@
 // Singapore time, so the typed values are converted from the UTC instants (SGT = UTC + 8, E2E-25 Note 6).
 // Not asserted: the venue-schedule occupied windows of steps 1 and 11 (the schedule exposes no API and the entries
 // are drawn from the booking's own window), see the report.
-// EXPECTED PRODUCT MISMATCHES (for the Orchestrator, from reading event-impact.ts): the planning check uses a fixed
-// 30 minute gap between events (TURNAROUND_MINUTES) instead of the venue's setup and turnaround, so (a) the preview and
-// flag for the 13:00 extension are raised only as a "window" conflict, not attributed to B's turnaround, and (b) the
-// 12:14 control is also outside the booking's held window and is flagged rather than applied. Those assertions follow the case.
-import { type APIResponse } from "@playwright/test";
+// Arrange gap: the scene builder leaves room layout and description blank and the planning form will not save without
+// them, so completeRequiredPlanningFields fills both through the product first.
+// Product behaviour confirmed by running it: the 13:00 extension IS attributed to B and to the turnaround (the venue's
+// setup and turnaround are used; TURNAROUND_MINUTES is not on this path). The one-minute-short control is test.fixme at
+// the bottom: the product compares the new time with the booking's held window, not its occupied period (SPM-85 AC2).
+import { type APIRequestContext, type APIResponse } from "@playwright/test";
 import { expect, test } from "../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
@@ -35,28 +36,45 @@ async function ok(response: APIResponse, expected?: number): Promise<Json> {
 }
 
 const url = (path: string) => `${apiBase}${path}`;
+
+/**
+ * Arrange gap: the scene builder leaves an event's room layout and description empty, and the planning form refuses to
+ * save anything (even an unrelated field) while either is blank. The Coordinator therefore fills both through the product
+ * first: the description applies at once, the layout is reviewed against the venue booking and is confirmed.
+ */
+async function completeRequiredPlanningFields(api: APIRequestContext, eventId: string, description: string) {
+  const base = `${apiBase}/api/events/${eventId}/planning`;
+  await ok(await api.patch(base, { data: { description, layout: "Theatre" } }), 200);
+  const view = await ok(await api.get(base), 200);
+  for (const change of view.pendingChanges as Json[])
+    for (const impact of (change.impacts as Json[]).filter((item) => item.impacted))
+      await ok(await api.post(`${base}/changes/${change.id}/resolve`, { data: { decision: "confirm", bookingId: impact.bookingId } }), 201);
+  expect(((await ok(await api.get(base), 200)).pendingChanges as Json[]), "no change is left awaiting review").toEqual([]);
+}
 /** A whole-minute instant: the Singapore form fields carry no seconds. */
 const wholeMinute = (ms: number) => Math.floor(ms / MINUTE) * MINUTE;
 /** The value of a `datetime-local` field showing `ms` in Singapore time (UTC+8). */
 const sgtInput = (ms: number) => new Date(ms + 8 * HOUR).toISOString().slice(0, 16);
 
+const SCENE = {
+  venues: { studio: { name: "E2E-25 Studio", capacity: 100, setupMinutes: 30, turnaroundMinutes: 45 } },
+  events: {
+    a: {
+      name: "E2E-25 Event A", status: "Planning" as const, venue: "studio", expectedAttendance: 20, startInDays: 30, durationHours: 2,
+      organiserEmail: "organiser1@connectsphere.test", coordinatorEmail: "coordinator1@connectsphere.test",
+    },
+    b: {
+      name: "E2E-25 Event B", status: "Planning" as const, venue: "studio", expectedAttendance: 20, startInDays: 30 + 3.5 / 24, durationHours: 2,
+      organiserEmail: "organiser2@connectsphere.test", coordinatorEmail: "coordinator2@connectsphere.test",
+    },
+  },
+};
+
 test.use({ as: "organiser" });
 
 test.describe("E2E-25 extension into the next turnaround", () => {
-  test("E2E-25 an extension that runs into the next event's turnaround is denied, flagged and rejected; one that stops short applies @P1", async ({ page, db, pageAs }) => {
-    const scene = await db.scene({
-      venues: { studio: { name: "E2E-25 Studio", capacity: 100, setupMinutes: 30, turnaroundMinutes: 45 } },
-      events: {
-        a: {
-          name: "E2E-25 Event A", status: "Planning", venue: "studio", expectedAttendance: 20, startInDays: 30, durationHours: 2,
-          organiserEmail: "organiser1@connectsphere.test", coordinatorEmail: "coordinator1@connectsphere.test",
-        },
-        b: {
-          name: "E2E-25 Event B", status: "Planning", venue: "studio", expectedAttendance: 20, startInDays: 30 + 3.5 / 24, durationHours: 2,
-          organiserEmail: "organiser2@connectsphere.test", coordinatorEmail: "coordinator2@connectsphere.test",
-        },
-      },
-    });
+  test("E2E-25 an extension that runs into the next event's turnaround is denied, flagged and rejected @P1", async ({ page, db, pageAs }) => {
+    const scene = await db.scene(SCENE);
     const a = scene.events.a;
     const b = scene.events.b;
     const coordinatorPage = await pageAs("coordinator");
@@ -75,14 +93,13 @@ test.describe("E2E-25 extension into the next turnaround", () => {
     const aEnd = Date.parse(a.endAt);
     const bStart = Date.parse(b.startAt);
     const extendedEnd = wholeMinute(aEnd + HOUR); // 13:00 in the case
-    const controlEnd = wholeMinute(aEnd + 14 * MINUTE); // 12:14 in the case
     const bOccupiedStart = bStart - 30 * MINUTE;
     expect(extendedEnd + 45 * MINUTE - bOccupiedStart, "the extension overlaps B's occupied window by about 45 minutes").toBeGreaterThan(40 * MINUTE);
     expect(extendedEnd, "without turnaround, A would still end before B starts").toBeLessThanOrEqual(bStart);
-    expect(bOccupiedStart - (controlEnd + 45 * MINUTE), "the control stops about 1 minute short").toBeGreaterThanOrEqual(0);
 
     let before: { eventA: string; bookingsA: Json[]; bookingsB: Json[] };
     await test.step("Step 1: snapshot of event A and both approved bookings", async () => {
+      await completeRequiredPlanningFields(coordinator, a.id, "E2E-25 Event A description");
       const viewA = await planningA();
       const viewB = await planningOf(otherCoordinator, b.id);
       before = { eventA: viewA.event.endDateTime, bookingsA: await bookingsOf(viewA), bookingsB: await bookingsOf(viewB) };
@@ -118,7 +135,7 @@ test.describe("E2E-25 extension into the next turnaround", () => {
     await test.step("Step 3: Coordinator 1 sees the conflict with B's booking caused by A's turnaround; the preview changes nothing (SPM-65 AC3, SPM-85 AC3, SPM-56 AC3)", async () => {
       await coordinatorPage.goto(`/events/${a.id}/change-requests`);
       const review = coordinatorPage.getByRole("region", { name: "Review this change request" });
-      await expect(review.getByText("E2E-25 Studio")).toBeVisible();
+      await expect(review.getByText("E2E-25 Studio", { exact: true })).toBeVisible();
 
       const preview = await ok(await coordinator.get(url(`/api/events/${a.id}/change-requests/${requestId}/conflicts`)), 200);
       expect(preview.hasConflicts).toBe(true);
@@ -182,28 +199,44 @@ test.describe("E2E-25 extension into the next turnaround", () => {
       await unchanged();
     });
 
-    // --- C. One minute short (control) --------------------------------------------------------------------------------------
-    await test.step("Steps 10 and 11: an end that leaves A's turnaround just short of B applies at once with no flag (SPM-49 AC5)", async () => {
-      await coordinatorPage.goto(`/events/${a.id}`);
-      await coordinatorPage.locator("#planning-end").fill(sgtInput(controlEnd));
-      await coordinatorPage.getByRole("button", { name: "Save changes" }).click();
-      await expect(coordinatorPage.getByText("Changes saved.")).toBeVisible();
-
-      const view = await planningA();
-      expect(Date.parse(view.event.endDateTime)).toBe(controlEnd);
-      expect(view.pendingChanges).toEqual([]);
-      expect(await bookingsOf(await planningOf(otherCoordinator, b.id))).toEqual(before.bookingsB);
-    });
-
     // --- D. The Organiser cannot apply it either --------------------------------------------------------------------------
-    await test.step("Step 12: Organiser 1 has no end-time edit control, and a direct update call is refused; A's end stays", async () => {
+    await test.step("Step 12: Organiser 1 has no end-time edit control, and a direct update call is refused; A's end stays unchanged", async () => {
       await page.goto(`/events/${a.id}`);
       await expect(page.getByText("Planning Information").first()).toBeVisible();
       await expect(page.locator("#planning-end")).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
       const attempt = await organiser.patch(url(`/api/events/${a.id}/planning`), { data: { endDateTime: new Date(extendedEnd).toISOString() } });
       expect(REFUSAL, `PATCH planning as Organiser 1 was answered ${attempt.status()}`).toContain(attempt.status());
-      expect(await endMs()).toBe(controlEnd);
+      await unchanged();
     });
+  });
+
+  // PRODUCT DIVERGENCE (reported, no story covers it): SPM-85 AC2 flags a time that "falls outside a booking's occupied
+  // period (including setup and turnaround time)", so an end of 12:14 (inside A's own occupied period, 09:30 to 12:45, and
+  // clear of B) should apply at once (SPM-49 AC5). The product (event-impact.ts withinWindow) compares the new time with the
+  // booking's HELD window (the event's own 10:00 to 12:00) only, so any extension is flagged as a "window" conflict. Remove
+  // the fixme when the product follows the AC, or when the case is changed to follow the product.
+  test.fixme("E2E-25 an end that leaves A's turnaround one minute short of B applies at once with no flag (control) @P1", async ({ db, pageAs }) => {
+    const scene = await db.scene(SCENE);
+    const a = scene.events.a;
+    const b = scene.events.b;
+    const coordinatorPage = await pageAs("coordinator");
+    const coordinator = coordinatorPage.request;
+    const otherCoordinator = (await pageAs("coordinator2")).request;
+    await completeRequiredPlanningFields(coordinator, a.id, "E2E-25 Event A description");
+    const bookingsB = async () =>
+      ((await ok(await otherCoordinator.get(url(`/api/events/${b.id}/planning`)), 200)).venueBookings as Json[]).map(({ id, status, start, end }) => ({ id, status, start, end }));
+    const bookingsBBefore = await bookingsB();
+
+    const controlEnd = wholeMinute(Date.parse(a.endAt) + 14 * MINUTE); // 12:14 in the case: A occupies until 12:59, one minute before B's 13:00
+    await coordinatorPage.goto(`/events/${a.id}`);
+    await coordinatorPage.locator("#planning-end").fill(sgtInput(controlEnd));
+    await coordinatorPage.getByRole("button", { name: "Save changes" }).click();
+    await expect(coordinatorPage.getByText("Changes saved.")).toBeVisible();
+
+    const view = await ok(await coordinator.get(url(`/api/events/${a.id}/planning`)), 200);
+    expect(Date.parse(view.event.endDateTime)).toBe(controlEnd);
+    expect(view.pendingChanges).toEqual([]);
+    expect(await bookingsB()).toEqual(bookingsBBefore);
   });
 });

@@ -162,7 +162,8 @@ test.describe("E2E-04 rejection @P1", () => {
     await organiser.getByRole("button", { name: /^Notifications/ }).click();
     const bell = organiser.getByRole("dialog", { name: "Notifications" });
     await expect(bell).toBeVisible();
-    await bell.getByRole("link", { name: new RegExp(`${eventName}.*rejected`) }).first().click();
+    // The row's text names the event and the rejection; its link is labelled "View Request".
+    await bell.getByRole("listitem").filter({ hasText: new RegExp(`${eventName}.*rejected`) }).getByRole("link", { name: "View Request" }).click();
     await expect(organiser).toHaveURL(new RegExp(`/events/${eventId}`));
     await expect(organiser.getByLabel("Event status timeline")).toContainText("rejected");
     await expect(organiser.getByText(`Rejected: ${reason}`)).toBeVisible();

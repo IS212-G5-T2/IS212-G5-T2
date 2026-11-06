@@ -65,7 +65,16 @@ const secondMobileBooking = {
   createdAt: "2030-01-02T00:00:00.000Z",
 };
 
+/** The app shell also reads the drafts, change-request, cancellation-request and notification lists. Unstubbed they go to
+ *  the real backend, answer 401 for the stubbed (not really signed-in) user, and the app redirects to /login. */
+async function stubShellLists(page: import("@playwright/test").Page) {
+  await page.route(/\/api\/(requests|change-requests|cancellation-requests|notifications)(\?.*)?$/, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
+}
+
 async function mockMobileBookingApis(page: import("@playwright/test").Page) {
+  await stubShellLists(page);
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       status: 200,
@@ -137,19 +146,16 @@ async function dragRange(
 // Known failure: kept failing on purpose so it is not hidden. test.fail() below makes the run pass while the assertions fail,
 // and reports an unexpected pass if they succeed. Remove test.fail() when the later sprint work lands.
 //
-// Measured 2026-11-06: it is NOT currently failing for the SPM-51 reason below. Lifting test.fail shows it
-// dying at the venue heading on line 177, before the first dragRange on line 183 - the same app-shell stub
-// failure that fails the two viewport tests at 216 and 258 (unstubbed /api/requests, /api/change-requests
-// and /api/cancellation-requests 401, so the app redirects to /login). test.fail cannot tell the two apart,
-// so this masks the stub problem rather than the drag bug. When the stubs are repaired, re-check what this
-// test actually fails on before trusting the reason above - and note dragRange's slot-lane locator is only
-// reached from here, so it is unexercised until then.
+// Re-measured 2026-11-06 after stubbing the app shell's list endpoints (stubShellLists): the test now reaches the first
+// dragRange and fails on the assertion that "Event starts" becomes 2030-01-09T02:00 (the field stays read-only and keeps
+// the assigned event's own time), so test.fail() is hiding the real SPM-51 drag gap and not a stub problem.
 /** SPM-51: a real FullCalendar drag updates event times across days regardless of retired operating-day fields. */
 test(
   "selects a real cross-day time range across any calendar day",
   async ({ page }) => {
   test.fail(true, "SPM-51 cross-day drag on an assigned event; out of Sprint 1 scope, tracked for a later sprint branch");
   await page.clock.install({ time: new Date("2030-01-07T01:00:00.000Z") });
+  await stubShellLists(page);
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       status: 200,

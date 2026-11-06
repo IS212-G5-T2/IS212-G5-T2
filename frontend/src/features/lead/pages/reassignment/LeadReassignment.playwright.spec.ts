@@ -71,7 +71,7 @@ interface Planned { eventId: string; bookingId: string; microphoneRequestId: str
 
 /**
  * The pre-conditions of the case: an Approved event for coordinator1 with a clarification answered by organiser1, a
- * Reserved Projector request (one unread decision notice for coordinator1), a Pending Microphone request, and a Pending
+ * Reserved Projector request (one unread decision notice for coordinator1), a Pending Microphone line (the same request, amended), and a Pending
  * booking of `hall` (which moves the event to Planning).
  */
 async function planEvent(pageAs: (who: As) => Promise<Page>, db: Parameters<Parameters<typeof test>[2]>[0]["db"]): Promise<Planned> {
@@ -93,18 +93,25 @@ async function planEvent(pageAs: (who: As) => Promise<Page>, db: Parameters<Para
     "organiser reply",
   );
 
+  // An event holds ONE equipment request (a second POST is refused 409), so the case's "Reserved Projector request plus a
+  // Pending Microphone request" is built as one request: Projector reserved, then amended to add the Microphone, which
+  // returns the request to Pending Review (E2E-17). The amendment is not a decision, so it sends no notice.
   const projector = await coordinator1.request.post(`${apiBase}/api/equipment/requests`, {
     data: { eventId: event.id, items: [{ equipmentName: "Projector", equipmentType: "Visual", quantity: 2 }] },
   });
   await expectOk(projector, "projector request");
-  await expectOk(
-    await techSupport.request.patch(`${apiBase}/api/equipment/requests/${((await projector.json()) as { id: string }).id}/reserve`),
-    "reserve projector",
-  );
-  const microphone = await coordinator1.request.post(`${apiBase}/api/equipment/requests`, {
-    data: { eventId: event.id, items: [{ equipmentName: "Microphone", equipmentType: "Audio", quantity: 2 }] },
+  const equipmentRequestId = ((await projector.json()) as { id: string }).id;
+  await expectOk(await techSupport.request.patch(`${apiBase}/api/equipment/requests/${equipmentRequestId}/reserve`), "reserve projector");
+  const microphone = await coordinator1.request.put(`${apiBase}/api/equipment/requests/${equipmentRequestId}`, {
+    data: {
+      eventId: event.id,
+      items: [
+        { equipmentName: "Projector", equipmentType: "Visual", quantity: 2 },
+        { equipmentName: "Microphone", equipmentType: "Audio", quantity: 2 },
+      ],
+    },
   });
-  await expectOk(microphone, "microphone request");
+  await expectOk(microphone, "amend the request with the microphones");
 
   const booking = await coordinator1.request.post(`${apiBase}/api/venues/${scene.venues.hall.id}/booking-requests`, {
     data: { eventId: event.id, start: new Date(event.startAt).toISOString(), end: new Date(event.endAt).toISOString() },
@@ -113,7 +120,7 @@ async function planEvent(pageAs: (who: As) => Promise<Page>, db: Parameters<Para
   return {
     eventId: event.id,
     bookingId: ((await booking.json()) as { id: string }).id,
-    microphoneRequestId: ((await microphone.json()) as { id: string }).id,
+    microphoneRequestId: equipmentRequestId,
     clarificationId,
   };
 }
@@ -197,7 +204,7 @@ test.describe("E2E-06 reassignment mid-planning", () => {
     await expect(coordinator2).toHaveURL(new RegExp(`/events/${eventId}$`));
     await expect(coordinator2.getByRole("heading", { name: eventName })).toBeVisible();
     await expect(coordinator2.getByRole("note")).toContainText("Reassigned to you from Coordinator 1");
-    await expect(coordinator2.getByText(clarificationText)).toBeVisible();
+    await expect(coordinator2.getByText(clarificationText).first()).toBeVisible(); // shown in the thread list and its detail
     // coordinator2 replies to the existing clarification and the reply is stored (SPM-47 AC5).
     await expectOk(
       await coordinator2.request.post(`${apiBase}/api/events/${eventId}/clarifications/${clarificationId}/reply`, { data: { message: "Noted by the new coordinator." } }),

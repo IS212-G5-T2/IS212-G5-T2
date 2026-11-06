@@ -41,8 +41,12 @@ test.describe("E2E-30 Mobile viewport smoke", () => {
       await expectNoHorizontalScroll(page);
       const menu = page.getByRole("button", { name: "Open navigation menu" });
       await expect(menu).toBeVisible();
+      // The drawer is the sidebar <aside> (role complementary, labelled "Primary navigation"), slid off-screen until opened.
+      const drawer = page.getByRole("complementary", { name: "Primary navigation" });
+      await expect(drawer).not.toBeInViewport();
       await menu.tap();
-      await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+      await expect(drawer).toBeInViewport();
+      await expect(drawer.getByRole("link", { name: "Events" })).toBeInViewport();
 
       // Step 8: the organiser sees the venue and its booking on the planned event.
       await page.goto(`/events/${events.planned.id}`);

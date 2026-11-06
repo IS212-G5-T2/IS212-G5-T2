@@ -7,7 +7,7 @@
 // Arrange deviation: no builder exists for equipment, so the reservation is made through the product API
 // (Coordinator 1 requests 2 projectors, Technical Support 1 reserves them), as the case allows.
 // SPM-168 Q1 (back-to-back allowed) is not exercised here; Q3 (denial reason rules) belongs to E2E-27.
-import { type APIResponse } from "@playwright/test";
+import { type APIRequestContext, type APIResponse } from "@playwright/test";
 import { expect, test } from "../../../../../e2e/fixtures";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
@@ -22,6 +22,21 @@ async function ok(response: APIResponse, expected?: number): Promise<Json> {
   if (expected !== undefined) expect(response.status(), text).toBe(expected);
   else expect(response.ok(), `${response.status()} ${text}`).toBe(true);
   return text ? JSON.parse(text) : {};
+}
+
+/**
+ * Arrange gap: the scene builder leaves an event's room layout and description empty, and the planning form refuses to
+ * save anything (even an unrelated field) while either is blank. The Coordinator therefore fills both through the product
+ * first: the description applies at once, the layout is reviewed against the venue booking and is confirmed.
+ */
+async function completeRequiredPlanningFields(api: APIRequestContext, eventId: string, description: string) {
+  const base = `${apiBase}/api/events/${eventId}/planning`;
+  await ok(await api.patch(base, { data: { description, layout: "Theatre" } }), 200);
+  const view = await ok(await api.get(base), 200);
+  for (const change of view.pendingChanges as Json[])
+    for (const impact of (change.impacts as Json[]).filter((item) => item.impacted))
+      await ok(await api.post(`${base}/changes/${change.id}/resolve`, { data: { decision: "confirm", bookingId: impact.bookingId } }), 201);
+  expect(((await ok(await api.get(base), 200)).pendingChanges as Json[]), "no change is left awaiting review").toEqual([]);
 }
 
 test.use({ as: "coordinator" });
@@ -57,6 +72,7 @@ test.describe("E2E-22 ordinary edit", () => {
     // --- Arrange through the product (steps 1 to 3) -------------------------------------------------------------------
     let before: { description: string; lastUpdatedAt: string; bookings: Json[]; equipment: Json[]; arrangements: Json };
     await test.step("Steps 1 to 3: 2 projectors requested and reserved; snapshot taken", async () => {
+      await completeRequiredPlanningFields(coordinator, eventId, "E2E-22 original description");
       const created = await ok(
         await coordinator.post(url("/api/equipment/requests"), {
           data: { eventId, items: [{ equipmentName: scene.equipment.projector.name, equipmentType: "Visual", quantity: 2 }] },
@@ -115,10 +131,11 @@ test.describe("E2E-22 ordinary edit", () => {
 
     await test.step("Step 9: the history has one entry for the update with old value, new value, actor and time (SPM-157 AC1)", async () => {
       const history = await ok(await coordinator.get(url(`/api/events/${eventId}/history`)), 200);
+      // The arrange step also wrote a description (the builder leaves it blank), so pick the entry for this edit.
       const entries = ((history.sections.event ?? []) as Json[]).filter((entry) =>
-        (entry.changes as Json[]).some((change) => change.field === "description"),
+        (entry.changes as Json[]).some((change) => change.field === "description" && change.to === NEW_DESCRIPTION),
       );
-      expect(entries, "exactly one description entry").toHaveLength(1);
+      expect(entries, "exactly one entry for the description edit").toHaveLength(1);
       const change = (entries[0].changes as Json[]).find((item) => item.field === "description")!;
       expect(change.from).toBe(before.description);
       expect(change.to).toBe(NEW_DESCRIPTION);
