@@ -49,7 +49,9 @@ const SCENE = {
   events: {
     early: { name: NAMES.early, status: "Approved" as const, expectedAttendance: ATTENDANCE, startInDays: 31 },
     ready: { name: NAMES.ready, status: "Approved" as const, expectedAttendance: ATTENDANCE },
-    rejected: { name: NAMES.rejected, status: "Rejected" as const, expectedAttendance: ATTENDANCE, startInDays: 32 },
+    // The seed builder cannot write a Rejected row (events_rejection_reason_check needs a stored reason), so this one is
+    // seeded Submitted and rejected through the product's own endpoint in buildWorld.
+    rejected: { name: NAMES.rejected, status: "Submitted" as const, expectedAttendance: ATTENDANCE, startInDays: 32 },
   },
 };
 
@@ -81,6 +83,9 @@ async function safetyState(api: APIRequestContext, eventId: string): Promise<str
 
 async function notices(api: APIRequestContext): Promise<Notice[]> {
   const response = await api.get(`${apiBase}/api/notifications`);
+  // GET /api/notifications is open only to Organiser, Coordinator, Lead and Attendee roles: Venue Staff, Technical Support
+  // and Safety Officer get 403 because they have no notification feed at all, which is "no notices" for this case.
+  if (response.status() === 403) return [];
   expect(response.ok()).toBe(true);
   return (await response.json()) as Notice[];
 }
@@ -114,6 +119,12 @@ async function buildWorld(
   const coordinator = (await pageAs("coordinator1")).request;
   const venueStaff = (await pageAs("venue_staff1")).request;
   const techSupport = (await pageAs("tech_support1")).request;
+
+  // "rejected": the assigned coordinator rejects the Submitted request with a reason (SPM-83).
+  const rejection = await coordinator.post(`${apiBase}/api/events/${rejected.id}/reject`, {
+    data: { reason: "Rejected for the E2E-18 safety gate case" },
+  });
+  expect(rejection.ok(), "coordinator rejects the seeded request").toBe(true);
 
   // "early": the first venue request moves Approved to Planning (SPM-148 AC1); the request stays Pending.
   const earlyBookingId = await bookHall(coordinator, hallId, early);
@@ -332,7 +343,7 @@ test.describe("E2E-18 safety gate enforced", () => {
 test.describe("E2E-18 unauthenticated caller", () => {
   test("unauthenticated confirm, decision and safety page are refused @P0", async ({ db, pageAs, playwright, page }) => {
     const w = await buildWorld(db, pageAs);
-    const anonymous = await playwright.request.newContext();
+    const anonymous = await playwright.request.newContext({ storageState: { cookies: [], origins: [] } });
     try {
       expect((await statusChange(anonymous, w.ready.id)).status()).toBe(UNAUTHENTICATED);
       expect((await decide(anonymous, w.ready.id)).status()).toBe(UNAUTHENTICATED);

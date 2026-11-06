@@ -118,6 +118,9 @@ async function markUnavailable(staff: Page, venueId: string, start: string, end:
 
 async function notices(page: Page): Promise<Notice[]> {
   const response = await page.request.get(`${apiBase}/api/notifications`);
+  // GET /api/notifications answers 403 to Venue Staff, Technical Support and Safety Officer: they have no notification
+  // feed at all, which for the "stays silent" checks means "no notices".
+  if (response.status() === 403) return [];
   expect(response.status()).toBe(200);
   return (await response.json()) as Notice[];
 }
@@ -140,6 +143,15 @@ async function eventRow(page: Page, eventId: string) {
   expect(response.status()).toBe(200);
   return (await response.json()) as { id: string; name: string; status: string; startDateTime: string; endDateTime: string; expectedAttendance: number };
 }
+
+/**
+ * The event row without its venue summary. The summary is derived from the bookings (it gains " (unavailable)" while a
+ * block affects the venue and lists a second venue once a replacement is booked); every other field must stay as it was.
+ */
+const withoutVenueSummary = ({ venueName, ...rest }: Awaited<ReturnType<typeof eventRow>> & { venueName?: string }) => {
+  void venueName;
+  return rest;
+};
 
 async function periods(page: Page, venueId: string) {
   const response = await page.request.get(`${apiBase}/api/venues/${venueId}`);
@@ -164,7 +176,7 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
 
     // Step 1: baseline of the event, the booking and every notification count.
     const eventBefore = await eventRow(coordinator, main.id);
-    expect(eventBefore).toMatchObject({ name: "E2E-14 main event", status: "Planning", expectedAttendance: 40 });
+    expect(eventBefore).toMatchObject({ name: "E2E-14 main event", status: "planning", expectedAttendance: 40 });
     const bookingBefore = (await venueBookings(coordinator)).find((b) => b.eventId === main.id);
     expect(bookingBefore).toMatchObject({ venueName: V.name, status: "approved" });
     const coordinatorBefore = (await notices(coordinator)).length;
@@ -207,7 +219,7 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
     expect(JSON.stringify(entries[0])).toMatch(/venue_staff1|Venue Staff 1/i);
     const bookingAfter = (await venueBookings(coordinator)).find((b) => b.id === bookingBefore!.id);
     expect(bookingAfter).toMatchObject({ status: "approved", venueName: V.name, affected: true });
-    expect(await eventRow(coordinator, main.id)).toEqual(eventBefore);
+    expect(withoutVenueSummary(await eventRow(coordinator, main.id))).toEqual(withoutVenueSummary(eventBefore));
 
     // Step 5: exactly one new notice for coordinator1 (event, venue, period, reason) and none for anyone else.
     const coordinatorNotices = await notices(coordinator);
@@ -223,7 +235,7 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
     await page.reload();
     await expect(page.getByRole("listitem").getByText("maintenance", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Calendar" }).click();
-    await expect(page.getByRole("region", { name: "Venue schedule" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Venue schedule", exact: true })).toBeVisible();
 
     // Step 7: coordinator1 opens the bell and follows the notice to the booking.
     await coordinator.goto("/");
@@ -295,11 +307,14 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
     expect(approved.status()).toBe(201);
     expect((await venueBookings(coordinator)).find((b) => b.id === replacement.id)).toMatchObject({ status: "approved" });
     expect((await venueBookings(coordinator)).find((b) => b.id === originalBooking.id)).toMatchObject({ status: "approved" });
-    expect(await eventRow(coordinator, main.id)).toEqual(eventBefore);
+    const afterApproval = (await eventRow(coordinator, main.id)) as Awaited<ReturnType<typeof eventRow>> & { venueName: string };
+    expect(withoutVenueSummary(afterApproval)).toEqual(withoutVenueSummary(eventBefore));
+    expect(afterApproval.venueName).toContain(V.name);
+    expect(afterApproval.venueName).toContain(V2.name);
 
     // Step 13 (API part): the Organiser still sees the event, which has not been cancelled.
     const organiser = await pageAs("organiser");
-    expect(await eventRow(organiser, main.id)).toMatchObject({ status: "Planning", name: "E2E-14 main event" });
+    expect(await eventRow(organiser, main.id)).toMatchObject({ status: "planning", name: "E2E-14 main event" });
   });
 
   // Steps 14-15 (forbidden for coordinator2).
@@ -326,13 +341,18 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
 
   // Steps 16-18 (SPM-54 AC2, SPM-125 AC3/AC4).
   test("@P0 a new request into the blocked period is refused by UI and API, and one starting exactly at the block end is allowed", async ({ page, pageAs, db }) => {
+    // The booking form shows the event's own stored times read-only, and the booking API books the stored times too, so each
+    // request is placed by seeding the event there: `startInDays` is the offset from the main event's start S in minutes
+    // (the builder lands later events at the same instant or a few milliseconds after earlier ones, which cannot move a
+    // result across the minute-scale boundaries below). Block: S+60 .. S+180; V has 30 minutes setup.
+    const startAfter = (minutes: number) => 30 + minutes / (24 * 60);
     const scene = await db.scene({
       venues: { V: { name: "E2E-14 venue V", setupMinutes: SETUP, turnaroundMinutes: TURNAROUND } },
       events: {
         main: { name: "E2E-14 main event", status: "Planning", venue: "V" },
-        late: { name: "E2E-14 late", status: "Planning" },
-        edge: { name: "E2E-14 edge", status: "Planning" },
-        edgeEarly: { name: "E2E-14 edge early", status: "Planning" },
+        late: { name: "E2E-14 late", status: "Planning", startInDays: startAfter(90), durationHours: 1 },
+        edgeEarly: { name: "E2E-14 edge early", status: "Planning", startInDays: startAfter(180 + SETUP - 1), durationHours: 1 },
+        edge: { name: "E2E-14 edge", status: "Planning", startInDays: startAfter(180 + SETUP), durationHours: 1 },
       },
     });
     const V = scene.venues.V;
@@ -340,32 +360,29 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
     await markUnavailable(page, V.id, at(S, 60), at(S, 180));
     const coordinator = await pageAs("coordinator");
     const countBefore = (await venueBookings(coordinator)).length;
+    const bookingRequest = (event: { id: string; startAt: string; endAt: string }) =>
+      coordinator.request.post(`${apiBase}/api/venues/${V.id}/booking-requests`, { data: { eventId: event.id, start: event.startAt, end: event.endAt } });
 
-    // Step 16: UI refusal for event "late" at 11:30-12:30 (S+90..S+150); the reason names the unavailability.
+    // Step 16: UI refusal for event "late" at about 11:30-12:30 (S+90..S+150); the reason names the unavailability.
     await coordinator.goto(`/venue-records/${V.id}?eventId=${scene.events.late.id}`);
-    await expect(coordinator.getByLabel("Event starts")).toBeVisible();
-    await coordinator.getByLabel("Event starts").fill(sgtInput(at(S, 90)));
-    await coordinator.getByLabel("Event ends").fill(sgtInput(at(S, 150)));
+    await expect(coordinator.getByLabel("Event starts")).toHaveValue(sgtInput(scene.events.late.startAt));
     await expect(coordinator.getByRole("alert").filter({ hasText: /unavailab/i })).toBeVisible();
     await expect(coordinator.getByRole("button", { name: "Submit booking request" })).toHaveCount(0);
 
     // Step 17: the same request straight to the API (ASSUMPTION: 409 or 422).
-    const refused = await coordinator.request.post(`${apiBase}/api/venues/${V.id}/booking-requests`, {
-      data: { eventId: scene.events.late.id, start: at(S, 90), end: at(S, 150) },
-    });
+    const refused = await bookingRequest(scene.events.late);
     expect([409, 422]).toContain(refused.status());
     expect(await venueBookings(coordinator)).toHaveLength(countBefore);
 
-    // Step 18: occupied period starts exactly at the block end (event start S+210 minus 30 min setup) -> accepted.
-    const accepted = await coordinator.request.post(`${apiBase}/api/venues/${V.id}/booking-requests`, {
-      data: { eventId: scene.events.edge.id, start: at(S, 180 + SETUP), end: at(S, 180 + SETUP + 60) },
-    });
-    expect(accepted.status()).toBe(201);
-    // One minute earlier overlaps the block -> refused.
-    const tooEarly = await coordinator.request.post(`${apiBase}/api/venues/${V.id}/booking-requests`, {
-      data: { eventId: scene.events.edgeEarly.id, start: at(S, 180 + SETUP - 1), end: at(S, 180 + SETUP + 59) },
-    });
+    // Step 18: one minute before the edge the occupied period overlaps the block -> refused (asked first so the accepted
+    // request below, which would otherwise clash with it, is not what refuses it).
+    const tooEarly = await bookingRequest(scene.events.edgeEarly);
     expect([409, 422]).toContain(tooEarly.status());
+    expect(await venueBookings(coordinator)).toHaveLength(countBefore);
+
+    // Occupied period starts exactly at the block end (event start S+210 minus 30 min setup) -> accepted.
+    const accepted = await bookingRequest(scene.events.edge);
+    expect(accepted.status()).toBe(201);
   });
 
   // Steps 19-20 (SPM-122 AC7, SPM-125 AC6): the block touches only the setup or only the turnaround window.
@@ -381,7 +398,7 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
       expect(result.affectedBookings).toEqual([expect.objectContaining({ eventId: main.id, coordinatorNotified: true })]);
       expect(await notices(coordinator)).toHaveLength(before + 1);
       expect((await venueBookings(coordinator)).find((b) => b.eventId === main.id)).toMatchObject({ status: "approved" });
-      expect(await eventRow(coordinator, main.id)).toMatchObject({ status: "Planning" });
+      expect(await eventRow(coordinator, main.id)).toMatchObject({ status: "planning" });
     });
   }
 
@@ -427,7 +444,7 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
     const bookings = await venueBookings(coordinator);
     expect(bookings.find((b) => b.venueName === roomA.name)).toMatchObject({ status: "approved", affected: false });
     expect(bookings.find((b) => b.venueName === roomB.name)).toMatchObject({ status: "approved", affected: true });
-    expect(await eventRow(coordinator, multi.id)).toMatchObject({ status: "Planning" });
+    expect(await eventRow(coordinator, multi.id)).toMatchObject({ status: "planning" });
     await coordinator.goto("/bookings");
     await expect(coordinator.getByText(`Venue: ${roomA.name}`)).toBeVisible();
     await expect(coordinator.getByText(`Venue: ${roomB.name}`)).toBeVisible();

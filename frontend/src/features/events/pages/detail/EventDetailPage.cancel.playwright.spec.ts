@@ -132,7 +132,11 @@ async function registrationStatusesFor(api: Actor, eventId: string): Promise<str
 
 /** Every notification of the account that mentions the event, by id when the API carries one, else by message. */
 async function notices(api: Actor, who: As, eventId: string): Promise<Json[]> {
-  const rows: Json[] = await ok(await (await api(who)).get(url("/api/notifications")), 200);
+  const response = await (await api(who)).get(url("/api/notifications"));
+  // GET /api/notifications is closed (403) to Venue Staff, Technical Support and Safety Officer: they have no notification
+  // feed at all, which for these checks means "no notices".
+  if (response.status() === 403) return [];
+  const rows: Json[] = await ok(response, 200);
   return rows.filter((row) => row.relatedEventId === eventId);
 }
 
@@ -203,7 +207,7 @@ test.describe("E2E-28 cancel a confirmed multi-venue event", () => {
     }
 
     // The unauthenticated call is 401.
-    const anonymous = await playwright.request.newContext();
+    const anonymous = await playwright.request.newContext({ storageState: { cookies: [], origins: [] } });
     try {
       const response = await anonymous.post(url(`/api/events/${gala.id}/status-change`), { data: { targetStatus: "Cancelled", confirmed: true } });
       expect(response.status()).toBe(401);

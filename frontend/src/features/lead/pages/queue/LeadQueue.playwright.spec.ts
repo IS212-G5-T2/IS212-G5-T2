@@ -1,6 +1,7 @@
 import { type APIRequestContext, type APIResponse, type Page } from "@playwright/test";
 import { isoDateFromNow } from "../../../../../e2e/dates";
-import { expect, test } from "../../../../../e2e/fixtures";
+import type { As } from "../../../../../e2e/accounts";
+import { expect, test, type TestDatabase } from "../../../../../e2e/fixtures";
 
 // E2E-05 (docs/test-cases/e2e/E2E-05.md): the Lead's unassigned queue and coordinator assignment.
 // SPM-123 (queue, assignment, Lead-only), SPM-77 (assignment notification), SPM-47 AC1/AC9 (assigned list, Lead-only),
@@ -52,11 +53,24 @@ const workloadScene = {
     a2: { name: "Seeded submitted a2", status: "Submitted", organiserEmail: "organiser2@connectsphere.test", coordinatorEmail: "coordinator1@connectsphere.test" },
     b1: { name: "Seeded confirmed b1", status: "Confirmed", organiserEmail: "organiser2@connectsphere.test", coordinatorEmail: "coordinator2@connectsphere.test" },
     // Not active: these must not appear in the Lead's assigned list or in any count.
-    r1: { name: "Seeded rejected r1", status: "Rejected", organiserEmail: "organiser2@connectsphere.test", coordinatorEmail: "coordinator2@connectsphere.test" },
+    // Seeded Submitted and rejected through the product in seedWorkload: the builder cannot write a Rejected row, because
+    // events_rejection_reason_check requires a stored reason.
+    r1: { name: "Seeded rejected r1", status: "Submitted", organiserEmail: "organiser2@connectsphere.test", coordinatorEmail: "coordinator2@connectsphere.test" },
     c1: { name: "Seeded completed c1", status: "Completed", organiserEmail: "organiser2@connectsphere.test", coordinatorEmail: "coordinator2@connectsphere.test" },
     x1: { name: "Seeded cancelled x1", status: "Cancelled", organiserEmail: "organiser2@connectsphere.test", coordinatorEmail: "coordinator3@connectsphere.test" },
   },
 } as const;
+
+/** The workload scene, then the one Rejected event: coordinator2 (its assignee) rejects r1 with a reason (SPM-83). */
+async function seedWorkload(db: TestDatabase, pageAs: (who: As) => Promise<Page>) {
+  const scene = await db.scene(workloadScene);
+  const coordinator2 = await pageAs("coordinator2");
+  const response = await coordinator2.request.post(`${apiBase}/api/events/${scene.events.r1.id}/reject`, {
+    data: { reason: "Rejected to seed a closed event" },
+  });
+  await expectOk(response, "reject seeded r1");
+  return scene;
+}
 
 async function expectOk(response: APIResponse, what: string) {
   expect(response.ok(), `${what}: ${response.status()} ${await response.text()}`).toBe(true);
@@ -128,7 +142,7 @@ test.describe("E2E-05 Lead queue and coordinator assignment", () => {
   test("@P0 organiser submission reaches only the Lead's queue; the Lead assigns coordinator1 through the page and only coordinator1 is notified", async ({
     page, pageAs, db,
   }) => {
-    await db.scene(workloadScene);
+    await seedWorkload(db, pageAs);
     const dateIso = isoDateFromNow(30);
     const day = String(Number(dateIso.slice(8)));
 
@@ -241,7 +255,7 @@ test.describe("E2E-05 Lead queue and coordinator assignment", () => {
 
   // Steps 9 and 10. SPM-38 AC4.
   test("@P0 another coordinator cannot open, read or act on an assigned request", async ({ page, pageAs, db }) => {
-    await db.scene(workloadScene);
+    await seedWorkload(db, pageAs);
     const event = await submitViaApi(page.request, journeyName);
     const lead = await pageAs("lead");
     await assignViaApi(lead, event.id, "Coordinator 1");
@@ -278,7 +292,7 @@ test.describe("E2E-05 Lead queue and coordinator assignment", () => {
 
   // Steps 11 and 12. SPM-123 AC10, SPM-47 AC9.
   test("@P0 no coordinator, and nobody unauthenticated, can view the queue or assign from it", async ({ page, pageAs, playwright, db }) => {
-    await db.scene(workloadScene);
+    await seedWorkload(db, pageAs);
     const unassigned = await submitViaApi(page.request, secondName);
     const lead = await pageAs("lead");
     const coordinator2Id = await coordinatorId(lead, "Coordinator 2");
@@ -302,8 +316,8 @@ test.describe("E2E-05 Lead queue and coordinator assignment", () => {
       await other.request.post(`${apiBase}/api/lead/queue/${unassigned.id}/assign`, { data: { coordinatorId: coordinator2Id } }),
       [secondName],
     );
-    // Unauthenticated: a fresh context carries no session cookie.
-    const anonymous = await playwright.request.newContext();
+    // Unauthenticated: an explicitly empty storage state, because a bare newContext() inherits the signed-in `as` login.
+    const anonymous = await playwright.request.newContext({ storageState: { cookies: [], origins: [] } });
     try {
       for (const response of [
         await anonymous.get(`${apiBase}/api/lead/queue`),
@@ -327,7 +341,7 @@ test.describe("E2E-05 Lead queue and coordinator assignment", () => {
 
   // Step 13. SPM-77 AC5. The refusal status is ASSUMPTION [S2].
   test("@P0 a second assignment of an assigned event is refused, changes nothing and notifies nobody", async ({ page, pageAs, db }) => {
-    await db.scene(workloadScene);
+    await seedWorkload(db, pageAs);
     const event = await submitViaApi(page.request, journeyName);
     const lead = await pageAs("lead");
     await assignViaApi(lead, event.id, "Coordinator 1");
@@ -348,7 +362,7 @@ test.describe("E2E-05 Lead queue and coordinator assignment", () => {
 
   // Step 14. SPM-123 AC9, SPM-88 AC1.
   test("approval does not change the assignee and sends the decision only to the organiser", async ({ page, pageAs, db }) => {
-    await db.scene(workloadScene);
+    await seedWorkload(db, pageAs);
     const event = await submitViaApi(page.request, journeyName);
     const lead = await pageAs("lead");
     await assignViaApi(lead, event.id, "Coordinator 1");
@@ -378,7 +392,7 @@ test.describe("E2E-05 Lead queue and coordinator assignment", () => {
 
   // Step 15. [S3] and SPM-190 Q5: the Lead only assigns and reassigns; it cannot decide or cancel.
   test("the Lead has no approve, reject or cancel power over a request", async ({ page, pageAs, db }) => {
-    await db.scene(workloadScene);
+    await seedWorkload(db, pageAs);
     const event = await submitViaApi(page.request, journeyName);
     const lead = await pageAs("lead");
     await assignViaApi(lead, event.id, "Coordinator 1");
