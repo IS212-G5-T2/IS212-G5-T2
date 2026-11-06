@@ -606,6 +606,17 @@ describe.skipIf(!databaseUrl)(
         '2030-01-12T07:45:00Z',
       );
 
+      // The earlier request goes first, so only the unavailable period can refuse it (once the touching request is
+      // accepted it would overlap that booking too), and the refusal must name the period's reason.
+      const refusedEarly = await agents.coordinator1
+        .post(`/api/venues/${venueId}/booking-requests`)
+        .send({
+          eventId: early,
+          start: '2030-01-12T07:29:00.000Z',
+          end: '2030-01-12T07:45:00.000Z',
+        })
+        .expect(409);
+      expect(refusedEarly.body.message).toContain(period.reason);
       const accepted = await agents.coordinator1
         .post(`/api/venues/${venueId}/booking-requests`)
         .send({
@@ -618,14 +629,6 @@ describe.skipIf(!databaseUrl)(
         status: 'pending',
         start: '2030-01-12T07:30:00.000Z',
       });
-      await agents.coordinator1
-        .post(`/api/venues/${venueId}/booking-requests`)
-        .send({
-          eventId: early,
-          start: '2030-01-12T07:29:00.000Z',
-          end: '2030-01-12T07:45:00.000Z',
-        })
-        .expect(409);
       bookings.touching = accepted.body.id;
     });
 

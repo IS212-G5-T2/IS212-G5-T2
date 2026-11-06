@@ -100,7 +100,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(getMyEquipmentRequests).not.toHaveBeenCalled();
   });
 
-  /** Technical Support opens a request, reviews requested/free quantities, and approves it into reservations. */
+  /** EQUIP-RESERVE-02-A (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): Technical Support opens a request, reviews requested/free quantities, and approves it into reservations. */
   it('opens the request review and approves the request for reservation', async () => {
     const user = userEvent.setup();
     setRole('tech_support');
@@ -113,7 +113,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(await screen.findByText('No equipment requests to display.')).toBeInTheDocument();
   });
 
-  /** EQUIP-RESERVE-08-A: Technical Support marks a request Cannot provide, which requires a reason. */
+  /** EQUIP-RESERVE-09-B (DECIDED SC-SPM58-03, chaw678 2026-11-06: reserve and Cannot Provide are accepted only from a Pending Review request): Technical Support marks a request Cannot provide, which requires a reason. */
   it('requires a reason before marking a request Cannot provide, then submits it', async () => {
     const user = userEvent.setup();
     setRole('tech_support');
@@ -158,7 +158,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(await screen.findByText('Could not mark this request as Cannot provide.')).toBeInTheDocument();
   });
 
-  /** EQUIP-RESERVE-09-A: the event coordinator sees the Cannot Provide status and its reason on their request. */
+  /** EQUIP-RESERVE-10-A (DECIDED SC-SPM58-01, chaw678 2026-11-06: status is per equipment request): the event coordinator sees the Cannot Provide status and its reason on their request. */
   it('shows the Cannot Provide status and reason to the coordinator', async () => {
     vi.mocked(getMyEquipmentRequests).mockResolvedValue([{ ...record, status: 'Cannot Provide', decisionReason: 'Only 8 available; 10 requested.' }]);
     renderPage();
@@ -166,7 +166,21 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.getByText(/Only 8 available; 10 requested\./)).toBeInTheDocument();
   });
 
-  /** the review screen cannot submit approval when an item exceeds available stock. */
+  /** EQUIP-RESERVE-01-BND-1: a request with a single item of quantity 1 shows the event name, date and time, equipment type, name and quantity in the Technical Support queue. */
+  it('renders every required field for a single item at quantity 1', async () => {
+    const user = userEvent.setup();
+    setRole('tech_support');
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([record]);
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Review request' }));
+    const queue = screen.getByRole('region', { name: 'Technical Support review queue' });
+    expect(queue).toHaveTextContent('Showcase');
+    expect(queue).toHaveTextContent(`Start: ${new Date('2030-02-03T10:00:00.000Z').toLocaleString()}`);
+    expect(queue).toHaveTextContent(`End: ${new Date('2030-02-03T12:00:00.000Z').toLocaleString()}`);
+    expect(queue).toHaveTextContent('Microphone · Audio × 1');
+  });
+
+  /** EQUIP-RESERVE-02-B: the review screen cannot submit approval when an item exceeds available stock. */
   it('disables approval when requested quantity exceeds event-period availability', async () => {
     const user = userEvent.setup();
     setRole('tech_support');
@@ -300,7 +314,7 @@ describe('equipment review queue error and fallback paths', () => {
     expect(screen.getByRole('button', { name: 'Review request' })).toHaveAttribute('aria-expanded', 'false');
   });
 
-  /** An item without stock figures is treated as fully available: requested quantity is shown and approval is enabled. */
+  /** EQUIP-RESERVE-02-BND-1 (frontend: this exercises only the no-availability-figures fallback, where available defaults to requested; the real equal-quantity boundary is the backend e2e test of the same ID): An item without stock figures is treated as fully available: requested quantity is shown and approval is enabled. */
   it('treats an item with no availability figures as sufficient', async () => {
     const user = userEvent.setup();
     vi.mocked(getEquipmentRequestQueue).mockResolvedValue([{ ...record, items: [noStockInfoItem] }]);

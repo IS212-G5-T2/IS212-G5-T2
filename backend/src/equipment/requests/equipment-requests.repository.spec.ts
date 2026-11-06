@@ -201,7 +201,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenCalledOnce();
   });
 
-  /** EQUIP-RESERVE-08-A: marking a pending request Cannot Provide stores the reason and retires placeholders. */
+  /** EQUIP-RESERVE-09-A (DECIDED SC-SPM58-03, chaw678 2026-11-06: reserve and Cannot Provide are accepted only from a Pending Review request): marking a pending request Cannot Provide stores the reason and retires placeholders. */
   it('marks a pending request Cannot Provide with its reason and retires placeholder reservations', async () => {
     query.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM equipment_requests r JOIN events e')) {
@@ -378,6 +378,18 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenNthCalledWith(1, expect.stringContaining("WHERE e.coordinator_id = $1::text AND e.status NOT IN ('Cancelled', 'Rejected')"), [coordinatorId]);
     await expect(repository.listQueue()).resolves.toMatchObject([{ reference: 'ER-00000000', requestedBy: coordinatorId }]);
     expect(query).toHaveBeenNthCalledWith(2, expect.stringContaining("WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')"), []);
+  });
+
+  /** EQUIP-RESERVE-01-BND-1: a single item at quantity 1 keeps the event name, window, equipment type, name and quantity in the queue row. */
+  it('maps every required field for a single item at quantity 1', async () => {
+    query = vi.fn().mockResolvedValue({ rows: [
+      { id: requestId, event_id: eventId, event_name: 'Demo Launch', start_date_time: event.start_date_time, end_date_time: event.end_date_time, expected_attendance: 20, status: 'Pending Review', requested_by: coordinatorId, coordinator_name: 'Coordinator', created_at: event.start_date_time, item_id: 'item-1', equipment_name: 'Demo Stage Lighting', equipment_type: 'Lighting', quantity: 1, available_quantity: 1 },
+    ], rowCount: 1 });
+    repository = new EquipmentRequestsRepository({ query } as unknown as DatabaseService);
+    await expect(repository.listQueue()).resolves.toMatchObject([{
+      eventName: 'Demo Launch', eventStart: event.start_date_time.toISOString(), eventEnd: event.end_date_time.toISOString(),
+      items: [{ equipmentName: 'Demo Stage Lighting', equipmentType: 'Lighting', quantity: 1 }],
+    }]);
   });
 
   /** EQUIP-REQUEST-07-A: an empty review queue is returned as an empty list. */

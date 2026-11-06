@@ -47,7 +47,7 @@ describe("EquipmentPage", () => {
     expect(rows[1]).toHaveTextContent("Wireless microphonesType: Audio · Qty: 6");
   });
 
-  /** event identity, rather than a repeated event name, determines reservation grouping. */
+  /** EQUIP-RESERVE-07-B: event identity, rather than a repeated event name, determines reservation grouping. */
   it("keeps records with identical event names separate when their event IDs differ", async () => {
     getEquipmentReservations.mockResolvedValue([
       { id: "reservation-1", equipmentName: "Projector", equipmentType: "Visual", quantity: 2,
@@ -66,7 +66,7 @@ describe("EquipmentPage", () => {
     expect(rows[2]).not.toHaveTextContent("ProjectorType: Visual · Qty: 2");
   });
 
-  /** EQUIP-RESERVE-07-B: a failed reservation lookup is visible rather than misrepresented as empty. */
+  /** EQUIP-RESERVE-07-SUP-READ: a failed reservation lookup is visible rather than misrepresented as empty. */
   it("shows a load failure instead of the empty reservation state", async () => {
     getEquipmentReservations.mockRejectedValue(new Error("offline"));
     render(<EquipmentPage />);

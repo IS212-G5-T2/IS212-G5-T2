@@ -55,15 +55,12 @@ export const homePathByRole: Record<UserRole, string> = {
 };
 
 /**
- * Where each role lands after sign-in (SPM-30 to SPM-34 AC2: "redirected to the Events Dashboard").
- * Kept separate from homePathByRole, which only decides where a role is sent away from a route it
- * cannot use (SPM-124). Venue Staff and Technical Support therefore land on the dashboard, while
- * their denied-route fallbacks stay on their own pages.
+ * Where each role lands after sign-in and from the root route. Venue Staff land on their venue
+ * records and Technical Support on their equipment requests, the same pages used as their
+ * denied-route fallbacks, so there is one source of truth per role.
  */
 export const dashboardPathByRole: Record<UserRole, string> = {
   ...homePathByRole,
-  venue_staff: "/events",
-  tech_support: "/events",
 };
 
 /**

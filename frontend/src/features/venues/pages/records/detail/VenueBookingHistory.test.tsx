@@ -150,11 +150,13 @@ describe("SPM-125 venue booking history", () => {
     await user.click(screen.getByRole("button", { name: "Show booking history" }));
     await user.click(screen.getByRole("button", { name: "Hide booking history" }));
 
+    // The card is open again (a third read is pending) when the two earlier reads settle, so a stale response or
+    // failure that is not ignored would show on the open card.
+    await user.click(screen.getByRole("button", { name: "Show booking history" }));
     await act(async () => {
       late.resolve([entry()] as never);
       lateFailure.reject(new Error("offline"));
     });
-    await user.click(screen.getByRole("button", { name: "Show booking history" }));
 
     expect(screen.queryByText("Welcome Evening")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();

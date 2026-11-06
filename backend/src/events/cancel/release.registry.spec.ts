@@ -33,7 +33,8 @@ describe('SPM-136 release registry', () => {
     // Act: read the releaser names from the registry, in order
     const names = DEFAULT_RELEASERS.map((releaser) => releaser.name);
 
-    // Assert: the names are in the release order
+    // Assert: the names are in the release order. Brittle on purpose: the exact order is the contract (equipment last),
+    // so adding or moving a releaser fails here and the list below must be updated with it.
     expect(names).toEqual([
       'venue_bookings',
       'event_registrations',

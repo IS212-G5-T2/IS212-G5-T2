@@ -27,10 +27,10 @@ import {
  *
  * Cases that need a route or table this repository does not have are not written here (Blocked):
  *   CANCEL-EVENT-05-B x4/x5 (no equipment request flow), 06-A attendee bell (no attendee notification read
- *   path), 07-B A/B (no Safety Officer or Venue Staff approval routes). See docs/specs/SPM-136-test-results.md.
+ *   path). See docs/specs/SPM-136-test-results.md. (07-B subtests A and B: accepted deviation, conflict 136-014 in docs/test-cases/workflow/spec-conflicts.md.)
  * The waiting list exists (SPM-138), so its SPM-136 cases are covered: CANCEL-EVENT-06-B (the waiting notices)
- *   is JOIN-WAITLIST-12-A in test/registrations.waitlist.e2e-spec.ts, and the waiting-list half of 08-A is
- *   JOIN-WAITLIST-12-A to 12-C there plus the combined CANCEL-EVENT-08-A test in this file.
+ *   has its own test in this file (the same flow is also JOIN-WAITLIST-12-A in test/registrations.waitlist.e2e-spec.ts),
+ *   and the waiting-list half of 08-A is JOIN-WAITLIST-12-A to 12-C there plus the combined CANCEL-EVENT-08-A test in this file.
  */
 
 const database = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -787,6 +787,39 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
     expect(pick(forCoordinator.body)).toEqual([
       expect.objectContaining({ type: 'EventCancelled', audienceRole: 'coordinator', message: CANCELLED_NOTICE, read: false }),
     ]);
+  });
+
+  /**
+   * CANCEL-EVENT-06-B: every Waitlisted attendee is notified of the cancellation. EVT-301 has ATT-04 and ATT-05 Waitlisted
+   * with no notifications; COO-01 cancels; each gets exactly one in-app notice with the waitlist wording.
+   */
+  // Kills: W1, W2, W6
+  it('CANCEL-EVENT-06-B: ATT-04 and ATT-05 on the EVT-301 waiting list each get exactly one "Your waitlist place is cancelled" notice', async () => {
+    // Arrange: EVT-301 Confirmed and full (limit 3, ATT-01..03 Registered) with an open list, so ATT-04 and ATT-05 stay
+    // Waitlisted and have zero notifications (a closed list would mark them Removed, SPM-138 D9)
+    const eventId = await seedEvent({ status: 'Confirmed' });
+    await pool.query(
+      `UPDATE events SET registration_enabled = true, registration_limit = 3,
+              registration_opens_at = '2026-10-11T04:00:00.000Z', registration_closes_at = '2026-10-19T15:59:00.000Z'
+        WHERE id = $1`,
+      [eventId],
+    );
+    for (const who of [attendee1, attendee2, attendee3]) await seedRegistration(eventId, who.uid, 'Registered');
+    const attendee4 = await createSession('ATTENDEE', 'Attendee 4');
+    const attendee5 = await createSession('ATTENDEE', 'Attendee 5');
+    await seedWaitlistEntry(eventId, attendee4.uid, '2026-10-12T03:00:00.000Z');
+    await seedWaitlistEntry(eventId, attendee5.uid, '2026-10-12T03:05:00.000Z');
+    for (const waiting of [attendee4, attendee5])
+      expect((await pool.query('SELECT 1 FROM notifications WHERE recipient_id = $1', [waiting.uid])).rowCount).toBe(0);
+
+    // Act: COO-01 cancels EVT-301
+    await cancel(coordinator, eventId).expect(200);
+
+    // Assert: each waitlisted attendee has exactly one notification, with the text from the case page, unread
+    for (const waiting of [attendee4, attendee5]) {
+      const rows = await pool.query('SELECT message, read FROM notifications WHERE recipient_id = $1', [waiting.uid]);
+      expect(rows.rows).toEqual([{ message: 'Annual Gala Dinner has been cancelled. Your waitlist place is cancelled.', read: false }]);
+    }
   });
 
   /** CANCEL-EVENT-06-C: non-recipients get nothing and recipients get one notice each. */
