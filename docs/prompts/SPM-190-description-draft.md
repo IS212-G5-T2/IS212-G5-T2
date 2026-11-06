@@ -1,10 +1,6 @@
 # Draft replacement description for SPM-190
 
-**Status: not applied.** The Jira write was refused twice by the session's permission
-classifier (`External System Writes`), so this is the text that was meant to go into
-SPM-190's description on 2026-11-06. Paste it in, or grant
-`mcp__claude_ai_Atlassian_MCP__editJiraIssue` and ask for it to be applied. Delete this
-file once it is in Jira — Jira is the home for it, not the repository.
+**Applied 2026-11-06** — all 10 answers recorded per session Q&A; E2E case files updated. This file may be deleted once its content is confirmed in Jira.
 
 ---
 
