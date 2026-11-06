@@ -27,10 +27,10 @@ export const MUTANTS = [
   },
   {
     id: 'S130-BE-01',
-    name: 'legacy request-changes payload accepts a missing or whitespace reason (SAFETY-DECISION-04)',
+    name: 'a change request with neither a reason nor change rows is accepted (SAFETY-DECISION-04)',
     file: SERVICE,
     suites: ['unit', 'backend-e2e'],
-    edits: [["if (!legacyReason) throw new BadRequestException('A reason or at least one change is required.');", 'if (false)']],
+    edits: [["throw new BadRequestException('Add at least one change and select arrangements for review.');", "feedbackItems = [];"]],
     testMappings: [
       unit('refuses %s without a nonblank reason before starting a response transaction'),
       e2e('SAFETY-DECISION-04 refuses %s with missing or blank feedback'),
@@ -44,7 +44,7 @@ export const MUTANTS = [
     edits: [["[eventId, decision, name, feedback]", "[eventId, 'approved', name, feedback]"]],
     testMappings: [
       unit('SAFETY-DECISION-02 records rejection and its feedback reason'),
-      unit('SAFETY-DECISION-03 records requested changes and its description'),
+      unit('SAFETY-DECISION-03 persists each selected change row independently'),
       e2e('SAFETY-DECISION-02 persists rejection with its required reason'),
       e2e('SAFETY-DECISION-03 persists requested changes with their description'),
     ],
@@ -57,8 +57,7 @@ export const MUTANTS = [
     edits: [["for (const feedbackItem of feedbackItems) {", 'if (false) {']],
     testMappings: [
       unit('SAFETY-DECISION-02 records rejection and its feedback reason'),
-      unit('SAFETY-DECISION-03 records requested changes and its description'),
-      unit('SAFETY-DECISION-03 persists each submitted change row independently'),
+      unit('SAFETY-DECISION-03 persists each selected change row independently'),
       e2e('SAFETY-DECISION-02 persists rejection with its required reason'),
       e2e('SAFETY-DECISION-03 persists requested changes with their description'),
       e2e('SAFETY-DECISION-03 persists and independently resolves multiple requested changes'),
@@ -69,7 +68,7 @@ export const MUTANTS = [
     name: 'the API accepts a blank or malformed change-array row (SAFETY-DECISION-04)',
     file: SERVICE,
     suites: ['unit', 'backend-e2e'],
-    edits: [["if (typeof change !== 'string' || !change.trim())", 'if (false)']],
+    edits: [["if (typeof row.text !== 'string' || !row.text.trim())", 'if (false)']],
     testMappings: [
       unit('SAFETY-DECISION-04 refuses %s without writing a decision'),
       e2e('SAFETY-DECISION-04 refuses a changes array containing a blank row atomically'),
@@ -82,7 +81,7 @@ export const MUTANTS = [
     suites: ['unit', 'backend-e2e'],
     edits: [["for (const feedbackItem of feedbackItems) {", "for (const feedbackItem of feedbackItems.slice(0, 1)) {"]],
     testMappings: [
-      unit('SAFETY-DECISION-03 persists each submitted change row independently'),
+      unit('SAFETY-DECISION-03 persists each selected change row independently'),
       e2e('SAFETY-DECISION-03 persists and independently resolves multiple requested changes'),
     ],
   },
@@ -125,8 +124,8 @@ export const MUTANTS = [
     file: SERVICE,
     suites: ['backend-e2e'],
     edits: [[
-      '[eventId, feedbackItem],',
-      '[feedbackItem, eventId],',
+      '[eventId, feedbackItem.text, JSON.stringify(reviewArrangements)],',
+      '[feedbackItem.text, eventId, JSON.stringify(reviewArrangements)],',
     ]],
     testMappings: [e2e('SAFETY-DECISION-03 persists and independently resolves multiple requested changes')],
   },
