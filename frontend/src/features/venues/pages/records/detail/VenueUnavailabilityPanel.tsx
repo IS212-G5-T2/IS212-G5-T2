@@ -16,7 +16,12 @@ interface Props {
 interface SavedPeriod {
   period: VenueUnavailablePeriod;
   /** SPM-125 AC6: `coordinatorNotified` is true when the booking's Event Coordinator was notified. */
-  affectedBookings: Array<VenueReservation & { coordinatorNotified?: boolean }>;
+  affectedBookings: Array<VenueReservation & {
+    coordinatorNotified?: boolean;
+    /** SPM-122 AC7 / SPM-125 AC7: event start minus setup through event end plus turnaround. */
+    occupiedStart?: string;
+    occupiedEnd?: string;
+  }>;
 }
 
 export function VenueUnavailabilityPanel({ venueId, periods, canManage, onSaved }: Props) {
@@ -136,12 +141,20 @@ export function VenueUnavailabilityPanel({ venueId, periods, canManage, onSaved 
       {result.affectedBookings.length === 0 ? <p>No existing bookings are affected.</p> : <>
         <CoordinatorsNotified count={result.affectedBookings.filter((booking) => booking.coordinatorNotified).length} />
         <ul>{result.affectedBookings.map((booking) => <li key={booking.id}>{booking.eventName} — {formatDateTimeRange(booking.start, booking.end)}
+          {/* SPM-122 AC7 / SPM-125 AC7: when the venue has setup or turnaround time, also show the real occupied window. */}
+          {hasBuffer(booking) && <span> · Occupied incl. setup and turnaround: {formatDateTimeRange(booking.occupiedStart!, booking.occupiedEnd!)}</span>}
           {/* SPM-125 AC6: each affected booking says whether its Event Coordinator was notified. */}
           <span className={booking.coordinatorNotified ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}> · {booking.coordinatorNotified ? "Coordinator notified" : "No assigned Coordinator to notify"}</span>
         </li>)}</ul>
       </>}
     </section>}
   </div>;
+}
+
+/** True when the occupied window differs from the event window, so the venue has setup or turnaround time. */
+function hasBuffer(booking: { start: string; end: string; occupiedStart?: string; occupiedEnd?: string }) {
+  return Boolean(booking.occupiedStart && booking.occupiedEnd)
+    && (booking.occupiedStart !== booking.start || booking.occupiedEnd !== booking.end);
 }
 
 /** SPM-125 AC6: confirms how many affected bookings' Event Coordinators were notified in-app. */

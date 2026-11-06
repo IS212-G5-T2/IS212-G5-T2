@@ -404,7 +404,7 @@ describe.skipIf(!databaseUrl)(
 
     /**
      * VEN-IMPACT-01-J (AC1): the history shows the period saved by Venue Staff 1; ending a current period early (by
-     * Venue Staff 2) adds an 'ended_early' entry with the new end, the end it replaced, the person and the time;
+     * the owner, Venue Staff 1; Venue Staff 2 is refused with 403 under SPM-121 AC7) adds an 'ended_early' entry with the new end, the end it replaced, the person and the time;
      * entries are newest first.
      */
     it('VEN-IMPACT-01-J records who created and who ended a period early, with the period, reason and time', async () => {
@@ -417,7 +417,22 @@ describe.skipIf(!databaseUrl)(
           reason: 'Burst pipe',
         })
         .expect(201);
+      // SPM-121 AC7 / E2E-29 R9: Venue Staff 2 did not create the venue, so neither adding a period nor ending
+      // Venue Staff 1's period is allowed, and the period stays current.
       await agents.staff2
+        .post(`/api/venues/${venueId}/unavailable-periods`)
+        .send({
+          start: '2030-01-10T10:00:00.000Z',
+          end: '2030-01-10T18:00:00.000Z',
+          reason: 'Not my venue',
+        })
+        .expect(403);
+      await agents.staff2
+        .post(
+          `/api/venues/${venueId}/unavailable-periods/${current.body.period.id}/end`,
+        )
+        .expect(403);
+      await agents.staff
         .post(
           `/api/venues/${venueId}/unavailable-periods/${current.body.period.id}/end`,
         )
@@ -435,7 +450,7 @@ describe.skipIf(!databaseUrl)(
         end: fixedNow.toISOString(),
         previousEnd: '2030-01-10T18:00:00.000Z',
         reason: 'Burst pipe',
-        changedBy: 'Venue Staff 2',
+        changedBy: 'Venue Staff 1',
         changedAt: fixedNow.toISOString(),
       });
       expect(

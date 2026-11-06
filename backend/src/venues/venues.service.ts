@@ -466,6 +466,7 @@ export class VenuesService {
   ) {
     const staff = await this.authorizeStaff(user);
     if (!UUID.test(id)) throw new NotFoundException('Venue not found.');
+    await this.assertOwnsVenue(staff.uid, id, 'Venue not found.');
     const result = await this.repository.markUnavailable(
       id,
       validateUnavailability(body, this.clock.now()),
@@ -484,6 +485,7 @@ export class VenuesService {
     const staff = await this.authorizeStaff(user);
     if (!UUID.test(id) || !UUID.test(periodId))
       throw new NotFoundException('Unavailable period not found.');
+    await this.assertOwnsVenue(staff.uid, id, 'Unavailable period not found.');
     const period = await this.repository.endUnavailable(id, periodId, staff.uid);
     if (!period) throw new NotFoundException('Unavailable period not found.');
     return { period };
@@ -505,6 +507,17 @@ export class VenuesService {
     const entries = await this.repository.listBookingHistory(id);
     if (!entries) throw new NotFoundException('Venue not found.');
     return entries;
+  }
+
+  /**
+   * SPM-121 AC7 / E2E-29 R9: Venue Staff may change only a venue they created, so the unavailability endpoints refuse
+   * (403) a caller who is not the owner. An unknown venue keeps the endpoint's own 404 message.
+   */
+  private async assertOwnsVenue(staffId: string, venueId: string, notFoundMessage: string) {
+    const venue = await this.repository.get(venueId);
+    if (!venue) throw new NotFoundException(notFoundMessage);
+    if (venue.ownerId !== staffId)
+      throw new ForbiddenException('You can only manage unavailability for venues you created.');
   }
 
   /** SPM-55: the authorization gate for the Venue Staff review endpoints, so it is measured rather than excluded. */

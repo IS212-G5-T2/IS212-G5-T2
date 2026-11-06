@@ -435,7 +435,7 @@ test.describe("E2E-29 Access matrix", () => {
       });
       expect(REFUSAL).toContain(resp.status());
 
-      // The unavailable-period row of the case is the fixme test below: the product accepts it (see there).
+      // The unavailable-period row of the case is the R9-I test below.
 
       // API: approve pending booking at v1 refused.
       resp = await page.request.post(`${apiBase}/api/venues/bookings/${pendingBooking.id}/approve`, {
@@ -461,25 +461,39 @@ test.describe("E2E-29 Access matrix", () => {
     });
   });
 
-  // FIXME (product defect, report to the team): VenuesService.markUnavailable (and endUnavailable) only checks that the
-  // caller is Venue Staff, never that they own the venue, so venue_staff2 gets 201 and the venue's schedule is blocked
-  // for venue_staff1's bookings. E2E-29 R9 and SPM-121 AC7 require every write on another staff member's venue to be
-  // refused, and PATCH /api/venues/:id already is. Re-enable once the ownership check exists.
+  // R9 / SPM-121 AC7: VenuesService.markUnavailable and endUnavailable check that the caller owns the venue, as
+  // PATCH /api/venues/:id does, so every write on another staff member's venue is refused (403).
   test.describe("R9-I venue_staff2 cannot block venue_staff1 venue", () => {
     test.use({ as: "venue_staff2" });
 
-    test.fixme("R9-I: venue_staff2 cannot add an unavailable period to venue_staff1 venue @P0 @access-matrix", async ({ page, db }) => {
+    test("R9-I: venue_staff2 cannot add or end an unavailable period on venue_staff1 venue @P0 @access-matrix", async ({ page, pageAs, db }) => {
       const scene = await db.scene(STANDARD_SCENE);
       const v1 = scene.venues.v1;
-      const nearFuture = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      const resp = await page.request.post(`${apiBase}/api/venues/${v1.id}/unavailable-periods`, {
-        data: {
-          start: nearFuture.toISOString(),
-          end: new Date(nearFuture.getTime() + 60 * 60 * 1000).toISOString(),
-          reason: "tampered",
-        },
+      const vs1Page = await pageAs("venue_staff1");
+      const start = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const window = (offsetHours: number) => ({
+        start: new Date(start.getTime() + offsetHours * 60 * 60 * 1000).toISOString(),
+        end: new Date(start.getTime() + (offsetHours + 1) * 60 * 60 * 1000).toISOString(),
       });
-      expect(REFUSAL).toContain(resp.status());
+
+      // Add: refused with 403, and the venue gains no period.
+      let resp = await page.request.post(`${apiBase}/api/venues/${v1.id}/unavailable-periods`, {
+        data: { ...window(0), reason: "tampered" },
+      });
+      expect(resp.status()).toBe(403);
+      const noPeriods = (await vs1Page.request.get(`${apiBase}/api/venues/${v1.id}`).then((r) => r.json())) as { unavailablePeriods: unknown[] };
+      expect(noPeriods.unavailablePeriods).toEqual([]);
+
+      // End early: the owner starts a period that is active now; venue_staff2 cannot end it.
+      resp = await vs1Page.request.post(`${apiBase}/api/venues/${v1.id}/unavailable-periods`, {
+        data: { start: new Date(Date.now() - 60 * 60 * 1000).toISOString(), end: new Date(Date.now() + 60 * 60 * 1000).toISOString(), reason: "owner block" },
+      });
+      expect(resp.status()).toBe(201);
+      const periodId = ((await resp.json()) as { period: { id: string } }).period.id;
+      resp = await page.request.post(`${apiBase}/api/venues/${v1.id}/unavailable-periods/${periodId}/end`);
+      expect(resp.status()).toBe(403);
+      const stillActive = (await vs1Page.request.get(`${apiBase}/api/venues/${v1.id}`).then((r) => r.json())) as { unavailablePeriods: Array<{ id: string; current?: boolean }> };
+      expect(stillActive.unavailablePeriods).toEqual([expect.objectContaining({ id: periodId, current: true })]);
     });
   });
 

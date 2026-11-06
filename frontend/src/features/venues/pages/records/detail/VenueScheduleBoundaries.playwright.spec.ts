@@ -196,15 +196,9 @@ test.describe("E2E-09 setup and turnaround boundaries", () => {
     await expect(turnaroundDialog).toContainText("12:45");
   });
 
-  // FIXME (product vs case assumption [S2], not an edit-the-test problem): the case assumes pending requests do not block
-  // one another at submission, so P (13:14, inside A's turnaround) is accepted as Pending next to the still-Pending A and
-  // is only refused at approval. The product refuses P at submission: venues.repository.ts submitBookingRequest counts
-  // event-linked PENDING requests as blockers (SPM-54 AC2) and answers 409 "conflicts with E09 A". The approval-time
-  // recheck is therefore unreachable through the product without a controlled fixture that inserts a pending booking
-  // (backend/scripts/testing/browser-fixtures.mjs has none; this task may not add one). Re-enable once either [S2] is
-  // settled against SPM-54 AC2 or such a fixture exists. Until then the E2E-09 journey below pins the refusal that does
-  // happen at submission.
-  test.fixme("E2E-09 approval-time recheck keeps P pending behind A, by UI, by API and unauthenticated @P0", async ({ page, db, pageAs }) => {
+  // [S2] resolved: pending ordinary requests coexist, so P (13:14, inside A's turnaround) is accepted as Pending next to
+  // the still-Pending A and is only refused at approval, once A has been approved first.
+  test("E2E-09 approval-time recheck keeps P pending behind A, by UI, by API and unauthenticated @P0", async ({ page, db, pageAs }) => {
     const scene = await seed(db, false);
     const venue = scene.venues.v;
     const { a, p } = scene.events;
@@ -228,8 +222,9 @@ test.describe("E2E-09 setup and turnaround boundaries", () => {
     const alert = staff.getByRole("alert").filter({ hasText: /conflicts with/ });
     await expect(alert).toBeVisible();
     await expect(alert).toContainText("E09 A");
-    await expect(alert).toContainText("10:00");
-    await expect(alert).toContainText("12:00");
+    // SPM-56 AC2/AC3/AC6: the approval alert gives A's complete occupied interval, 09:30 (10:00 - 30 min setup) to 12:45 (12:00 + 45 min turnaround).
+    await expect(alert).toContainText("09:30");
+    await expect(alert).toContainText("12:45");
     const pendingAfter = (await (await staff.request.get(`${apiBase}/api/venues/bookings/pending`)).json()) as Array<{ id: string; status: string }>;
     expect(pendingAfter.find((b) => b.id === pBookingId)?.status).toBe("pending");
     // No decision notification about P (SPM-137 AC7).
@@ -311,10 +306,13 @@ test.describe("E2E-09 setup and turnaround boundaries", () => {
     const idOf = async (response: APIResponse) => ((await response.json()) as { id: string }).id;
 
     const aId = await idOf(await submitByApi(page, v.id, scene.events.a));
-    // The product refuses P at submission while A is still pending (see the fixme above), so P never gets a booking row.
-    expect((await submitByApi(page, v.id, scene.events.p)).status()).toBe(409);
+    // [S2]: P is accepted as Pending next to the still-Pending A; the race is settled at approval, where A (approved
+    // first) wins and P's approval is refused with a conflict.
+    const pResponse = await submitByApi(page, v.id, scene.events.p);
+    expect(pResponse.status()).toBe(201);
+    const pId = await idOf(pResponse);
     expect((await approve(aId)).status()).toBe(201);
-    expectRefused(await submitByApi(page, v.id, scene.events.p));
+    expect((await approve(pId)).status()).toBe(409);
 
     for (const row of ["B", "C", "D", "E"] as const) expectRefused(await submitByApi(page, v.id, rowEvent(scene, row)));
     const row6 = await submitByApi(page, v2.id, rowEvent(scene, "F"));
@@ -331,7 +329,7 @@ test.describe("E2E-09 setup and turnaround boundaries", () => {
     expect(statusOf(scene.events.a.id)).toEqual(["approved"]);
     expect(statusOf(rowEvent(scene, "A").id)).toEqual(["approved"]);
     expect(statusOf(rowEvent(scene, "F").id)).toEqual(["approved"]);
-    expect(statusOf(scene.events.p.id)).toEqual([]);
+    expect(statusOf(scene.events.p.id)).toEqual(["pending"]);
     for (const row of refusedRows) expect(statusOf(rowEvent(scene, row).id)).toEqual([]);
 
     // Step 12: exactly three decision notifications, worded per SPM-137 AC1/AC2.

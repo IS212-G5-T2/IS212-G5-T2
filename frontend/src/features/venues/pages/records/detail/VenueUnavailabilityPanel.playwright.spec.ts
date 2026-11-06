@@ -96,6 +96,10 @@ const sgtInput = (iso: string) => {
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 };
 
+/** A time of day the way the panel prints it ("9:30am"), in Singapore. */
+const sgtClock = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Asia/Singapore", hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s+/g, "").toLowerCase();
+
 interface AffectedBooking { id: string; eventId: string; eventName: string; start: string; end: string; status: string; coordinatorNotified?: boolean }
 interface Notice { id: string; type: string; message: string; relatedEventId?: string | null; relatedBookingId?: string | null }
 
@@ -256,8 +260,8 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
     expect(JSON.stringify(await bookingHistory.json())).toContain("E2E-14 main event");
   });
 
-  // SPM-122 AC7 / SPM-125 AC7 say the list includes setup and turnaround; the panel prints only the event window.
-  test.fixme("@P0 the affected-bookings list shows the occupied window including setup and turnaround", async ({ page, db }) => {
+  // SPM-122 AC7 / SPM-125 AC7: the list includes setup and turnaround, so the panel shows the occupied window next to the event window.
+  test("@P0 the affected-bookings list shows the occupied window including setup and turnaround", async ({ page, db }) => {
     const { V, S } = await mainScene(db);
     await page.goto(`/venue-records/${V.id}`);
     await page.getByRole("button", { name: "Mark Unavailable" }).click();
@@ -267,9 +271,10 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
     await page.getByRole("button", { name: "Review unavailability" }).click();
     await page.getByRole("button", { name: "Confirm unavailability" }).click();
     const region = page.getByRole("region", { name: "Affected bookings" });
-    // Occupied window = S-30min .. S+165min (spec 09:30 to 12:45).
-    await expect(region).toContainText(sgtInput(at(S, -SETUP)).slice(-5));
-    await expect(region).toContainText(sgtInput(at(S, 120 + TURNAROUND)).slice(-5));
+    // Event window S .. S+120; occupied window = S-30min .. S+165min (spec 09:30 to 12:45). The panel prints times as "9:30am".
+    await expect(region).toContainText(`${sgtClock(S)} – ${sgtClock(at(S, 120))}`);
+    // The pattern allows a date between the times, in case the buffer crosses midnight.
+    await expect(region).toContainText(new RegExp(`Occupied incl\\. setup and turnaround: [^–]*${sgtClock(at(S, -SETUP))} – [^–]*${sgtClock(at(S, 120 + TURNAROUND))}`));
   });
 
   // Steps 9-13 (SPM-52 AC3, SPM-54 AC4/AC5/AC6, SPM-55 AC2, SPM-97 AC5).
