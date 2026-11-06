@@ -272,7 +272,10 @@ test.describe("E2E-14 maintenance block on a booked venue", () => {
     await page.getByRole("button", { name: "Confirm unavailability" }).click();
     const region = page.getByRole("region", { name: "Affected bookings" });
     // Event window S .. S+120; occupied window = S-30min .. S+165min (spec 09:30 to 12:45). The panel prints times as "9:30am".
-    await expect(region).toContainText(`${sgtClock(S)} – ${sgtClock(at(S, 120))}`);
+    // S is the run's own time of day (the fixture builds it as now + 30 days), so between 22:00 and
+    // 23:59 SGT the two-hour window crosses midnight and the panel names the second date between the
+    // times. Allow that here as well, not only on the occupied window below.
+    await expect(region).toContainText(new RegExp(`${sgtClock(S)} – [^–]*${sgtClock(at(S, 120))}`));
     // The pattern allows a date between the times, in case the buffer crosses midnight.
     await expect(region).toContainText(new RegExp(`Occupied incl\\. setup and turnaround: [^–]*${sgtClock(at(S, -SETUP))} – [^–]*${sgtClock(at(S, 120 + TURNAROUND))}`));
   });
