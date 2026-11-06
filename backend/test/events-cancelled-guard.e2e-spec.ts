@@ -212,7 +212,7 @@ describe.skipIf(!database)('SPM-136 cancelled events refuse every arrangement ch
       expect((await pool.query('SELECT status FROM events WHERE id = $1', [eventId])).rows[0].status).toBe('Cancelled');
     });
 
-  // CANCEL-EVENT-07-B subtests A and B (SPM-199): tests are added with the fix in SPM-199
+  // CANCEL-EVENT-07-B subtests A and B: accepted deviation, conflict 136-014 in docs/test-cases/workflow/spec-conflicts.md
 
   // Kills: S10
     it('CANCEL-EVENT-07-B-D: COO-01 Planning is refused with 422 INVALID_STATUS_TRANSITION and the status stays Cancelled', async () => {

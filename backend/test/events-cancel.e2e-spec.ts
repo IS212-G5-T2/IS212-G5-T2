@@ -28,7 +28,7 @@ import {
  *
  * Cases that need a route or table this repository does not have are not written here (Blocked):
  *   CANCEL-EVENT-05-B x4/x5 (no equipment request flow), 06-A attendee bell (no attendee notification read
- *   path). See docs/specs/SPM-136-test-results.md. (07-B subtests A and B are tracked in SPM-199.)
+ *   path). See docs/specs/SPM-136-test-results.md. (07-B subtests A and B: accepted deviation, conflict 136-014 in docs/test-cases/workflow/spec-conflicts.md.)
  * The waiting list exists (SPM-138), so its SPM-136 cases are covered: CANCEL-EVENT-06-B (the waiting notices)
  *   has its own test in this file (the same flow is also JOIN-WAITLIST-12-A in test/registrations.waitlist.e2e-spec.ts),
  *   and the waiting-list half of 08-A is JOIN-WAITLIST-12-A to 12-C there plus the combined CANCEL-EVENT-08-A test in this file.
