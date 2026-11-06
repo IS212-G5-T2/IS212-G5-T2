@@ -118,17 +118,42 @@
   min-width: 700px;
 }
 
+/* Each event box clips its own content so text cannot spill into neighbouring events. */
+.venue-schedule-calendar
+  :is(.venue-schedule-booking, .venue-schedule-hold, .venue-schedule-unavailable, .venue-schedule-buffer, .venue-schedule-selected) {
+  overflow: hidden;
+}
+
+/* Entries stack time, title and detail on separate lines. Each line is clipped to the box width
+   and the box clips the stack; the full text opens in the entry dialog on click. */
 .venue-schedule-calendar .venue-schedule-event {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  box-sizing: border-box;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  padding: 0 0.25rem;
   overflow: hidden;
   font-size: 0.75rem;
   line-height: 1.25;
+  cursor: pointer;
 }
 
-.venue-schedule-calendar .venue-schedule-event strong {
-  font-weight: 650;
+/* The theme wraps each entry in a padded element; remove that padding so two stacked lines fit the box. */
+.venue-schedule-calendar
+  :is(.venue-schedule-booking, .venue-schedule-hold, .venue-schedule-unavailable, .venue-schedule-buffer) > div {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 0 !important;
+}
+
+.venue-schedule-calendar .venue-schedule-event > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .venue-schedule-calendar .venue-schedule-event-time {
@@ -136,8 +161,62 @@
   opacity: 0.9;
 }
 
-.venue-schedule-calendar .venue-schedule-event span {
+.venue-schedule-calendar .venue-schedule-event-title {
+  font-weight: 650;
+}
+
+/* The detail line is kept for screen readers and shown in full in the entry dialog,
+   so it does not take a clipped third line inside the box. */
+.venue-schedule-calendar .venue-schedule-event-detail {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Buffers are short: time and title share one clipped line. */
+.venue-schedule-calendar .venue-schedule-buffer .venue-schedule-event {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.25rem;
+  padding-block: 0;
+}
+
+.venue-schedule-calendar .venue-schedule-buffer .venue-schedule-event > span {
+  flex: 0 1 auto;
+}
+
+.venue-schedule-calendar .venue-schedule-buffer .venue-schedule-event-title {
+  flex: 1 1 0;
+}
+
+.venue-schedule-entry-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.venue-schedule-entry-details dt {
+  font-weight: 600;
+  color: #374151;
+}
+
+.venue-schedule-entry-details dd {
+  margin: 0;
   overflow-wrap: anywhere;
+  color: #111827;
+}
+
+.dark .venue-schedule-entry-details dt {
+  color: #d1d5db;
+}
+
+.dark .venue-schedule-entry-details dd {
+  color: #f9fafb;
 }
 
 .venue-schedule-calendar .schedule-legend-dot {

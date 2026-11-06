@@ -8,6 +8,7 @@ import type { VenueRecord, VenueReservation } from "../venue-records";
 import { getFreeVenueIntervals } from "../availability";
 import { formatVenueInstant } from "../availability";
 import { sgtDayKey, sgtLocalDateTimeToDate } from "@/utils/sgtDate";
+import { Modal } from "@/components/ui/Modal";
 
 export type ScheduleCategory =
   "booking" | "hold" | "unavailable" | "free" | "buffer" | "selected";
@@ -164,6 +165,19 @@ interface VenueScheduleCalendarProps {
   onClearSelection?: () => void;
 }
 
+/** The entry opened by clicking a calendar block, shown in full in a dialog. */
+interface OpenScheduleEntry {
+  title: string;
+  detail: string;
+  start: string | null;
+  end: string | null;
+}
+
+function describeWhen(start: string | null, end: string | null): string {
+  if (!start || !end) return "Time not available";
+  return `${formatVenueInstant(start)} to ${formatVenueInstant(end)}`;
+}
+
 export function VenueScheduleCalendar({
   venue,
   initialDate,
@@ -172,6 +186,7 @@ export function VenueScheduleCalendar({
   onClearSelection,
 }: VenueScheduleCalendarProps) {
   const calendarRef = useRef<CalendarRef | null>(null);
+  const [openEntry, setOpenEntry] = useState<OpenScheduleEntry | null>(null);
   const [isPhone, setIsPhone] = useState(() =>
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
@@ -272,6 +287,9 @@ export function VenueScheduleCalendar({
           slotMaxTime="24:00:00"
           slotDuration="01:00:00"
           slotHeaderInterval="01:00:00"
+          slotMinHeight={56}
+          slotEventOverlap={false}
+          eventMinHeight={32}
           scrollTime="08:00:00"
           headerToolbar={{
             left: "title",
@@ -297,7 +315,18 @@ export function VenueScheduleCalendar({
               : undefined
           }
           eventClick={(click) => {
-            if (click.event.id === "selected-event-time") onClearSelection?.();
+            const { event } = click;
+            if (event.id === "selected-event-time") {
+              onClearSelection?.();
+              return;
+            }
+            if (event.extendedProps?.category === "free") return;
+            setOpenEntry({
+              title: event.title ?? "",
+              detail: event.extendedProps?.detail ?? "",
+              start: event.start?.toISOString() ?? null,
+              end: event.end?.toISOString() ?? null,
+            });
           }}
           eventContent={(info) =>
             info.event.extendedProps.category === "selected" ? (
@@ -310,18 +339,20 @@ export function VenueScheduleCalendar({
             ) : (
               <div
                 className="venue-schedule-event"
-                title={`${info.event.title}: ${info.event.extendedProps.detail}`}
+                title={`${info.event.title}: ${info.event.extendedProps.detail} (click for full details)`}
               >
-                <strong>
-                  {info.timeText && (
-                    <span className="venue-schedule-event-time">
-                      {info.timeText}
-                    </span>
-                  )}{" "}
+                {info.timeText && (
+                  <span className="venue-schedule-event-time">
+                    {info.timeText}
+                  </span>
+                )}
+                <span className="venue-schedule-event-title">
                   {info.event.title}
-                </strong>
+                </span>
                 {info.event.extendedProps.category !== "buffer" && (
-                  <span>{info.event.extendedProps.detail}</span>
+                  <span className="venue-schedule-event-detail">
+                    {info.event.extendedProps.detail}
+                  </span>
                 )}
               </div>
             )
@@ -331,6 +362,20 @@ export function VenueScheduleCalendar({
           }
         />
       </div>
+      <Modal
+        open={openEntry !== null}
+        onClose={() => setOpenEntry(null)}
+        title={openEntry?.title ?? "Schedule entry"}
+      >
+        {openEntry && (
+          <dl className="venue-schedule-entry-details">
+            <dt>When</dt>
+            <dd>{describeWhen(openEntry.start, openEntry.end)}</dd>
+            <dt>Details</dt>
+            <dd>{openEntry.detail || "No further details"}</dd>
+          </dl>
+        )}
+      </Modal>
     </section>
   );
 }
