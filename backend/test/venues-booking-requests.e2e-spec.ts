@@ -1186,6 +1186,24 @@ describe.skipIf(!databaseUrl)(
         "SELECT id FROM users WHERE email = 'coordinator1@connectsphere.test'",
       );
       expect(seedCoordinator.rows).toHaveLength(1);
+      // Earlier suites may TRUNCATE/DELETE events on the shared disposable DB. The SPM-51
+      // seed is fully idempotent (ON CONFLICT guards throughout), so replay it when any
+      // of the five sample events is missing so this regression check still runs.
+      const presentEvents = await pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM events
+         WHERE id BETWEEN $1::uuid AND $2::uuid`,
+        [
+          '00000000-0000-4000-8000-000000000201',
+          '00000000-0000-4000-8000-000000000205',
+        ],
+      );
+      if (Number(presentEvents.rows[0].count) < 5) {
+        const seedSql = await readFile(
+          new URL('../../database/postgresql/init/002_seed_data.sql', import.meta.url),
+          'utf8',
+        );
+        await pool.query(seedSql);
+      }
       const seededEvents = await pool.query<{ id: string; event_name: string }>(
         `SELECT id, event_name FROM events
          WHERE id BETWEEN $2::uuid AND $3::uuid AND coordinator_id = $1::text`,

@@ -288,7 +288,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
   // Kills: a repeated submit that creates a second event instead of returning the event already linked to the draft.
   it('EVE-DRF-SUP-09 returns original event on repeated submission', async () => {
     selected({ ...row(), status: 'Submitted', event_id: id });
-    events.get.mockResolvedValue({ id, status: 'Submitted' });
+    events.get.mockResolvedValue({ id, status: 'submitted' });
     expect(await submit()).toMatchObject({ event: { id } });
     expect(events.get).toHaveBeenCalledWith(identity, id);
     expect(events.create).not.toHaveBeenCalled();

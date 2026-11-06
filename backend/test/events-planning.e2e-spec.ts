@@ -101,13 +101,13 @@ describe.skipIf(!database)(
     let venueOwnerId: string;
     const venueIds: string[] = [];
 
-    async function insertVenue(name: string, capacity: number) {
+    async function insertVenue(name: string, capacity: number, setup = 0, turnaround = 0) {
       const result = await db.query<{ id: string }>(
         `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information,
            setup_time_minutes, turnaround_time_minutes)
-         VALUES ($1,$2,$3,$4,'Open weekdays',0,0)
+         VALUES ($1,$2,$3,$4,'Open weekdays',$5,$6)
          RETURNING id`,
-        [venueOwnerId, name, `E2E ${randomUUID()}`, capacity],
+        [venueOwnerId, name, `E2E ${randomUUID()}`, capacity, setup, turnaround],
       );
       venueIds.push(result.rows[0].id);
       return result.rows[0].id;
@@ -176,7 +176,7 @@ describe.skipIf(!database)(
       // A fresh event with two venue bookings; another event sits next to Hall B.
       eventId = await insertEvent();
       const venueA = await insertVenue('Hall A', 200);
-      const venueB = await insertVenue('Hall B', 100);
+      const venueB = await insertVenue('Hall B', 100, 0, TURNAROUND_MINUTES);
       hallA = await insertBooking(eventId, venueA, START, END);
       hallB = await insertBooking(eventId, venueB, START, END);
       const other = await insertEvent({

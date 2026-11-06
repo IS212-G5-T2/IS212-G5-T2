@@ -84,7 +84,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
   async function buildApp() {
     await closeApp();
     const builder = Test.createTestingModule({ imports: [AppModule] }).overrideProvider(CLOCK).useValue({ now: () => new Date(T0) });
-    app = (await builder.compile()).createNestApplication();
+    app = (await builder.compile()).createNestApplication({ logger: false });
     await app.init();
     // Bound to 127.0.0.1 so supertest cannot reach another local listener.
     await app.listen(0, '127.0.0.1');

@@ -70,7 +70,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
       .overrideProvider(CLOCK)
       .useValue({ now: () => fixedNow })
       .compile();
-    app = module.createNestApplication();
+    app = module.createNestApplication({ logger: false });
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
   });

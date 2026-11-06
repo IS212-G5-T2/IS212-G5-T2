@@ -139,7 +139,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
       .overrideProvider(CLOCK)
       .useValue({ now: () => testNow })
       .compile();
-    app = module.createNestApplication();
+    app = module.createNestApplication({ logger: false });
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
     repository = app.get(VenuesRepository);

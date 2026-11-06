@@ -120,7 +120,7 @@ export class DraftsService {
       // A lost submission response is safely retried without creating another event.
       if (row.status === 'Submitted') {
         const event = await this.events.get(identity, row.event_id);
-        if (event.status !== 'Submitted')
+        if (event.status !== 'submitted')
           throw new ConflictException('This event request is no longer Submitted.');
         return {
           event,
