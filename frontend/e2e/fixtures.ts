@@ -16,7 +16,7 @@
 // shared with run-browser.mjs; nothing is implemented twice here.
 import { test as base, expect, type Page } from "@playwright/test";
 import { type As, stateFile } from "./accounts";
-import { resetToReferenceData, run } from "./db-cli";
+import { assertSavedSessions, resetToReferenceData, run } from "./db-cli";
 
 export type { Account, As, Role } from "./accounts";
 
@@ -84,7 +84,7 @@ export const test = base.extend<{ db: TestDatabase; resetDatabase: void; as: As 
     await use(as ? stateFile(as) : storageState);
   },
   resetDatabase: [
-    async ({}, use, testInfo) => {
+    async ({ as }, use, testInfo) => {
       // One shared database truncated before every test means parallelism is not a tuning choice: a
       // second worker would wipe this test's rows and session mid-run, and the fixtures' fixed names
       // would collide. Fail with the cause rather than leave someone debugging the symptom.
@@ -93,6 +93,8 @@ export const test = base.extend<{ db: TestDatabase; resetDatabase: void; as: As 
           `This suite resets one shared database before every test, so it must run with workers: 1 (got ${testInfo.config.workers}). ` +
             `Parallel workers would truncate each other's fixtures mid-test. See frontend/playwright.config.ts.`,
         );
+      // A test that signs in needs the saved logins; say so plainly instead of running it anonymous (see assertSavedSessions).
+      if (as) assertSavedSessions(as);
       await resetToReferenceData();
       await use();
     },
