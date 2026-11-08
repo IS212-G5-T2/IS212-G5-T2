@@ -80,6 +80,7 @@ afterEach(() => cleanup());
 
 describe("SPM-155 Organiser event list indicator (D13b)", () => {
   // Kills: FM37, FM38, FM39, FM47
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A (list): EVT-1103's row shows Cancellation requested; the other event's row shows nothing. */
   it("CANCEL-REQUEST-02-A: the pending event's card shows Cancellation requested and the other card does not", async () => {
     // Arrange
@@ -94,6 +95,7 @@ describe("SPM-155 Organiser event list indicator (D13b)", () => {
   });
 
   // Kills: FM37, FM39, FM40, FM47, FM51
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-B and 02-C (list): Accepted and Declined are shown on the list too. */
   it("CANCEL-REQUEST-02-B: accepted and declined requests are labelled on their cards", async () => {
     // Arrange
@@ -108,6 +110,7 @@ describe("SPM-155 Organiser event list indicator (D13b)", () => {
   });
 
   // Kills: FM38, FM41
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: if the requests cannot load, the events still show without an indicator. */
   it("CANCEL-REQUEST-02-A: a failed request load leaves the event list intact", async () => {
     // Arrange
@@ -122,6 +125,7 @@ describe("SPM-155 Organiser event list indicator (D13b)", () => {
   });
 
   // Kills: FM42
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-D (list): an attendee's list never asks for cancellation requests. */
   it("CANCEL-REQUEST-02-D: an attendee's list does not fetch cancellation requests", async () => {
     // Arrange
@@ -138,6 +142,7 @@ describe("SPM-155 Organiser event list indicator (D13b)", () => {
 
 describe("SPM-155 Organiser event list indicator: unexpected replies", () => {
   // Kills: FM38
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: a reply that is not a list is treated as no requests, so the cards render without an indicator. */
   it("CANCEL-REQUEST-02-A: a reply that is not an array shows the cards with no indicator", async () => {
     // Arrange
@@ -154,6 +159,7 @@ describe("SPM-155 Organiser event list indicator: unexpected replies", () => {
 
 describe("SPM-155 Organiser event list indicator: out-of-order replies", () => {
   // Kills: FM37, FM44, FM47
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-F: after Retry reloads the page, an older, slower indicator reply must not replace the newer one. */
   it("CANCEL-REQUEST-02-F: a stale indicator reply that arrives after Retry is ignored", async () => {
     // Arrange: the first events load fails (so Retry shows); the first indicator reply is held back
@@ -181,6 +187,7 @@ describe("SPM-155 Organiser event list indicator: out-of-order replies", () => {
   });
 
   // Kills: FM37, FM38, FM39, FM47, FM67, FM69
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A (coordinator list): a pending request on an assigned event asks the Coordinator to act. */
   it("CANCEL-REQUEST-02-A: a Coordinator's pending request shows Cancellation requested on the card", async () => {
     // Arrange
@@ -195,6 +202,7 @@ describe("SPM-155 Organiser event list indicator: out-of-order replies", () => {
   });
 
   // Kills: FM38, FM68
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-B (coordinator list): a declined or accepted request needs no action, so no label. */
   it("CANCEL-REQUEST-02-B: a Coordinator's decided request shows no label on the card", async () => {
     // Arrange

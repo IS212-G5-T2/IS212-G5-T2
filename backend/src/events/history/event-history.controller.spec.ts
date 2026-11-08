@@ -13,6 +13,7 @@ function response() {
 }
 
 describe('SPM-157 EventHistoryController', () => {
+  // Traceability: Jira 157 AC9 (matrix 39813204)
   /** AUDIT-HISTORY-09-A: the identity comes from the session, never the request body or query. */
   it('AUDIT-HISTORY-09-A reads the history for the session user', async () => {
     const history = { history: vi.fn().mockResolvedValue({ ok: true }) };
@@ -22,6 +23,7 @@ describe('SPM-157 EventHistoryController', () => {
     expect(history.history).toHaveBeenCalledWith(user, 'event-1');
   });
 
+  // Traceability: Jira 157 AC10 (matrix 39813204)
   /** AUDIT-HISTORY-10-A: every change route answers 405 with Allow: GET. */
   it.each([
     ['rejectPut', RequestMethod.PUT, '/'],

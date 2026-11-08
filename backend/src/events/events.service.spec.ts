@@ -161,6 +161,7 @@ beforeEach(async () => {
 });
 
 describe('EventsService', () => {
+  // Traceability: Jira 38 AC1 (matrix 12353538)
   // SPM-38 AC1: the assigned coordinator can view the full submitted details
   // of a request assigned to them (name, purpose, date/time, attendance,
   // venue and equipment requirements, accessibility needs).
@@ -187,6 +188,7 @@ describe('EventsService', () => {
     });
   });
 
+  // Traceability: Jira 38 AC2 (matrix 12353538)
   // SPM-38 AC2: the coordinator can see the current status of the request.
   // Kills: status mapping that does not normalise 'Approved' to 'approved' or reads the status from the wrong field.
   it('EVE-REV-02-A shows the current status of the event request', async () => {
@@ -457,6 +459,7 @@ describe('EventsService', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // SPM-99 EVENT-VIEW-01-A: the attendee browse feed exposes only safe
   // attendee-facing lifecycle states, with registration availability included.
   // SPM-61: Approved counts as published, and each row carries the caller's
@@ -551,6 +554,7 @@ describe('EventsService', () => {
   // gets the same NotFoundException as a bad ID, so existence is never leaked.
   // A non-owning organiser with no other role is refused with 403 (SPM-94 D6).
   describe('SPM-38 AC4: per-coordinator access restriction', () => {
+    // Traceability: Jira 38 AC4 (matrix 12353538)
     // Kills: the coordinator access check rejecting the assigned coordinator (wrong id comparison).
     it('EVE-REV-04-A lets the assigned coordinator view the event', async () => {
       const row = savedEventRow();
@@ -561,6 +565,7 @@ describe('EventsService', () => {
       expect(event).toMatchObject({ id: row.id, coordinatorId: 'coord-9' });
     });
 
+    // Traceability: Jira 38 AC4 (matrix 12353538)
     // Kills: get() returning an event to an unassigned coordinator, or using a status other than NotFound.
     it('EVE-REV-04-B hides the event from a coordinator it is not assigned to', async () => {
       const row = savedEventRow();
@@ -574,6 +579,7 @@ describe('EventsService', () => {
 
     // SPM-94 D6: a non-owning organiser is refused with 403 (changed from 404 by SPM-94).
     // Kills: a non-owning organiser getting 404 instead of 403, or event data returned with the refusal.
+    // Traceability: Jira 94 AC1 (matrix 22839633)
     /**
      * SPM-38 AC4 non-owning organiser case (current behaviour): refused with 403 and no event data.
      * Spec conflict: the Confluence page still expects 404; SC-SPM94-02 (decided 17 Oct) changed the rule to 403.
@@ -587,6 +593,7 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
+    // Traceability: Jira 38 AC4 (matrix 12353538)
     // SPM-38 AC4 case EVE-REV-04-C: the Confluence case still says 404; SC-SPM94-02 (decided 17 Oct 2026) made it 403.
     // Kills: a non-owning organiser refused with 404 instead of 403, or event fields included in the refusal body.
     it('EVE-REV-04-C refuses a non-owning organiser with 403 and returns no event data', async () => {
@@ -598,6 +605,7 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
+    // Traceability: Jira 94 AC1 (matrix 22839633)
     // SPM-94 D6 exemption: an ORGANISER who also holds another role is not refused with 403; the 404 rule applies.
     // Oracle: D6 says existing rules for other roles are unchanged, so these keep the SPM-38 AC4 404.
     // Kills: the D6 403 applied to organisers who also hold COORDINATOR or ATTENDEE (they must get 404).
@@ -613,6 +621,7 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    // Traceability: Jira 38 AC4 (matrix 12353538)
     // Kills: get() reaching the database for an anonymous caller, or answering 403 instead of UnauthorizedException.
     it('EVE-REV-04-D requires authentication to view event details', async () => {
       await expect(
@@ -621,6 +630,7 @@ describe('EventsService', () => {
       expect(db.query).not.toHaveBeenCalled();
     });
 
+    // Traceability: Jira 38 AC4 (matrix 12353538)
     // Kills: a non-organiser, non-coordinator role (ATTENDEE) allowed to read the event because the coordinator uid matches.
     it('EVE-REV-04-G hides the event from a role that is neither organiser nor coordinator', async () => {
       const row = savedEventRow();
@@ -631,6 +641,7 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    // Traceability: Jira 97 AC1 (matrix 19890855)
     // SPM-99 EVENT-VIEW-01-A and supplementary security coverage: attendees can read a
     // confirmed event, but submitted planning data remains unavailable.
     // Kills: an attendee read of a Confirmed event missing registration or spot fields, or of an Approved (internal) event returning data.
@@ -649,6 +660,7 @@ describe('EventsService', () => {
       await expect(service.get(attendeeUser(), savedEventRow().id)).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    // Traceability: Jira 38 AC4 (matrix 12353538)
     // Kills: an event with null coordinator_id shown to a coordinator (null compared as matching the caller).
     it('EVE-REV-04-H hides an unassigned event from every coordinator, not just non-matching ones', async () => {
       const row = { ...savedEventRow(), coordinator_id: null, coordinator_name: null };
@@ -664,6 +676,7 @@ describe('EventsService', () => {
   // SPM-94 AC2/AC3: the owning organiser's event carries the derived indicators.
   // Oracle: unassigned Submitted gives awaiting assignment; a pending safety check on a Planning event gives AWAITING_CHECK.
   describe('SPM-94 AC2/AC3: organiser status indicators', () => {
+    // Traceability: Jira 94 AC2 (matrix 22839633)
     // Kills: awaitingCoordinatorAssignment false for an unassigned Submitted event, or safetyIndicator set with no safety state.
     it('TRACK-EVENT-STATUS-02-A: an unassigned Submitted event shows awaiting Coordinator assignment', async () => {
       const row = { ...savedEventRow(), status: 'Submitted', coordinator_id: null, coordinator_name: null, safety_status: null };
@@ -674,6 +687,7 @@ describe('EventsService', () => {
       expect(event).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: null });
     });
 
+    // Traceability: Jira 94 AC3 (matrix 22839633)
     // Kills: a pending safety check on a Planning event mapped to no indicator or a value other than AWAITING_CHECK.
     it('TRACK-EVENT-STATUS-03-A: a pending safety check on a Planning event shows AWAITING_CHECK', async () => {
       const row = { ...savedEventRow(), status: 'Planning', coordinator_id: 'coord-9', safety_status: 'pending' };
@@ -684,6 +698,7 @@ describe('EventsService', () => {
       expect(event).toMatchObject({ awaitingCoordinatorAssignment: false, safetyIndicator: 'AWAITING_CHECK' });
     });
 
+    // Traceability: Jira 94 AC3 (matrix 22839633)
     // SPM-94 F4: the safety state is never sent to an attendee, even on a Confirmed event with an approved safety check.
     // Kills: safetyIndicator included in an attendee read (projection not stripped for attendees).
     it('TRACK-EVENT-STATUS-03-B F4: an attendee gets no safety indicator field', async () => {
@@ -800,6 +815,7 @@ describe('EventsService', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 123 AC1 (matrix 21102810)
   // SPM-123 AC1: a submitted request waits in the Lead's unassigned queue.
   // It is never auto-assigned (this replaces SPM-38's round-robin).
   // Kills: submit that auto-assigns a coordinator, sends an assignment notification, or runs statements beyond BEGIN, INSERT and COMMIT.
@@ -835,6 +851,7 @@ describe('SPM-46: reassignment context on events', () => {
   // The latest reassignment as the query returns it (Postgres JSON uses an offset, not Z).
   const latestToCoord9 = { coordinatorName: 'Coordinator 1', reassignedAt: '2026-10-07T06:05:00+00:00', toCoordinatorId: 'coord-9' };
 
+  // Traceability: Jira 46 AC2 (matrix 21103441)
   // The current coordinator sees who it came from and when; an event never reassigned has nothing.
   // Kills: B4 (reassignment time returned unconverted).
   it('REASN-VIEW-02-C includes reassignedFrom for a reassigned event and leaves it out otherwise', async () => {
@@ -852,6 +869,7 @@ describe('SPM-46: reassignment context on events', () => {
     expect(String(db.query.mock.calls[0][0])).toContain('event_reassignments');
   });
 
+  // Traceability: Jira 46 AC2 (matrix 21103441)
   // The list carries it too, from the most recent reassignment, and only if it was to the current coordinator.
   // Kills: B2 (shown when the latest reassignment went elsewhere), B3 (oldest first), B10 (no id tie-break).
   it('REASN-VIEW-02-D takes the most recent reassignment, for the list too, and only when it was to the current coordinator', async () => {
@@ -898,6 +916,7 @@ describe('SPM-46: reassignment context on events', () => {
     expect(inOrganiserList.reassignedFrom).toBeUndefined();
   });
 
+  // Traceability: Jira 46 AC4 (matrix 21103441)
   // A previous coordinator is told the event moved, without naming who has it; anyone else still gets "not found".
   // Kills: B5 (previous coordinator gets "not found"), B6 (message names the new coordinator).
   it('REASN-VIEW-04-A tells a previous coordinator the event was reassigned, and keeps "not found" for everyone else', async () => {
@@ -922,6 +941,7 @@ describe('SPM-46: reassignment context on events', () => {
     await expect(service.get(stranger, savedEventRow().id)).rejects.toThrow(new NotFoundException('Event not found.'));
   });
 
+  // Traceability: Jira 46 AC4 (matrix 21103441)
   // Someone who lost the event and later got it back sees it normally.
   // Kills: the reassigned-away check being applied to the event's current coordinator.
   it('REASN-VIEW-04-D shows the event normally to a coordinator who lost it and later got it back', async () => {

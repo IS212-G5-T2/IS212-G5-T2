@@ -29,6 +29,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
   });
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01, SAFETY-QUEUE-02, SAFETY-QUEUE-03, SAFETY-QUEUE-04: an eligible event is visible and all required event, venue, and technical details can be inspected. */
   it("SAFETY-QUEUE-01 lists an eligible event and opens its details", async () => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event])).mockImplementationOnce(() => response(details));
@@ -49,6 +50,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenCalledWith("http://localhost:8080/api/safety-officer/queue/e1", expect.anything());
   });
 
+  // Traceability: Jira 130 AC1 (matrix 36798526)
   /** SAFETY-DECISION-01: approving succeeds and shows confirmation before returning to the refreshed queue. */
   it("SAFETY-DECISION-01 approves an arrangement and confirms the decision", async () => {
     vi.mocked(fetch)
@@ -73,6 +75,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     );
   });
 
+  // Traceability: Jira 130 AC2 (matrix 36798526)
   /** SAFETY-DECISION-02: rejection opens its required-feedback modal without submitting a decision. */
   it("SAFETY-DECISION-02 opens rejection feedback only after the reject action", async () => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event])).mockImplementationOnce(() => response(details));
@@ -88,6 +91,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: request-changes opens its own required-description modal without submitting. */
   it("SAFETY-DECISION-03 opens the change-description modal only after its action", async () => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event])).mockImplementationOnce(() => response(details));
@@ -101,6 +105,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: the Safety Officer selects affected venue or technical arrangements per change, and cannot submit an empty selection. */
   it("SAFETY-OUTCOME-04 submits selected affected arrangements with each change description", async () => {
     const user = userEvent.setup();
@@ -160,16 +165,19 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(results.violations).toEqual([]);
   }
 
+  // Traceability: Jira 130 AC2 (matrix 36798526)
   /** SAFETY-DECISION-02: the rejection reason control is accessible inside its modal. */
   it("SAFETY-DECISION-02 has an accessible rejection modal", async () => {
     await expectAccessibleFeedbackModal("Reject arrangement", "Reason for rejection");
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: the change description control is accessible inside its modal. */
   it("SAFETY-DECISION-03 has an accessible request-changes modal", async () => {
     await expectAccessibleFeedbackModal("Request changes", "Change 1");
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: adding and removing change rows works, and cancelling discards added rows. */
   it("SAFETY-DECISION-03 starts with one row and discards added rows on cancel", async () => {
     const user = userEvent.setup();
@@ -206,6 +214,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(within(reopened).getByRole("button", { name: "Remove change 1" })).toBeDisabled();
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: removing the last row preserves the earlier rows, with Remove beside its textarea, and submits only the survivors. */
   it("SAFETY-DECISION-03 removes the last change row and submits the remaining rows", async () => {
     const user = userEvent.setup();
@@ -238,6 +247,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     }));
   });
 
+  // Traceability: Jira 130 AC4 (matrix 36798526)
   /** SAFETY-DECISION-04: every change row must be nonblank, and validation does not submit a partial decision. */
   it("SAFETY-DECISION-04 validates every change row before submitting any", async () => {
     const user = userEvent.setup();
@@ -265,6 +275,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     }));
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: each remaining row after removal is submitted as an independent item. */
   it("SAFETY-DECISION-03 submits every remaining change row separately", async () => {
     const user = userEvent.setup();
@@ -292,6 +303,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     }));
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: pending submission disables row actions, and recoverable errors retain all row text for retry. */
   it("SAFETY-DECISION-03 retains multiple rows through pending submission and a recoverable error", async () => {
     const user = userEvent.setup();
@@ -328,6 +340,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     }));
   });
 
+  // Traceability: Jira 130 AC2 (matrix 36798526)
   /** SAFETY-DECISION-02: cancel and close discard an abandoned rejection draft before approval. */
   it.each(["Cancel", "Close dialog"] as const)("SAFETY-DECISION-02 discards a rejection draft on %s before direct approval", async (closeAction) => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event]))
@@ -355,6 +368,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(decisionCall?.[1]?.body).not.toContain("Stale draft reason");
   });
 
+  // Traceability: Jira 130 AC4 (matrix 36798526)
   /** SAFETY-DECISION-04: action-specific modals reject missing and whitespace-only feedback without POST. */
   it.each([
     ["rejected", "Reject arrangement", "Reason for rejection", "Submit rejection", "Enter a reason for rejection."],
@@ -376,6 +390,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 130 AC2 (matrix 36798526)
   /** SAFETY-DECISION-02: a recoverable rejection error retains the draft and permits retry. */
   it("SAFETY-DECISION-02 retains rejection feedback and allows a retry after a recoverable error", async () => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event]))
@@ -397,6 +412,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({ body: JSON.stringify({ decision: "rejected", reason: "Add the missing safety plan." }) }));
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: only one request can be pending and its feedback modal cannot be dismissed. */
   it("SAFETY-DECISION-03 disables duplicate submission and pending dismissal", async () => {
     let resolveDecision!: (value: Response) => void;
@@ -427,6 +443,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-QUEUE-05: stale decisions refresh the queue and close invalidated details after 404 or 409. */
   it.each([404, 409])("SAFETY-DECISION-03 closes stale feedback after a %s response refusal", async (status) => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event]))
@@ -447,6 +464,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenCalledTimes(4);
   });
 
+  // Traceability: Jira 129 AC2 (matrix 36831243)
   /** SAFETY-QUEUE-02: venue arrangements use booking identity even when multiple bookings share a display label. */
   it("uses unique booking identity for venue cards with duplicate names and locations", async () => {
     const duplicateVenue = { ...details.venues[0], id: "booking-2" };
@@ -459,6 +477,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("same key"), expect.anything());
   });
 
+  // Traceability: Jira 129 AC3 (matrix 36831243)
   /** SAFETY-QUEUE-03: equipment rows use reservation identity when names repeat. */
   it("uses reservation IDs for equipment rows with duplicate names", async () => {
     const duplicateEquipment = [
@@ -476,6 +495,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("same key"), expect.anything());
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: returning to the queue refreshes it so decisions made elsewhere disappear. */
   it("refreshes the queue when returning from details after a concurrent decision", async () => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event]))
@@ -491,6 +511,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
+  // Traceability: Jira 130 AC2 (matrix 36798526)
   /** SAFETY-DECISION-02: rejection with a reason is recorded and confirmed. */
   it("SAFETY-DECISION-02 rejects with its reason and confirms the decision", async () => {
     const user = userEvent.setup();
@@ -515,6 +536,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/decision"), expect.objectContaining({ body: JSON.stringify({ decision: "rejected", reason: "Please add an accessible route." }) }));
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: a described change request is recorded and confirmed. */
   it("SAFETY-DECISION-03 requests changes with a description and confirms the decision", async () => {
     const user = userEvent.setup();
@@ -541,6 +563,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/decision"), expect.objectContaining({ body: JSON.stringify({ decision: "changes_needed", changes: [{ text: "Confirm a backup microphone.", venueIds: ["booking-1"], equipmentIds: [] }] }) }));
   });
 
+  // Traceability: Jira 130 AC5 (matrix 36798526)
   /** SAFETY-DECISION-05: every successful decision displays a confirmation modal before returning to the refreshed queue. */
   it.each([
     ["approved", "Approve arrangement", "", true],
@@ -571,6 +594,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: if arrangements become unavailable before detail opens, the queue refreshes. */
   it("refreshes after details are no longer available", async () => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event]))
@@ -581,6 +605,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 129 AC2 (matrix 36831243)
   /** SAFETY-QUEUE-02, SAFETY-QUEUE-03, SAFETY-QUEUE-04: empty optional venue and equipment details have readable fallbacks. */
   it("SAFETY-QUEUE-02 shows empty arrangement values explicitly", async () => {
     const sparse = { ...details, equipmentNeeds: "", venues: [{ ...details.venues[0], facilities: [], accessibility: [], layouts: [] }], equipment: [], venueRequirements: { layout: "", facilities: [], accessibility: [] } };
@@ -599,6 +624,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(await screen.findByText("Welcome Evening")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: a successful read with no eligible events shows an empty queue. */
   it("SAFETY-QUEUE-01 shows the empty queue state", async () => {
     vi.mocked(fetch).mockImplementationOnce(() => response([]));
@@ -606,6 +632,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: a failed queue read is surfaced as a recoverable load error. */
   it("SAFETY-QUEUE-01 shows a queue load error", async () => {
     vi.mocked(fetch).mockImplementationOnce(() => response({ message: "Queue unavailable" }, 503));
@@ -613,6 +640,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("The service is temporarily unavailable.");
   });
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: network failures while loading the queue produce a readable fallback message. */
   it("SAFETY-QUEUE-01 shows a generic queue error when the request fails outside the API wrapper", async () => {
     vi.spyOn(apiModule, "api").mockRejectedValueOnce(new Error("network failure"));
@@ -620,6 +648,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load the safety check queue.");
   });
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: network failures while loading event details are reported and the queue is refreshed. */
   it("SAFETY-QUEUE-01 shows a generic detail error and refreshes after a network failure", async () => {
     vi.spyOn(apiModule, "api").mockResolvedValueOnce([event]).mockRejectedValueOnce(new Error("network failure"))
@@ -630,6 +659,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load event details.");
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: network failures while submitting a decision preserve the review state and show an error. */
   it("SAFETY-QUEUE-05 shows a generic decision error when the submission request fails", async () => {
     vi.spyOn(apiModule, "api").mockResolvedValueOnce([event]).mockResolvedValueOnce(details)

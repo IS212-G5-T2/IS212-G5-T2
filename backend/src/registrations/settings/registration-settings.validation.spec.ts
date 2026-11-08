@@ -26,6 +26,7 @@ function run(saved: SavedSettings, patch: SettingsPatch, confirmed = 0, max = 21
 }
 
 describe('SPM-139 AC5 and AC6: the closing time against the opening time and the event start', () => {
+  // Traceability: Jira 139 AC6 (matrix 28869217)
   // Kills: M1 (start boundary written as `>=`); the 18:01 row also catches the start rule removed (no mutant id)
   it.each([
     ['2026-11-07T17:59:00+08:00', true],
@@ -46,6 +47,7 @@ describe('SPM-139 AC5 and AC6: the closing time against the opening time and the
     }
   });
 
+  // Traceability: Jira 139 AC5 (matrix 28869217)
   // Kills: M2 (equal times accepted); the second row catches a closing time before the opening time accepted (no mutant id)
   it.each([
     ['2026-10-23T09:00:00+08:00', '2026-10-23T09:00:00+08:00'], // equal
@@ -60,6 +62,7 @@ describe('SPM-139 AC5 and AC6: the closing time against the opening time and the
     }
   });
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   // An opening time in the past is valid: registration opens at once (BR4, 02-B).
   it('CONFIG-REG-02-C: accepts an opening time before the current time', () => {
     const decision = run(NONE, {
@@ -75,6 +78,7 @@ describe('SPM-139 AC5 and AC6: the closing time against the opening time and the
 describe('SPM-139 AC7: the capacity is a JSON whole number from 1 to the column maximum', () => {
   const valid = { registrationEnabled: true, opensAt: sgt('2026-10-19T09:00:00+08:00'), closesAt: sgt('2026-10-28T23:59:00+08:00') };
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   // Kills: M3 (lower bound moved to 0), M5 (whole-number check removed); string and null rows have no mutant id.
   it.each([0, -1, 2.5, '10', '1e3', null])('CONFIG-REG-07-C: refuses capacity %j with INVALID_CAPACITY', (capacity) => {
     const decision = run(NONE, { ...valid, capacity });
@@ -85,10 +89,12 @@ describe('SPM-139 AC7: the capacity is a JSON whole number from 1 to the column 
     }
   });
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   it.each([1, 1000, 2147483647])('CONFIG-REG-07-D: accepts capacity %i', (capacity) => {
     expect(run(NONE, { ...valid, capacity }).ok).toBe(true);
   });
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   // Guards the column maximum (a 500 from the database instead of a 422); M32 removes the maximum check.
   it('CONFIG-REG-07-D: refuses 2147483648 with CAPACITY_TOO_LARGE, never a server error', () => {
     const decision = run(NONE, { ...valid, capacity: 2147483648 });
@@ -101,6 +107,7 @@ describe('SPM-139 AC7: the capacity is a JSON whole number from 1 to the column 
 });
 
 describe('SPM-139 AC8: capacity cannot drop below the Confirmed count', () => {
+  // Traceability: Jira 139 AC8 (matrix 28869217)
   // The count passed in is Registered only (BR6). The equal row is killed by M7; the other rows have no mutant id here.
   it.each([
     [4, false],
@@ -117,6 +124,7 @@ describe('SPM-139 AC8: capacity cannot drop below the Confirmed count', () => {
 });
 
 describe('SPM-139 BR3: enabling needs the period and capacity in the resulting state', () => {
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // Kills: M6 (completeness check removed). Saved values stay when a field is omitted (F1).
   it('CONFIG-REG-01-E: refuses enabling when the opening time is missing', () => {
     const decision = run(NONE, { registrationEnabled: true, closesAt: sgt('2026-10-28T23:59:00+08:00') });
@@ -128,18 +136,21 @@ describe('SPM-139 BR3: enabling needs the period and capacity in the resulting s
     }
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   it('CONFIG-REG-01-E: refuses enabling when the closing time is missing', () => {
     const decision = run(NONE, { registrationEnabled: true, opensAt: sgt('2026-10-19T09:00:00+08:00') });
     expect(decision.ok).toBe(false);
     if (!decision.ok) expect(decision.violation.field).toBe('registrationClosesAt');
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // Disabling keeps the saved values (killed by M9 and M10).
   it('CONFIG-REG-01-B: disabling keeps the saved period and capacity', () => {
     const decision = run(SAVED, { registrationEnabled: false });
     expect(decision).toEqual({ ok: true, settings: { ...SAVED, registrationEnabled: false } });
   });
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   // Provided values are validated whether or not registration is enabled (BR3).
   it('CONFIG-REG-02-D: validates a provided period even while registration is disabled', () => {
     const decision = run(NONE, {
@@ -152,6 +163,7 @@ describe('SPM-139 BR3: enabling needs the period and capacity in the resulting s
 });
 
 describe('SPM-139 F1: the merge keeps saved values for omitted fields', () => {
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   it('CONFIG-REG-02-D: a lone capacity change keeps the saved period', () => {
     const decision = run(SAVED, { capacity: 80 });
     expect(decision).toEqual({ ok: true, settings: { ...SAVED, capacity: 80 } });
@@ -159,6 +171,7 @@ describe('SPM-139 F1: the merge keeps saved values for omitted fields', () => {
 });
 
 describe('SPM-139 parseRegistrationSettingsBody: the request shape', () => {
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   // Kills: M8 (offset-less date-time accepted); the other rows have no mutant id.
   it.each([
     ['no offset', { registrationOpensAt: '2026-10-19T09:00:00', version: 0 }],
@@ -174,6 +187,7 @@ describe('SPM-139 parseRegistrationSettingsBody: the request shape', () => {
     }
   });
 
+  // Traceability: Jira 139 Cross-cutting (matrix 28869217)
   it.each([
     ['confirmedCount', { confirmedCount: 0, version: 0 }],
     ['status', { status: 'Cancelled', version: 0 }],
@@ -207,6 +221,7 @@ describe('SPM-139 parseRegistrationSettingsBody: the request shape', () => {
     expect(parseRegistrationSettingsBody([]).ok).toBe(false);
   });
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   it('CONFIG-REG-02-B: parses an offset date-time and Z to the same instant', () => {
     const parsed = parseRegistrationSettingsBody({
       registrationOpensAt: '2026-10-19T09:00:00+08:00',
@@ -230,42 +245,50 @@ describe('SPM-139 plain boundary cases (mutation mapping)', () => {
   const start = { startsAt: sgt('2026-11-07T18:00:00+08:00') };
   const NONE_SAVED: SavedSettings = { registrationEnabled: false, opensAt: null, closesAt: null, capacity: 1 };
 
+  // Traceability: Jira 139 AC6 (matrix 28869217)
   // Kills: the start boundary written as `>=` (equal to the start refused)
   it('CONFIG-REG-06-C: a closing time equal to the event start is accepted', () => {
     expect(validateRegistrationSettings(NONE_SAVED, { ...window, closesAt: sgt('2026-11-07T18:00:00+08:00'), capacity: 50 }, start, 0).ok).toBe(true);
   });
 
+  // Traceability: Jira 139 AC5 (matrix 28869217)
   // Kills: the opening boundary written as `<` (closing equal to opening accepted)
   it('CONFIG-REG-05-C: a closing time equal to the opening time is refused', () => {
     const decision = validateRegistrationSettings(NONE_SAVED, { ...window, closesAt: sgt('2026-10-19T09:00:00+08:00'), capacity: 50 }, start, 0);
     expect(decision.ok).toBe(false);
   });
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   // Kills: the lower capacity bound moved to 0 (zero accepted)
   it('CONFIG-REG-07-D: capacity 0 is refused', () => {
     expect(validateRegistrationSettings(NONE_SAVED, { capacity: 0 }, start, 0).ok).toBe(false);
   });
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   // Kills: the upper capacity bound written as `>=` (the maximum refused)
   it('CONFIG-REG-07-D: capacity 2147483647 is accepted', () => {
     expect(validateRegistrationSettings(NONE_SAVED, { capacity: 2147483647 }, start, 0).ok).toBe(true);
   });
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   // Kills: the whole-number check removed (2.5 accepted)
   it('CONFIG-REG-07-C: capacity 2.5 is refused', () => {
     expect(validateRegistrationSettings(NONE_SAVED, { capacity: 2.5 }, start, 0).ok).toBe(false);
   });
 
+  // Traceability: Jira 139 AC8 (matrix 28869217)
   // Kills: the Confirmed minimum written as `<=` (a capacity equal to the Confirmed count refused)
   it('CONFIG-REG-08-B: a capacity equal to the Confirmed count is accepted', () => {
     expect(validateRegistrationSettings({ ...NONE_SAVED, capacity: 5 }, { capacity: 5 }, start, 5).ok).toBe(true);
   });
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   // Kills: the offset requirement removed (a date-time without an offset accepted)
   it('CONFIG-REG-02-D: a date-time without an offset is refused', () => {
     expect(parseRegistrationSettingsBody({ registrationOpensAt: '2026-10-19T09:00:00', version: 0 }).ok).toBe(false);
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // Kills: the disabled settings returned with their period cleared
   it('CONFIG-REG-01-B: a disabled event keeps its saved opening time in the decision', () => {
     const saved: SavedSettings = { registrationEnabled: true, opensAt: sgt('2026-10-19T09:00:00+08:00'), closesAt: sgt('2026-10-28T23:59:00+08:00'), capacity: 50 };
@@ -275,6 +298,7 @@ describe('SPM-139 plain boundary cases (mutation mapping)', () => {
 });
 
 describe('SPM-139 request shape: plain cases (mutation mapping)', () => {
+  // Traceability: Jira 139 Cross-cutting (matrix 28869217)
   // Kills: the boolean check on registrationEnabled removed (a non-boolean accepted)
   it('CONFIG-REG-11-C: a non-boolean registrationEnabled is refused with 400', () => {
     const parsed = parseRegistrationSettingsBody({ registrationEnabled: 'yes', version: 0 });
@@ -284,6 +308,7 @@ describe('SPM-139 request shape: plain cases (mutation mapping)', () => {
 });
 
 describe('SPM-139 closing time one minute after the opening time (mutation mapping)', () => {
+  // Traceability: Jira 139 AC5 (matrix 28869217)
   // Kills: the opening boundary widened by a minute (a closing time one minute after the opening refused)
   it('CONFIG-REG-05-D: a closing time one minute after the opening time is accepted', () => {
     const decision = validateRegistrationSettings(
@@ -298,6 +323,7 @@ describe('SPM-139 closing time one minute after the opening time (mutation mappi
 
 
 describe('SPM-139 AC2 02-D: a lone opening time is judged against the saved closing time', () => {
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   it.each([
     ['equal to', '2026-10-28T15:59:00.000Z'],
     ['after', '2026-10-29T01:00:00.000Z'],
@@ -313,6 +339,7 @@ describe('SPM-139 AC2 02-D: a lone opening time is judged against the saved clos
 });
 
 describe('SPM-139 date-time text: a date-time that is not in the calendar is refused', () => {
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   it.each([
     '2026-02-30T10:00:00Z',
     '2026-02-31T10:00:00+08:00',
@@ -326,10 +353,12 @@ describe('SPM-139 date-time text: a date-time that is not in the calendar is ref
     if (!parsed.ok) expect(parsed.violation.code).toBe('INVALID_DATETIME');
   });
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   it.each(['2028-02-29T10:00:00Z', '2026-12-31T24:00:00Z'])('CONFIG-REG-02-D: still accepts %s', (value) => {
     expect(parseRegistrationSettingsBody({ registrationOpensAt: value, version: 0 }).ok).toBe(true);
   });
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   it('CONFIG-REG-02-D: refuses an opening time whose month does not exist', () => {
     const parsed = parseRegistrationSettingsBody({ registrationEnabled: true, version: 0, registrationOpensAt: '2026-13-01T09:00:00+08:00' });
     expect(parsed.ok).toBe(false);
@@ -338,6 +367,7 @@ describe('SPM-139 date-time text: a date-time that is not in the calendar is ref
 });
 
 describe('SPM-139 date-time text: an hour that does not exist is refused', () => {
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   it('CONFIG-REG-02-D: refuses an opening time whose hour is 25', () => {
     const parsed = parseRegistrationSettingsBody({ registrationEnabled: true, version: 0, registrationOpensAt: '2026-10-19T25:00:00+08:00' });
     expect(parsed.ok).toBe(false);

@@ -55,6 +55,7 @@ describe("api", () => {
 
   // Turns a transport failure into a safe message rather than leaking its cause.
   // Kills: a transport failure surfacing the raw 'socket refused' text instead of the safe connection message.
+  // Traceability: Jira 37 AC6 (matrix 10551297)
   /** EVE-DRF-06-A: an unreachable server yields a safe error message. */
   it("returns a safe error when the server cannot be reached", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("socket refused")));
@@ -66,6 +67,7 @@ describe("api", () => {
 
   // Preserves validation information so forms can associate errors with fields.
   // Kills: the server message or the field errors dropped from the thrown error for a 422 response.
+  // Traceability: Jira 37 AC6 (matrix 10551297)
   /** EVE-DRF-06-B: client error messages and field errors are preserved. */
   it("preserves a client error message and field errors", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -79,6 +81,7 @@ describe("api", () => {
 
   // Gives a fallback when an error response has no JSON body or message.
   // Kills: a non-JSON 400 body surfaced as its raw text instead of 'Request failed.'
+  // Traceability: Jira 37 AC6 (matrix 10551297)
   /** EVE-DRF-06-B: a non-JSON error response is handled safely. */
   it("handles a non-JSON client error response", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Bad request", { status: 400 })));
@@ -119,6 +122,7 @@ describe("api", () => {
 
   // Does not expose server failure details to the browser.
   // Kills: the 503 body's raw message ('database password leaked') shown instead of the generic availability text.
+  // Traceability: Jira 37 AC6 (matrix 10551297)
   /** EVE-DRF-06-B: a server failure maps to a generic availability message. */
   it("maps a server failure to a generic availability message", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({

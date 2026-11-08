@@ -14,9 +14,10 @@ import {
   readText, rel, scopeTests, scopedTests, testIdOf, toCsv, writeGate, writeText,
 } from './lib.mjs';
 import { activeStoryIds, readRegistry } from './check-ids.mjs';
+import { classifyDoubles } from './test-doubles.mjs';
 import { loadEntry, suiteLinks } from './reconcile-mutation.mjs';
 
-export const HEADER = ['test_id', 'file', 'title', 'line', 'ac', 'tier', 'tier_status', 'level', 'oracle_class', 'assumption_ref', 'kills', 'explained', 'comment_present', 'deterministic', 'result'];
+export const HEADER = ['test_id', 'file', 'title', 'line', 'ac', 'tier', 'tier_status', 'level', 'double', 'oracle_class', 'assumption_ref', 'kills', 'explained', 'comment_present', 'deterministic', 'result'];
 export const TIERS = ['Happy', 'Sad', 'Boundary', 'Interaction', 'Configuration', 'State', 'Isolation', 'Security', 'Concurrency', 'Error'];
 export const ORACLES = ['SPEC', 'DERIVED', 'ASSUMED', 'CODE-DERIVED', 'UNTRACEABLE'];
 const JUDGEMENT = ['tier', 'tier_status', 'oracle_class', 'assumption_ref', 'explained'];
@@ -106,7 +107,9 @@ export async function buildRows(scope, existingRows, ctx) {
   const results = readRunResults(ctx.runDir);
   const deterministic = ctx.determinism?.perFile ?? {};
   const rows = [];
+  const doublesByFile = new Map();
   for (const entry of scopeTests(scope)) {
+    if (!doublesByFile.has(entry.file)) doublesByFile.set(entry.file, classifyDoubles(readText(entry.file)));
     for (const test of scopedTests(entry, activeStoryIds(ctx.registryRows))) {
       const base = { file: entry.file, title: test.title };
       const previous = existing.get(keyOf(base)) ?? {};
@@ -119,6 +122,7 @@ export async function buildRows(scope, existingRows, ctx) {
         title: test.title,
         line: String(test.line),
         level: levelOf(entry.file),
+        double: doublesByFile.get(entry.file).get(test.line) ?? '',
         comment_present: test.commentPresent ? 'Yes' : 'No',
         deterministic: entry.file in deterministic ? (deterministic[entry.file] ? 'Yes' : 'No') : previous.deterministic ?? '',
         result: results.size ? resultOf(base, results) : previous.result || 'NOT RUN',

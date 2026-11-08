@@ -31,6 +31,7 @@ const sgt = (iso: string) => {
   return { date: `${parts.day} ${parts.month} ${parts.year}`, time: `${parts.hour}:${parts.minute}` };
 };
 
+// Traceability: Jira 134 AC6 (matrix 41582744)
 /**
  * HOLD-EXP-NOTIF-06-INT-1 (SPM-134 AC1, AC2, AC4, AC6): the Coordinator's bell shows the 48-hour reminder and the expired
  * notice for their event's holds, in the agreed wording; opening the reminder lands on the Bookings page with that hold's
@@ -66,6 +67,7 @@ test("HOLD-EXP-NOTIF-06-INT-1 the Coordinator sees the reminder and the expired 
   await expect(page.getByRole("dialog", { name: "Notifications" }).getByText(new RegExp(`${reminderVenue} for`))).toHaveCount(0);
 });
 
+// Traceability: Jira 134 AC6 (matrix 41582744)
 /**
  * HOLD-EXP-NOTIF-06-INT-2 (SPM-134 AC3, AC6): when Venue Staff release the hold, the Coordinator's bell shows the released
  * notice; opening it shows the hold on the Bookings page with status released.

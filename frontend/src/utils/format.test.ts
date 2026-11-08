@@ -33,6 +33,7 @@ describe("formatDateTimeRange", () => {
 });
 
 describe("formatSingaporeRange (SPM-55)", () => {
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-A: event times for venue review are shown in Singapore time with an SGT suffix. */
   it("formats a UTC window as Singapore time with an SGT suffix", () => {
     // 04:00 UTC is 12:00 in Singapore (UTC+8), so both ends are shifted by eight hours.
@@ -43,6 +44,7 @@ describe("formatSingaporeRange (SPM-55)", () => {
 });
 
 describe("formatSingaporeDateTime", () => {
+  // Traceability: Jira 48 AC8 (matrix 23691437)
   /** MONITOR-QUEUE-08-A (SPM-48 AC8): a hold expiry is shown in Singapore time whatever the runner's zone. */
   it("MONITOR-QUEUE-08-A formats an instant in SGT with a 24-hour clock", () => {
     expect(formatSingaporeDateTime("2026-11-12T04:00:00.000Z")).toBe("12 Nov 2026, 12:00 SGT");

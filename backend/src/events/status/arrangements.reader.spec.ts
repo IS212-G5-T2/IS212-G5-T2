@@ -46,6 +46,7 @@ describe('ArrangementsReader', () => {
   });
 
   // Kills: SPM54-BE-ARRANGEMENTS-CANCELLED-HISTORY (cancelled venue bookings dropped from the arrangements read model).
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: event status reads preserve cancelled booking history and request timing. */
   it('maps venue, equipment, and confirmation rows while using shared locks when requested', async () => {
     const query = vi

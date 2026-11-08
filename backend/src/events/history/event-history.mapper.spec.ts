@@ -48,6 +48,7 @@ function emptySources(overrides: Partial<HistorySources> = {}): HistorySources {
 }
 
 describe('SPM-157 event history mapper', () => {
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-A: what changed (old and new), who, when, and the reason. */
   it('AUDIT-HISTORY-05-A maps an audit row to an entry with old and new values, author, time and reason', () => {
     const entry = fromAuditLog(logRow({
@@ -67,6 +68,7 @@ describe('SPM-157 event history mapper', () => {
     });
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-A: a blank reason is not shown. */
   it('AUDIT-HISTORY-05-A leaves out a blank reason and an empty subject', () => {
     const entry = fromAuditLog(logRow({ reason: '   ', subject_label: '' }));
@@ -74,6 +76,7 @@ describe('SPM-157 event history mapper', () => {
     expect(entry).not.toHaveProperty('subject');
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-B: automatic changes are made by the system; AUDIT-HISTORY-11-A: earlier entries without an author. */
   it('AUDIT-HISTORY-05-B / 11-A names the system and an unrecorded author', () => {
     expect(fromAuditLog(logRow({ actor_kind: 'system', actor_name: null })).actor).toEqual({ kind: 'system', name: 'System' });
@@ -82,6 +85,7 @@ describe('SPM-157 event history mapper', () => {
     expect(fromAuditLog(logRow({ actor_kind: 'user', actor_name: null })).actor).toEqual({ kind: 'system', name: 'System' });
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-A: approval and rejection decisions and other status changes read as such. */
   it('AUDIT-HISTORY-01-A words submission, approval, rejection and other status changes', () => {
     const status = (from: unknown, to: unknown) => [toChange('status', from, to)];
@@ -97,6 +101,7 @@ describe('SPM-157 event history mapper', () => {
     expect(summaryFor('some_future_action', [])).toBe('some future action');
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-B: assignment and reassignment. */
   it('AUDIT-HISTORY-01-B words assignment and reassignment with the coordinator names', () => {
     const entry = fromAuditLog(logRow({
@@ -109,6 +114,7 @@ describe('SPM-157 event history mapper', () => {
     expect(summaryFor('coordinator_assigned', [])).toBe('Coordinator assigned');
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-C: a flagged change gives its proposal and its decision; an applied change one entry. */
   it('AUDIT-HISTORY-01-C maps a flagged change to a proposal and a decision with old and new values', () => {
     const entries = fromFlaggedChange({
@@ -130,6 +136,7 @@ describe('SPM-157 event history mapper', () => {
     expect(entries[0].changes).toEqual([{ field: 'expectedAttendance', label: 'Expected attendance', from: 100, to: 180 }]);
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-C: a pending flagged change has no decision yet; an applied one says applied. */
   it('AUDIT-HISTORY-01-C gives a pending flagged change one entry and an applied one a decision', () => {
     const base = {
@@ -141,6 +148,7 @@ describe('SPM-157 event history mapper', () => {
     expect(applied[1].summary).toBe('Flagged change applied');
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-C: information updates (SPM-156), including those from an approved change request. */
   it('AUDIT-HISTORY-01-C maps applied information updates with instants in ISO UTC', () => {
     const [direct] = fromFlaggedChange({
@@ -161,6 +169,7 @@ describe('SPM-157 event history mapper', () => {
     expect(fromRequest.actor.name).toBe('Organiser One');
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-D: change requests and their outcomes; a closure on cancellation is the system's. */
   it('AUDIT-HISTORY-01-D maps a change request and each outcome', () => {
     const changes = [{ field: 'expectedAttendance', originalValue: 100, proposedValue: 150 }];
@@ -177,6 +186,7 @@ describe('SPM-157 event history mapper', () => {
     expect(outcome('Closed')).toMatchObject({ summary: 'Change request closed', actor: { kind: 'system', name: 'System' } });
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-D: a requested change with no stored original or proposed value shows it as empty. */
   it('AUDIT-HISTORY-01-D shows a missing original or proposed value of a requested change as empty', () => {
     const submitted = fromChangeRequest({
@@ -189,6 +199,7 @@ describe('SPM-157 event history mapper', () => {
     ]);
   });
 
+  // Traceability: Jira 157 AC11 (matrix 39813204)
   /** AUDIT-HISTORY-11-A: an earlier flagged-change decision whose decider was not stored says so. */
   it('AUDIT-HISTORY-11-A names an unrecorded decider of an earlier flagged change as Not recorded', () => {
     const [, decision] = fromFlaggedChange({
@@ -199,6 +210,7 @@ describe('SPM-157 event history mapper', () => {
     expect(decision).toMatchObject({ summary: 'Flagged change rejected', actor: { kind: 'unrecorded', name: 'Not recorded' } });
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-E: cancellation requests and decisions. */
   it('AUDIT-HISTORY-01-E maps a cancellation request and its decision', () => {
     const base = { id: 'x1', requested_by: 'Organiser One', reason: 'Speaker unavailable', requested_at: at('2026-11-01T01:00:00.000Z') };
@@ -214,6 +226,7 @@ describe('SPM-157 event history mapper', () => {
     expect(declined[1].summary).toBe('Cancellation request declined');
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /**
    * AUDIT-HISTORY-01-F, AUDIT-HISTORY-02-A to AUDIT-HISTORY-02-C, AUDIT-HISTORY-03-A to AUDIT-HISTORY-03-C,
    * AUDIT-HISTORY-04-A to AUDIT-HISTORY-04-C: the wording of every recorded action.
@@ -265,6 +278,7 @@ describe('SPM-157 event history mapper', () => {
     expect(summaryFor(action, [])).toBe(summary);
   });
 
+  // Traceability: Jira 157 AC2 (matrix 39813204)
   /** AUDIT-HISTORY-02-A: booking rows go to the venue section with the venue as subject and readable values. */
   it('AUDIT-HISTORY-02-A places booking entries in the venue section with readable values', () => {
     const entry = fromAuditLog(logRow({
@@ -284,6 +298,7 @@ describe('SPM-157 event history mapper', () => {
     expect(fromAuditLog(logRow({ section: 'registration' })).section).toBe('registrations');
   });
 
+  // Traceability: Jira 157 AC2 (matrix 39813204)
   /** AUDIT-HISTORY-02-D: an expired hold is the system's, at the expiry instant. */
   it('AUDIT-HISTORY-02-D maps an expired hold to a system entry at its expiry time', () => {
     expect(fromExpiredHold({ id: 'h1', venue_name: 'Hall A', hold_expires_at: at('2026-11-20T02:00:00.000Z') })).toEqual({
@@ -298,6 +313,7 @@ describe('SPM-157 event history mapper', () => {
     });
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-A: coded values read as words; unknown fields keep their name. */
   it('AUDIT-HISTORY-05-A shows coded values as words and keeps unparseable values', () => {
     expect(displayValue('safetyCheck', 'changes_needed')).toBe('Changes Requested');
@@ -315,6 +331,7 @@ describe('SPM-157 event history mapper', () => {
     expect(toChange('somethingNew', 1, 2)).toEqual({ field: 'somethingNew', label: 'somethingNew', from: 1, to: 2 });
   });
 
+  // Traceability: Jira 157 AC6 (matrix 39813204)
   /** AUDIT-HISTORY-06-A: oldest first across sources; equal times keep the read order. */
   it('AUDIT-HISTORY-06-A merges every source into sections, oldest first', () => {
     const sections = buildSections(emptySources({
@@ -339,6 +356,7 @@ describe('SPM-157 event history mapper', () => {
     expect(sections.registrations.map((item) => item.id)).toEqual(['log-3']);
   });
 
+  // Traceability: Jira 157 AC6 (matrix 39813204)
   /** AUDIT-HISTORY-06-A: equal times keep the order the rows were read in. */
   it('AUDIT-HISTORY-06-A keeps the read order for entries at the same instant', () => {
     const same = '2026-11-01T00:00:00.000Z';

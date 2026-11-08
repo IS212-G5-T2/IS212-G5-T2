@@ -200,6 +200,7 @@ function setup(script: Script = {}) {
 }
 
 describe('ChangeRequestReviewService access (AC1, REVIEW-CHANGE-11-A)', () => {
+  // Traceability: Jira 65 Cross-cutting (matrix 28016830)
   it('REVIEW-CHANGE-11-A refuses anonymous users, non-coordinators and other coordinators', async () => {
     const { svc } = setup();
     await expect(
@@ -225,6 +226,7 @@ describe('ChangeRequestReviewService access (AC1, REVIEW-CHANGE-11-A)', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 65 Cross-cutting (matrix 28016830)
   it('REVIEW-CHANGE-11-B refuses an unknown request id and a missing event', async () => {
     await expect(
       setup().svc.preview(coordinator, EVENT_ID, 'nope'),
@@ -247,6 +249,7 @@ describe('ChangeRequestReviewService access (AC1, REVIEW-CHANGE-11-A)', () => {
 });
 
 describe('ChangeRequestReviewService.preview (AC3)', () => {
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   it('REVIEW-CHANGE-03-H assesses the request without writing anything', async () => {
     const { svc, statements, repository } = setup({
       bookings: [hall],
@@ -268,6 +271,7 @@ describe('ChangeRequestReviewService.preview (AC3)', () => {
     expect(repository.runInTransaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   it('REVIEW-CHANGE-03-D passes the requested window so the right neighbours are loaded', async () => {
     const { svc, repository } = setup({
       request: requestRow({
@@ -289,6 +293,7 @@ describe('ChangeRequestReviewService.preview (AC3)', () => {
 });
 
 describe('ChangeRequestReviewService AC11 / AC4: only a pending request can be decided (REVIEW-CHANGE-12-A/B, 04-B)', () => {
+  // Traceability: Jira 65 AC4 (matrix 28016830)
   it.each([
     ['Withdrawn', REVIEW_MESSAGES.withdrawn, 'change_request_withdrawn'],
     ['Closed', REVIEW_MESSAGES.closed, 'change_request_closed'],
@@ -314,6 +319,8 @@ describe('ChangeRequestReviewService AC11 / AC4: only a pending request can be d
     },
   );
 
+  // Traceability: Jira 65 AC11 (matrix 28016830)
+  // ID: REVIEW-CHANGE-12-A
   it('locks the request row when deciding', async () => {
     const { svc, statements } = setup();
     await svc.approve(coordinator, EVENT_ID, REQUEST_ID, undefined);
@@ -326,6 +333,7 @@ describe('ChangeRequestReviewService AC11 / AC4: only a pending request can be d
 });
 
 describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
+  // Traceability: Jira 65 AC4 (matrix 28016830)
   it('REVIEW-CHANGE-04-A applies the requested values, records and notifies, and returns the decision', async () => {
     const { svc, repository, sql } = setup({
       registrations: { registered: 4, waitlisted: 1 },
@@ -376,6 +384,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     ).toBe(false);
   });
 
+  // Traceability: Jira 65 Cross-cutting (matrix 28016830)
   it('REVIEW-CHANGE-11-B refuses a request body', async () => {
     const { svc } = setup();
     for (const body of [{ status: 'Approved' }, [], 'x'])
@@ -406,6 +415,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     expect(fallback.request.decidedBy).toBe('Coordinator');
   });
 
+  // Traceability: Jira 65 AC4, AC11 (matrix 28016830)
   /** REVIEW-CHANGE-04-E: a decision on a cancelled event is refused with the SPM-136 message. */
   it.each(['Cancelled'])(
     'refuses a %s event with the SPM-136 cancelled message',
@@ -424,6 +434,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     },
   );
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   // SPM-153 AC6 (COMPLETE-EVENT-06-E): a pending change request of a Completed event cannot be applied.
   it('COMPLETE-EVENT-06-E refuses to apply a change to a Completed event with 409 EVENT_COMPLETED', async () => {
     await expect(
@@ -433,6 +444,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-E refuses to deny a request on a Completed event with 409 EVENT_COMPLETED', async () => {
     await expect(
       setup({ event: eventRow({ status: 'Completed' }) }).svc.deny(coordinator, EVENT_ID, REQUEST_ID, { reason: 'Not possible' }),
@@ -441,6 +453,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-E refuses to recheck an approved change on a Completed event with 409 EVENT_COMPLETED', async () => {
     await expect(
       setup({ event: eventRow({ status: 'Completed' }), request: requestRow({ status: 'Approved' }) }).svc.markRechecked(
@@ -508,6 +521,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     ).resolves.toBeDefined();
   });
 
+  // Traceability: Jira 65 AC4 (matrix 28016830)
   it('REVIEW-CHANGE-04-D refuses values that are no longer valid', async () => {
     const past = setup({
       request: requestRow({
@@ -538,6 +552,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     });
   });
 
+  // Traceability: Jira 65 AC4 (matrix 28016830)
   it('REVIEW-CHANGE-04-D refuses an end that is no longer after the start', async () => {
     const end = setup({
       request: requestRow({
@@ -565,6 +580,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     });
   });
 
+  // Traceability: Jira 65 AC8 (matrix 28016830)
   it('REVIEW-CHANGE-08-A resets an existing safety check with the agreed reason', async () => {
     const { svc, sql } = setup({ safety: [true, false] });
     const result = await svc.approve(coordinator, EVENT_ID, REQUEST_ID, {});
@@ -582,6 +598,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     );
   });
 
+  // Traceability: Jira 65 AC8 (matrix 28016830)
   it('REVIEW-CHANGE-08-F does not report a reset when there was no safety check, or it survived', async () => {
     expect(
       (
@@ -605,6 +622,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     ).toBe(false);
   });
 
+  // Traceability: Jira 65 AC8 (matrix 28016830)
   it('REVIEW-CHANGE-08-D returns a Confirmed event to Planning with a status history entry', async () => {
     const { svc, sql } = setup({
       event: eventRow({ status: 'Confirmed' }),
@@ -623,6 +641,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     expect(history?.params.slice(1)).toEqual([EVENT_ID, 'coord-1', NOW]);
   });
 
+  // Traceability: Jira 65 AC8 (matrix 28016830)
   /** REVIEW-CHANGE-08-D: only a Confirmed event returns to Planning; other statuses are kept. */
   it.each(['Submitted', 'Approved'])(
     'keeps a %s event in its status',
@@ -637,6 +656,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     },
   );
 
+  // Traceability: Jira 65 AC9 (matrix 28016830)
   it('REVIEW-CHANGE-09-A stores each affected arrangement on the re-check list', async () => {
     const result = await setup({ bookings: [hall] }).svc.approve(
       coordinator,
@@ -655,6 +675,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     ]);
   });
 
+  // Traceability: Jira 65 AC7 (matrix 28016830)
   it.each([
     ['applyFields'],
     ['recordAppliedChanges'],
@@ -680,6 +701,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
 });
 
 describe('ChangeRequestReviewService.approve change history (SPM-156)', () => {
+  // Traceability: Jira 156 DoD3, DoD5, DoD6, DoD7 (matrix 38010922)
   /**
    * EVENT-UPDATE-07-E: the history entries are written in the approval's transaction, so a failed
    * history write fails the approval and commits nothing (no event change, no decision, no notice).
@@ -692,6 +714,7 @@ describe('ChangeRequestReviewService.approve change history (SPM-156)', () => {
     expect(committed).toEqual([]);
   });
 
+  // Traceability: Jira 156 DoD3, DoD5, DoD6, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-E: each requested field whose value changes is recorded as
   // an Applied 'change_request' entry, proposed by the organiser, applied by
   // the coordinator, at the decision time.
@@ -726,6 +749,7 @@ describe('ChangeRequestReviewService.approve change history (SPM-156)', () => {
     );
   });
 
+  // Traceability: Jira 156 DoD3, DoD5, DoD6, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-E: a requested value equal to the current one is not a change.
   it('EVENT-UPDATE-07-E leaves out requested values the event already has', async () => {
     const { svc, repository } = setup({
@@ -751,6 +775,7 @@ describe('ChangeRequestReviewService.approve change history (SPM-156)', () => {
     ]);
   });
 
+  // Traceability: Jira 156 DoD3, DoD5, DoD6, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-E: a denied request changes nothing, so nothing is recorded.
   it('EVENT-UPDATE-07-E records nothing when the request is denied', async () => {
     const { svc, repository } = setup();
@@ -762,6 +787,7 @@ describe('ChangeRequestReviewService.approve change history (SPM-156)', () => {
 });
 
 describe('ChangeRequestReviewService.deny (AC5, AC6, AC10)', () => {
+  // Traceability: Jira 65 AC5 (matrix 28016830)
   it('REVIEW-CHANGE-05-A denies with the trimmed reason, records and notifies, without touching the event', async () => {
     const { svc, sql, repository } = setup();
     const result = await svc.deny(coordinator, EVENT_ID, REQUEST_ID, {
@@ -789,6 +815,7 @@ describe('ChangeRequestReviewService.deny (AC5, AC6, AC10)', () => {
     ]);
   });
 
+  // Traceability: Jira 65 AC5 (matrix 28016830)
   it.each([
     undefined,
     null,
@@ -805,6 +832,7 @@ describe('ChangeRequestReviewService.deny (AC5, AC6, AC10)', () => {
     });
   });
 
+  // Traceability: Jira 65 AC5 (matrix 28016830)
   it('REVIEW-CHANGE-05-C allows 10 to 500 characters', async () => {
     for (const reason of ['x'.repeat(9), 'x'.repeat(501)])
       await expect(
@@ -818,6 +846,7 @@ describe('ChangeRequestReviewService.deny (AC5, AC6, AC10)', () => {
       ).resolves.toBeDefined();
   });
 
+  // Traceability: Jira 65 Cross-cutting (matrix 28016830)
   /** REVIEW-CHANGE-11-B: decision bodies are strict. */
   it('refuses unknown fields', async () => {
     await expect(
@@ -830,6 +859,7 @@ describe('ChangeRequestReviewService.deny (AC5, AC6, AC10)', () => {
     });
   });
 
+  // Traceability: Jira 65 AC10 (matrix 28016830)
   it('REVIEW-CHANGE-10-C commits nothing when the audit entry fails', async () => {
     const { svc, committed } = setup({
       failOn: 'INSERT INTO event_change_request_audit',
@@ -855,6 +885,7 @@ describe('ChangeRequestReviewService.markRechecked (AC9)', () => {
     },
   ];
 
+  // Traceability: Jira 65 AC9 (matrix 28016830)
   it('REVIEW-CHANGE-09-B marks one arrangement as re-checked', async () => {
     const { svc } = setup({
       request: requestRow({ status: 'Approved', recheck: items }),
@@ -872,6 +903,7 @@ describe('ChangeRequestReviewService.markRechecked (AC9)', () => {
     expect(record.recheck[1]).not.toHaveProperty('checkedAt');
   });
 
+  // Traceability: Jira 65 AC9 (matrix 28016830)
   /** REVIEW-CHANGE-09-D: marking an arrangement re-checked is refused when it cannot apply. */
   it('refuses a request that is not approved, an unknown item, an item already re-checked and a cancelled event', async () => {
     await expect(
@@ -913,6 +945,7 @@ describe('ChangeRequestReviewService.auditLog (AC10)', () => {
     decided_at: NOW,
   };
 
+  // Traceability: Jira 65 AC10 (matrix 28016830)
   it('REVIEW-CHANGE-10-B returns the log newest first to the owner and the assigned coordinator', async () => {
     for (const user of [organiser, coordinator]) {
       const { svc, statements } = setup({ audit: [entry] });
@@ -926,6 +959,7 @@ describe('ChangeRequestReviewService.auditLog (AC10)', () => {
     }
   });
 
+  // Traceability: Jira 65 AC10 (matrix 28016830)
   it('REVIEW-CHANGE-10-D hides the log from everyone else', async () => {
     await expect(
       setup().svc.auditLog(undefined, EVENT_ID),

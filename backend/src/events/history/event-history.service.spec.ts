@@ -40,6 +40,7 @@ function setup(event: Record<string, unknown> | null = {
 }
 
 describe('SPM-157 EventHistoryService', () => {
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-A to AUDIT-HISTORY-04-A: the assigned coordinator reads all four sections. */
   it('AUDIT-HISTORY-01-A gives the assigned coordinator all four sections, read with the injected clock', async () => {
     const { repository, service } = setup();
@@ -50,6 +51,7 @@ describe('SPM-157 EventHistoryService', () => {
     expect(result.sections.venueBookings?.map((item) => item.summary)).toEqual(['Venue booking requested']);
   });
 
+  // Traceability: Jira 157 AC8 (matrix 39813204)
   /** AUDIT-HISTORY-08-A: the owning organiser reads event and registration history only. */
   it('AUDIT-HISTORY-08-A gives the owning organiser the event and registration sections only', async () => {
     const { repository, service } = setup();
@@ -59,6 +61,7 @@ describe('SPM-157 EventHistoryService', () => {
     expect(Object.keys(result.sections)).toEqual(['event', 'registrations']);
   });
 
+  // Traceability: Jira 157 AC9 (matrix 39813204)
   /** AUDIT-HISTORY-09-A: anyone else, including a previous coordinator, is refused. */
   it.each([
     ['another coordinator', { uid: 'coord-2', roles: ['COORDINATOR'] }],
@@ -72,6 +75,7 @@ describe('SPM-157 EventHistoryService', () => {
     expect(repository.readSources).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 157 AC9 (matrix 39813204)
   /** AUDIT-HISTORY-09-B: unknown or malformed id 404; no session 401. */
   it('AUDIT-HISTORY-09-B answers 404 for an unknown or malformed event and 401 without a session', async () => {
     const { repository, service } = setup(null);
@@ -81,6 +85,7 @@ describe('SPM-157 EventHistoryService', () => {
     await expect(service.history(undefined, EVENT_ID)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  // Traceability: Jira 157 AC8 (matrix 39813204)
   /** AUDIT-HISTORY-08-A: a user who is both the assigned coordinator and the owner gets the coordinator view. */
   it('AUDIT-HISTORY-08-A prefers the coordinator view for a user holding both roles on the event', () => {
     expect(viewerOf({ uid: 'u', roles: ['ORGANISER', 'COORDINATOR'] }, { organiser_id: 'u', coordinator_id: 'u' })).toBe('coordinator');

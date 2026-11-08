@@ -59,6 +59,7 @@ describe('Clarifications (e2e)', () => {
     }
   });
 
+  // Traceability: Jira 39 AC1 (matrix 8060934)
   // SPM-39 REQ-CLAR-01-A (AC1): valid clarification request; status unchanged; organiser notified
   // Kills: a clarification that changes the event status, is not attributed to the coordinator, is not notified to the organiser, or clears awaitingReply on reply instead of resolve.
   it('REQ-CLAR-01-A: Event Coordinator can send a clarification request without changing status, and Organiser is notified', async () => {
@@ -203,6 +204,7 @@ describe('Clarifications (e2e)', () => {
     );
   });
 
+  // Traceability: Jira 39 AC2 (matrix 8060934)
   // SPM-39 REQ-CLAR-01-B (AC2): blank message rejected, no comment written
   // Kills: a blank message accepted with 201 instead of 400, or a comment or notification written for it.
   it('REQ-CLAR-01-B: Event Coordinator cannot submit a blank clarification message', async () => {
@@ -238,6 +240,7 @@ describe('Clarifications (e2e)', () => {
     expect(notificationCount.rows[0].count).toBe('0');
   });
 
+  // Traceability: Jira 39 AC2 (matrix 8060934)
   // SPM-39 REQ-CLAR-01-C (AC2): whitespace-only message rejected, no comment written
   // Kills: a whitespace-only message accepted because the trim check is missing, leaving a comment row behind.
   it('REQ-CLAR-01-C: Event Coordinator cannot submit a whitespace-only clarification message', async () => {
@@ -267,6 +270,7 @@ describe('Clarifications (e2e)', () => {
     expect(commentCount.rows[0].count).toBe('0');
   });
 
+  // Traceability: Jira 39 AC3 (matrix 8060934)
   // SPM-39 REQ-CLAR-02-A (AC3, AC4): history in order with author and timestamp
   // Kills: a thread returned out of order, a reply with the wrong parentId or author, or entries whose type does not separate clarification from reply.
   it('REQ-CLAR-02-A: Event Coordinator can see full chronological history with attribution and distinguishable types', async () => {
@@ -335,6 +339,7 @@ describe('Clarifications (e2e)', () => {
     });
   });
 
+  // Traceability: Jira 39 AC5 (matrix 8060934)
   // SPM-39 REQ-CLAR-02-B (AC5): the awaiting-reply state of a clarification, as both parties see it.
   // Design (confirmed with the PO): a reply does NOT clear the state; only an explicit resolve does.
   // Kills: a reply that clears awaitingReply, or a thread state that differs between the coordinator and organiser views.

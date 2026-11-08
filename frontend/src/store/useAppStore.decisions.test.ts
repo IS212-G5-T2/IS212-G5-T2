@@ -54,6 +54,7 @@ beforeEach(() => {
 });
 
 describe("rejectEvent (SPM-83)", () => {
+  // Traceability: Jira 83 AC5 (matrix 12124249)
   // EVENT-REJECT-02-A
   // Kills: rejectEvent not setting status 'rejected', or dropping the reason from the stored event.
   it("sets the status to rejected and records the reason", () => {
@@ -77,6 +78,7 @@ describe("rejectEvent (SPM-83)", () => {
     expect(JSON.parse(init!.body as string)).toEqual({ reason: "Budget not approved." });
   });
 
+  // Traceability: Jira 83 AC6 (matrix 12124249)
   // EVENT-REJECT-02-B
   // Kills: no rejection notification, a notification missing the reason, or an audience other than the organiser.
   it("notifies the organiser of the rejection, including the reason", () => {
@@ -91,6 +93,7 @@ describe("rejectEvent (SPM-83)", () => {
     expect(notification.message).toContain("Room capacity too low.");
   });
 
+  // Traceability: Jira 83 AC5 (matrix 12124249)
   // EVENT-REJECT-02-C: the pending-list view itself is asserted on EventListPage (EventListPage.test.tsx,
   // "EVENT-REJECT-02-C"). This store test checks only the state the list reads: the rejected request is
   // no longer Submitted, and the other pending request is untouched.
@@ -113,6 +116,7 @@ describe("rejectEvent (SPM-83)", () => {
 });
 
 describe("approveEvent (SPM-40)", () => {
+  // Traceability: Jira 40 AC3 (matrix 13336613)
   // EVENT-APPROVE-02-A
   // Kills: approveEvent not setting 'approved' on the decided event.
   it("sets the status to approved", () => {
@@ -131,6 +135,7 @@ describe("approveEvent (SPM-40)", () => {
     );
   });
 
+  // Traceability: Jira 40 AC4 (matrix 13336613)
   // EVENT-APPROVE-02-B
   // Kills: no approval notification, or one whose message lacks the event name or whose audience and related event are wrong.
   it("notifies the organiser of the approval", () => {
@@ -145,6 +150,7 @@ describe("approveEvent (SPM-40)", () => {
     expect(notification.message).toContain("Welcome Evening");
   });
 
+  // Traceability: Jira 40 AC1 (matrix 13336613)
   // EVENT-APPROVE-02-C: the pending-list view itself is asserted on EventListPage (EventListPage.test.tsx,
   // "EVENT-APPROVE-02-C"). This store test checks only the state the list reads.
   // Kills: approving one request changing the other submitted request's status.

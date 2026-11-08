@@ -104,6 +104,7 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     expect(screen.getByText("Total: 50")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-05-A: the page renders every persisted mark-unavailable snapshot field.
   it("EQUIP-UNAVAIL-05-A displays the full Marked unavailable audit snapshot", async () => {
     // Arrange: the shared audit API returns the exact case entry.
@@ -126,6 +127,7 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-05-B: a reactivation is visibly distinct from marking unavailable.
   it("EQUIP-UNAVAIL-05-B displays a Reactivated entry with no unavailability reason", async () => {
     // Arrange: the API returns a later reactivation entry for the same equipment.
@@ -149,6 +151,7 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-05-C: entries from different Technical Support users remain visible together.
   it("EQUIP-UNAVAIL-05-C displays audit entries created by different technicians", async () => {
     // Arrange: the API returns shared history containing two distinct actors.
@@ -178,6 +181,7 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     expect(screen.getByText("Shared projector")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-05-D: an audit-trail load failure is announced and no table is shown.
    */

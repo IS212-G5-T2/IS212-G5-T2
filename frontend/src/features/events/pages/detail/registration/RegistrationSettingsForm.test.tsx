@@ -57,6 +57,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("SPM-139 coordinator registration settings form", () => {
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // 01-A: enabling and saving SET-OK sends the instants with offsets and the loaded version.
   it("CONFIG-REG-01-A: saves SET-OK with the version it loaded and reports success", async () => {
     const user = userEvent.setup();
@@ -87,6 +88,7 @@ describe("SPM-139 coordinator registration settings form", () => {
     expect(onSaved).toHaveBeenCalled();
   });
 
+  // Traceability: Jira 139 AC6 (matrix 28869217)
   // Editable and read-only statuses (04-A, 04-B): the rule is explained on the field, nothing is sent, and the typed values stay.
   it("CONFIG-REG-06-B: explains a closing time after the start and keeps the typed values without saving", async () => {
     const user = userEvent.setup();
@@ -102,6 +104,7 @@ describe("SPM-139 coordinator registration settings form", () => {
     expect(screen.getByLabelText("Registration capacity")).toHaveValue("50");
   });
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   // 05-B: a capacity that is not a positive whole number is refused in the form.
   it("CONFIG-REG-07-B: refuses a non-whole capacity with the capacity message", async () => {
     const user = userEvent.setup();
@@ -142,6 +145,7 @@ describe("SPM-139 coordinator registration settings form", () => {
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 139 AC4 (matrix 28869217)
   // 09-B and 09-C: a cancelled or rejected event shows its saved settings with no Save.
   it.each([
     ["cancelled", "Registration details can only be set while the event is Approved, Planning or Confirmed."],
@@ -166,6 +170,7 @@ describe("SPM-139 coordinator registration settings form", () => {
 describe("registration end against the event start (live)", () => {
   const startWarning = "Registration must close on or before the event start time.";
 
+  // Traceability: Jira 139 AC6 (matrix 28869217)
   // Kills: FM2 (the start rule disabled, so the end date is accepted until Save)
   it("CONFIG-REG-06-B: warns as soon as the end is after the start, keeps Save off and sends nothing", async () => {
     const user = userEvent.setup();
@@ -178,6 +183,7 @@ describe("registration end against the event start (live)", () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 139 AC5 (matrix 28869217)
   // No mutant id: guards the live warning staying after the end is corrected to the start.
   it("CONFIG-REG-06-B: clears the warning when the end is moved back to the start instant", async () => {
     const user = userEvent.setup();
@@ -196,6 +202,7 @@ describe("registration end against the event start (live)", () => {
 
 // v2.0 AC4: the form is editable in Approved, Planning and Confirmed, and read-only in every other status.
 describe("settings form: editable statuses (v2.0 AC4)", () => {
+  // Traceability: Jira 139 AC4 (matrix 28869217)
   // No mutant id: guards one editable status left read-only (the other tests render only Planning).
   it.each(["approved", "planning", "confirmed"])("CONFIG-REG-04-A: %s: Save is shown and enabled", async (status) => {
     renderForm(status);
@@ -205,6 +212,7 @@ describe("settings form: editable statuses (v2.0 AC4)", () => {
 
 // v2.0 AC1 and AC2: a registration cannot be turned on without its closing time.
 describe("settings form: enabling needs the closing time", () => {
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // No mutant id: guards enabling accepted with only the opening time.
   it("CONFIG-REG-01-E: refuses enabling with an opening time but no closing time, and sends nothing", async () => {
     const user = userEvent.setup();
@@ -223,6 +231,7 @@ describe("settings form: v2.0 closing-time and capacity cases", () => {
   const startWarning = "Registration must close on or before the event start time.";
   const capacityWarning = "Capacity must be a positive whole number.";
 
+  // Traceability: Jira 139 AC5 (matrix 28869217)
   // Kills: FM3 (the closing error from the last Save persists after the closing time is corrected)
   it("CONFIG-REG-05-A: the closing-time error clears when corrected and the save is accepted", async () => {
     const user = userEvent.setup();
@@ -245,6 +254,7 @@ describe("settings form: v2.0 closing-time and capacity cases", () => {
     await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(2));
   });
 
+  // Traceability: Jira 139 AC5 (matrix 28869217)
   // Kills: FM1 (a closing time equal to the opening time accepted by the form)
   it("CONFIG-REG-05-B: the form rejects a closing time not after the opening time and keeps the typed values", async () => {
     const user = userEvent.setup();
@@ -259,6 +269,7 @@ describe("settings form: v2.0 closing-time and capacity cases", () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 139 AC6 (matrix 28869217)
   // Kills: FM2 (the form accepts a closing time after the event start)
   it("CONFIG-REG-06-B: the form refuses a closing time after the event start and keeps the values", async () => {
     const user = userEvent.setup();
@@ -273,6 +284,7 @@ describe("settings form: v2.0 closing-time and capacity cases", () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   // Kills: FM4 (surrounding spaces not trimmed, so " 25 " is refused)
   it('CONFIG-REG-07-A: capacities "25", " 25 " and "1000" are saved as whole numbers', async () => {
     const user = userEvent.setup();
@@ -295,6 +307,7 @@ describe("settings form: v2.0 closing-time and capacity cases", () => {
     expect(sent).toEqual([25, 25, 1000]);
   });
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   // Kills: FM5 (a value with trailing letters accepted, as parseInt would do)
   it("CONFIG-REG-07-B: the form refuses a non-whole capacity and keeps the value typed", async () => {
     const user = userEvent.setup();
@@ -368,6 +381,7 @@ describe("settings form: server and load errors not covered by a field", () => {
     expect(await screen.findByText("Some settings were refused.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   it("CONFIG-REG-01-C: shows a disabled event with no dates as Disabled and Not set, read-only", async () => {
     renderForm("completed", settings({ registrationEnabled: false, capacity: 7 }));
     expect(await screen.findByText("Disabled")).toBeInTheDocument();
@@ -473,6 +487,7 @@ describe("settings form: a server error on the enabled switch", () => {
 });
 
 describe("settings form: report unsaved registration drafts", () => {
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   it("SAFETY-OUTCOME-06 reports pending for changed values, restores saved state when reverted, and stays pending after a failed save", async () => {
     const user = userEvent.setup();
     const onDraftStateChange = vi.fn();
@@ -495,6 +510,7 @@ describe("settings form: report unsaved registration drafts", () => {
 });
 
 describe("SAFETY-OUTCOME-06 stale settings loads", () => {
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: a late response for the prior event cannot replace the current event's saved settings. */
   it("ignores a stale successful settings response after the event changes", async () => {
     let resolveFirst!: (value: RegistrationSettings) => void;
@@ -509,6 +525,7 @@ describe("SAFETY-OUTCOME-06 stale settings loads", () => {
     await waitFor(() => expect(screen.getByLabelText("Registration enabled")).toBeChecked());
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: a stale failure for the prior event cannot replace the current event's loaded form. */
   it("ignores a stale failed settings response after the event changes", async () => {
     let rejectFirst!: (reason: Error) => void;

@@ -189,6 +189,7 @@ function SwitchDetailEvent() {
 }
 
 describe("VenueRecordDetailPage (SPM-124)", () => {
+  // Traceability: Jira 54 AC1 (matrix 22839839)
   /** VEN-BKG-01-C: the suitability assessment reports every mismatch together and blocks submission. */
   it("VEN-BKG-01-C SPM-54 shows persisted suitability warnings without disabling submission", async () => {
     useAppStore.setState({
@@ -245,6 +246,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC1 (matrix 22839839)
   /** VEN-BKG-01-A: a venue meeting all event requirements is shown as suitable without a false warning. */
   it("VEN-BKG-01-A SPM-54 marks a venue suitable when every event requirement is met", async () => {
     setCoordinator(["event-1"]);
@@ -264,6 +266,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(assessment).not.toHaveTextContent("⚠");
   });
 
+  // Traceability: Jira 54 AC1 (matrix 22839839)
   /** VEN-BKG-01-B: each single requirement mismatch is identified without falsely flagging satisfied requirements. */
   it("VEN-BKG-01-B SPM-54 identifies requirement mismatches by category", async () => {
     const cases = [
@@ -365,6 +368,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     }
   });
 
+  // Traceability: Jira 54 AC1 (matrix 22839839)
   /** VEN-BKG-01-BND-1: capacity equal to the event attendance is suitable, not an insufficient-capacity mismatch. */
   it("VEN-BKG-01-BND-1 SPM-54 accepts capacity exactly equal to attendance", async () => {
     useAppStore.setState({
@@ -490,6 +494,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC4, AC8 (matrix 22839839)
   /** VEN-BKG-08-A: an active request for this event and venue is shown in context and prevents duplicate submission. */
   it("VEN-BKG-08-A SPM-54 shows the active event venue request and blocks a duplicate", async () => {
     setCoordinator(["event-1"]);
@@ -526,6 +531,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC4, AC8 (matrix 22839839)
   /** VEN-BKG-08-A: if existing-request lookup fails, the page fails closed and asks the Coordinator to retry. */
   it("SPM-54 blocks submission when existing-request verification fails", async () => {
     setCoordinator(["event-1"]);
@@ -562,6 +568,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC4, AC8 (matrix 22839839)
   /** VEN-BKG-08-A: a delayed booking-history response for an old event cannot replace the new event's request summary. */
   it("VEN-BKG-08-A SPM-54 ignores a stale booking summary after switching events", async () => {
     setCoordinator(["event-1", "event-52"]);
@@ -617,6 +624,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(screen.queryByText("VB-event-1")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC4, AC8 (matrix 22839839)
   /** VEN-BKG-08-A: a delayed error for a former event does not hide a successfully loaded current booking summary. */
   it("VEN-BKG-08-A SPM-54 ignores a stale booking-history failure after switching events", async () => {
     setCoordinator(["event-1", "event-52"]);
@@ -676,6 +684,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toHaveTextContent("Event event-52");
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-A: cancelling an event-linked request always requires the user to confirm before the API call. */
   it("VEN-BKG-10-A VEN-BKG-10-SEC-1 SPM-54 confirms cancellation and removes only the active summary", async () => {
     setCoordinator(["event-1"]);
@@ -740,6 +749,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /**
    * VEN-BKG-10-A SPM-54: after a submitted request is cancelled, the review section stays and its notice reads as cancelled.
    * Product owner decision, 28 Oct 2026 (recorded in spec-conflicts.md): the notice stays visible and says the request is cancelled.
@@ -877,6 +887,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: a server cancellation failure leaves the active event-linked request visible and reports the reason. */
   it("VEN-BKG-09-A SPM-54 preserves the event venue summary when cancellation fails", async () => {
     setCoordinator(["event-1"]);
@@ -918,6 +929,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: a non-Error cancellation rejection uses a safe message and leaves the active request unchanged. */
   it("VEN-BKG-09-A SPM-54 handles an unstructured event booking cancellation failure", async () => {
     setCoordinator(["event-1"]);
@@ -958,6 +970,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-A/10-B: a last-active response asks for a second explicit confirmation and preserves the request if it fails. */
   it("VEN-BKG-10-A VEN-BKG-10-B VEN-BKG-10-SEC-1 SPM-54 asks before cancelling the last active event venue", async () => {
     setCoordinator(["event-1"]);
@@ -1299,6 +1312,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 51 AC7 (matrix 24117310)
   /** VEN-AVL-07-A: a conflict blocks request submission after the coordinator checks a venue. The buffer overlap that causes the conflict is also an AC8 case. */
   it("SPM-51: blocks booking submission for a time that conflicts with a confirmed booking", async () => {
     useAppStore.setState({
@@ -1356,6 +1370,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(useAppStore.getState().bookings).toEqual([]);
   });
 
+  // Traceability: Jira 54 AC3 (matrix 22839839)
   /** VEN-BKG-03-A: an event-linked request uses the assigned event and includes its optional special request. */
   it("VEN-BKG-03-A SPM-54 submits the assigned event details and optional request text", async () => {
     useAppStore.setState({
@@ -1583,6 +1598,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     },
   );
 
+  // Traceability: Jira 54 AC4, AC8 (matrix 22839839)
   /** VEN-BKG-04-B: a transport failure during submission reports no success and keeps the request retryable. */
   it("VEN-BKG-04-B SPM-54 shows a generic submission error without phantom confirmation", async () => {
     setCoordinator(["event-1"]);
@@ -1617,6 +1633,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeEnabled();
   });
 
+  // Traceability: Jira 54 AC3 (matrix 22839839)
   /** VEN-BKG-03-B: leaving the optional special-request field blank does not prevent a valid request. */
   it("VEN-BKG-03-B SPM-54 submits with a blank optional special request", async () => {
     setCoordinator(["event-1"]);
@@ -1677,6 +1694,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 51 AC3 (matrix 24117310)
   /**
    * VEN-AVL-03-B: an active tentative hold shows the stored expiry instant, 12 Jan 2030 15:00 SGT, in both the calendar and the list views.
    * Kills: a view that shows the hold end (14:00 SGT) or no expiry for a live hold instead of the stored expiry.
@@ -1741,6 +1759,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     }
   });
 
+  // Traceability: Jira 51 AC3 (matrix 24117310)
   /** VEN-AVL-03-A: calendar/list both show the schedule, free slot, reasons, hold expiry and preserve selection. The hold-expiry display in both views is the second AC3 case. */
   it("shows the same schedule facts in calendar and list views without changing the selected range", async () => {
     useAppStore.setState({
@@ -1922,6 +1941,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(schedule).not.toHaveTextContent("Maintenance");
   });
 
+  // Traceability: Jira 51 AC2 (matrix 24117310)
   /** VEN-AVL-02-B / SPM-51 AC2: moving the time-grid week changes the visible dates and recomputes free periods for that week. */
   it("navigates the real time grid and shows availability in the newly visible week", async () => {
     const originalNow = Date.now();
@@ -2040,6 +2060,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(calendar).not.toHaveTextContent("Turnaround buffer");
   });
 
+  // Traceability: Jira 51 AC10 (matrix 24117310)
   /** VEN-AVL-10-B: the backend-clock-filtered schedule displays and blocks only the active hold. The only-active-hold assertion also excludes the expired hold, which is the first AC10 case. */
   it("renders and blocks the live hold returned by the server at a fixed check time", async () => {
     const realNow = Date.now();
@@ -2099,6 +2120,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     }
   });
 
+  // Traceability: Jira 51 AC10 (matrix 24117310)
   /**
    * VEN-AVL-10-BND-1: at the exact expiry instant, 12 Jan 2030 09:00 SGT, the hold is inactive and a range that only overlaps it is not blocked.
    * Kills: a page that keeps a hold active at its expiry instant (a >= comparison), which would list it as a conflict and block the time.
@@ -2162,6 +2184,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     }
   });
 
+  // Traceability: Jira 51 AC9 (matrix 24117310)
   /** VEN-AVL-09-B: a booking affected by a setup-overlapping blockout remains recorded and visibly flagged. The retained-and-visible check is the first AC9 case. */
   it("retains and flags an existing booking affected only through its setup buffer", async () => {
     apiMock
@@ -2200,6 +2223,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeGreaterThan(0);
   });
 
+  // Traceability: Jira 124 AC6 (matrix 19858622)
   // VEN-VIEW-06-A (AC6): the selected venue shows its upcoming confirmed booking.
   it("VEN-VIEW-06-A: shows BKG-1001 as a booking for Orchid Hall only", async () => {
     // Arrange: the API returns the specified booking on Orchid Hall.
@@ -2227,6 +2251,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(screen.getByText(/Booked/)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 124 AC6 (matrix 19858622)
   // VEN-VIEW-06-B (AC6): the view renders active holds returned by the API; expiry is checked in the backend HTTP suite.
   it("VEN-VIEW-06-B: renders the API-provided HOLD-A as tentative", async () => {
     // Arrange: the API excludes expired HOLD-X at the specified fixed-time state.
@@ -2256,6 +2281,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(screen.queryByText("HOLD-X")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 124 AC7 (matrix 19858622)
   // AC4/6/7: staff can inspect details, schedule reasons and affected bookings.
   it("VEN-VIEW-07-A: shows the selected venue's accessibility, setup and turnaround", async () => {
     // Arrange: the detail API returns one persisted venue with both reservation types.
@@ -2296,6 +2322,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(screen.getAllByText(/Tentative hold/).length).toBeGreaterThan(0);
   });
 
+  // Traceability: Jira 124 AC7 (matrix 19858622)
   // VEN-VIEW-07-B (AC7): changing venue replaces all venue-specific detail values.
   it("VEN-VIEW-07-B: refreshes details when another venue is selected", async () => {
     // Arrange: two venues have different accessibility and timing requirements.
@@ -2596,6 +2623,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // SPM-122 / VEN-UNAVAIL-04-A/07-A: affected bookings remain visible after the detail reload.
   it("keeps the saved affected-booking list visible while refreshing the venue", async () => {
     // Arrange a staff session and a save response with one impacted event.
@@ -2751,6 +2779,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeDisabled();
   });
 
+  // Traceability: Jira 121 AC7 (matrix 28770883)
   /** VEN-UPD-07-A: AC7 — owner sees the Edit Venue button; a different Venue Staff member does not. */
   it("VEN-UPD-07-A Edit Venue button is visible to the owner and hidden from another Venue Staff", async () => {
     // Owner: Edit Venue link present
@@ -2791,6 +2820,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
  * Staff only. Frontend unit tests with the API stubbed; the signed-in user is a fixture, not a live login.
  */
 describe("SPM-125 venue history cards", () => {
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /**
    * VEN-IMPACT-01-D VEN-IMPACT-05-H (AC1, AC5): Venue Staff see both history cards, each opening its history.
    * Kills: the cards missing from the venue record page.
@@ -2815,6 +2845,7 @@ describe("SPM-125 venue history cards", () => {
     expect(await screen.findByText("No bookings or tentative holds have been made at this venue.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /**
    * VEN-IMPACT-01-SEC-2 VEN-IMPACT-05-SEC-2 (AC1, AC5): a Coordinator viewing the same venue sees neither card and
    * never reads either history.

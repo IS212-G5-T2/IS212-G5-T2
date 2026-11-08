@@ -67,6 +67,7 @@ describe('SPM-37 Q1 boundary and partition cases', () => {
     rejects({ ...payload(), operationId }),
   );
   // Kills: normalisation that trims, nulls or coerces empty, whitespace, zero or incomplete values (e.g. '  ' to '', '0' dropped).
+  // Traceability: Jira 37 AC1/AC2 (matrix 10551297)
   /** EVE-DRF-01-B: draft values (empty, whitespace, zero, incomplete) persist unchanged (Q1-006). */
   it('Q1-006 preserves empty, whitespace, zero and incomplete draft values', () => {
     const fields = {

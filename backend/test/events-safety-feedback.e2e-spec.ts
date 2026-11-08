@@ -187,6 +187,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     expect(status.body.checklist.safetyCheck.feedback.every((item: { resolvedByCoordinatorAt?: string }) => !item.resolvedByCoordinatorAt)).toBe(true);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: revise equipment after feedback, restore its reservation, and re-request safety review. */
   it('SAFETY-OUTCOME-06 SAFETY-FEEDBACK-02: re-requests safety review after revising equipment and restoring readiness', async () => {
     // Arrange
@@ -230,6 +231,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     expect(queue.body.map((event: { id: string }) => event.id)).toContain(id);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: a legacy migration upgrades only selected arrangements; authenticated planning and staff flows preserve row identity, checkbox gating, and approvals across replay. */
   it('SAFETY-OUTCOME-06 re-approves selected arrangements through staff workflows before re-request', async () => {
     const { id, venueId, bookingId, equipmentRequestId, itemId, reservationId, equipmentName } = await seedApprovedEvent();

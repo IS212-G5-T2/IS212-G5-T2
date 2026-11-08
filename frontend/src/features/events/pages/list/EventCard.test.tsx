@@ -108,6 +108,7 @@ describe("EventCard", () => {
     expect(screen.getByText("Not booked")).toBeTruthy();
   });
 
+  // Traceability: Jira 46 AC2 (matrix 21103441)
   // SPM-46 AC2: a reassigned event is labelled in the coordinator's list, with who it came from.
   // Kills: F1 ("Reassigned" label on every card).
   it("REASN-VIEW-02-F labels a reassigned event \"Reassigned\" with the coordinator it came from, and nothing else", () => {
@@ -130,6 +131,7 @@ describe("EventCard", () => {
 
 // SPM-94: a planning event whose venue and equipment are reserved shows the combined label, then the safety check.
 describe("EventCard reserved planning labels", () => {
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: the awaiting safety label placed before the combined reserved label, or the combined label missing for reserved venue and equipment.
   it("TRACK-EVENT-STATUS-01-A CARD: venue and equipment reserved show the combined label, then the awaiting safety check", () => {
     render(

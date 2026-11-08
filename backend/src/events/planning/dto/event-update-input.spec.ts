@@ -41,6 +41,7 @@ function errorsOf(input: unknown): Record<string, string> {
 }
 
 describe('validateEventUpdate', () => {
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: the coordinator only has to send the fields they changed.
   it('EVENT-UPDATE-03-A accepts a partial update and trims text', () => {
     expect(validateEventUpdate({ name: '  Welcome Evening  ' })).toEqual({
@@ -48,6 +49,7 @@ describe('validateEventUpdate', () => {
     });
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: every editable field is accepted together.
   it('EVENT-UPDATE-03-A accepts every editable field in one update', () => {
     const patch = {
@@ -65,6 +67,7 @@ describe('validateEventUpdate', () => {
     expect(validateEventUpdate(patch)).toEqual(patch);
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: a required field that is blank or whitespace-only is an error.
   it.each([
     'name',
@@ -77,6 +80,7 @@ describe('validateEventUpdate', () => {
     expect(errorsOf({ [field]: '   ' })[field]).toBeTruthy();
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: attendance cannot be cleared.
   it.each([null, '', 0])(
     'EVENT-UPDATE-04-A rejects expected attendance %j',
@@ -87,6 +91,7 @@ describe('validateEventUpdate', () => {
     },
   );
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: all blank fields are reported in one response.
   it('EVENT-UPDATE-04-A reports every blank field at once', () => {
     expect(Object.keys(errorsOf({ name: '', purpose: ' ' })).sort()).toEqual([
@@ -95,6 +100,7 @@ describe('validateEventUpdate', () => {
     ]);
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: equipment needs is optional, so blank is allowed.
   it('EVENT-UPDATE-04-A allows blank equipment needs', () => {
     expect(validateEventUpdate({ equipmentNeeds: '' })).toEqual({
@@ -102,6 +108,7 @@ describe('validateEventUpdate', () => {
     });
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-B: nothing to save is an error, not a silent success.
   it.each([{}, null, [], 'text'])(
     'EVENT-UPDATE-04-B rejects an empty or non-object body %j',
@@ -110,6 +117,7 @@ describe('validateEventUpdate', () => {
     },
   );
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-B: end must be after start when both are supplied.
   it('EVENT-UPDATE-04-B rejects an end equal to or before the start', () => {
     const start = futureIso(10, 10);
@@ -118,6 +126,7 @@ describe('validateEventUpdate', () => {
     ).toBeTruthy();
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-B: malformed and past start times are rejected.
   it('EVENT-UPDATE-04-B rejects a malformed or past start date-time', () => {
     expect(
@@ -128,6 +137,7 @@ describe('validateEventUpdate', () => {
     ).toBeTruthy();
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-BND-1: text fields accept exactly their max and reject one more.
   it.each([
     ['name', 200],
@@ -146,6 +156,7 @@ describe('validateEventUpdate', () => {
     },
   );
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-BND-1: attendance edges (1 and the 32-bit max are valid).
   it.each([1, 2147483647])(
     'EVENT-UPDATE-04-BND-1 accepts attendance %i',
@@ -156,6 +167,7 @@ describe('validateEventUpdate', () => {
     },
   );
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   it.each([0, -1, 2147483648, 10.5, '10'])(
     'EVENT-UPDATE-04-BND-1 rejects attendance %j',
     (value) => {
@@ -165,6 +177,7 @@ describe('validateEventUpdate', () => {
     },
   );
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-SEC-1: the client may never set server-controlled fields.
   it.each([
     'id',
@@ -181,6 +194,7 @@ describe('validateEventUpdate', () => {
     ).toBeTruthy();
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-SEC-1: unknown keys fail fast rather than being ignored.
   it('EVENT-UPDATE-04-SEC-1 rejects an unknown field', () => {
     expect(errorsOf({ name: 'Valid name', colour: 'red' }).colour).toBeTruthy();
@@ -300,6 +314,7 @@ describe('classifyUpdate / FIELD_POLICY', () => {
   const ALWAYS = () => true;
   const NEVER = () => false;
 
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-A: every field is labelled as direct or review-if-impacting.
   it('EVENT-UPDATE-02-A labels each editable field with its edit policy', () => {
     for (const field of DIRECT_FIELDS)
@@ -308,6 +323,7 @@ describe('classifyUpdate / FIELD_POLICY', () => {
       expect(FIELD_POLICY[field]).toBe('review_if_impacting');
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-A: these fields need review when the change affects a booking.
   it.each(REVIEW_FIELDS)(
     'EVENT-FLAG-01-A %s needs review when the change affects an arrangement',
@@ -319,6 +335,7 @@ describe('classifyUpdate / FIELD_POLICY', () => {
     },
   );
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: the same fields apply immediately when the change is
   // compatible with every arrangement (or nothing is booked).
   it.each(REVIEW_FIELDS)(
@@ -331,6 +348,7 @@ describe('classifyUpdate / FIELD_POLICY', () => {
     },
   );
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: fields that cannot affect a booking never need review,
   // and the impact check is not even consulted for them.
   it.each(DIRECT_FIELDS)(
@@ -345,6 +363,7 @@ describe('classifyUpdate / FIELD_POLICY', () => {
     },
   );
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-A: the decision is per field, keeping input order; only
   // the field whose change is impacting is held back.
   it('EVENT-FLAG-01-A holds back only the impacting fields of a mixed update', () => {

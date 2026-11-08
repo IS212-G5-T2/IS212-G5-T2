@@ -23,6 +23,7 @@ function event(overrides: Partial<EventRecord>): EventRecord {
 }
 
 describe("SPM-95 organiser status filter options", () => {
+  // Traceability: Jira 95 AC5 (matrix 28803536)
   /** SPM-95 AC5: the virtual Awaiting Safety Check option sits beside the real statuses; draft is excluded because SPM-94 shows drafts separately. */
   it("FILTER-EVT-05-A: offers the seven real statuses except draft, plus Awaiting Safety Check", () => {
     expect(ORGANISER_STATUS_FILTERS.map((option) => option.label)).toEqual([
@@ -39,6 +40,7 @@ describe("SPM-95 organiser status filter options", () => {
 });
 
 describe("SPM-95 AC2: matching rule for the selected filters", () => {
+  // Traceability: Jira 95 AC1 (matrix 28803536)
   /** SPM-95 AC1: with no filter selected every event matches, so the list shows all of the organiser's events. */
   it("FILTER-EVT-01-A: an empty selection matches every event", () => {
     const none = new Set<OrganiserStatusFilter>();
@@ -47,6 +49,7 @@ describe("SPM-95 AC2: matching rule for the selected filters", () => {
     expect(matchesOrganiserStatusFilters(event({ status: "cancelled" }), none)).toBe(true);
   });
 
+  // Traceability: Jira 95 AC2 (matrix 28803536)
   /** SPM-95 AC2: a status filter matches only events in that status. */
   it("FILTER-EVT-02-A: a single status selection matches only events in that status", () => {
     const approved = new Set<OrganiserStatusFilter>(["approved"]);
@@ -55,6 +58,7 @@ describe("SPM-95 AC2: matching rule for the selected filters", () => {
     expect(matchesOrganiserStatusFilters(event({ status: "planning" }), approved)).toBe(false);
   });
 
+  // Traceability: Jira 95 AC2 (matrix 28803536)
   /** SPM-95 AC2: with several filters selected, an event matches when it satisfies any one of them (OR, not AND). */
   it("FILTER-EVT-02-B: several selections match an event that satisfies any one of them", () => {
     const pair = new Set<OrganiserStatusFilter>(["submitted", "approved"]);
@@ -66,6 +70,7 @@ describe("SPM-95 AC2: matching rule for the selected filters", () => {
 });
 
 describe("SPM-95 AC5: the Awaiting Safety Check virtual filter", () => {
+  // Traceability: Jira 95 AC5 (matrix 28803536)
   /** SPM-95 AC5: Awaiting Safety Check matches only events whose safety indicator is AWAITING_CHECK and whose arrangements are all reserved. */
   it("FILTER-EVT-05-B: Awaiting Safety Check matches only events with AWAITING_CHECK and all arrangements reserved", () => {
     const safety = new Set<OrganiserStatusFilter>(["awaitingSafetyCheck"]);
@@ -96,6 +101,7 @@ describe("SPM-95 AC5: the Awaiting Safety Check virtual filter", () => {
     expect(matchesOrganiserStatusFilters(event({ safetyIndicator: "AWAITING_CHECK", status: "planning", venueRequestStatus, equipmentStatuses: [...equipmentStatuses] }), safety)).toBe(false);
   });
 
+  // Traceability: Jira 95 AC5 (matrix 28803536)
   /** SPM-95 AC5: every arrangement must be Reserved; one Requested or Unavailable item keeps the event out. */
   it("FILTER-EVT-05-D: a mix of Reserved and another equipment state does not match Awaiting Safety Check", () => {
     const safety = new Set<OrganiserStatusFilter>(["awaitingSafetyCheck"]);
@@ -105,6 +111,7 @@ describe("SPM-95 AC5: the Awaiting Safety Check virtual filter", () => {
   });
 
   /** SPM-95 AC5: Awaiting Safety Check is a planning-phase filter; an event past Planning does not match even with everything reserved. */
+  // Traceability: Jira 95 AC5 (matrix 28803536)
   // FILTER-EVT-05-E (parameterised)
   it.each(["approved", "confirmed"] as const)("FILTER-EVT-05-E: status %s does not match Awaiting Safety Check even with venue approved and equipment Reserved", (status) => {
     const safety = new Set<OrganiserStatusFilter>(["awaitingSafetyCheck"]);
@@ -112,6 +119,7 @@ describe("SPM-95 AC5: the Awaiting Safety Check virtual filter", () => {
     expect(matchesOrganiserStatusFilters(event({ safetyIndicator: "AWAITING_CHECK", status, venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] }), safety)).toBe(false);
   });
 
+  // Traceability: Jira 95 AC2 (matrix 28803536)
   /** SPM-95 AC2 and AC5: the virtual filter combines with a status filter under the same OR rule. */
   it("FILTER-EVT-05-F: a virtual filter and a status filter together match an event that satisfies either", () => {
     const reserved = { status: "planning" as const, venueRequestStatus: "approved" as const, equipmentStatuses: ["Reserved"] };

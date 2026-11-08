@@ -42,6 +42,7 @@ beforeEach(() => {
 });
 
 describe("AC1: coordinators reach availability on the Settings page", () => {
+  // Traceability: Jira 80 AC1 (matrix 19891526)
   // The availability section is part of the coordinator's Settings page.
   it("COOR-AVAIL-01-A shows a coordinator their availability and a Save button on Settings", async () => {
     // Act: open Settings as a coordinator.
@@ -55,6 +56,7 @@ describe("AC1: coordinators reach availability on the Settings page", () => {
     expect(screen.getByRole("button", { name: "Save availability" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 80 AC1 (matrix 19891526)
   // The coordinator role counts even when it is not the account's display role.
   it("COOR-AVAIL-01-B shows availability to a Coordinator + Venue Staff account", async () => {
     // Arrange: Coor_Venue-style account whose display role is venue staff.
@@ -68,6 +70,7 @@ describe("AC1: coordinators reach availability on the Settings page", () => {
     expect(getMyAvailability).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 80 AC1 (matrix 19891526)
   // Other roles keep the plain Settings page and never ask for availability.
   it("COOR-AVAIL-01-C hides availability from an organiser and never loads it", () => {
     // Arrange: an organiser without the coordinator role.
@@ -82,6 +85,7 @@ describe("AC1: coordinators reach availability on the Settings page", () => {
     expect(getMyAvailability).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 80 AC1 (matrix 19891526)
   // The profile menu's Settings link is how a coordinator gets there.
   it("COOR-AVAIL-01-D reaches Settings from the profile menu", async () => {
     // Arrange: a coordinator on the events page with the top bar shown.
@@ -109,6 +113,7 @@ describe("AC1: coordinators reach availability on the Settings page", () => {
 });
 
 describe("AC2: mark yourself unavailable", () => {
+  // Traceability: Jira 80 AC2 (matrix 19891526)
   // Choosing Unavailable and saving sends false to the API.
   it("COOR-AVAIL-02-C saves Unavailable through the availability API", async () => {
     // Arrange: a loaded, available coordinator.
@@ -128,6 +133,7 @@ describe("AC2: mark yourself unavailable", () => {
 });
 
 describe("AC3: view and change availability at any time", () => {
+  // Traceability: Jira 80 AC3 (matrix 19891526)
   // The page reflects what is saved, not a hard-coded default.
   it("COOR-AVAIL-03-C shows the saved status when the page opens", async () => {
     // Arrange: the coordinator is saved as unavailable.
@@ -142,6 +148,7 @@ describe("AC3: view and change availability at any time", () => {
     expect(screen.getByRole("radio", { name: "Available" })).not.toBeChecked();
   });
 
+  // Traceability: Jira 80 AC3 (matrix 19891526)
   // A coordinator can change their mind straight away.
   it("COOR-AVAIL-03-D lets the coordinator switch back to Available in the same visit", async () => {
     // Arrange: a loaded, available coordinator.
@@ -161,6 +168,7 @@ describe("AC3: view and change availability at any time", () => {
     expect(await screen.findByText("Current status: Available")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 80 AC3 (matrix 19891526)
   // If loading fails the page must not pretend to know the status.
   it("COOR-AVAIL-03-F shows an error with Retry and disables Save when loading fails", async () => {
     // Arrange: the first load fails, the retry succeeds.
@@ -258,6 +266,7 @@ describe("AC3: view and change availability at any time", () => {
 });
 
 describe("AC4: confirmation after saving", () => {
+  // Traceability: Jira 80 AC4 (matrix 19891526)
   // The confirmation names the new status.
   it("COOR-AVAIL-04-A confirms a saved Unavailable status", async () => {
     // Arrange: a loaded, available coordinator.
@@ -275,6 +284,7 @@ describe("AC4: confirmation after saving", () => {
     );
   });
 
+  // Traceability: Jira 80 AC4 (matrix 19891526)
   // Switching back to Available is confirmed too.
   it("COOR-AVAIL-04-B confirms a saved Available status", async () => {
     // Arrange: a loaded, unavailable coordinator.
@@ -293,6 +303,7 @@ describe("AC4: confirmation after saving", () => {
     );
   });
 
+  // Traceability: Jira 80 AC4 (matrix 19891526)
   // A failed save is reported and nothing is claimed as saved.
   it("COOR-AVAIL-04-C shows an error and keeps the saved status when saving fails", async () => {
     // Arrange: a loaded, available coordinator whose save will fail.
@@ -313,6 +324,7 @@ describe("AC4: confirmation after saving", () => {
     expect(screen.getByText("Current status: Available")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 80 AC4 (matrix 19891526)
   // Only a completed save earns a confirmation.
   it("COOR-AVAIL-04-D shows no confirmation before anything is saved", async () => {
     // Arrange + Act: load the page, then change the choice without saving.
@@ -327,6 +339,7 @@ describe("AC4: confirmation after saving", () => {
     expect(screen.getByText("Current status: Available")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 80 AC4 (matrix 19891526)
   // Double-clicking Save must not send two requests.
   it("COOR-AVAIL-04-BND-1 disables Save while saving so only one request is sent", async () => {
     // Arrange: a save that stays pending.

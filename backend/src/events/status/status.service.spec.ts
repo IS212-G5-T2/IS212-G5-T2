@@ -112,6 +112,7 @@ describe('StatusService.changeStatus routing', () => {
     expect(writes()).toEqual([]);
   });
 
+  // Traceability: Jira 148 Cross-cutting (matrix 26902550)
   /** SPM-148 PLAN-STATUS-08-A: the endpoint refuses a target it does not support, including a missing one. */
   it.each([[{ targetStatus: 'Planning' }], [{}], [null], [{ targetStatus: 5 }]])('refuses unsupported target body %j with 400', async (body) => {
     const { service } = harness();
@@ -229,17 +230,20 @@ describe('PLAN-STATUS-04 status history', () => {
     { fromStatus: 'Planning', toStatus: 'Confirmed', changedAt: '2026-10-02T00:00:00.000Z', changedBy: { id: 'sys-1', name: 'sys-1' } },
   ];
 
+  // Traceability: Jira 148 AC4 (matrix 26902550)
   it('PLAN-STATUS-04-A returns the history to the assigned coordinator, falling back to the actor id for a missing name', async () => {
     const { service, database } = harness({ historyRows: rows });
     await expect(service.statusHistory(COORDINATOR, EVENT)).resolves.toEqual(expected);
     expect(database.query).toHaveBeenLastCalledWith(expect.stringContaining('ORDER BY h.created_at, h.id'), [EVENT]);
   });
 
+  // Traceability: Jira 148 AC4 (matrix 26902550)
   it('PLAN-STATUS-04-A returns the history to the owning organiser', async () => {
     const { service } = harness({ historyRows: rows });
     await expect(service.statusHistory(ORGANISER, EVENT)).resolves.toEqual(expected);
   });
 
+  // Traceability: Jira 148 AC4 (matrix 26902550)
   it('PLAN-STATUS-04-A-SEC refuses another user with 403 and reads no history', async () => {
     const { service, database } = harness({ historyRows: rows });
     await expect(service.statusHistory({ uid: 'other', roles: ['ORGANISER', 'COORDINATOR'] }, EVENT)).rejects.toBeInstanceOf(ForbiddenException);

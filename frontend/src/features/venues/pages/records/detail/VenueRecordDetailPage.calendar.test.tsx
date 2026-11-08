@@ -141,6 +141,7 @@ function mockVenueApi() {
 }
 
 describe("VenueRecordDetailPage calendar range handoff", () => {
+  // Traceability: Jira 132 AC12 (matrix 39125047)
   /** VEN-HOLD-DEC-12-A: a fresh venue-calendar response after conversion renders Confirmed booking and removes Tentative hold. */
   it("VEN-HOLD-DEC-12-A refreshes the calendar with the converted booking label", async () => {
     const tentative = {
@@ -453,6 +454,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
     await waitFor(() => expect(apiMock).toHaveBeenCalledTimes(2));
   });
 
+  // Traceability: Jira 51 AC10 (matrix 24117310)
   /** VEN-AVL-10-BND-1 / ASSUMPTION A1: a hold becomes available at its expiry instant. */
   it("removes an expired hold from the displayed schedule when its expiry timer fires", async () => {
     const realNow = Date.now();

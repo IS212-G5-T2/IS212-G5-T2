@@ -23,11 +23,13 @@ function pending(id: string, createdAt: string, overrides: Partial<ChangeRequest
 }
 
 describe("PendingChangeRequests", () => {
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   it("REVIEW-CHANGE-01-D says when nothing is pending", () => {
     render(<PendingChangeRequests requests={[]} />, { wrapper: MemoryRouter });
     expect(screen.getByText("No pending change requests.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   it("REVIEW-CHANGE-01-A lists requests oldest first with event, organiser, details and a review link", () => {
     render(
       <PendingChangeRequests
@@ -45,6 +47,7 @@ describe("PendingChangeRequests", () => {
     expect(screen.getAllByRole("link", { name: "Review Change Request" })[0]).toHaveAttribute("href", "/events/evt-a");
   });
 
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   it("REVIEW-CHANGE-01-F tags a request the coordinator has not opened yet as New", () => {
     render(
       <PendingChangeRequests

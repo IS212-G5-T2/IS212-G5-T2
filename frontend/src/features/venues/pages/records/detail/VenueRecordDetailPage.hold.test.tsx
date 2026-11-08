@@ -133,6 +133,7 @@ afterEach(() => {
 });
 
 describe("SPM-159 Coordinator tentative hold request", () => {
+  // Traceability: Jira 159 AC4 (matrix 34603557)
   /** VEN-HOLD-04-A: an approved active hold is listed as tentative until its expiry, while an expired hold is omitted. */
   it("VEN-HOLD-04-A shows an approved active hold in the venue list and omits an expired hold", async () => {
     apiMock.mockImplementation(async (path) => {
@@ -176,6 +177,7 @@ describe("SPM-159 Coordinator tentative hold request", () => {
     expect(screen.queryByText("Expired rehearsal hold")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 159 AC4 (matrix 34603557)
   /** VEN-HOLD-04-A: the page passes active approved holds with expiry to its venue calendar and omits expired holds. */
   it("VEN-HOLD-04-A shows the active approved hold in the calendar until expiry", async () => {
     apiMock.mockImplementation(async (path) => {
@@ -212,6 +214,7 @@ describe("SPM-159 Coordinator tentative hold request", () => {
     expect(within(calendar).queryByText(/Expired calendar hold/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 159 AC4 (matrix 34603557)
   /** VEN-HOLD-04-A: an approved hold remains visible before its expiry and disappears when the expiry instant arrives. */
   it("VEN-HOLD-04-A removes an approved hold from the schedule at its expiry", async () => {
     const realNow = Date.now();
@@ -281,6 +284,7 @@ describe("SPM-159 Coordinator tentative hold request", () => {
     expect(screen.queryByRole("dialog", { name: "Confirm tentative hold request" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 159 AC4 (matrix 34603557)
   /** VEN-HOLD-01-A/04-A: selecting Request holding switches the existing submit action into the confirmed hold flow. */
   it("VEN-HOLD-04-A confirms the hold option through the existing submit action", async () => {
     renderPage(true);
@@ -320,6 +324,7 @@ describe("SPM-159 Coordinator tentative hold request", () => {
     );
   });
 
+  // Traceability: Jira 159 AC2 (matrix 34603557)
   /** VEN-HOLD-02-A: existing event timing and the calculated buffered occupied period are shown without re-entering times. */
   it("VEN-HOLD-02-A displays the event time and calculated occupied period", async () => {
     renderPage();
@@ -343,6 +348,7 @@ describe("SPM-159 Coordinator tentative hold request", () => {
     expect(confirmation).toHaveTextContent("25 Jan 2030, 17:00 – 25 Jan 2030, 20:30 (SGT)");
   });
 
+  // Traceability: Jira 159 AC4 (matrix 34603557)
   /** VEN-HOLD-04-A/06-A: cancelling the confirmation modal creates no request. */
   it("VEN-HOLD-04-A cancels the confirmation without submitting a request", async () => {
     const user = userEvent.setup();
@@ -364,6 +370,7 @@ describe("SPM-159 Coordinator tentative hold request", () => {
     )).toBe(false);
   });
 
+  // Traceability: Jira 159 AC5 (matrix 34603557)
   /** VEN-HOLD-05-A/06-A: confirmation submits the hold and transitions into the existing Pending request summary flow. */
   it("VEN-HOLD-05-A submits a hold and shows its Pending request summary after confirmation", async () => {
     apiMock.mockImplementation(async (path, init) => {
@@ -421,6 +428,7 @@ describe("SPM-159 Coordinator tentative hold request", () => {
     ).toBe(true);
   });
 
+  // Traceability: Jira 159 AC12 (matrix 34603557)
   /** VEN-HOLD-12-B/C: a rejection stays in the same modal with a clear retry action. */
   it("VEN-HOLD-12-B keeps one modal open with a clear error and permits retry", async () => {
     let submissions = 0;
@@ -536,6 +544,7 @@ describe("SPM-159 Coordinator tentative hold request", () => {
     expect(screen.queryByRole("region", { name: "Request tentative hold" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 159 AC4 (matrix 34603557)
   /** VEN-HOLD-04-A: after approval, the event detail identifies the active hold and its expiry. */
   it("VEN-HOLD-04-A shows an approved tentative hold as active until its expiry", async () => {
     apiMock.mockImplementation(async (path) => {
@@ -553,6 +562,7 @@ describe("SPM-159 Coordinator tentative hold request", () => {
     expect(screen.queryByText(/pending Venue Staff approval/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 159 AC12 (matrix 34603557)
   /** VEN-HOLD-12-C: a non-Error submission rejection shows a retryable fallback message. */
   it("VEN-HOLD-12-C reports the fallback when submission rejects with a non-Error value", async () => {
     apiMock.mockImplementation(async (path) => {

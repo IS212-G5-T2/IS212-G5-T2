@@ -127,6 +127,7 @@ afterEach(() => {
 });
 
 describe("SPM-135 AC1: only the assigned coordinator is offered Confirm Event (page level)", () => {
+  // Traceability: Jira 135 AC1 (matrix 22905205)
   // CONFIRM-EVENT-01-A (FE page): the assigned coordinator on a Planning event sees the action.
   it("CONFIRM-EVENT-01-A (page): the assigned coordinator sees Confirm Event on a Planning event", async () => {
     // Arrange: COO-01 is the assigned coordinator of EVT-201 (Planning)
@@ -136,6 +137,7 @@ describe("SPM-135 AC1: only the assigned coordinator is offered Confirm Event (p
     expect(await screen.findByRole("button", { name: "Confirm Event" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 135 AC1 (matrix 22905205)
   // CONFIRM-EVENT-01-C (FE page): another coordinator (COO-02) sees no action and the readiness view is not requested.
   it("CONFIRM-EVENT-01-C (page): another coordinator (COO-02) sees no Confirm Event and makes no readiness request", async () => {
     // Arrange: COO-02 is signed in; the event is assigned to COO-01
@@ -149,6 +151,7 @@ describe("SPM-135 AC1: only the assigned coordinator is offered Confirm Event (p
     expect(readinessCalls()).toBe(0);
   });
 
+  // Traceability: Jira 135 AC1 (matrix 22905205)
   // CONFIRM-EVENT-01-C (FE page): the Coordinator Lead (role coordinator_lead) is not the assigned coordinator.
   it("CONFIRM-EVENT-01-C (page): the Coordinator Lead sees no Confirm Event and makes no readiness request", async () => {
     // Arrange: the Lead LEAD-01 is signed in with the coordinator_lead role; the event is assigned to COO-01
@@ -164,6 +167,7 @@ describe("SPM-135 AC1: only the assigned coordinator is offered Confirm Event (p
 });
 
 describe("SPM-135 AC4: the status is Confirmed after a successful confirm, without a reload (page level)", () => {
+  // Traceability: Jira 135 AC4 (matrix 22905205)
   // CONFIRM-EVENT-04-A (FE page): the timeline shows confirmed as the current step from the response, with no event refetch.
   // Kills (SPM-155 mutants, frontend/scripts/testing/mutation/spm155.mutants.mjs): FM55, FM56, FM57.
   it("CONFIRM-EVENT-04-A (page): after Confirm Event the status shows confirmed as the current step and the event is not refetched", async () => {
@@ -190,6 +194,7 @@ describe("SPM-135 AC4: the status is Confirmed after a successful confirm, witho
 });
 
 describe("SPM-135 AC5: the organiser sees confirmed arrangements only once the event is Confirmed (page level)", () => {
+  // Traceability: Jira 135 AC5 (matrix 22905205)
   // CONFIRM-EVENT-05-B (FE page): a Planning event shows no confirmed arrangements and requests none.
   it("CONFIRM-EVENT-05-B (page): the submitting organiser of a Planning event sees no confirmed arrangements", async () => {
     // Arrange: ORG-01 submitted EVT-201, still Planning
@@ -203,6 +208,7 @@ describe("SPM-135 AC5: the organiser sees confirmed arrangements only once the e
     expect(apiMock.mock.calls.some(([path]) => String(path).endsWith("/confirmed-arrangements"))).toBe(false);
   });
 
+  // Traceability: Jira 135 AC5 (matrix 22905205)
   // CONFIRM-EVENT-05-B (FE page): once Confirmed, the submitting organiser sees the arrangements.
   it("CONFIRM-EVENT-05-B (page): the submitting organiser sees the confirmed arrangements of a Confirmed event", async () => {
     // Arrange: ORG-01 submitted EVT-201, now Confirmed

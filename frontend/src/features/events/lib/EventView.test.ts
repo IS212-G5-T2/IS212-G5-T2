@@ -21,37 +21,44 @@ function event(overrides: Partial<EventRecord> = {}): EventRecord {
 }
 
 describe("SPM-99 attendee event-view lifecycle", () => {
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // EVENT-VIEW-05-A: one second before opening, the attendee sees the pre-open state.
   it("shows not yet open immediately before registration starts", () => {
     expect(registrationState(event(), new Date("2027-03-01T00:59:59.000Z"))).toBe("not-yet-open");
   });
 
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // EVENT-VIEW-05-B: the opening instant ends the pre-open state.
   it("opens at the exact registration opening instant", () => {
     expect(registrationState(event(), new Date("2027-03-01T01:00:00.000Z"))).toBe("open");
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-A cross-check: an event within the displayed window can be open.
   it("stays open inside the configured registration window", () => {
     expect(registrationState(event(), new Date("2027-03-07T04:00:00.000Z"))).toBe("open");
   });
 
+  // Traceability: Jira 97 AC4 (matrix 19890855)
   // EVENT-VIEW-04-A: the closed notice follows the configured closing time.
   it("closes after the registration window", () => {
     expect(registrationState(event(), new Date("2027-03-12T16:00:00.000Z"))).toBe("closed");
   });
 
+  // Traceability: Jira 99 AC4 (matrix 13893657)
   // EVENT-VIEW-04-B: a time just before closing must not be labelled closed.
   it("remains open one second before the closing instant", () => {
     expect(registrationState(event(), new Date("2027-03-12T15:58:59.000Z"))).toBe("open");
   });
 
+  // Traceability: Jira 61 AC1 (matrix 16482307)
   // SPM-61 EVENT-REG-01-BND-1[D] (replaces the SPM-99 inclusive-close policy, D6):
   // the exact closing instant is closed.
   it("closes registration at the exact closing instant", () => {
     expect(registrationState(event(), new Date("2027-03-12T15:59:00.000Z"))).toBe("closed");
   });
 
+  // Traceability: Jira 99 AC3 (matrix 13893657)
   // EVENT-VIEW-02-C/D: one available spot is open and zero spots is full.
   it.each([[1, "open"], [0, "full"]] as const)("uses %i remaining spots to determine %s", (spots, state) => {
     expect(registrationState(event({ availableRegistrationSpots: spots }), new Date("2027-03-07T04:00:00.000Z"))).toBe(state);
@@ -72,22 +79,26 @@ describe("SPM-99 attendee event-view lifecycle", () => {
     expect(registrationState(event({ registrationOpensAt: undefined, registrationClosesAt: undefined }), now)).toBe("open");
   });
 
+  // Traceability: Jira 99 AC3 (matrix 13893657)
   // EVENT-VIEW-06-A: Confirmed before start is Upcoming.
   it("shows a confirmed event before its start as Upcoming", () => {
     expect(attendeeEventStatus(event(), new Date("2027-03-13T04:00:00.000Z"))).toBe("Upcoming");
   });
 
+  // Traceability: Jira 99 AC6 (matrix 13893657)
   // EVENT-VIEW-06-B: Confirmed between start and end is In Progress.
   it("shows a confirmed event during its schedule as In Progress", () => {
     expect(attendeeEventStatus(event(), new Date("2027-03-13T06:00:00.000Z"))).toBe("In Progress");
   });
 
+  // Traceability: Jira 99 AC6 (matrix 13893657)
   // EVENT-VIEW-06-C: persisted Completed takes precedence over the clock.
   it("shows a completed event as Completed", () => {
     expect(attendeeEventStatus(event({ status: "completed" }), new Date("2027-03-13T04:00:00.000Z"))).toBe("Completed");
     expect(attendeeEventStatus(event(), new Date("2027-03-13T08:00:00.000Z"))).toBe("Completed");
   });
 
+  // Traceability: Jira 99 AC6 (matrix 13893657)
   // EVENT-VIEW-06-D: persisted Cancelled takes precedence over the clock.
   it("shows a cancelled event as Cancelled", () => {
     expect(attendeeEventStatus(event({ status: "cancelled" }), new Date("2027-03-13T04:00:00.000Z"))).toBe("Cancelled");

@@ -67,6 +67,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
   });
 
   describe('AC1: one notification for the owning organiser only', () => {
+    // Traceability: Jira 88 AC1 (matrix 37322836)
     /**
      * DECISION-NOTIFY-01-A: approving a request writes exactly one unread
      * 'approval' notification for the owning organiser, linked to the event.
@@ -102,6 +103,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       ]);
     });
 
+    // Traceability: Jira 88 AC1 (matrix 37322836)
     /**
      * DECISION-NOTIFY-01-B: rejecting a request writes exactly one unread
      * 'rejection' notification for the owning organiser.
@@ -136,6 +138,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       ]);
     });
 
+    // Traceability: Jira 88 AC1 (matrix 37322836)
     /**
      * DECISION-NOTIFY-01-SEC-1: a second organiser and the assigned coordinator
      * cannot see the decision notification for another organiser's event.
@@ -162,6 +165,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       expect(coordinatorFeed).toEqual([]);
     });
 
+    // Traceability: Jira 88 AC1 (matrix 37322836)
     /**
      * DECISION-NOTIFY-01-SEC-2: a second organiser cannot mark the owner's
      * notification read; the owner's notification stays unread.
@@ -193,6 +197,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       ]);
     });
 
+    // Traceability: Jira 88 AC1 (matrix 37322836)
     /**
      * DECISION-NOTIFY-01-SEC-3: without a session the feed and the mark-read
      * route both refuse, and nothing is marked read.
@@ -220,6 +225,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
   });
 
   describe('AC2 and AC3: decision content is stored with the decision', () => {
+    // Traceability: Jira 88 AC2 (matrix 37322836)
     /**
      * DECISION-NOTIFY-02-B: the approval message names the event, and the
      * notification's created_at equals the event's updated_at (same transaction).
@@ -256,6 +262,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       expect(row.rows[0].created_at).toEqual(row.rows[0].updated_at);
     });
 
+    // Traceability: Jira 88 AC3 (matrix 37322836)
     /**
      * DECISION-NOTIFY-03-B: a reason with surrounding spaces is stored trimmed on the event, and the
      * rejection notification carries only the headline (no reason; AC3 amended 30 Oct 2026).
@@ -292,6 +299,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
   });
 
   describe('AC5 and AC6: state, read persistence and failed decisions', () => {
+    // Traceability: Jira 88 AC1 (matrix 37322836)
     /**
      * DECISION-NOTIFY-01-STATE-1: approving twice refuses the second decision and
      * leaves exactly one notification.
@@ -314,6 +322,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       expect(await countNotifications(eventId)).toBe(1);
     });
 
+    // Traceability: Jira 88 AC5 (matrix 37322836)
     /**
      * DECISION-NOTIFY-05-STATE-1: a notification marked read stays read after the
      * organiser signs out and signs in again (a new session).
@@ -344,6 +353,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       ]);
     });
 
+    // Traceability: Jira 88 AC5 (matrix 37322836)
     /**
      * DECISION-NOTIFY-05-STATE-2: marking one notification read leaves the other
      * unread, and a second mark-read on the same notification succeeds and keeps it read.
@@ -379,6 +389,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       expect(await readStateOf(notificationB)).toBe(false);
     });
 
+    // Traceability: Jira 88 AC6 (matrix 37322836)
     /**
      * DECISION-NOTIFY-06-A: a rejection whose reason is too short is refused with
      * 400, writes no notification and leaves the request Submitted.
@@ -401,6 +412,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       expect(await statusOf(eventId)).toBe('Submitted');
     });
 
+    // Traceability: Jira 88 AC6 (matrix 37322836)
     /**
      * DECISION-NOTIFY-06-B: a coordinator who is not assigned to the request is
      * refused with 403 and writes no notification.
@@ -424,6 +436,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       expect(await statusOf(eventId)).toBe('Submitted');
     });
 
+    // Traceability: Jira 88 AC6 (matrix 37322836)
     /**
      * DECISION-NOTIFY-06-C: approving a request that is already Rejected gets 409
      * and leaves only the original rejection notification.
@@ -451,6 +464,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
       expect(await statusOf(eventId)).toBe('Rejected');
     });
 
+    // Traceability: Jira 88 AC6 (matrix 37322836)
     /**
      * DECISION-NOTIFY-06-CONC-1: two simultaneous approvals of one request give
      * one 201 and one 409, and exactly one notification.

@@ -44,6 +44,7 @@ describe("change request rules", () => {
     expect(mayNeedSafetyCheck({ status: "confirmed" })).toBe(true);
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-A: the form offers exactly the permitted change types, with accessibility labelled as special requirements. */
   it("REQ-CHANGE-01-A lists the permitted fields and labels accessibility as special requirements", () => {
     expect(CHANGE_FIELDS).toHaveLength(8);
@@ -61,6 +62,7 @@ describe("change request rules", () => {
 
 /** SPM-65 rules shared by the review panel and the coordinator's list. */
 describe("change request review rules (SPM-65)", () => {
+  // Traceability: Jira 65 AC5 (matrix 28016830)
   it("REVIEW-CHANGE-05-B requires a denial reason of 10 to 500 characters", () => {
     expect(denialReasonError("")).toBe("Please give a reason for denying this change.");
     expect(denialReasonError("    ")).toBe("Please give a reason for denying this change.");
@@ -70,6 +72,7 @@ describe("change request review rules (SPM-65)", () => {
     expect(denialReasonError("x".repeat(500))).toBe("");
   });
 
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   it("REVIEW-CHANGE-01-A orders pending requests oldest first without changing the input", () => {
     const newer = { id: "b", createdAt: "2026-10-17T00:00:00.000Z" } as ChangeRequest;
     const older = { id: "a", createdAt: "2026-10-16T00:00:00.000Z" } as ChangeRequest;

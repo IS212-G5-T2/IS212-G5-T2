@@ -102,6 +102,7 @@ beforeEach(async () => {
 });
 
 describe('AC2: the unassigned queue', () => {
+  // Traceability: Jira 123 AC2 (matrix 21102810)
   // Only unassigned Submitted requests, with the four basic fields, oldest first.
   it('LEAD-ASN-02-A returns only unassigned submitted requests with their basic details, oldest first', async () => {
     // Arrange: one queued request.
@@ -130,6 +131,7 @@ describe('AC2: the unassigned queue', () => {
 });
 
 describe('AC3 and AC4: coordinators with availability and workload', () => {
+  // Traceability: Jira 123 AC3 (matrix 21102810)
   // Availability and active count come back for each coordinator.
   it('LEAD-ASN-03-A returns each coordinator\'s availability and active assignment count', async () => {
     // Arrange: one available and one unavailable coordinator.
@@ -151,6 +153,7 @@ describe('AC3 and AC4: coordinators with availability and workload', () => {
     expect(sql).not.toMatch(/'Rejected'|'Completed'|'Cancelled'/);
   });
 
+  // Traceability: Jira 123 AC4 (matrix 21102810)
   // The Lead sees the least-loaded coordinators first; equal loads are alphabetical.
   it('LEAD-ASN-04-A orders coordinators by fewest active assignments, then by name', async () => {
     // Arrange: rows in an unhelpful order.
@@ -172,6 +175,7 @@ describe('AC3 and AC4: coordinators with availability and workload', () => {
 });
 
 describe('AC5: assigning a request', () => {
+  // Traceability: Jira 123 AC5 (matrix 21102810)
   // The update, under a row lock, sets exactly this coordinator.
   it('LEAD-ASN-05-A assigns the request to the chosen coordinator inside one transaction', async () => {
     // Arrange: an unassigned request and an available coordinator.
@@ -192,6 +196,7 @@ describe('AC5: assigning a request', () => {
     });
   });
 
+  // Traceability: Jira 123 AC5 (matrix 21102810)
   // A request that already has a coordinator is never reassigned here (reassignment is SPM-47).
   it('LEAD-ASN-05-D refuses a request that has already been assigned', async () => {
     // Arrange: the request already belongs to someone.
@@ -216,6 +221,7 @@ describe('AC5: assigning a request', () => {
     expect(txStatements().some((s) => /^(UPDATE|INSERT)/.test(s.sql))).toBe(false);
   });
 
+  // Traceability: Jira 123 AC5 (matrix 21102810)
   // Unknown requests and anyone who isn't an active coordinator are refused.
   it.each([
     ['an unknown request', { event: null }, new NotFoundException('Event request not found.')],
@@ -229,6 +235,7 @@ describe('AC5: assigning a request', () => {
     expect(txStatements().some((s) => /^(UPDATE|INSERT)/.test(s.sql))).toBe(false);
   });
 
+  // Traceability: Jira 123 AC5 (matrix 21102810)
   // Malformed input never reaches the database.
   it.each([
     ['a malformed event id', 'not-a-uuid', { coordinatorId: COORDINATOR_ID }, new NotFoundException('Event request not found.')],
@@ -242,6 +249,7 @@ describe('AC5: assigning a request', () => {
 });
 
 describe('AC6: unavailable coordinators', () => {
+  // Traceability: Jira 123 AC6 (matrix 21102810)
   // Availability is read inside the assign transaction, so a stale list can't win.
   it('LEAD-ASN-06-A refuses an unavailable coordinator without assigning or notifying', async () => {
     // Arrange: the coordinator is now unavailable.
@@ -274,6 +282,7 @@ describe('AC6: unavailable coordinators', () => {
 });
 
 describe('AC9: the coordinator is notified', () => {
+  // Traceability: Jira 123 AC9 (matrix 21102810)
   // The notification goes to the assigned coordinator and links to the request.
   it('LEAD-ASN-09-A notifies the assigned coordinator that the request awaits their review', async () => {
     // Arrange: a normal assignment.
@@ -290,6 +299,7 @@ describe('AC9: the coordinator is notified', () => {
     expect(inserts[0].params).toEqual([expect.any(String), COORDINATOR_ID, expect.stringContaining('Welcome Evening'), EVENT_ID]);
   });
 
+  // Traceability: Jira 123 AC9 (matrix 21102810)
   // If the notification can't be saved, the assignment must not stick.
   it('LEAD-ASN-09-B rolls back the assignment if the notification cannot be saved', async () => {
     // Arrange: the notification insert fails; the transaction rethrows like the real one.
@@ -304,6 +314,7 @@ describe('AC9: the coordinator is notified', () => {
 });
 
 describe('AC11: only the Event Coordinator Lead', () => {
+  // Traceability: Jira 123 AC11 (matrix 21102810)
   // Every other role, including Coordinator, is refused before any query.
   it.each(['COORDINATOR', 'ORGANISER', 'VENUE_STAFF', 'TECH_SUPPORT', 'ATTENDEE'] as const)(
     'LEAD-ASN-11-SEC-1 refuses the %s role on every Lead endpoint without querying',
@@ -335,6 +346,7 @@ describe('AC11: only the Event Coordinator Lead', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 123 AC11 (matrix 21102810)
   // Without a session nothing is read or written.
   it('LEAD-ASN-11-SEC-2 refuses a caller who is not signed in on every Lead endpoint', async () => {
     // Act + Assert: all three need a signed-in user.
@@ -412,6 +424,7 @@ function writes() {
 }
 
 describe('SPM-47 AC1 and AC11: the reassignment list', () => {
+  // Traceability: Jira 47 AC1 (matrix 21496116)
   // Only events that already have a coordinator and are still active, soonest first.
   it('LEAD-REASN-01-A returns assigned Submitted, Approved, Planning and Confirmed events, soonest first', async () => {
     // Arrange: two assigned events as the database returns them.
@@ -466,6 +479,7 @@ describe('SPM-47 AC1 and AC11: the reassignment list', () => {
     expect(text).toMatch(/ORDER BY (events\.)?start_date_time ASC/);
   });
 
+  // Traceability: Jira 47 AC11 (matrix 21496116)
   // The list says when an event's coordinator is unavailable.
   it("LEAD-REASN-11-A marks events whose coordinator is unavailable using the coordinator's saved availability", async () => {
     // Arrange: one event whose coordinator is unavailable.
@@ -481,6 +495,7 @@ describe('SPM-47 AC1 and AC11: the reassignment list', () => {
 });
 
 describe('SPM-47 AC3, AC4 and AC5: reassigning an event', () => {
+  // Traceability: Jira 47 AC3 (matrix 21496116)
   // The event is locked, moved to exactly the chosen coordinator, and confirmed.
   it('LEAD-REASN-03-A reassigns the event to the chosen coordinator inside one transaction', async () => {
     // Arrange: an assigned, active event and an available new coordinator.
@@ -501,6 +516,7 @@ describe('SPM-47 AC3, AC4 and AC5: reassigning an event', () => {
     });
   });
 
+  // Traceability: Jira 47 AC3 (matrix 21496116)
   // Choosing the coordinator the event already has is refused.
   it('LEAD-REASN-03-B refuses the coordinator the event is already assigned to', async () => {
     // Arrange: the chosen coordinator is the current one.
@@ -513,6 +529,7 @@ describe('SPM-47 AC3, AC4 and AC5: reassigning an event', () => {
     expect(writes()).toEqual([]);
   });
 
+  // Traceability: Jira 47 AC3 (matrix 21496116)
   // Unknown events and anyone who isn't an active coordinator are refused inside the transaction.
   it.each([
     ['an unknown event', { event: null }, new NotFoundException('Event not found.')],
@@ -526,6 +543,7 @@ describe('SPM-47 AC3, AC4 and AC5: reassigning an event', () => {
     expect(writes()).toEqual([]);
   });
 
+  // Traceability: Jira 47 AC3 (matrix 21496116)
   // Malformed input never reaches the database.
   it.each([
     ['a malformed event id', 'not-a-uuid', reassignBody, new NotFoundException('Event not found.')],
@@ -537,6 +555,7 @@ describe('SPM-47 AC3, AC4 and AC5: reassigning an event', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 47 AC3 (matrix 21496116)
   // The new coordinator's row is locked and Lead accounts can never be chosen.
   it('LEAD-REASN-03-G locks the new coordinator row and excludes accounts that are also the Lead', async () => {
     // Arrange: a normal reassignment.
@@ -554,6 +573,7 @@ describe('SPM-47 AC3, AC4 and AC5: reassigning an event', () => {
     expect(lookup).toBeLessThan(update);
   });
 
+  // Traceability: Jira 47 AC4 (matrix 21496116)
   // An unavailable coordinator is refused, with availability read inside the transaction.
   it('LEAD-REASN-04-A refuses an unavailable coordinator without reassigning or notifying', async () => {
     // Arrange: the new coordinator is now unavailable.
@@ -567,6 +587,7 @@ describe('SPM-47 AC3, AC4 and AC5: reassigning an event', () => {
     expect(writes()).toEqual([]);
   });
 
+  // Traceability: Jira 47 AC5 (matrix 21496116)
   // Reassignment changes only who coordinates the event; status and clarifications are untouched.
   it('LEAD-REASN-05-A changes only the coordinator columns and never touches status or clarifications', async () => {
     // Arrange: a normal reassignment.
@@ -584,6 +605,7 @@ describe('SPM-47 AC3, AC4 and AC5: reassigning an event', () => {
 });
 
 describe('SPM-47 AC7: stale pages and events that moved on', () => {
+  // Traceability: Jira 47 AC7 (matrix 21496116)
   // If the event's coordinator changed since the page loaded, nothing happens.
   it('LEAD-REASN-07-B refuses a reassignment made from a page that showed a different coordinator', async () => {
     // Arrange: the event now belongs to someone else than the page showed.
@@ -596,6 +618,7 @@ describe('SPM-47 AC7: stale pages and events that moved on', () => {
     expect(writes()).toEqual([]);
   });
 
+  // Traceability: Jira 47 AC7 (matrix 21496116)
   // Only assigned, active events can be reassigned.
   it.each([
     ['a Rejected event', { status: 'Rejected' }],
@@ -615,6 +638,7 @@ describe('SPM-47 AC7: stale pages and events that moved on', () => {
 });
 
 describe('SPM-47 AC8: both coordinators are notified', () => {
+  // Traceability: Jira 47 AC8 (matrix 21496116)
   // The new coordinator and the original coordinator each get one notification about the event.
   it('LEAD-REASN-08-A notifies the new and the original coordinator in the same transaction', async () => {
     // Arrange: a normal reassignment.
@@ -636,6 +660,7 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
     );
   });
 
+  // Traceability: Jira 47 AC8 (matrix 21496116)
   // The original coordinator's unread notices saying the event is theirs no longer apply,
   // whether from the first assignment or an earlier reassignment to them.
   it("LEAD-REASN-08-B marks the original coordinator's unread assignment and reassignment notifications for the event as read", async () => {
@@ -656,6 +681,7 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
     expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
   });
 
+  // Traceability: Jira 172 AC6 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-06-D (SPM-172 AC6): the same update also marks the original coordinator's unread equipment request
    * decision notices for the event read, and the new coordinator is sent no copy of them.
@@ -675,6 +701,7 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
     expect(inserts.some((s) => `${s.sql} ${JSON.stringify(s.params)}`.includes('equipment_request'))).toBe(false);
   });
 
+  // Traceability: Jira 125 AC7 (matrix 39125581)
   /**
    * VEN-IMPACT-07-H (SPM-125 AC7): the same update also marks the original coordinator's unread venue-change notices
    * for the event read, so none is left whose View Booking link opens a booking that is no longer theirs.
@@ -692,6 +719,7 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
     expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
   });
 
+  // Traceability: Jira 165 AC6 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-06-E (SPM-165 AC6): the same update also marks the original coordinator's unread tentative hold
    * decision notices for the event read, so none is left whose View Booking link opens a hold that is no longer theirs.
@@ -709,6 +737,7 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
     expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
   });
 
+  // Traceability: Jira 134 AC9 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-09-C (SPM-134 AC9, SC-SPM134-02, confirmed by the story owner chaw678 on 4 Nov 2026): the same update also marks the original coordinator's
    * unread hold reminder, expired, released and converted notices for the event read, so none is left whose View Booking
@@ -727,6 +756,7 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
     expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
   });
 
+  // Traceability: Jira 47 AC8 (matrix 21496116)
   // If a notification can't be saved, the reassignment doesn't stick.
   it('LEAD-REASN-08-C rolls the reassignment back if a notification cannot be saved', async () => {
     // Arrange: saving notifications fails.
@@ -738,6 +768,7 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
 });
 
 describe('SPM-47 AC9: only the Event Coordinator Lead', () => {
+  // Traceability: Jira 47 AC9 (matrix 21496116)
   // Every other role is refused before any query.
   it.each(['COORDINATOR', 'ORGANISER', 'VENUE_STAFF', 'TECH_SUPPORT', 'ATTENDEE'] as const)(
     'LEAD-REASN-09-SEC-1 refuses the %s role on the list and on reassign without querying',
@@ -754,6 +785,7 @@ describe('SPM-47 AC9: only the Event Coordinator Lead', () => {
     },
   );
 
+  // Traceability: Jira 47 AC9 (matrix 21496116)
   // Without a session nothing is read or written.
   it('LEAD-REASN-09-SEC-2 refuses a caller who is not signed in', async () => {
     // Act + Assert: both need a signed-in user.
@@ -764,6 +796,7 @@ describe('SPM-47 AC9: only the Event Coordinator Lead', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 47 AC9 (matrix 21496116)
   // An account wrongly holding both the Lead and Coordinator roles can't reassign.
   it('LEAD-REASN-09-SEC-5 refuses an account that holds both the Lead and Coordinator roles', async () => {
     // Arrange: a user granted both roles.
@@ -785,6 +818,7 @@ describe('SPM-47 AC9: only the Event Coordinator Lead', () => {
 // Test cases: REASN-VIEW-02-A, 02-B.
 // ---------------------------------------------------------------------------
 describe('SPM-46 AC2: each reassignment is recorded', () => {
+  // Traceability: Jira 46 AC2 (matrix 21103441)
   // One history row per reassignment, naming both coordinators and the Lead.
   // Kills: B1 (no history row), B11 (history written outside the transaction).
   it('REASN-VIEW-02-A records the reassignment (from, to and the Lead) in the same transaction', async () => {
@@ -803,6 +837,7 @@ describe('SPM-46 AC2: each reassignment is recorded', () => {
     );
   });
 
+  // Traceability: Jira 46 AC2 (matrix 21103441)
   // Without its history row, a reassignment doesn't stick.
   // Kills: a history-write error being swallowed instead of rolling the reassignment back.
   it('REASN-VIEW-02-B rolls the reassignment back if the history row cannot be saved', async () => {
@@ -833,6 +868,7 @@ describe('SPM-64 AC3: pending change requests follow assignment', () => {
       (s) => s.sql.startsWith('INSERT INTO notifications') && s.sql.includes("'coordinator_change_request'"),
     );
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-C: assigning an event with a pending request also sends the change request notice. */
   it('REQ-CHANGE-03-C notifies the assigned coordinator of a pending change request', async () => {
     wireAssign({});
@@ -849,6 +885,7 @@ describe('SPM-64 AC3: pending change requests follow assignment', () => {
     );
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-C: no pending request, no change request notice. */
   it('REQ-CHANGE-03-C sends no change request notice when none is pending', async () => {
     wireAssign({});
@@ -857,6 +894,7 @@ describe('SPM-64 AC3: pending change requests follow assignment', () => {
     expect(changeNotices()).toHaveLength(0);
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-D: reassignment notifies the new coordinator and clears the old coordinator's unread notice. */
   it('REQ-CHANGE-03-D notifies the new coordinator and marks the old notice read', async () => {
     wireReassign({});
@@ -892,6 +930,7 @@ describe('SPM-171 AC6: pending cancellation requests follow assignment', () => {
       (s) => s.sql.startsWith('INSERT INTO notifications') && s.params?.includes('cancellation_request_submitted'),
     );
 
+  // Traceability: Jira 171 AC6 (matrix 40402962)
   /** CANCEL-REQ-NOTIF-06-D (SPM-171 AC6): assigning an event with a pending cancellation request sends the Coordinator the notice, with the submission time. */
   it('CANCEL-REQ-NOTIF-06-D notifies the assigned coordinator of a pending cancellation request', async () => {
     wireAssign({});
@@ -908,6 +947,7 @@ describe('SPM-171 AC6: pending cancellation requests follow assignment', () => {
     ]);
   });
 
+  // Traceability: Jira 171 AC6 (matrix 40402962)
   /** CANCEL-REQ-NOTIF-06-E (SPM-171 AC6): assigning an event with no pending cancellation request sends none. */
   it('CANCEL-REQ-NOTIF-06-E sends no cancellation notice when none is pending', async () => {
     wireAssign({});
@@ -916,6 +956,7 @@ describe('SPM-171 AC6: pending cancellation requests follow assignment', () => {
     expect(cancellationNotices()).toHaveLength(0);
   });
 
+  // Traceability: Jira 171 AC6 (matrix 40402962)
   /** CANCEL-REQ-NOTIF-06-F (SPM-171 AC6): reassignment notifies the new Coordinator only and marks the previous Coordinator's unread cancellation notice for the event read. */
   it('CANCEL-REQ-NOTIF-06-F notifies the new coordinator and clears the old coordinator\'s unread notice', async () => {
     wireReassign({});
@@ -931,6 +972,7 @@ describe('SPM-171 AC6: pending cancellation requests follow assignment', () => {
     expect(markRead.params).toEqual([COORDINATOR_ID, EVENT_ID]);
   });
 
+  // Traceability: Jira 177 DoD4 (matrix 8060934)
   /** CLARIFY-NOTIF-05-A (SPM-177 DoD4): reassignment marks the previous Coordinator's unread clarification notices for the event read. */
   it('CLARIFY-NOTIF-05-A marks the old coordinator\'s unread clarification notices read on reassignment', async () => {
     wireReassign({});
@@ -941,6 +983,7 @@ describe('SPM-171 AC6: pending cancellation requests follow assignment', () => {
     expect(markRead.params).toEqual([COORDINATOR_ID, EVENT_ID]);
   });
 
+  // Traceability: Jira 171 AC6 (matrix 40402962)
   /** CANCEL-REQ-NOTIF-06-G (SPM-171 AC6): a notice insert that fails during assignment propagates, so the assignment rolls back with it. */
   it('CANCEL-REQ-NOTIF-06-G rolls the assignment back if the cancellation notice cannot be saved', async () => {
     wireAssign({});
@@ -962,6 +1005,7 @@ describe('SPM-77: the assigned coordinator is notified for a saved assignment on
   const insertsOf = () => txStatements().filter((s) => s.sql.startsWith('INSERT INTO notifications'));
   const writesOf = () => txStatements().filter((s) => /^(UPDATE|INSERT)/.test(s.sql));
 
+  // Traceability: Jira 77 AC1 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-01-A (SPM-77 AC1): a saved assignment writes exactly one coordinator_assignment notification,
    * addressed to the assignee only, with the event id for the link (AC3 data).
@@ -983,6 +1027,7 @@ describe('SPM-77: the assigned coordinator is notified for a saved assignment on
     expect(inserts[0].params![3]).toBe(EVENT_ID);
   });
 
+  // Traceability: Jira 77 AC2 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-02-A (SPM-77 AC2): the message names the event, says it was assigned to the coordinator and
    * gives the event's proposed date (start, Singapore calendar day). 2027-01-10T10:00Z is 10 Jan in Singapore.
@@ -1001,6 +1046,7 @@ describe('SPM-77: the assigned coordinator is notified for a saved assignment on
     );
   });
 
+  // Traceability: Jira 77 AC2 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-02-BND-1 (SPM-77 AC2): the date is the Singapore calendar day, not the UTC day. 2027-03-05T16:30Z
    * is 00:30 on 6 Mar in Singapore (single-digit day, midnight boundary).
@@ -1019,6 +1065,7 @@ describe('SPM-77: the assigned coordinator is notified for a saved assignment on
     );
   });
 
+  // Traceability: Jira 77 AC5 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-05-A (SPM-77 AC5): every refused assignment writes nothing, so no notification exists.
    * Kills: a notification inserted before the availability, ownership or status checks.
@@ -1041,6 +1088,7 @@ describe('SPM-77: the assigned coordinator is notified for a saved assignment on
     expect(writesOf()).toHaveLength(0);
   });
 
+  // Traceability: Jira 77 AC5 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-05-B (SPM-77 AC5): a caller who is not the Lead never reaches the database, so nobody is notified.
    * Kills: the notification being written before or without the Lead check.
@@ -1062,6 +1110,7 @@ describe('SPM-77: the assigned coordinator is notified for a saved assignment on
     expect(client.query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 77 AC5 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-05-C (SPM-77 AC5): when saving the assignment itself fails, no notification is attempted and the
    * error reaches the caller (the transaction rolls back).

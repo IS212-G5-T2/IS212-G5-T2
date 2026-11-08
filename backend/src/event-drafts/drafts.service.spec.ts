@@ -160,6 +160,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
   // Kills: a save of a new draft that never inserts the row, or a connection that is not released after the commit.
+  // Traceability: Jira 37 AC4 (matrix 10551297)
   /** EVE-DRF-04-A: saving new and existing drafts persists them and releases the connection (Q1-025). */
   it('Q1-025 saves new and existing drafts and releases connections', async () => {
     selected({ ...row(), version: 0 });
@@ -183,6 +184,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
   });
   // Parent AC (SUPPORTING): SPM-37 AC4
   // Kills: an identical retry that issues an UPDATE again, so the same operation is applied twice.
+  // Traceability: Jira 37 AC4 (matrix 10551297)
   /** EVE-DRF-04-B: an identical retry returns the stored draft without an update (Q1-026). */
   it('Q1-026 retries identical save without issuing an update', async () => {
     const { validateDraft } = await import('./dto/draft-input.js');
@@ -201,6 +203,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     ).toBe(false);
   });
   // Kills: a refused save (missing, submitted, stale or reused identifier) that updates the row, skips the rollback, or returns the wrong status or message.
+  // Traceability: Jira 37 AC4 (matrix 10551297)
   /** EVE-DRF-05-A, EVE-DRF-05-C, EVE-DRF-07-A: each refused save (missing, submitted, stale or reused identifier) rolls back and returns its documented status and 409 message (Q1-027), so a stale, reused-identifier or submitted-draft conflict is distinguishable to the organiser. */
   it.each([
     ['missing', null, 404, 'Request not found.'],

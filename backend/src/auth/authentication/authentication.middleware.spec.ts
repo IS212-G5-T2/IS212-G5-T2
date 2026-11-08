@@ -94,6 +94,7 @@ describe('AuthenticationMiddleware', () => {
     );
     await vi.waitFor(() => expect(next).toHaveBeenCalledWith(sessionError));
   });
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-C (SPM-157): the rest of the request runs as the signed-in user. */
   it('AUDIT-HISTORY-05-C runs the rest of the request as the signed-in user', async () => {
     const service = {

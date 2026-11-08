@@ -66,6 +66,7 @@ describe("VenueCard", () => {
 });
 
 describe("VenueCard search results (SPM-52)", () => {
+  // Traceability: Jira 52 AC6 (matrix 28868679)
   /** SPM-52 AC6: each result lists its room layouts and key facilities. */
   it("VEN-SRCH-06-D lists every room layout offered by the venue", () => {
     render(
@@ -79,6 +80,7 @@ describe("VenueCard search results (SPM-52)", () => {
     expect(screen.getByText("Wi-Fi")).toBeTruthy();
   });
 
+  // Traceability: Jira 52 AC6 (matrix 28868679)
   /** SPM-52 AC6: a venue with no recorded layouts says so instead of showing an empty list. */
   it("VEN-SRCH-06-E says when no room layout is recorded for the venue", () => {
     render(
@@ -90,6 +92,7 @@ describe("VenueCard search results (SPM-52)", () => {
     expect(screen.getByText("Layouts: None listed")).toBeTruthy();
   });
 
+  // Traceability: Jira 52 AC6 (matrix 28868679)
   /** SPM-52 AC6: each result offers exactly one "Check Availability" button and no separate availability link; the button invokes the availability action. */
   it("VEN-SRCH-06-F offers one Check Availability button per card and no separate availability link", async () => {
     const user = userEvent.setup();
@@ -107,6 +110,7 @@ describe("VenueCard search results (SPM-52)", () => {
     expect(onCheck).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 52 AC6 (matrix 28868679)
   /** SPM-52 AC6: each result shows the venue's location and capacity. */
   it("VEN-SRCH-06-G shows the venue's location and capacity on its card", () => {
     render(

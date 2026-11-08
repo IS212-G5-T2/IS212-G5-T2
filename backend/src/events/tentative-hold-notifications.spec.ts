@@ -43,6 +43,7 @@ describe('SPM-165 tentative hold notices in the notification feed', () => {
     service = module.get(EventsService);
   });
 
+  // Traceability: Jira 165 AC1 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-01-F (SPM-165 AC1): the feed asks for the tentative hold decision types only for a Coordinator. An
    * Organiser, the Lead and an Attendee never ask for them, so the Organiser's bell cannot receive them.
@@ -65,6 +66,7 @@ describe('SPM-165 tentative hold notices in the notification feed', () => {
     expect(params[1].includes('tentative_hold_rejected')).toBe(included);
   });
 
+  // Traceability: Jira 165 AC3 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-03-G (SPM-165 AC3): each hold notice in the feed carries the id of its hold (the bell link target)
    * and is labelled a Coordinator notice; a notice without a link carries null.
@@ -90,6 +92,7 @@ describe('SPM-165 tentative hold notices in the notification feed', () => {
     expect(items[0].createdAt).toBe('2030-01-10T12:00:00.000Z');
   });
 
+  // Traceability: Jira 165 AC4 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-04-B (SPM-165 AC4): a Coordinator can mark a hold notice read, scoped to their own notices; an
    * Organiser's call carries no hold types and finds nothing.

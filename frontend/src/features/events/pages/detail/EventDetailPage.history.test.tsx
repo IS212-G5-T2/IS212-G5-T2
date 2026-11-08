@@ -65,6 +65,7 @@ describe("SPM-157: the View History button on the event page", () => {
   beforeEach(() => apiMock.mockReset());
   afterEach(cleanup);
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-G: the assigned coordinator opens the history from the event page, whatever its status. */
   it.each(["planning", "completed", "cancelled"] as const)(
     "AUDIT-HISTORY-01-G shows View History to the assigned coordinator of a %s event",
@@ -75,6 +76,7 @@ describe("SPM-157: the View History button on the event page", () => {
     },
   );
 
+  // Traceability: Jira 157 AC8 (matrix 39813204)
   /** AUDIT-HISTORY-08-B: the owner sees it once the request is submitted; a draft has no history yet. */
   it("AUDIT-HISTORY-08-B shows View History to the owner of a submitted event but not of a draft", async () => {
     renderAs(users.owner, eventWith("submitted"));
@@ -85,6 +87,7 @@ describe("SPM-157: the View History button on the event page", () => {
     expect(screen.queryByRole("link", { name: "View History" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 157 AC9 (matrix 39813204)
   /** AUDIT-HISTORY-09-C: no button for another coordinator or an attendee (the server refuses them too). */
   it.each([["another coordinator", "otherCoordinator"], ["an attendee", "attendee"]])(
     "AUDIT-HISTORY-09-C hides View History from %s",

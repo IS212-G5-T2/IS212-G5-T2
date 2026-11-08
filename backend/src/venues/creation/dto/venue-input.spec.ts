@@ -27,6 +27,7 @@ function fieldError(body: unknown) {
 }
 
 describe('SPM-50 venue input', () => {
+  // Traceability: Jira 50 AC2 (matrix 14975043)
   // SPM-50 / VEN-CRE-02-A: preserve each submitted field, while trimming user-entered text.
   it('accepts and normalizes a complete venue', () => {
     // Arrange a valid venue with surrounding whitespace.
@@ -63,6 +64,7 @@ describe('SPM-50 venue input', () => {
     expect(validateVenue(input).accessibility).toEqual([]);
   });
 
+  // Traceability: Jira 50 AC3 (matrix 14975043)
   // SPM-50 / VEN-CRE-03-A: each required field independently prevents creation.
   it.each(venueFields)('rejects a missing %s', (field) => {
     // Arrange a complete fixture, then remove one field.
@@ -127,6 +129,7 @@ describe('SPM-50 venue input', () => {
     expect(venue).not.toHaveProperty('operatingEndTime');
   });
 
+  // Traceability: Jira 50 AC5 (matrix 14975043)
   // SPM-50 / VEN-CRE-06-B, VEN-CRE-06-D: negative or malformed setup durations are rejected.
   it.each([
     ['setupTimeMinutes', -1],
@@ -139,6 +142,7 @@ describe('SPM-50 venue input', () => {
     ).toBeTruthy();
   });
 
+  // Traceability: Jira 50 AC5 (matrix 14975043)
   // SPM-50 / VEN-CRE-06-C, VEN-CRE-06-E: negative or malformed turnaround durations are rejected.
   it.each([
     ['turnaroundTimeMinutes', -1],

@@ -59,6 +59,7 @@ const ready = (
 });
 
 describe('SPM-135 AC1: a fully arranged event is ready', () => {
+  // Traceability: Jira 135 AC1 (matrix 22905205)
   it('CONFIRM-EVENT-01-A (rule level): one Approved venue, Reserved equipment and Approved safety is ready with nothing outstanding', () => {
     // Arrange: EVT-201 per fixtures (VB-201 Main Hall Approved; EQ-201 Projector x1 Reserved; Safety Approved)
     const snapshot = ready();
@@ -70,6 +71,7 @@ describe('SPM-135 AC1: a fully arranged event is ready', () => {
     expect(result).toEqual({ ready: true, outstanding: [] });
   });
 
+  // Traceability: Jira 135 AC1 (matrix 22905205)
   it('CONFIRM-EVENT-01-B (rule level): two Approved bookings and two equipment lines, all satisfied, are ready', () => {
     // Arrange: EVT-211 per fixtures (VB-211a Main Hall, VB-211b Breakout Room 2; EQ-211 Projector x2, Microphone x4)
     const snapshot = ready({
@@ -92,6 +94,7 @@ describe('SPM-135 AC1: a fully arranged event is ready', () => {
 });
 
 describe('SPM-129 SAFETY-QUEUE-06: rejected venue history and Confirm readiness agree', () => {
+  // Traceability: Jira 129 AC6 (matrix 36831243)
   /** SAFETY-QUEUE-06: Confirm requires an approved booking covering the entire rejected slot at the same venue. */
   it('SAFETY-QUEUE-06-SUP-HISTORY confirms Confirm is blocked without a same-venue full-slot replacement', () => {
     const rejected = { ...venue('rejected', 'Main Hall', 'rejected'), venueId: 'venue-main' };
@@ -126,6 +129,7 @@ describe('SPM-129 SAFETY-QUEUE-06: rejected venue history and Confirm readiness 
 });
 
 describe('SPM-135 AC2 and AC3: any outstanding arrangement blocks and is listed', () => {
+  // Traceability: Jira 135 AC2 (matrix 22905205)
   // Kills: M1 (only the first venue booking checked): one Pending booking among Approved ones must block.
   it('CONFIRM-EVENT-02-C (rule level): one Approved and one Pending booking is not ready and names only Breakout Room 1', () => {
     // Arrange: EVT-206 "Regional Summit" per fixtures
@@ -151,6 +155,7 @@ describe('SPM-135 AC2 and AC3: any outstanding arrangement blocks and is listed'
     ]);
   });
 
+  // Traceability: Jira 135 AC2 (matrix 22905205)
   // CONFIRM-EVENT-02-A subtests A to D: each single outstanding arrangement alone blocks readiness (rule level only).
   it.each([
     [
@@ -185,6 +190,7 @@ describe('SPM-135 AC2 and AC3: any outstanding arrangement blocks and is listed'
     },
   );
 
+  // Traceability: Jira 135 AC2, AC3 (matrix 22905205)
   // Kills: M16 (satisfied items listed) and reordering of the list (03-A). Truncation is M1 (see 02-C above).
   it('CONFIRM-EVENT-03-A (rule level): EVT-205 lists venue, equipment and safety in that order with the specified states', () => {
     // Arrange: EVT-205 per fixtures (VB-205 Pending, equipment Requested, safety Awaiting Check)
@@ -206,6 +212,7 @@ describe('SPM-135 AC2 and AC3: any outstanding arrangement blocks and is listed'
     ]);
   });
 
+  // Traceability: Jira 135 AC3 (matrix 22905205)
   it('CONFIRM-EVENT-03-C (rule level): texts are "Venue booking approval: Breakout Room 1 (Pending)" and "Safety Officer approval: Changes requested"', () => {
     // Arrange: EVT-206 venue line; EVT-210 safety line (SPEC literals from 03-C)
     const venueItem = evaluateReadiness(
@@ -342,6 +349,7 @@ describe('SPM-135 D6 rule unit: fail closed on every source (table-driven, liter
     expect(result.outstanding[0]).toMatchObject(expected);
   });
 
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: retained cancelled history is inactive and leaves the event with no active venue. */
   it('SPM-54 treats a cancelled-only venue history as no active booking', () => {
     const result = evaluateReadiness(

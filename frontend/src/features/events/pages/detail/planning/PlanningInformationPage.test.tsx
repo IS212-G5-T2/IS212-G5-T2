@@ -173,6 +173,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("PlanningInformationPage", () => {
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: unsaved enabled registration, failed save and successful save drive the safety gate from the real form. */
   it("blocks on an unsaved registration draft and enables safety only after valid settings save", async () => {
     const user = userEvent.setup();
@@ -218,6 +219,7 @@ describe("PlanningInformationPage", () => {
     expect(registrationSaveMock).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: untouched disabled settings are confirmed and reverting an unsaved toggle restores that state. */
   it("keeps disabled registration confirmed and restores it when a draft toggle is reverted", async () => {
     const saved: RegistrationSettings = {
@@ -245,6 +247,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.getByText("Registration: Confirmed")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: the persisted server checklist keeps enabled, incomplete registration pending and blocks safety requests. */
   it("shows Registration pending and disables safety request until saved settings are complete", async () => {
     current = checklist({
@@ -263,6 +266,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.getByText("Pending registration confirmation to proceed")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: the server marks disabled registration confirmed in the section tab and prerequisite card. */
   it("shows disabled registration as confirmed in planning status", async () => {
     current = checklist({
@@ -277,6 +281,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.getByText("Registration: Confirmed")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04/05: selected unresolved safety feedback makes only its venue/equipment sections pending and remains visible. */
   it("shows selected safety changes as pending while retaining feedback", async () => {
     current = checklist({
@@ -303,6 +308,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.getAllByText("Safety re-approval required")).toHaveLength(2);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: resolving feedback alone cannot clear pending resource approvals or enable a safety re-request. */
   it("keeps re-request disabled after feedback is checked until venue and equipment staff approve again", async () => {
     current = checklist({
@@ -329,6 +335,7 @@ describe("PlanningInformationPage", () => {
     expect(await screen.findByText("Equipment Request Pending")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: resolved feedback clears its pending overlay while its safety history remains visible. */
   it("shows confirmed sections after feedback is checked off while retaining its resolved history", async () => {
     current = checklist({
@@ -582,6 +589,7 @@ describe("PlanningInformationPage", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: cancelled venue history remains available in My Bookings but is removed from the active event checklist. */
   it("VEN-BKG-09-A SPM-54 hides cancelled venues from the active Venues checklist while retaining active requests", async () => {
     const user = userEvent.setup();
@@ -1634,6 +1642,7 @@ describe("PlanningInformationPage", () => {
     expect(postCalls()[0][0]).toBe(`/events/${EVENT_ID}/safety-check/request`);
   });
 
+  // Traceability: Jira 48 AC7 (matrix 23691437)
   /** MONITOR-QUEUE-07-C (SPM-48 AC7): a rejected arrangement shows Rejected and can be requested again once ready (SPM-131 AC6). */
   it("MONITOR-QUEUE-07-C labels a rejected safety check and re-requests it", async () => {
     const user = userEvent.setup();
@@ -1661,6 +1670,7 @@ describe("PlanningInformationPage", () => {
     expect(postCalls()[0][0]).toBe(`/events/${EVENT_ID}/safety-check/request`);
   });
 
+  // Traceability: Jira 48 AC7 (matrix 23691437)
   /** MONITOR-QUEUE-07-C: while the venue or equipment is not ready, a rejected check cannot be requested again. */
   it("MONITOR-QUEUE-07-C disables the re-request until the arrangements are ready", async () => {
     current = checklist({
@@ -1694,6 +1704,7 @@ describe("PlanningInformationPage", () => {
     },
   );
 
+  // Traceability: Jira 48 AC7 (matrix 23691437)
   /** MONITOR-QUEUE-07-C: a safety check reset by a later change shows its reason and date, and labels the re-request. */
   it("MONITOR-QUEUE-07-C shows the reset reason and date and labels the re-request as Re-Request For Safety Check", async () => {
     current = checklist({
@@ -1716,6 +1727,7 @@ describe("PlanningInformationPage", () => {
     ).toBeEnabled();
   });
 
+  // Traceability: Jira 48 AC7 (matrix 23691437)
   /** MONITOR-QUEUE-07-C: a reset reason with no reset date shows the reason without a date. */
   it("MONITOR-QUEUE-07-C shows a reset reason without a date as a sentence with no date", async () => {
     current = checklist({

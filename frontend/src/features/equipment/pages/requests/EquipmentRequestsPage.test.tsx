@@ -35,6 +35,7 @@ beforeEach(() => {
 });
 
 describe('SPM-57 equipment request list and queue', () => {
+  // Traceability: Jira 57 AC5 (matrix 28868989)
   /** EQUIP-REQUEST-05-A: the request list offers a prominent link to a dedicated create page. */
   it('shows submitted requests and a prominent create link without rendering a form inline', async () => {
     renderPage();
@@ -45,6 +46,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.queryByRole('combobox', { name: /Event/ })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-A: an explicitly selected event is preserved while navigating to create. */
   it('carries a preselected event through the create-page link', async () => {
     renderPage('/equipment/requests?eventId=event%20%26%201');
@@ -52,6 +54,7 @@ describe('SPM-57 equipment request list and queue', () => {
       .toHaveAttribute('href', '/equipment/requests/create?eventId=event%20%26%201');
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: Update Event opens the request-specific editor route. */
   it('links the existing request to its separate prefilled update route', async () => {
     renderPage();
@@ -76,6 +79,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.queryByRole('link', { name: 'Update Event' })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: an existing request is changed through Update Event, never a second inline submission form. */
   it('provides an update path for an existing request and not a second inline submission form', async () => {
     renderPage();
@@ -84,6 +88,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.queryByRole('button', { name: 'Submit Request' })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 57 AC7 (matrix 28868989)
   /** EQUIP-REQUEST-07-A: Technical Support sees the review queue, not coordinator actions. */
   it('loads the Technical Support review queue without coordinator actions', async () => {
     setRole('tech_support');
@@ -100,6 +105,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(getMyEquipmentRequests).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 58 AC2 (matrix 33292299)
   /** EQUIP-RESERVE-02-A (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): Technical Support opens a request, reviews requested/free quantities, and approves it into reservations. */
   it('opens the request review and approves the request for reservation', async () => {
     const user = userEvent.setup();
@@ -113,6 +119,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(await screen.findByText('No equipment requests to display.')).toBeInTheDocument();
   });
 
+  // Traceability: Jira 58 AC9 (matrix 33292299)
   /** EQUIP-RESERVE-09-B (DECIDED SC-SPM58-03, chaw678 2026-11-06: reserve and Cannot Provide are accepted only from a Pending Review request): Technical Support marks a request Cannot provide, which requires a reason. */
   it('requires a reason before marking a request Cannot provide, then submits it', async () => {
     const user = userEvent.setup();
@@ -158,6 +165,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(await screen.findByText('Could not mark this request as Cannot provide.')).toBeInTheDocument();
   });
 
+  // Traceability: Jira 58 AC10 (matrix 33292299)
   /** EQUIP-RESERVE-10-A (DECIDED SC-SPM58-01, chaw678 2026-11-06: status is per equipment request): the event coordinator sees the Cannot Provide status and its reason on their request. */
   it('shows the Cannot Provide status and reason to the coordinator', async () => {
     vi.mocked(getMyEquipmentRequests).mockResolvedValue([{ ...record, status: 'Cannot Provide', decisionReason: 'Only 8 available; 10 requested.' }]);
@@ -166,6 +174,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.getByText(/Only 8 available; 10 requested\./)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 58 AC1 (matrix 33292299)
   /** EQUIP-RESERVE-01-BND-1: a request with a single item of quantity 1 shows the event name, date and time, equipment type, name and quantity in the Technical Support queue. */
   it('renders every required field for a single item at quantity 1', async () => {
     const user = userEvent.setup();
@@ -180,6 +189,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(queue).toHaveTextContent('Microphone · Audio × 1');
   });
 
+  // Traceability: Jira 58 AC2 (matrix 33292299)
   /** EQUIP-RESERVE-02-B: the review screen cannot submit approval when an item exceeds available stock. */
   it('disables approval when requested quantity exceeds event-period availability', async () => {
     const user = userEvent.setup();
@@ -190,6 +200,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.getByRole('button', { name: 'Approve & reserve' })).toBeDisabled();
   });
 
+  // Traceability: Jira 57 AC6 (matrix 28868989)
   /** EQUIP-REQUEST-06-A: an empty coordinator list gives a useful empty state. */
   it('shows the empty request state', async () => {
     vi.mocked(getMyEquipmentRequests).mockResolvedValue([]);
@@ -198,6 +209,7 @@ describe('SPM-57 equipment request list and queue', () => {
   });
 
   /** EQUIP-REQUEST-06-SUP-READ: list read failures are visible and do not present fabricated request data. */
+  // Traceability: Jira 57 AC6 (matrix 28868989)
   /** EQUIP-REQUEST-06-SUP-READ: a list read failure displays an error without an inline form. */
   it('shows an error when the request list cannot load', async () => {
     vi.mocked(getMyEquipmentRequests).mockRejectedValue(new Error('List failed'));
@@ -206,6 +218,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.queryByText(record.reference)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 57 AC6 (matrix 28868989)
   /** EQUIP-REQUEST-06-SUP-READ: non-Error failures also receive a safe list fallback. */
   it('shows a safe fallback when the request list fails without an Error object', async () => {
     vi.mocked(getMyEquipmentRequests).mockRejectedValue('offline');
@@ -213,6 +226,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load equipment requests.');
   });
 
+  // Traceability: Jira 57 AC6 (matrix 28868989)
   /** EQUIP-REQUEST-06-SUP-READ: a failed list refresh clears the previous content after the view's data source changes. */
   it('clears previously loaded request cards when a role-specific refresh fails', async () => {
     const { rerender } = renderPage();
@@ -225,6 +239,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.getByText('No equipment requests to display.')).toBeInTheDocument();
   });
 
+  // Traceability: Jira 57 AC5 (matrix 28868989)
   /** EQUIP-REQUEST-05-A: submission opens a reference-bearing dialog that closes only on OK. */
   it('keeps the submitted confirmation dialog open until OK is clicked', async () => {
     const user = userEvent.setup();
@@ -244,6 +259,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: update confirmation exposes the unchanged reference and requires OK. */
   it('keeps the updated confirmation dialog open until OK is clicked', async () => {
     const user = userEvent.setup();
@@ -314,6 +330,7 @@ describe('equipment review queue error and fallback paths', () => {
     expect(screen.getByRole('button', { name: 'Review request' })).toHaveAttribute('aria-expanded', 'false');
   });
 
+  // Traceability: Jira 58 AC2 (matrix 33292299)
   /** EQUIP-RESERVE-02-BND-1 (frontend: this exercises only the no-availability-figures fallback, where available defaults to requested; the real equal-quantity boundary is the backend e2e test of the same ID): An item without stock figures is treated as fully available: requested quantity is shown and approval is enabled. */
   it('treats an item with no availability figures as sufficient', async () => {
     const user = userEvent.setup();
@@ -346,6 +363,7 @@ describe('SPM-172 equipment request opened from a decision notice', () => {
     Element.prototype.scrollIntoView = scrollIntoView;
   });
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-03-F (SPM-172 AC3): /equipment/requests?request=request-2 highlights that request only (marked
    * aria-current, with the ring highlight), scrolls it into view and leaves the other request unmarked and unringed.
@@ -366,6 +384,7 @@ describe('SPM-172 equipment request opened from a decision notice', () => {
     expect(scrollIntoView.mock.contexts[0]).toBe(linked);
   });
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-03-F (continued, SPM-172 AC3): the linked request is scrolled to once; a later refresh (here after
    * Technical Support reserves another request) keeps it highlighted but does not scroll again.
@@ -387,6 +406,7 @@ describe('SPM-172 equipment request opened from a decision notice', () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-03-G (SPM-172 AC3): the highlighted Cannot Provide request shows its status and the reason; a
    * highlighted Reserved request shows its status.
@@ -405,6 +425,7 @@ describe('SPM-172 equipment request opened from a decision notice', () => {
     else expect(within(card).queryByText(/Cannot provide:/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-03-H (SPM-172 AC3, robustness): a link to a request that is not in the Coordinator's list (the event
    * was reassigned) highlights nothing and says so.
@@ -418,6 +439,7 @@ describe('SPM-172 equipment request opened from a decision notice', () => {
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-03-I (SPM-172 AC3): without a request parameter nothing is highlighted and no notice is shown; while
    * the list is loading, or after it failed to load, a linked request is not reported as missing.
@@ -430,6 +452,7 @@ describe('SPM-172 equipment request opened from a decision notice', () => {
     expect(screen.queryByText(/no longer available to you/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /** EQUIP-REQ-NOTIF-03-I (loading and failed-load half): the missing-request notice waits for a list that loaded. */
   it('EQUIP-REQ-NOTIF-03-I does not report a linked request missing while loading or when the list failed to load', async () => {
     vi.mocked(getMyEquipmentRequests).mockReturnValue(new Promise(() => {}));

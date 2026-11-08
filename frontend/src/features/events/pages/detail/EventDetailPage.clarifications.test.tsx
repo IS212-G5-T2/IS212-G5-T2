@@ -83,6 +83,7 @@ beforeEach(() => {
 });
 
 describe("EventDetailPage clarification thread", () => {
+  // Traceability: Jira 39 AC1 (matrix 8060934)
   // "Under Review" was retired as a distinct status (SPM-38 follow-up): a
   // clarification request no longer changes the event's status.
   // SPM-39 REQ-CLAR-01-A (AC1)
@@ -125,6 +126,7 @@ describe("EventDetailPage clarification thread", () => {
     });
   });
 
+  // Traceability: Jira 39 AC2 (matrix 8060934)
   // SPM-39 REQ-CLAR-01-B (AC2)
   // Kills: a blank message posted to the clarifications route instead of blocked with the required-message error.
   it("REQ-CLAR-01-B: Event Coordinator will see an error message if they try to submit a blank clarification message", async () => {
@@ -151,6 +153,7 @@ describe("EventDetailPage clarification thread", () => {
     );
   });
 
+  // Traceability: Jira 39 AC2 (matrix 8060934)
   // SPM-39 REQ-CLAR-01-C (AC2)
   // Kills: a whitespace-only message posted because the blank check runs before trimming.
   it("REQ-CLAR-01-C: Event Coordinator will see an error message if they try to submit a whitespace-only clarification message", async () => {
@@ -199,6 +202,7 @@ describe("EventDetailPage clarification thread", () => {
     expect(apiMock).not.toHaveBeenCalledWith("/events/event-1/comments");
   });
 
+  // Traceability: Jira 39 AC5 (matrix 8060934)
   // SPM-39 REQ-CLAR-02-B (AC5), Organiser view: the Organiser sees the open clarification as Pending, and it
   // stays Pending after their reply because only a resolve clears it.
   // Kills: the Pending badge removed after a reply, or the Reply button hidden while the clarification is awaiting a reply.
@@ -261,6 +265,7 @@ describe("EventDetailPage clarification thread", () => {
     expect(screen.getByRole("button", { name: "Reply" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 39 AC5 (matrix 8060934)
   // SPM-39 REQ-CLAR-02-B (AC5), Coordinator view: the Coordinator who raised an open clarification sees the indicator.
   // Kills: the Pending badge missing for the raising coordinator, the count not reading 'Pending (1)', or Answered shown while open.
   it("REQ-CLAR-02-B (Coordinator view): the Coordinator sees the Pending indicator on an open clarification they raised", async () => {
@@ -329,6 +334,7 @@ describe("EventDetailPage clarification thread", () => {
     expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 39 AC3 (matrix 8060934)
   // SPM-39 REQ-CLAR-02-A (AC3, AC4)
   // Kills: the thread rendered out of chronological order, a role badge or timestamp missing, or the Pending count not exactly one.
   it("REQ-CLAR-02-A: Event Coordinator can see the full chronological history of comments and clarifications", async () => {

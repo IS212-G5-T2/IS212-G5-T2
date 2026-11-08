@@ -56,6 +56,7 @@ describe('validateBookingRequest', () => {
     expect(validateBookingRequest(valid)).toEqual(valid);
   });
 
+  // Traceability: Jira 54 AC3 (matrix 22839839)
   /** VEN-BKG-03-A and VEN-BKG-03-B: request text is trimmed when present and omitted or blank text remains optional. */
   it('VEN-BKG-03-A VEN-BKG-03-B SPM-54 accepts a trimmed or blank optional special request', () => {
     expect(
@@ -84,6 +85,7 @@ describe('validateBookingRequest', () => {
     },
   );
 
+  // Traceability: Jira 148 AC4 (matrix 26902550)
   // SPM-148 R7 (PLAN-STATUS-04-C, 08-A). Kills: M9/M20 body fields silently accepted.
   it.each([
     { label: 'status', extra: { status: 'Confirmed' } },

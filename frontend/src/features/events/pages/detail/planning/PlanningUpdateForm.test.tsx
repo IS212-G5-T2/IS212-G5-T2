@@ -100,6 +100,7 @@ function renderForm(
 afterEach(cleanup);
 
 describe("PlanningUpdateForm", () => {
+  // Traceability: Jira 49 AC1 (matrix 19890466)
   // EVENT-UPDATE-01-A: the form opens with the event's current information.
   it("EVENT-UPDATE-01-A pre-fills the current event information", () => {
     renderForm();
@@ -110,6 +111,7 @@ describe("PlanningUpdateForm", () => {
     expect(screen.getByLabelText(/expected attendance/i)).toHaveValue(80);
   });
 
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-A: direct and review-required fields are visibly different.
   it("EVENT-UPDATE-02-A badges which fields apply immediately and which need review", () => {
     renderForm();
@@ -175,6 +177,7 @@ describe("PlanningUpdateForm", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 156 DoD5, DoD7 (matrix 38010922)
   // SPM-156 EVENT-UPDATE-07-C: a change applied immediately is not described as confirmed.
   it("EVENT-UPDATE-07-C describes a direct update as changed, not confirmed", () => {
     const history = [
@@ -207,6 +210,7 @@ describe("PlanningUpdateForm", () => {
     );
   });
 
+  // Traceability: Jira 156 DoD3, DoD5, DoD6, DoD7 (matrix 38010922)
   // SPM-156 EVENT-UPDATE-07-E: a field last changed by an approved change request says so.
   it("EVENT-UPDATE-07-E describes a field changed by an approved change request", () => {
     const history = [
@@ -237,6 +241,7 @@ describe("PlanningUpdateForm", () => {
     );
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: only the fields the coordinator changed are sent.
   it("EVENT-UPDATE-03-A saves only the changed fields", async () => {
     const user = userEvent.setup();
@@ -248,6 +253,7 @@ describe("PlanningUpdateForm", () => {
     expect(onSave).toHaveBeenCalledWith({ expectedAttendance: 120 });
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: a blank required field shows an error, keeps other values, and saves nothing.
   it("EVENT-UPDATE-04-A shows an error and does not save when the event name is blank", async () => {
     const user = userEvent.setup();
@@ -261,6 +267,7 @@ describe("PlanningUpdateForm", () => {
     );
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: whitespace-only counts as blank.
   it("EVENT-UPDATE-04-A treats a whitespace-only event name as blank", async () => {
     const user = userEvent.setup();
@@ -272,6 +279,7 @@ describe("PlanningUpdateForm", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: a server-side field error is shown and the typed values stay.
   it("EVENT-UPDATE-04-A shows a server field error and keeps what was typed", async () => {
     const user = userEvent.setup();
@@ -293,6 +301,7 @@ describe("PlanningUpdateForm", () => {
     );
   });
 
+  // Traceability: Jira 49 AC6 (matrix 19890466)
   // EVENT-UPDATE-06-A: the form shows when the information was last updated, and refreshes.
   it("EVENT-UPDATE-06-A shows when the event information was last updated", () => {
     const { rerender, props } = renderForm();
@@ -315,6 +324,7 @@ describe("PlanningUpdateForm", () => {
 // ---------------------------------------------------------------------------
 
 describe("PlanningUpdateForm: what is sent", () => {
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: saving without touching anything is not a save.
   it("EVENT-UPDATE-03-A says there is nothing to save when nothing changed", async () => {
     const user = userEvent.setup();
@@ -324,6 +334,7 @@ describe("PlanningUpdateForm: what is sent", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: surrounding spaces are not a change, and they are trimmed when a field does change.
   it("EVENT-UPDATE-03-A trims text and ignores a change that is only spaces", async () => {
     const user = userEvent.setup();
@@ -341,6 +352,7 @@ describe("PlanningUpdateForm: what is sent", () => {
     expect(onSave).toHaveBeenCalledWith({ purpose: "Welcome new students" });
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: lists are sent in full when any option is toggled, and an emptied list is sent as empty.
   it("EVENT-UPDATE-03-A sends the whole facilities and accessibility lists when they change", async () => {
     const user = userEvent.setup();
@@ -356,6 +368,7 @@ describe("PlanningUpdateForm: what is sent", () => {
     });
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: several edits travel together in one save.
   it("EVENT-UPDATE-03-A sends several changed fields in one save", async () => {
     const user = userEvent.setup();
@@ -373,6 +386,7 @@ describe("PlanningUpdateForm: what is sent", () => {
     });
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: a date change is interpreted as Singapore wall time and
   // sent as the matching UTC instant the API accepts, independent of the host timezone.
   it("EVENT-UPDATE-03-A sends changed dates as ISO UTC timestamps", async () => {
@@ -392,6 +406,7 @@ describe("PlanningUpdateForm: what is sent", () => {
 });
 
 describe("PlanningUpdateForm: validation", () => {
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: every required text field has its own message, and the form says what to do.
   it.each([
     [/event name/i, "Event name is required."],
@@ -412,6 +427,7 @@ describe("PlanningUpdateForm: validation", () => {
     },
   );
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: attendance must be a whole number of at least 1.
   it.each([
     ["", "Expected attendance is required."],
@@ -428,6 +444,7 @@ describe("PlanningUpdateForm: validation", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: an end that is not after the start is refused before anything is sent.
   it("EVENT-UPDATE-04-A refuses an end that is not after the start", () => {
     const { onSave } = renderForm();
@@ -442,6 +459,7 @@ describe("PlanningUpdateForm: validation", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: a cleared date is reported as required, not as an ordering problem.
   it("EVENT-UPDATE-04-A reports a cleared start date as required", () => {
     renderForm();
@@ -457,6 +475,7 @@ describe("PlanningUpdateForm: validation", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: after fixing the problem the next save goes through and the errors clear.
   it("EVENT-UPDATE-04-A clears the errors once the field is fixed", async () => {
     const user = userEvent.setup();
@@ -473,6 +492,7 @@ describe("PlanningUpdateForm: validation", () => {
 });
 
 describe("PlanningUpdateForm: saving feedback", () => {
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-A: a save that applied everything says so.
   it("EVENT-UPDATE-05-A confirms a save that applied immediately", async () => {
     const user = userEvent.setup();
@@ -501,6 +521,7 @@ describe("PlanningUpdateForm: saving feedback", () => {
     );
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-A: a save that held some fields for review says how many and why.
   it("EVENT-FLAG-01-A tells the coordinator how many changes were sent for review", async () => {
     const user = userEvent.setup();
@@ -516,6 +537,7 @@ describe("PlanningUpdateForm: saving feedback", () => {
     );
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: while saving the button is disabled, so a double click cannot send twice.
   it("EVENT-UPDATE-03-A disables the button while a save is in progress", async () => {
     const user = userEvent.setup();
@@ -532,6 +554,7 @@ describe("PlanningUpdateForm: saving feedback", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: the server's message is shown, and nothing the coordinator typed is lost.
   it("EVENT-UPDATE-04-A shows the server message for a refused save and keeps the typed values", async () => {
     const user = userEvent.setup();
@@ -557,6 +580,7 @@ describe("PlanningUpdateForm: saving feedback", () => {
     expect(screen.getByLabelText(/expected attendance/i)).toHaveValue(120);
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: an unexpected failure gets a generic, retryable message.
   it("EVENT-UPDATE-04-A shows a generic message for an unexpected failure and allows a retry", async () => {
     const user = userEvent.setup();
@@ -613,6 +637,7 @@ describe("PlanningUpdateForm: impact-based field labels (SPM-49 AC2/AC5)", () =>
       />,
     );
 
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-B: three labels distinguish always-direct, conditional and always-review fields.
   it("EVENT-UPDATE-02-B labels direct, conditional and review fields differently", () => {
     renderConditional();
@@ -623,6 +648,7 @@ describe("PlanningUpdateForm: impact-based field labels (SPM-49 AC2/AC5)", () =>
     expect(screen.getAllByText("Changes need review")).toHaveLength(2);
   });
 
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-B: each conditional field states its rule.
   it("EVENT-UPDATE-02-B explains when a conditional change applies immediately", () => {
     renderConditional();
@@ -637,6 +663,7 @@ describe("PlanningUpdateForm: impact-based field labels (SPM-49 AC2/AC5)", () =>
     ).toHaveLength(2);
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: the form predicts the outcome of an attendance edit before saving.
   it.each([
     ["70", "This change will apply immediately."],
@@ -653,6 +680,7 @@ describe("PlanningUpdateForm: impact-based field labels (SPM-49 AC2/AC5)", () =>
     },
   );
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: removing a facility is predicted to apply; adding one is not.
   it("EVENT-UPDATE-05-B predicts facility removals apply and additions need review", async () => {
     const user = userEvent.setup();
@@ -667,6 +695,7 @@ describe("PlanningUpdateForm: impact-based field labels (SPM-49 AC2/AC5)", () =>
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: nothing is predicted for an untouched field.
   it("EVENT-UPDATE-05-B shows no prediction until the field is edited", () => {
     renderConditional();
@@ -684,6 +713,7 @@ describe("PlanningUpdateForm: authoritative values and pending proposals (SPM-49
     status: "Needs Review" as const,
   };
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-E: a field awaiting review shows the current value, the
   // proposal separately, and cannot be edited.
   it("EVENT-FLAG-01-E locks a field awaiting review and shows its proposal separately", () => {
@@ -705,6 +735,7 @@ describe("PlanningUpdateForm: authoritative values and pending proposals (SPM-49
     expect(screen.getByLabelText(/room layout/i)).toBeEnabled();
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-E: a locked checkbox field disables every option.
   it("EVENT-FLAG-01-E disables every facility option while facilities await review", () => {
     render(
@@ -730,6 +761,7 @@ describe("PlanningUpdateForm: authoritative values and pending proposals (SPM-49
     ).toBeEnabled();
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-E: after a flagged-only save, the field returns to the event the server returned.
   it("EVENT-FLAG-01-E resets to the server's event after a flagged-only save", async () => {
     const user = userEvent.setup();
@@ -751,6 +783,7 @@ describe("PlanningUpdateForm: authoritative values and pending proposals (SPM-49
     expect(screen.getByLabelText(/expected attendance/i)).toHaveValue(80);
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-E: without the server's event, flagged fields still revert and applied ones keep the saved value.
   it("EVENT-FLAG-01-E reverts only the flagged fields when the response has no event", async () => {
     const user = userEvent.setup();
@@ -770,6 +803,7 @@ describe("PlanningUpdateForm: authoritative values and pending proposals (SPM-49
     );
   });
 
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // EVENT-VIEW-05-A: a newer event from the parent updates untouched fields
   // without losing an edit in progress.
   it("EVENT-VIEW-05-A takes newer values for untouched fields and keeps edits in progress", () => {

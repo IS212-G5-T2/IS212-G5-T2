@@ -180,6 +180,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     ).rows;
   }
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-A: the assigned coordinator marks an ended Confirmed event as Completed.
   it('COMPLETE-EVENT-01-A: the assigned coordinator marks an ended Confirmed event Completed (200, MSG-CP-01)', async () => {
     // Arrange: EVT "Product Launch Mixer" Confirmed, ended 2 days before T0; one approved venue booking
@@ -204,6 +205,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(booking.rows[0].status).toBe('approved');
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-B: an event whose end has not passed is refused (422 MSG-CP-02).
   it('COMPLETE-EVENT-01-B: a Confirmed event that has not ended is refused with 422 MSG-CP-02', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: FUTURE_START, end: FUTURE_END });
@@ -218,6 +220,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await historyRows(eventId)).toEqual([]);
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-C: eligible from the end instant, inclusive (BR3), by the server clock.
   it.each([
     ['2026-12-10T12:59:59.000Z', 422], // 20:59:59 SGT
@@ -232,6 +235,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await statusOf(eventId)).toBe(expected === 200 ? 'Completed' : 'Confirmed');
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-D: only the assigned coordinator; others 403, no token 401; nothing changes.
   it.each([
     ['another coordinator (not assigned)', 403, () => otherCoordinator],
@@ -248,6 +252,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await historyRows(eventId)).toEqual([]);
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   // COMPLETE-EVENT-02-B/C: any status other than Confirmed is refused with 409 MSG-CP-03.
   it.each([
     ['Planning', 'Planning'],
@@ -268,6 +273,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await historyRows(eventId)).toEqual(before);
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   // COMPLETE-EVENT-02-C (order): the status is checked before the date (409 before 422), so a Planning event
   // whose end has not passed is refused as not Confirmed, not as too early.
   it('COMPLETE-EVENT-02-C: a Planning event that has not ended gets 409 EVENT_NOT_COMPLETABLE, not 422', async () => {
@@ -279,6 +285,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await statusOf(eventId)).toBe('Planning');
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   // COMPLETE-EVENT-02-D: an already Completed event cannot be completed again.
   it('COMPLETE-EVENT-02-D: a second completion of a Completed event is refused and keeps one history row', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
@@ -290,6 +297,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await historyRows(eventId)).toEqual(first);
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   // COMPLETE-EVENT-02-E: simultaneous completions complete the event once.
   it('COMPLETE-EVENT-02-E: five parallel completions give one 200 and four 409, with one history row', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
@@ -300,6 +308,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await historyRows(eventId)).toHaveLength(1);
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   // COMPLETE-EVENT-02-E (cancel race): a completion and a cancellation of the same event give exactly one winner.
   it('COMPLETE-EVENT-02-E: a parallel completion and cancellation leave exactly one winner and one history row', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
@@ -319,6 +328,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(rows[0]).toMatchObject({ from_status: 'Confirmed', to_status: winner });
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   // COMPLETE-EVENT-02-F: Completed is terminal (BR5).
   it.each([
     ['Confirmed', 422, 'EVENT_NOT_CONFIRMABLE'],
@@ -334,6 +344,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await historyRows(eventId)).toEqual([]);
   });
 
+  // Traceability: Jira 153 AC3 (matrix 35979372)
   // COMPLETE-EVENT-03-A: the history shows the change with its actor and the injected time.
   it('COMPLETE-EVENT-03-A: the status history reports Confirmed to Completed by the coordinator at the marking time', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
@@ -352,6 +363,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect((await historyRows(eventId)).at(-1)?.created_at.toISOString()).toBe('2026-11-10T16:30:00.000Z');
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-A: the record is saved and read back; the status and history do not change.
   it('COMPLETE-EVENT-05-A: the assigned coordinator saves the completion record on a Completed event', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -366,6 +378,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await historyRows(eventId)).toEqual(historyBefore);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-B: a subset save keeps the items it does not carry.
   it('COMPLETE-EVENT-05-B: saving only attendance keeps the saved notes and issues', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -381,6 +394,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-A (empty): a fresh event has an empty record.
   it('COMPLETE-EVENT-05-A: a fresh event has an empty record (nulls and an empty list)', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -390,6 +404,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(read.body).toMatchObject({ attendanceCount: null, operationalNotes: null, issues: [], updatedAt: null, updatedBy: null });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-B (notes only): saving only notes keeps the saved attendance.
   it('COMPLETE-EVENT-05-B: saving notes only keeps the saved attendance and issues', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -401,6 +416,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(read.body).toMatchObject({ attendanceCount: COMP_OK.attendanceCount, operationalNotes: 'Revised notes.', issues: COMP_OK.issues });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-F (unknown): a malformed or unknown event id is 404 for the record, not 500.
   it.each([
     ['a malformed id', 'not-a-uuid'],
@@ -409,6 +425,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     await recordGet(coordinator, id).expect(404);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-B (empty notes kept): a save that does not send notes keeps the empty notes already saved.
   it('COMPLETE-EVENT-05-B: a save without notes keeps empty notes', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -420,6 +437,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(read.body).toMatchObject({ attendanceCount: 6, operationalNotes: null });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-C: a record cannot be saved on an event that is not Completed.
   it.each([
     ['Confirmed', 'Confirmed'],
@@ -438,6 +456,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(stored.rowCount).toBe(0);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-D: invalid values are refused with the field named and nothing is saved.
   it.each([
     [{ attendanceCount: -1 }, 'attendanceCount'],
@@ -460,6 +479,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(stored.rowCount).toBe(0);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-F: only the assigned coordinator reads or writes the record (D3).
   it.each([
     ['another coordinator', 403, () => otherCoordinator],
@@ -477,6 +497,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(read.body.attendanceCount).toBe(COMP_OK.attendanceCount);
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   // COMPLETE-EVENT-06-B: the date and time of a Completed event cannot change (BR9, MSG-CP-06).
   it('COMPLETE-EVENT-06-B: the assigned coordinator cannot move a Completed event by its planning update', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -500,6 +521,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(stored.rows[0].start_date_time.toISOString()).toBe(ENDED_START);
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   // COMPLETE-EVENT-06-C: a venue booking of a Completed event cannot be approved (BR9).
   it('COMPLETE-EVENT-06-C: venue staff cannot approve a pending booking of a Completed event', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -512,6 +534,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(booking.rows[0].status).toBe('pending');
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   // COMPLETE-EVENT-06-C (reject, cancel): a venue booking of a Completed event cannot be rejected or cancelled.
   it('COMPLETE-EVENT-06-C: venue staff cannot reject a pending booking, and the coordinator cannot cancel an approved one, of a Completed event', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -537,6 +560,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(byId[approved.bookingId]).toBe('approved');
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   // COMPLETE-EVENT-06-D: the equipment requests of a Completed event cannot be changed, reserved or cannot-provided.
   it('COMPLETE-EVENT-06-D: a Completed event refuses equipment update, reserve and cannot-provide with 409 EVENT_COMPLETED and changes nothing', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -575,6 +599,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(items.rows).toEqual([{ equipment_name: 'Projector', quantity: 1 }]);
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-E: an event that has started but not ended is refused (422 MSG-CP-02).
   it('COMPLETE-EVENT-01-E: an event that has started but not ended is refused with 422 and stays Confirmed', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: '2026-10-12T02:00:00.000Z', end: '2026-10-12T06:00:00.000Z' });
@@ -586,6 +611,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await historyRows(eventId)).toEqual([]);
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-F: no time limit after the event; an event that ended long ago can still be completed.
   it('COMPLETE-EVENT-01-F: an event that ended 90 days ago can be completed, and the history shows the marking time', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: '2026-07-14T02:00:00.000Z', end: '2026-07-14T04:00:00.000Z' });
@@ -596,6 +622,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect((await historyRows(eventId)).at(-1)?.created_at.toISOString()).toBe(T0);
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   // COMPLETE-EVENT-02-A: the assigned coordinator sees the Confirmed event under the Confirmed filter.
   it('COMPLETE-EVENT-02-A: an ended Confirmed event is listed under the coordinator queue filter Confirmed', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
@@ -605,6 +632,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect((response.body as { id: string }[]).map((row) => row.id)).toContain(eventId);
   });
 
+  // Traceability: Jira 153 AC3 (matrix 35979372)
   // COMPLETE-EVENT-03-B: refused attempts leave the status history of every event exactly as it was.
   it('COMPLETE-EVENT-03-B: refused completion attempts add no history row to any of the events', async () => {
     const tooEarly = await seedEvent({ status: 'Confirmed', start: FUTURE_START, end: FUTURE_END });
@@ -621,6 +649,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await Promise.all(ids.map((id) => historyRows(id)))).toEqual(before);
   });
 
+  // Traceability: Jira 153 AC3 (matrix 35979372)
   // COMPLETE-EVENT-03-C: the marking time is stored in UTC; 11 Nov 2026 00:30 SGT is 10 Nov 16:30 UTC.
   it('COMPLETE-EVENT-03-C: a change at 11 Nov 2026 00:30 SGT is stored as 2026-11-10T16:30:00Z', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
@@ -632,6 +661,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(stored.rows[0].created_at.toISOString()).toBe('2026-11-10T16:30:00.000Z');
   });
 
+  // Traceability: Jira 153 AC3 (matrix 35979372)
   // COMPLETE-EVENT-03-D: the actor and the time come from the session and the server, never from the body.
   it('COMPLETE-EVENT-03-D: a body naming another coordinator and a 2020 time does not change the recorded actor or time', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
@@ -646,6 +676,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(rows[0].created_at.toISOString()).toBe(T0);
   });
 
+  // Traceability: Jira 153 AC4 (matrix 35979372)
   // COMPLETE-EVENT-04-B: an event leaves the Confirmed filter and appears once under Completed.
   it('COMPLETE-EVENT-04-B: after completion the event is under Completed only, once', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
@@ -659,6 +690,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect((await ids('Completed')).filter((id) => id === eventId)).toHaveLength(1);
   });
 
+  // Traceability: Jira 153 AC4 (matrix 35979372)
   // COMPLETE-EVENT-04-C: a coordinator with no events gets an empty Completed list; another coordinator's Completed event is not listed.
   it('COMPLETE-EVENT-04-C: an empty Completed list for a coordinator with no events, and other coordinators\' events are not listed', async () => {
     const othersEvent = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -672,6 +704,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect((mine.body as { id: string }[]).map((row) => row.id)).not.toContain(othersEvent);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-G: script and SQL text is stored and returned as the coordinator entered it (plain text).
   it('COMPLETE-EVENT-05-G: script and SQL text is stored and returned as plain text, and the events table is intact', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -685,6 +718,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await statusOf(eventId)).toBe('Completed');
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   // COMPLETE-EVENT-06-F: marking a venue unavailable for a Completed event's slot leaves its venue booking and status unchanged.
   // The venue-unavailable flag is accepted as not needed on Completed events (spec conflict SC-153-002).
   it('COMPLETE-EVENT-06-F: marking the venue unavailable for a Completed event slot leaves its booking approved and its status Completed', async () => {
@@ -711,6 +745,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(await statusOf(eventId)).toBe('Completed');
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   // COMPLETE-EVENT-06-G: the coordinator cannot change even the name of a Completed event (deviation SC-153-001), and a mixed request is refused whole.
   it('COMPLETE-EVENT-06-G: a name-only or mixed planning update of a Completed event is refused with 409 and nothing is saved', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: '2026-12-05T02:00:00.000Z', end: '2026-12-05T04:00:00.000Z', name: 'Future completed' });
@@ -728,6 +763,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(stored.rows[0].event_name).toBe('Future completed');
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   // COMPLETE-EVENT-06-A (read): a Completed event's planning information stays readable for the coordinator.
   it('COMPLETE-EVENT-06-A: the planning view of a Completed event is readable (200) and shows status Completed', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
@@ -738,6 +774,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(response.body.readOnly).toBe(true);
   });
 
+  // Traceability: Jira 153 AC4 (matrix 35979372)
   // COMPLETE-EVENT-04-A: the Coordinator's Completed filter lists the event.
   it('COMPLETE-EVENT-04-A: the coordinator queue filtered by Completed lists the event and no other', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
@@ -751,6 +788,7 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(ids).not.toContain(otherConfirmed);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-B (clear): null clears attendance and notes over HTTP.
   it('COMPLETE-EVENT-05-B: sending null clears the saved attendance and notes', async () => {
     const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });

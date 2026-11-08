@@ -12,6 +12,7 @@ describe('SPM-157 actor context', () => {
     vi.useRealTimers();
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-C: the signed-in user is known in everything the request awaits. */
   it('AUDIT-HISTORY-05-C keeps the actor across awaits and clears it afterwards', async () => {
     expect(currentActorId()).toBeUndefined();
@@ -24,6 +25,7 @@ describe('SPM-157 actor context', () => {
     expect(currentActorId()).toBeUndefined();
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-C: two concurrent requests never see each other's actor. */
   it('AUDIT-HISTORY-05-C isolates concurrent requests', async () => {
     const read = (id: string, delay: number) => runAsActor(id, async () => {

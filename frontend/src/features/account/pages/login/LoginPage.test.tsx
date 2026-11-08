@@ -63,6 +63,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 30 AC2 (matrix 6652076)
   // USER-LOGIN-02-D: session restoration is resolved before the form is displayed.
   it("shows authentication loading during session restoration", () => {
     useAppStore.setState({ authLoading: true, isAuthenticated: false });
@@ -72,6 +73,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(mockAuthenticate).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 30 AC2 (matrix 6652076)
   // USER-LOGIN-02-C: an existing session redirects without exposing login fields.
   it("redirects an already authenticated user", async () => {
     useAppStore.setState({ isAuthenticated: true, currentUser: userFor("attendee1@connectsphere.test", "attendee") });
@@ -80,6 +82,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 30 AC1 (matrix 6652076)
   // USER-LOGIN-01-B: both blank fields are rejected before the backend is called.
   it("requires both fields and marks them invalid", async () => {
     renderLoginPage();
@@ -91,6 +94,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(mockAuthenticate).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 30 AC1 (matrix 6652076)
   // USER-LOGIN-01-B: each missing field receives only its own validation message.
   it.each([
     ["email", "", PASSWORD, /email is required/i, /password is required/i],
@@ -103,6 +107,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(mockAuthenticate).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 30 AC1 (matrix 6652076)
   // USER-LOGIN-01-B: whitespace-only emails are not valid credentials.
   it("treats a whitespace-only email as missing", async () => {
     renderLoginPage();
@@ -111,6 +116,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(mockAuthenticate).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 30 AC1 (matrix 6652076)
   // USER-LOGIN-01-B: correcting a field removes its old validation error.
   it("clears a validation error after corrected credentials are submitted", async () => {
     mockAuthenticate.mockResolvedValueOnce(userFor("attendee1@connectsphere.test", "attendee"));
@@ -125,6 +131,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     await waitFor(() => expect(screen.queryByText(/password is required/i)).not.toBeInTheDocument());
   });
 
+  // Traceability: Jira 30 AC1 (matrix 6652076)
   // USER-LOGIN-01-A and USER-LOGIN-02-A: every seeded role reaches the dashboard with its server role.
   it.each(seedAccounts)("signs in the $role seed account", async ({ email, role }) => {
     mockAuthenticate.mockResolvedValueOnce(userFor(email, role));
@@ -135,6 +142,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(useAppStore.getState().currentUser.role).toBe(role);
   });
 
+  // Traceability: Jira 30 AC1 (matrix 6652076)
   // USER-LOGIN-01-A: normalization occurs before credentials are sent to the backend.
   it("trims surrounding email whitespace before login", async () => {
     mockAuthenticate.mockResolvedValueOnce(userFor("attendee1@connectsphere.test", "attendee"));
@@ -143,6 +151,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     await waitFor(() => expect(mockAuthenticate).toHaveBeenCalledWith("attendee1@connectsphere.test", PASSWORD));
   });
 
+  // Traceability: Jira 30 AC1 (matrix 6652076)
   // USER-LOGIN-01-C: a pending request disables the button and a second click is a no-op.
   it("prevents duplicate login while a request is pending", async () => {
     let resolveLogin!: (account: User) => void;
@@ -158,6 +167,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(await screen.findByTestId("home-screen")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 30 AC2 (matrix 6652076)
   // USER-LOGIN-02-B: the original protected route is restored after login.
   it("returns the user to the requested route", async () => {
     mockAuthenticate.mockResolvedValueOnce(userFor("organiser1@connectsphere.test", "organiser"));
@@ -166,6 +176,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(await screen.findByTestId("events-screen")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 30 AC3 (matrix 6652076)
   // USER-LOGIN-03-A: invalid credentials receive the generic server-safe error and retain the email.
   it("shows an invalid-credential error without creating a session", async () => {
     mockAuthenticate.mockRejectedValueOnce(new AuthError(401, "Invalid email or password"));
@@ -177,6 +188,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(screen.queryByTestId("home-screen")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 30 AC3 (matrix 6652076)
   // USER-LOGIN-03-B: unexpected failures and missing error details never expose raw errors.
   it.each([
     ["an unexpected error", () => mockAuthenticate.mockRejectedValueOnce(new Error("database unavailable"))],
@@ -188,6 +200,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't sign you in. Please try again.");
   });
 
+  // Traceability: Jira 30 AC3 (matrix 6652076)
   // USER-LOGIN-03-C: the user can correct credentials after a failed attempt.
   it("re-enables the submit button after login fails", async () => {
     mockAuthenticate.mockRejectedValueOnce(new AuthError(401, "Invalid email or password"));
@@ -197,6 +210,7 @@ describe("LoginPage — PostgreSQL session authentication", () => {
     expect(screen.getByRole("button", { name: /^log in$/i })).toBeEnabled();
   });
 
+  // Traceability: Jira 30 AC3 (matrix 6652076)
   // USER-LOGIN-03-D: a successful retry clears the stale error and opens the dashboard.
   it("clears an earlier error after a corrected retry", async () => {
     mockAuthenticate.mockRejectedValueOnce(new AuthError(401, "Invalid email or password"));

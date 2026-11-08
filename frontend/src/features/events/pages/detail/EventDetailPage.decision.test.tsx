@@ -127,6 +127,7 @@ beforeEach(() => {
 });
 
 describe("EventDetailPage — reject workflow (SPM-83)", () => {
+  // Traceability: Jira 83 AC1, AC2 (matrix 12124249)
   // EVENT-REJECT-01-A — happy path (entry)
   // Kills: Review Event hidden from the assigned coordinator, or the reject and approve radios or Submit Decision control missing.
   it("lets the assigned coordinator open reject decision controls from Review Event", async () => {
@@ -145,6 +146,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // Kills: the reason not trimmed before the POST, the request sent to another route or with another body, or a message shown on success.
+  // Traceability: Jira 83 AC3, AC5 (matrix 12124249)
   /** EVENT-REJECT-01-B — happy path (submit): one POST to the reject route with the trimmed reason. */
   it("submits a valid rejection and fires the reject request", async () => {
     renderDetail(assignedEvent());
@@ -166,6 +168,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // Kills: a second click while the rejection is in flight sending a duplicate request (no in-flight guard on Submit Decision).
+  // Traceability: Jira 83 AC3, AC5 (matrix 12124249)
   /**
    * EVENT-REJECT-01-B — no duplicate request while the rejection is in flight. The store action is
    * held open (its status change is otherwise immediate), so the page stays in its submitting state.
@@ -197,6 +200,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     }
   });
 
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   // EVENT-REJECT-01-C — empty / whitespace-only
   // Kills: an empty or whitespace reason sent to the reject route, or the requirements block or aria-invalid missing.
   it("blocks an empty or whitespace-only reason with the requirements block", async () => {
@@ -214,6 +218,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // Kills: a 9-character reason accepted, or a 10-character reason blocked (minimum length off by one).
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   /** EVENT-REJECT-01-D — below minimum length (<10), measured on the trimmed reason */
   it("blocks a reason under 10 characters and accepts exactly 10", async () => {
     renderDetail(assignedEvent());
@@ -230,6 +235,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // Kills: length measured on the raw value, so padded 'no fit ok' (raw 13 characters) passes the minimum.
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   /** EVENT-REJECT-01-D — padding does not count: 9 trimmed characters stay blocked */
   it("blocks a padded reason whose trimmed length is 9", async () => {
     renderDetail(assignedEvent());
@@ -242,6 +248,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // Kills: a padded 10-character reason blocked, or the body sent without trimming.
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   /** EVENT-REJECT-01-D — padding does not count: a padded reason of 10 trimmed characters is accepted */
   it("accepts a padded reason whose trimmed length is 10", async () => {
     renderDetail(assignedEvent());
@@ -260,6 +267,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // Kills: a 501-character reason accepted, a 500-character reason blocked, or the sent reason truncated.
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   /** EVENT-REJECT-01-E — above maximum length (>500), measured on the trimmed reason; 500 is sent in full, not truncated */
   it("accepts exactly 500 trimmed characters and blocks 501", async () => {
     renderDetail(assignedEvent());
@@ -281,6 +289,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // Kills: the raw length compared with the 500 maximum, blocking a valid reason of raw 504 and trimmed 500 characters.
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   /** EVENT-REJECT-01-E — raw length over 500 is accepted when the trimmed reason is 500, and the full 500-character value is sent */
   it("accepts a reason whose raw length exceeds 500 but whose trimmed length is 500", async () => {
     renderDetail(assignedEvent());
@@ -297,6 +306,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.queryByText(/between 10 and 500 characters/i)).toBeNull();
   });
 
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   // EVENT-REJECT-01-F — fewer than 3 words
   // Kills: a one- or two-word reason accepted, or a four-word reason blocked (word-count rule wrong).
   it("blocks a reason with fewer than 3 words with the requirements block", async () => {
@@ -317,6 +327,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(rejectRequestFired()).toBe(true);
   });
 
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   // EVENT-REJECT-01-G — no letters (numbers / symbols only)
   // Kills: a reason of digits and symbols only accepted by the form instead of blocked.
   it("blocks a letter-less reason with the requirements block", async () => {
@@ -337,6 +348,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(rejectRequestFired()).toBe(true);
   });
 
+  // Traceability: Jira 83 AC5, AC6 (matrix 12124249)
   // EVENT-REJECT-01-H — special characters preserved & rendered safely
   // Kills: the reason altered or escaped before dispatch, or rendered as markup rather than literal text on the organiser page.
   it("accepts a special-character reason and renders it safely to the organiser", async () => {
@@ -361,6 +373,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(await screen.findByText(reason)).toBeTruthy();
   });
 
+  // Traceability: Jira 83 AC2 (matrix 12124249)
   // EVENT-REJECT-04-A — authorization (UI): reject controls only for the assigned coordinator
   // Kills: Review Event shown to an unassigned coordinator, or reject controls shown to the owning organiser.
   it("shows reject controls only to the assigned coordinator", async () => {
@@ -386,6 +399,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // Kills: the Review Event button or the decision radios shown to the owning organiser.
+  // Traceability: Jira 83 AC2 (matrix 12124249)
   /** EVENT-REJECT-04-A: the owning organiser never sees the Review Event entrypoint or any decision control. */
   it("hides the Review Event entrypoint from the owning organiser", async () => {
     setUser("organiser", "organiser-9");
@@ -398,6 +412,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // Kills: Review Event or decision controls shown to venue or tech-support staff, or the access notice missing.
+  // Traceability: Jira 83 AC2 (matrix 12124249)
   /** EVENT-REJECT-04-A: venue staff and technical support have no reject or approve controls on a submitted request. */
   it.each(["venue_staff", "tech_support"] as const)(
     "shows no Review Event entrypoint or decision controls to %s",
@@ -415,6 +430,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     },
   );
 
+  // Traceability: Jira 83 AC5 (matrix 12124249)
   // EVENT-REJECT-01-I — a rejected request shows draft → submitted → rejected,
   // without approval-pipeline statuses.
   // Kills: an approval-pipeline step (approved or under review) shown on a rejected request's timeline, or the draft or submitted step missing.
@@ -435,6 +451,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
 });
 
 describe("EventDetailPage — approve workflow (SPM-40)", () => {
+  // Traceability: Jira 40 AC1 (matrix 13336613)
   // EVENT-APPROVE-01-A — happy path (entry)
   // Kills: the Approve radio absent from the review controls, or the Reject radio missing.
   it("lets the assigned coordinator open the decision controls with an Approve option", async () => {
@@ -448,6 +465,7 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
   });
 
   // Kills: a reason field required for approval, or the approve request sent with a body or to the wrong route.
+  // Traceability: Jira 40 AC2 (matrix 13336613)
   /** EVENT-APPROVE-01-B — happy path (submit): one POST to the approve route, with no body and no reason. */
   it("submits an approval and fires the approve request without asking for a reason", async () => {
     renderDetail(assignedEvent());
@@ -462,6 +480,7 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
   });
 
   // Kills: a second click while the approval is in flight sending a duplicate approve request (no in-flight guard).
+  // Traceability: Jira 40 AC2 (matrix 13336613)
   /** EVENT-APPROVE-01-B — no duplicate approval while the request is in flight (store action held open). */
   it("sends the approval exactly once when Submit Decision is clicked twice while in flight", async () => {
     const realApprove = useAppStore.getState().approveEvent;
@@ -489,6 +508,7 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
     }
   });
 
+  // Traceability: Jira 40 AC2 (matrix 13336613)
   // EVENT-APPROVE-01-C — authorization (UI): controls only for the assigned coordinator
   // Kills: the Approve radio shown to an unassigned coordinator or to the owning organiser.
   it("shows the Approve controls only to the assigned coordinator", async () => {
@@ -513,6 +533,7 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
     expect(screen.getByRole("radio", { name: /approve/i })).toBeTruthy();
   });
 
+  // Traceability: Jira 40 AC6 (matrix 13336613)
   // EVENT-APPROVE-04-C — immutability (UI): no approve/revert controls once approved
   // Kills: Review Event or the Approve radio still shown for an event whose status is already approved.
   it("hides the approve controls once the event is approved", async () => {
@@ -597,6 +618,7 @@ describe("EventDetailPage — decision failures (SPM-40, SPM-83)", () => {
 });
 
 describe("EventDetailPage — decision shown to the organiser (SPM-88 AC4)", () => {
+  // Traceability: Jira 88 AC4 (matrix 37322836)
   /**
    * DECISION-NOTIFY-04-C: the organiser who owns a rejected request sees the rejected status
    * and the reason as "Rejected: <reason>".
@@ -616,6 +638,7 @@ describe("EventDetailPage — decision shown to the organiser (SPM-88 AC4)", () 
     ).toBeTruthy();
   });
 
+  // Traceability: Jira 88 AC4 (matrix 37322836)
   /**
    * DECISION-NOTIFY-04-D: the organiser who owns an approved request sees approved and no
    * rejection block.

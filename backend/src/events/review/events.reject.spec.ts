@@ -28,6 +28,7 @@ const REASON_REQUIREMENTS_MESSAGE =
   'contains at least 3 words; and includes real words, not just numbers or symbols.';
 
 // Kills: reason validation that accepts null or a number, so the request gets past validation instead of throwing the requirements message.
+// Traceability: Jira 83 AC3 (matrix 12124249)
 /** EVENT-REJECT-03-J: non-string reason values fail server validation before database access. */
 it.each([null, 123])(
   'SPM-83 rejects non-string rejection reason %j',
@@ -141,6 +142,7 @@ afterEach(() => {
 });
 
 describe('EventsService.reject (SPM-83)', () => {
+  // Traceability: Jira 83 AC5, AC6 (matrix 12124249)
   // EVENT-REJECT-03-A — happy path (AC5 + AC6)
   // Kills: reject that does not write Rejected, skips FOR UPDATE, writes a reason other than the one supplied to the UPDATE, or sends no organiser notification INSERT.
   it('rejects a Submitted request: sets Rejected, records the reason, notifies the organiser', async () => {
@@ -185,6 +187,7 @@ describe('EventsService.reject (SPM-83)', () => {
     expect(result.rejectionReason).toBeUndefined();
   });
 
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   // EVENT-REJECT-03-B — empty / whitespace-only
   // Kills: reason validation that accepts a missing, empty or whitespace-only reason, or opens a transaction before validating.
   it('rejects an empty or whitespace-only reason before opening a transaction', async () => {
@@ -201,6 +204,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // Kills: a minimum-length check that accepts 'no fit ok' (9 characters) or rejects exactly 10 characters (< and <= confused).
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   /** EVENT-REJECT-03-C — below minimum length (<10) */
   it('rejects a too-short reason and accepts exactly 10', async () => {
     await expect(service.reject(VALID_UUID, { reason: 'no fit ok' }, coordinator())).rejects.toThrow(
@@ -215,6 +219,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // Kills: a maximum-length check that accepts 501 characters or rejects exactly 500 (off-by-one).
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   /** EVENT-REJECT-03-D — above maximum length (>500) on the trimmed reason */
   it('rejects a too-long reason and accepts exactly 500', async () => {
     await expect(
@@ -230,6 +235,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // Kills: length measured on the raw reason, so surrounding spaces count toward a trimmed 501-character reason that should be rejected.
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   /** EVENT-REJECT-03-D — padding is not counted: a trimmed 501 stays rejected even when padded */
   it('rejects a padded reason whose trimmed length is 501', async () => {
     await expect(
@@ -239,6 +245,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // Kills: a maximum-length check on the raw value that rejects a 504-character raw reason with a trimmed length of 500, or stores the untrimmed text.
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   /** EVENT-REJECT-03-D — raw length over 500 is accepted when the trimmed reason is exactly 500, and the stored reason is the trimmed value. */
   it('accepts a raw reason over 500 characters whose trimmed length is 500', async () => {
     const reason500 = reasonOfLength(500);
@@ -253,6 +260,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // Kills: a minimum-length check on the raw value, so padded 'no fit ok' passes, or the stored reason keeps its padding.
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   /** EVENT-REJECT-03-C — padded reason: trimmed 9 stays rejected, trimmed 10 is accepted and stored trimmed */
   it('measures length on the trimmed reason for padded input', async () => {
     await expect(
@@ -268,6 +276,7 @@ describe('EventsService.reject (SPM-83)', () => {
     expect(update[1]).toEqual([VALID_UUID, 'No fit yet']);
   });
 
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   // EVENT-REJECT-03-E — fewer than 3 words
   // Kills: a word-count check accepting two words or one word, or requiring a different number of words than three.
   it('rejects a reason with fewer than 3 words and accepts >=3 words', async () => {
@@ -285,6 +294,7 @@ describe('EventsService.reject (SPM-83)', () => {
     ).resolves.toMatchObject({ status: 'rejected' });
   });
 
+  // Traceability: Jira 83 AC3, AC4 (matrix 12124249)
   // EVENT-REJECT-03-F — no letters (numbers / symbols only)
   // Kills: a letter check removed, so '123 456 7890' or '!!! ??? ...' is accepted as a reason.
   it('rejects a reason with no letters and accepts one containing letters', async () => {
@@ -302,6 +312,7 @@ describe('EventsService.reject (SPM-83)', () => {
     ).resolves.toMatchObject({ status: 'rejected' });
   });
 
+  // Traceability: Jira 83 AC5 (matrix 12124249)
   // EVENT-REJECT-03-G — id / existence guard
   // Kills: a malformed id that opens a transaction, or an unknown id that updates the row or succeeds instead of NotFound.
   it('guards the event id: malformed id never opens a transaction, unknown id is not found', async () => {
@@ -317,6 +328,7 @@ describe('EventsService.reject (SPM-83)', () => {
     expect(txSql()).toContain('ROLLBACK');
   });
 
+  // Traceability: Jira 83 AC5 (matrix 12124249)
   // EVENT-REJECT-03-H — variation: the current lifecycle has Submitted only.
   // Kills: a status guard that accepts the retired Under_Review status, or refuses a Submitted request.
   it('rejects a Submitted request and refuses the retired Under_Review status', async () => {
@@ -337,6 +349,7 @@ describe('EventsService.reject (SPM-83)', () => {
 
 describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
   // Kills: reject that admits an organiser or anonymous caller, or opens a transaction before the role check.
+  // Traceability: Jira 83 AC2 (matrix 12124249)
   /** EVENT-REJECT-04-B: only a coordinator may reject, before opening a transaction. */
   it('refuses a caller who is not a coordinator, before opening a transaction', async () => {
     await expect(
@@ -349,6 +362,7 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
   });
 
   // Kills: reject that lets a non-assigned coordinator update the request, or the wrong ForbiddenException message.
+  // Traceability: Jira 83 AC2 (matrix 12124249)
   /** EVENT-REJECT-04-B: only the coordinator assigned to the request may reject it. */
   it('refuses a coordinator who is not the one assigned to the request', async () => {
     wireReject(eventRow({ coordinator_id: 'coordinator-1', status: 'Submitted' }), null);
@@ -369,6 +383,7 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
 
 describe('EventsService.reject — state guard (EVENT-REJECT-04-C)', () => {
   // Kills: rejection of any non-reviewable status (UPDATE runs or no ConflictException).
+  // Traceability: Jira 83 AC5 (matrix 12124249)
   /** EVENT-REJECT-04-C: requests outside the reviewable state are refused without an update. */
   it.each(['Approved', 'Rejected', 'Cancelled', 'Completed'])(
     'cannot reject a %s request (Conflict, no update)',
@@ -398,6 +413,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
   };
 
   // Kills: notifications() dropping the rejection type, the headline, audience or read flag, or querying the wrong notification types.
+  // Traceability: Jira 83 AC6 (matrix 12124249)
   /** EVENT-REJECT-03-I step 1–2: the organiser retrieves their rejection notification (the reason is on the event, SPM-88 AC3). */
   it("returns the organiser's rejection notifications without the reason in the message", async () => {
     db.query.mockResolvedValue({ rows: [notificationRow] });
@@ -419,6 +435,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
   // Coordinators may now read their own assignment notifications (SPM-123), so
   // the non-organiser here is a venue staff account, who has no notifications.
   // Kills: notifications() that serves a venue-staff caller, or queries the database before the organiser check.
+  // Traceability: Jira 83 AC6 (matrix 12124249)
   /** EVENT-REJECT-03-I step 4: another user cannot retrieve the organiser's notification. */
   it('refuses a non-organiser caller and does not query', async () => {
     await expect(
@@ -428,6 +445,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
   });
 
   // Kills: readNotification that returns a different success shape, or does not scope the update to the caller.
+  // Traceability: Jira 83 AC6 (matrix 12124249)
   /** EVENT-REJECT-03-I step 3: the organiser can mark their rejection notification as read. */
   it('marks a rejection notification as read', async () => {
     db.query.mockResolvedValue({ rows: [{ id: 'notif-1' }] });
@@ -437,6 +455,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
   });
 
   // Kills: readNotification that reports success for an unknown notification id instead of throwing NotFound.
+  // Traceability: Jira 83 AC6 (matrix 12124249)
   /** EVENT-REJECT-03-I step 4: an unknown notification returns NotFound. */
   it('returns not found when marking an unknown notification', async () => {
     db.query.mockResolvedValue({ rows: [] });
@@ -447,6 +466,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
 });
 
 describe('SPM-123 AC10: rejecting keeps the assigned coordinator', () => {
+  // Traceability: Jira 123 needs review (no matrix row; family LEAD-ASN-10) (matrix 21102810)
   // Parent AC (SUPPORTING): SPM-123 AC10 (to confirm) (story reassigned on 23 Oct 2026)
   // Rejection changes status and reason only; the coordinator stays on the event.
   // Kills: rejection that writes coordinator_id or coordinator_name in the UPDATE, or a result that drops coordinatorId.
@@ -478,6 +498,7 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
     created_at: new Date('2026-10-06T00:00:00.000Z'),
   };
 
+  // Traceability: Jira 123 needs review (no matrix row; family LEAD-ASN-09) (matrix 21102810)
   // Parent AC (SUPPORTING): SPM-123 AC9 (to confirm) (story reassigned on 23 Oct 2026)
   // A coordinator sees only their own assignment notifications and can mark them read.
   // Kills: coordinator notifications not scoped to the coordinator uid or the assignment type, or another coordinator's notification marked read.
@@ -517,6 +538,7 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
 });
 
 describe('SPM-47 AC8 and AC10: notifications for reassignment', () => {
+  // Traceability: Jira 47 needs review (no matrix row; family LEAD-REASN-08) (matrix 21496116)
   // Parent AC (SUPPORTING): SPM-47 AC8 (story reassigned on 23 Oct 2026)
   // Coordinators see reassignment to and away from them as coordinator notifications.
   // Kills: reassignment notifications given the wrong audience role, or the query missing one of the three coordinator notification types.
@@ -541,6 +563,7 @@ describe('SPM-47 AC8 and AC10: notifications for reassignment', () => {
     ]);
   });
 
+  // Traceability: Jira 47 needs review (no matrix row; family LEAD-REASN-10) (matrix 21496116)
   // Parent AC (SUPPORTING): SPM-47 AC10 (story reassigned on 23 Oct 2026)
   // The Lead reads only notifications about coordinators becoming unavailable, and can mark them read.
   // Kills: the Lead's notification query widened to other types or recipients, or audienceRole not labelled coordinator_lead.
@@ -584,6 +607,7 @@ describe('SPM-47 AC8 and AC10: notifications for reassignment', () => {
 describe('SPM-125 venue notices in the notification feed', () => {
   const created = new Date('2026-10-07T09:00:00.000Z');
 
+  // Traceability: Jira 125 AC7 (matrix 39125581)
   /**
    * VEN-IMPACT-07-E (AC7): a Coordinator's venue notices are labelled for the Coordinator and carry the booking they
    * are about, so the bell can open that booking.
@@ -616,6 +640,7 @@ describe('SPM-125 venue notices in the notification feed', () => {
  * suite); this case covers the read side, the coordinator's notification feed.
  */
 describe('SPM-131 AC1: the Safety Officer response notice in the coordinator feed', () => {
+  // Traceability: Jira 131 AC1 (matrix 36798544)
   /**
    * SAFETY-OUTCOME-01: the assigned coordinator's feed lists the safety response notice, labelled for the coordinator
    * and carrying the event it is about; an organiser's feed does not ask for it.

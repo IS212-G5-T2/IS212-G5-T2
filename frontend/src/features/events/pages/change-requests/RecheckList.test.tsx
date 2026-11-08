@@ -32,11 +32,13 @@ const approved: ChangeRequest = {
 beforeEach(() => vi.resetAllMocks());
 
 describe("RecheckList", () => {
+  // Traceability: Jira 65 AC9 (matrix 28016830)
   it("REVIEW-CHANGE-09-C renders nothing when no arrangement is affected", () => {
     const { container } = render(<RecheckList request={{ ...approved, recheck: [] }} />);
     expect(container).toBeEmptyDOMElement();
   });
 
+  // Traceability: Jira 65 AC9 (matrix 28016830)
   it("REVIEW-CHANGE-09-A shows the list read-only to everyone but the coordinator", () => {
     render(<RecheckList request={approved} />);
     expect(screen.getByText("Venue booking: Hall")).toBeInTheDocument();
@@ -46,6 +48,7 @@ describe("RecheckList", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC9 (matrix 28016830)
   it("REVIEW-CHANGE-09-B lets the coordinator mark an arrangement as re-checked", async () => {
     const updated = { ...approved, recheck: [{ ...approved.recheck[0], checkedAt: "2026-10-18T02:00:00.000Z", checkedBy: "Coord" }, approved.recheck[1]] };
     markMock.mockResolvedValue(updated);
@@ -56,6 +59,7 @@ describe("RecheckList", () => {
     expect(markMock).toHaveBeenCalledWith("evt-1", "cr-1", "i1");
   });
 
+  // Traceability: Jira 65 AC9 (matrix 28016830)
   /** REVIEW-CHANGE-09-D: who re-checked each arrangement, and the all-done state. */
   it("shows who re-checked each arrangement and when all are done", () => {
     const done = approved.recheck.map((item) => ({ ...item, checkedAt: "2026-10-18T02:00:00.000Z", checkedBy: "Coord" }));
@@ -64,6 +68,7 @@ describe("RecheckList", () => {
     expect(screen.getAllByText(/Re-checked by Coord on/)).toHaveLength(2);
   });
 
+  // Traceability: Jira 65 AC9 (matrix 28016830)
   /** REVIEW-CHANGE-09-D: a failed re-check mark is explained. */
   it("shows why marking failed", async () => {
     markMock.mockRejectedValueOnce(new Error("This arrangement has already been re-checked.")).mockRejectedValueOnce("offline");

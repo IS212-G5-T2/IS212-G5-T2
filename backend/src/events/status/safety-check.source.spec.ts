@@ -38,6 +38,7 @@ describe('EventSafetyCheckSource.read (FACT_STATE mapping)', () => {
     await expect(source.read(EVENT_ID)).resolves.toEqual({ state: 'Approved' });
   });
 
+  // Traceability: Jira 48 AC7 (matrix 23691437)
   /** SPM-48 AC7 (MONITOR-QUEUE-07-C): a rejected arrangement maps to "Rejected", which keeps Confirm blocked. */
   it('MONITOR-QUEUE-07-C maps a rejected safety check to Rejected', async () => {
     const { source } = sourceReturning([{ status: 'rejected', requested_at: REQUESTED_AT, approver_name: 'Safety Officer 1' }]);
@@ -94,6 +95,7 @@ describe('EventSafetyCheckSource.view', () => {
     });
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** An approved check shows the approver, and feedback items keep their resolved mark only when set. */
   it('SAFETY-OUTCOME-04 reads review arrangement identifiers from safety feedback', async () => {
     const requestedAt = new Date('2026-10-12T01:00:00.000Z');

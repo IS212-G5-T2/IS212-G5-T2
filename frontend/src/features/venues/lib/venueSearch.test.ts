@@ -78,6 +78,7 @@ const event: EventRecord = {
 };
 
 describe("venue search criteria (SPM-52)", () => {
+  // Traceability: Jira 52 AC1 (matrix 28868679)
   /** SPM-52 AC1: the name or location query matches partially and ignores letter case. */
   it("VEN-SRCH-01-A matches a partial name regardless of letter case", () => {
     const venues = [orchid, busy];
@@ -85,29 +86,34 @@ describe("venue search criteria (SPM-52)", () => {
     expect(names(applyVenueSearch(venues, criteria({ query: "room" }), NOW))).toEqual(["Busy Room"]);
   });
 
+  // Traceability: Jira 52 AC1 (matrix 28868679)
   /** SPM-52 AC1: the location query matches partially, ignores case and surrounding spaces. */
   it("VEN-SRCH-01-B matches a partial location ignoring case and surrounding spaces", () => {
     expect(names(applyVenueSearch([orchid, busy], criteria({ query: "  south campus " }), NOW))).toEqual(["Busy Room"]);
     expect(names(applyVenueSearch([orchid, busy], criteria({ query: "CAMP" }), NOW))).toEqual(["Orchid Hall", "Busy Room"]);
   });
 
+  // Traceability: Jira 52 AC1 (matrix 28868679)
   /** SPM-52 AC1 negative: a query that matches neither name nor location hides every venue. */
   it("VEN-SRCH-01-C hides venues when neither the name nor the location contains the query", () => {
     expect(applyVenueSearch([orchid, busy], criteria({ query: "zzz" }), NOW)).toEqual([]);
   });
 
+  // Traceability: Jira 52 AC2 (matrix 28868679)
   /** SPM-52 AC2 boundary: capacity equal to the minimum qualifies, one seat less does not. */
   it("VEN-SRCH-02-A includes a venue whose capacity equals the minimum and excludes smaller venues", () => {
     expect(names(applyVenueSearch([orchid, busy], criteria({ minCapacity: "120" }), NOW))).toEqual(["Orchid Hall"]);
     expect(applyVenueSearch([orchid], criteria({ minCapacity: "121" }), NOW)).toEqual([]);
   });
 
+  // Traceability: Jira 52 AC2 (matrix 28868679)
   /** SPM-52 AC2: the layout filter keeps only venues offering the chosen layout. */
   it("VEN-SRCH-02-B keeps only venues that offer the selected room layout", () => {
     const boardroom = { ...orchid, id: "venue-board", name: "Board Room", layouts: ["Boardroom"] };
     expect(names(applyVenueSearch([orchid, boardroom], criteria({ layout: "Boardroom" }), NOW))).toEqual(["Board Room"]);
   });
 
+  // Traceability: Jira 52 AC2 (matrix 28868679)
   /** SPM-52 AC2: every selected facility must be offered; a venue with only some of them is hidden. */
   it("VEN-SRCH-02-C requires every selected facility", () => {
     const partial = { ...orchid, id: "venue-partial", name: "Partial Room", facilities: ["Projector"] };
@@ -116,6 +122,7 @@ describe("venue search criteria (SPM-52)", () => {
     ]);
   });
 
+  // Traceability: Jira 52 AC2 (matrix 28868679)
   /** SPM-52 AC2: every selected accessibility feature must be offered; a venue with only some of them is hidden. */
   it("VEN-SRCH-02-D requires every selected accessibility feature", () => {
     const hearing = { ...orchid, id: "venue-hearing", name: "Hearing Hall", accessibility: ["Hearing loop"] };
@@ -127,6 +134,7 @@ describe("venue search criteria (SPM-52)", () => {
     ]);
   });
 
+  // Traceability: Jira 52 AC2 (matrix 28868679)
   /** SPM-52 AC2: combined criteria show only the venue that matches all of them. */
   it("VEN-SRCH-02-E combines capacity, layout, facilities and accessibility with AND semantics", () => {
     const small = { ...orchid, id: "venue-small", name: "Small Room", capacity: 10 };
@@ -143,6 +151,7 @@ describe("venue search criteria (SPM-52)", () => {
     expect(names(result)).toEqual(["Orchid Hall"]);
   });
 
+  // Traceability: Jira 52 AC3 (matrix 28868679)
   /** SPM-52 AC3: a venue with no bookings or unavailable periods is free for the whole requested period. */
   it("VEN-SRCH-03-A includes a venue with no bookings or unavailable periods", () => {
     expect(
@@ -150,6 +159,7 @@ describe("venue search criteria (SPM-52)", () => {
     ).toEqual(["Orchid Hall"]);
   });
 
+  // Traceability: Jira 52 AC3 (matrix 28868679)
   /** SPM-52 AC3 boundary: the requested period may end exactly where the buffer before a booking starts. */
   it("VEN-SRCH-03-B treats an exact setup or turnaround buffer touch as free", () => {
     // Booking 11:00-12:00 with setup 30 starts occupying at 10:30; a request ending at 10:15 finishes with its turnaround-padded end at 10:30.
@@ -162,6 +172,7 @@ describe("venue search criteria (SPM-52)", () => {
     ).toEqual(["Busy Room"]);
   });
 
+  // Traceability: Jira 52 AC3 (matrix 28868679)
   /** SPM-52 AC3 boundary: a one-minute overlap into the setup or turnaround buffer makes the venue unavailable. */
   it("VEN-SRCH-03-C hides a venue when the requested period overlaps a buffer by one minute", () => {
     expect(
@@ -172,6 +183,7 @@ describe("venue search criteria (SPM-52)", () => {
     ).toEqual([]);
   });
 
+  // Traceability: Jira 52 AC3 (matrix 28868679)
   /** SPM-52 AC3: a requested period that overlaps an unavailable period hides the venue. */
   it("VEN-SRCH-03-D hides a venue during one of its unavailable periods", () => {
     const maintenance: VenueRecord = {
@@ -192,6 +204,7 @@ describe("venue search criteria (SPM-52)", () => {
     ).toEqual([]);
   });
 
+  // Traceability: Jira 52 AC3 (matrix 28868679)
   /** SPM-52 AC3: expired tentative holds are ignored, while active holds and confirmed bookings block the period. */
   it("VEN-SRCH-03-E ignores expired tentative holds and respects active holds", () => {
     const expiredHold: VenueRecord = {
@@ -230,6 +243,7 @@ describe("venue search criteria (SPM-52)", () => {
     expect(names(applyVenueSearch([expiredHold, activeHold], period, NOW))).toEqual(["Expired Hold Hall"]);
   });
 
+  // Traceability: Jira 52 AC4 (matrix 28868679)
   /** SPM-52 AC4: the event's requirements become the starting criteria, with the event's accessibility needs mapped to venue features. */
   it("VEN-SRCH-04-A maps the event requirements, attendance, times and accessibility labels into search criteria", () => {
     expect(criteriaFromEvent(event)).toEqual({
@@ -243,6 +257,7 @@ describe("venue search criteria (SPM-52)", () => {
     });
   });
 
+  // Traceability: Jira 52 AC4 (matrix 28868679)
   /** SPM-52 AC4: an event without a layout does not add a layout requirement. */
   it("VEN-SRCH-04-B applies no layout requirement when the event names none", () => {
     const noLayout = {
@@ -256,6 +271,7 @@ describe("venue search criteria (SPM-52)", () => {
     ]);
   });
 
+  // Traceability: Jira 52 AC4 (matrix 28868679)
   /** SPM-52 AC4: event-derived criteria exclude venues that are busy during the event time, even when they suit the event. */
   it("VEN-SRCH-04-C excludes a suitable venue that is busy during the event", () => {
     const suitableButBusy = {
@@ -280,6 +296,7 @@ describe("venue search criteria (SPM-52)", () => {
     ]);
   });
 
+  // Traceability: Jira 52 AC5 (matrix 28868679)
   /** SPM-52 AC5: minimum capacity must be a positive whole number when it is entered. */
   it("VEN-SRCH-05-A reports a minimum capacity that is not a positive whole number", () => {
     for (const value of ["0", "-3", "2.5", "1e3", "ten"]) {
@@ -291,6 +308,7 @@ describe("venue search criteria (SPM-52)", () => {
     expect(validateVenueSearch(criteria({ minCapacity: " 1 " })).minCapacity).toBeUndefined();
   });
 
+  // Traceability: Jira 52 AC5 (matrix 28868679)
   /** SPM-52 AC5: an end time equal to or before the start time is reported on the end field. */
   it("VEN-SRCH-05-B reports an end time that is not after the start time", () => {
     const message = "The end time must be after the start time.";
@@ -299,6 +317,7 @@ describe("venue search criteria (SPM-52)", () => {
     expect(validateVenueSearch(criteria({ start: "2026-10-27T09:00", end: "2026-10-27T10:00" }))).toEqual({});
   });
 
+  // Traceability: Jira 52 AC5 (matrix 28868679)
   /** SPM-52 AC5: a range with only one bound is reported on the missing field. */
   it("VEN-SRCH-05-C reports the missing bound of a half-entered date range", () => {
     expect(validateVenueSearch(criteria({ start: "2026-10-27T09:00" })).end).toBe(
@@ -309,6 +328,7 @@ describe("venue search criteria (SPM-52)", () => {
     );
   });
 
+  // Traceability: Jira 52 AC5 (matrix 28868679)
   /** SPM-52 AC5 (Sad): a minimum capacity that is not a positive whole number is reported and not applied. "99.5" would drop the 1-seat room if applied, so keeping it proves the criterion is ignored. The date half is not asserted here: a reversed range returns no conflicts from checkVenueAvailability, so dropping it cannot change a result (mutant F10). */
   it("VEN-SRCH-05-D does not apply a non-whole capacity to the results", () => {
     const small = { ...orchid, id: "venue-small", name: "Small Room", capacity: 1 };
@@ -318,6 +338,7 @@ describe("venue search criteria (SPM-52)", () => {
     ]);
   });
 
+  // Traceability: Jira 52 AC5 (matrix 28868679)
   /** SPM-52 AC5: a valid set of criteria reports no validation errors. */
   it("VEN-SRCH-05-G reports no errors for valid criteria", () => {
     expect(
@@ -325,6 +346,7 @@ describe("venue search criteria (SPM-52)", () => {
     ).toEqual({});
   });
 
+  // Traceability: Jira 52 AC3 (matrix 28868679)
   /** SPM-52 AC3 boundary: a hold is active only while it expires strictly after the search time; one expiring at that instant no longer blocks. */
   it("VEN-SRCH-03-J treats a hold expiring exactly at the search time as expired, and one a millisecond later as active", () => {
     const holdAt = (expiry: number): VenueRecord => ({
@@ -347,6 +369,7 @@ describe("venue search criteria (SPM-52)", () => {
     expect(names(applyVenueSearch([holdAt(NOW), holdAt(NOW + 1)], period, NOW))).toEqual(["Hold 0"]);
   });
 
+  // Traceability: Jira 52 AC4 (matrix 28868679)
   /** SPM-52 AC4: the event's expected attendance, not the event venue-requirements minimum, becomes the minimum capacity. */
   it("VEN-SRCH-04-I uses the expected attendance as the minimum capacity", () => {
     const attendance = {
@@ -357,6 +380,7 @@ describe("venue search criteria (SPM-52)", () => {
     expect(criteriaFromEvent(attendance).minCapacity).toBe("50");
   });
 
+  // Traceability: Jira 52 AC5 (matrix 28868679)
   /** SPM-52 AC5: an invalid minimum capacity is not applied, even when its numeric value would exclude venues. */
   it("VEN-SRCH-05-I does not apply a non-whole capacity entry that would otherwise filter venues", () => {
     for (const entry of ["99.5", "1e3"]) {
@@ -367,6 +391,7 @@ describe("venue search criteria (SPM-52)", () => {
     }
   });
 
+  // Traceability: Jira 52 AC4 (matrix 28868679)
   /** SPM-52 AC4: the event's SGT wall times are formatted as datetime-local values, independent of the host timezone. */
   it("VEN-SRCH-04-G formats instants as SGT datetime-local values", () => {
     expect(toSgtDateTimeLocal("2026-10-27T01:00:00.000Z")).toBe("2026-10-27T09:00");
@@ -391,18 +416,21 @@ describe("SPM-125 venue search during an unavailable period", () => {
   const search = (start: string, end: string) =>
     applyVenueSearch([unavailableOrchid], { ...EMPTY_VENUE_SEARCH, query: "orchid", start, end }, NOW).map((v) => v.id);
 
+  // Traceability: Jira 125 AC3 (matrix 39125581)
   /** VEN-IMPACT-03-B (AC3): without a time, or for a time outside the period, the unavailable venue is still found. */
   it("VEN-IMPACT-03-B keeps an unavailable venue searchable without a time and outside the period", () => {
     expect(search("", "")).toEqual(["venue-orchid"]);
     expect(search("2026-10-08T15:00", "2026-10-08T16:00")).toEqual(["venue-orchid"]);
   });
 
+  // Traceability: Jira 125 AC3 (matrix 39125581)
   /** VEN-IMPACT-03-C (AC3): a time overlapping the period, here only through the 30-minute setup, is not offered. */
   it("VEN-IMPACT-03-C leaves the venue out for a time whose occupied period overlaps the unavailable period", () => {
     expect(search("2026-10-08T12:00", "2026-10-08T14:00")).toEqual([]);
     expect(search("2026-10-08T13:20", "2026-10-08T14:00")).toEqual([]);
   });
 
+  // Traceability: Jira 125 AC4 (matrix 39125581)
   /**
    * VEN-IMPACT-04-B (AC4): a booking whose occupied period (start minus 30 minutes' setup) starts exactly at 13:00,
    * when the period ends, is outside it; one minute earlier overlaps.

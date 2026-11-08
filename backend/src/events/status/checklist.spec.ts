@@ -63,6 +63,7 @@ describe('buildChecklist', () => {
     expect(result.blocking).toEqual([]);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: disabled registration is a configured no-registration choice and satisfies the prerequisite. */
   it('SAFETY-OUTCOME-06 treats disabled registration as confirmed', () => {
     const result = buildChecklist({
@@ -76,6 +77,7 @@ describe('buildChecklist', () => {
     expect(result.canRequestSafetyCheck).toBe(true);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: enabled registration must have saved open and close dates before safety can be requested. */
   it.each([
     [{ enabled: true, opensAt: null, closesAt: new Date('2026-10-20T00:00:00Z') }],
@@ -91,6 +93,7 @@ describe('buildChecklist', () => {
     expect(result.canRequestSafetyCheck).toBe(false);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: enabled registration is confirmed only by a complete saved period. */
   it('SAFETY-OUTCOME-06 allows complete enabled registration settings', () => {
     const result = buildChecklist({
@@ -104,6 +107,7 @@ describe('buildChecklist', () => {
     expect(result.canRequestSafetyCheck).toBe(true);
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: selected arrangements are pending in their real workflow and remain tagged in the checklist. */
   it('SAFETY-OUTCOME-04 shows actual pending status only for selected arrangements', () => {
     const result = buildChecklist({
@@ -130,6 +134,7 @@ describe('buildChecklist', () => {
     expect(result.safetyCheck.status).toBe('changes_needed');
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: safety review markers are scoped to selected rows even when unselected rows are also pending. */
   it('SAFETY-OUTCOME-04 tags only selected pending venue and equipment rows', () => {
     const result = buildChecklist({
@@ -148,6 +153,7 @@ describe('buildChecklist', () => {
     expect(result.equipment.items.find((item) => item.id === 'e2')).not.toHaveProperty('safetyReviewStatus');
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: resolving feedback clears only its overlay and permits re-request when actual arrangements are ready. */
   it('SAFETY-OUTCOME-04 clears resolved overlays without changing approved or reserved resource states', () => {
     const result = buildChecklist({
@@ -172,6 +178,7 @@ describe('buildChecklist', () => {
     expect(result.canRequestSafetyCheck).toBe(true);
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: a real non-ready resource remains blocking after its feedback is checked. */
   it('SAFETY-OUTCOME-04 keeps underlying operational blockers after feedback resolution', () => {
     const result = buildChecklist({
@@ -291,6 +298,7 @@ describe('buildChecklist', () => {
   });
 
   // Kills: SPM54-BE-CHECKLIST-CANCELLED (individually cancelled venue requests reappear in the active event venue checklist).
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: cancelling one venue request hides it from the active checklist and preserves other requests. */
   it('excludes cancelled venue requests from the active checklist without hiding other venues', () => {
     const result = build(
@@ -447,6 +455,7 @@ describe('buildChecklist: SAFETY-QUEUE-06 venue replacement history', () => {
     expect(withoutReplacement.canRequestSafetyCheck).toBe(false);
   });
 
+  // Traceability: Jira 129 AC6 (matrix 36831243)
   /** SAFETY-QUEUE-06: a replacement must cover the entire rejected slot at the same venue, including both boundaries. */
   it('SAFETY-QUEUE-06 leaves rejected history blocking for another venue or incomplete slot coverage', () => {
     const rejected = booking({ id: 'rejected', status: 'rejected', venueId: 'venue-main' });

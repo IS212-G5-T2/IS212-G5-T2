@@ -30,6 +30,7 @@ function setup(eventRow: Record<string, unknown> | undefined) {
 const planningRow = { id: EVENT, status: 'Planning', event_name: 'Annual Gala Dinner', organiser_id: 'org-01', coordinator_id: 'coo-01' };
 
 describe('SPM-136 CancelEventService authorisation and order of checks', () => {
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: C1 (the no-identity check removed: the request reaches the ownership check with no user)
   it('CANCEL-EVENT-01-C: no identity is refused with 401 before anything is read', async () => {
     // Arrange
@@ -44,6 +45,7 @@ describe('SPM-136 CancelEventService authorisation and order of checks', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: C2 (the event id format check removed: a malformed id reaches the database and the transaction)
   it('CANCEL-EVENT-01-C: a malformed event id is 404 "Event not found." (same as a missing event)', async () => {
     // Arrange
@@ -58,6 +60,7 @@ describe('SPM-136 CancelEventService authorisation and order of checks', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: M1 (COO-02 row); M1 and M7 (LEAD-01 row); M1 and M8 (ORG-02 row); M8 (ORG-01 submitter row)
   it.each([
     ['COO-02, not assigned', otherCoordinator],
@@ -79,6 +82,7 @@ describe('SPM-136 CancelEventService authorisation and order of checks', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: M8 (the submitting organiser is allowed to cancel)
   it('CANCEL-EVENT-01-B: the submitting organiser is refused 403 even on a confirmed request, and no transaction opens', async () => {
     // Arrange: the locked row is a Planning event that the organiser submitted and the coordinator is assigned to
@@ -94,6 +98,7 @@ describe('SPM-136 CancelEventService authorisation and order of checks', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: M3 (every row); M10 (the string "true" row)
   it.each([undefined, { targetStatus: 'Cancelled' }, { targetStatus: 'Cancelled', confirmed: false }, { targetStatus: 'Cancelled', confirmed: 'true' }])(
     'CANCEL-EVENT-02-C: confirmation %j is refused with 400 CANCEL_NOT_CONFIRMED before any write',
@@ -133,6 +138,7 @@ describe('SPM-136 CancelEventService authorisation and order of checks', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 136 AC3 (matrix 23691421)
   // Kills: M4, M15
   it('CANCEL-EVENT-03-B: an already Cancelled event is refused with 409 EVENT_NOT_CANCELLABLE and no UPDATE is issued', async () => {
     // Arrange: the locked row is Cancelled
@@ -176,6 +182,7 @@ function transactionalSetup(options: { locked?: Record<string, unknown> | null; 
 }
 
 describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C, 06-A)', () => {
+  // Traceability: Jira 136 AC3 (matrix 23691421)
   // Kills: M2, M4, M12, M15, M16, S17, S18, S21, S22, S24
   it('CANCEL-EVENT-03-A: compare-and-set stamps cancelled_by and the injected instant, then history and one notice per recipient', async () => {
     // Arrange: organiser and coordinator plus two Registered attendees, one listed twice (must notify once)
@@ -201,6 +208,7 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
     expect(releaserRecorder.release).toHaveBeenCalledWith(EVENT, client, NOW);
   });
 
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: M8 (the submitting organiser may cancel with no coordinator assigned)
   it('CANCEL-EVENT-01-B: a Submitted event with no assigned coordinator refuses its organiser with 403', async () => {
     // Arrange: a Submitted event with no assigned coordinator, submitted by ORG-01
@@ -215,6 +223,7 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 136 AC3, AC5 (matrix 23691421)
   // Kills: M4, M15
   it('CANCEL-EVENT-03-C: a locked row that disappeared is refused 404 with no write', async () => {
     // Arrange: the locked read finds no row
@@ -229,6 +238,7 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
     expect(statements.some((s) => /UPDATE events|INSERT INTO/.test(s.sql))).toBe(false);
   });
 
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: M1, M4, M15
   it('CANCEL-EVENT-01-C: a locked row reassigned to another coordinator is refused 403 with no write', async () => {
     // Arrange: the locked row now names another coordinator
@@ -244,6 +254,7 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
     expect(statements.some((s) => /UPDATE events|INSERT INTO/.test(s.sql))).toBe(false);
   });
 
+  // Traceability: Jira 136 AC3, AC5 (matrix 23691421)
   // Kills: M4, M15
   it('CANCEL-EVENT-03-C: a request that loses the compare-and-set is refused 409 and writes no history or notice', async () => {
     // Arrange: the compare-and-set UPDATE matches no row
@@ -262,6 +273,7 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
 });
 
 describe('SPM-136 cancellation lookup and releaser contract', () => {
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: C3 (the missing-event check removed: the authorisation check runs on no row)
   it('CANCEL-EVENT-01-C: an unknown event id (well-formed) is 404 "Event not found." before any write', async () => {
     // Arrange: no event row exists
@@ -276,6 +288,7 @@ describe('SPM-136 cancellation lookup and releaser contract', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 136 AC6 (matrix 23691421)
   // Kills: M4, M15, M16, S17, S24
   it('CANCEL-EVENT-06-A: a releaser that collects no recipients is still released, and only the organiser and coordinator are notified', async () => {
     // Arrange: a releaser that contributes no recipients
@@ -361,6 +374,7 @@ describe('SPM-162 the Organiser is left out of EventCancelled on the request pat
   const recipientsOf = (statements: Array<{ sql: string; params: unknown[] }>) =>
     (statements.find((s) => /INSERT INTO notifications/.test(s.sql))?.params[0] ?? []) as string[];
 
+  // Traceability: Jira 162 AC3 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-03-C (SPM-162 AC3): with skipOrganiserNotice the EventCancelled notices go to the Coordinator and the
    * attendees only; the Organiser is not among the recipients, and the cancellation itself still happens.
@@ -378,6 +392,7 @@ describe('SPM-162 the Organiser is left out of EventCancelled on the request pat
     expect(releaserRecorder.release).toHaveBeenCalledWith(EVENT, client, NOW);
   });
 
+  // Traceability: Jira 162 AC3 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-03-D (SPM-162 AC3): without the option, or with it false, a Coordinator's own cancellation still
    * notifies the Organiser (the direct SPM-136 path is unchanged).
@@ -396,6 +411,7 @@ describe('SPM-162 the Organiser is left out of EventCancelled on the request pat
     expect(recipientsOf(statements)).toEqual(['org-01', 'coo-01', 'att-1']);
   });
 
+  // Traceability: Jira 162 AC3 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-03-E (SPM-162 AC3): the skip also holds when a releaser reports the Organiser as a recipient (an
    * Organiser who is also registered), because the removal happens after every recipient is collected.

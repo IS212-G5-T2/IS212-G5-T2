@@ -137,6 +137,7 @@ afterEach(() => {
 });
 
 describe("EventDetailPage planning information (organiser)", () => {
+  // Traceability: Jira 156 DoD4 (matrix 38010922)
   // SPM-156 EVENT-UPDATE-07-D: the owning organiser sees the change history,
   // including changes the coordinator applied immediately, read-only.
   it("EVENT-UPDATE-07-D shows the owning organiser the change history with direct updates", async () => {
@@ -175,6 +176,7 @@ describe("EventDetailPage planning information (organiser)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 156 DoD4 (matrix 38010922)
   // SPM-156 EVENT-UPDATE-07-D: with nothing recorded, the organiser sees no empty history card.
   it("EVENT-UPDATE-07-D hides the organiser's change history while nothing is recorded", async () => {
     renderPage();
@@ -252,6 +254,7 @@ describe("EventDetailPage planning information (organiser)", () => {
     );
   }
 
+  // Traceability: Jira 156 DoD4 (matrix 38010922)
   /** EVENT-UPDATE-07-D: moving to another event clears the previous event's change history. */
   it("EVENT-UPDATE-07-D clears the change history when the page moves to another event", async () => {
     const user = userEvent.setup();
@@ -276,6 +279,7 @@ describe("EventDetailPage planning information (organiser)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 156 DoD4 (matrix 38010922)
   /** EVENT-UPDATE-07-D: a slow history reply for the previous event is ignored once another event is open. */
   it("EVENT-UPDATE-07-D ignores a delayed history reply for the previous event", async () => {
     const user = userEvent.setup();
@@ -301,6 +305,7 @@ describe("EventDetailPage planning information (organiser)", () => {
     expect(list).not.toHaveTextContent("Welcome Night");
   });
 
+  // Traceability: Jira 156 DoD4 (matrix 38010922)
   /** EVENT-UPDATE-07-D: the change history refreshes with the planning poll, so the organiser sees a coordinator's new change. */
   it("EVENT-UPDATE-07-D refreshes the organiser's change history with the planning poll", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -337,12 +342,14 @@ describe("EventDetailPage planning information (organiser)", () => {
     expect(list).toHaveTextContent("Description: Old → New");
   });
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // EVENT-VIEW-01-A: once the event is in planning the organiser sees the planning panel.
   it("EVENT-VIEW-01-A shows the planning information panel for a planning-phase event", async () => {
     renderPage();
     expect(await planningRegion()).toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // EVENT-VIEW-01-B: before planning there is no panel and the planning endpoint is not called.
   it("EVENT-VIEW-01-B hides the planning panel while the event is only submitted", async () => {
     currentView = planningView({ event: eventRecord({ status: "submitted" }) });
@@ -356,6 +363,7 @@ describe("EventDetailPage planning information (organiser)", () => {
     ).toBe(false);
   });
 
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   // EVENT-VIEW-02-A: the organiser sees the current venue, equipment and booking status.
   it("EVENT-VIEW-02-A lists the booked venue, equipment arrangement and their status", async () => {
     renderPage();
@@ -366,6 +374,7 @@ describe("EventDetailPage planning information (organiser)", () => {
     expect(within(region).getByText(/Reserved/)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC11 (matrix 22839839)
   // VEN-BKG-11-VAR-1: Event Details consumes the planning endpoint's updated venue projection after a real blockout is recorded.
   it("VEN-BKG-11-VAR-1 refreshes usable capacity from the planning projection when a confirmed venue becomes unavailable", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -432,6 +441,7 @@ describe("EventDetailPage planning information (organiser)", () => {
     );
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-A: a field with a change pending because of a booking conflict is marked.
   it("EVENT-VIEW-03-A marks a conflict-driven pending change on the affected field", async () => {
     currentView = planningView({
@@ -453,6 +463,7 @@ describe("EventDetailPage planning information (organiser)", () => {
     expect(within(region).getByText(/booking conflict/i)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-B: an unavailable booked venue is shown as needing a replacement.
   it("EVENT-VIEW-03-B shows that a replacement venue is required", async () => {
     currentView = planningView({
@@ -483,6 +494,7 @@ describe("EventDetailPage planning information (organiser)", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC4 (matrix 19890855)
   // EVENT-VIEW-04-A: the organiser's panel has no way to edit anything.
   it("EVENT-VIEW-04-A offers no edit controls to the organiser", async () => {
     renderPage();
@@ -501,6 +513,7 @@ describe("EventDetailPage planning information (organiser)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // EVENT-VIEW-05-A: after the coordinator resolves a change the page updates by itself.
   it("EVENT-VIEW-05-A refreshes automatically once the pending change is resolved", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -650,6 +663,7 @@ function asCoordinator(view: Partial<PlanningView> = {}) {
 }
 
 describe("EventDetailPage planning information (coordinator)", () => {
+  // Traceability: Jira 49 AC1 (matrix 19890466)
   // EVENT-UPDATE-01-A / EVENT-UPDATE-02-A / EVENT-FLAG-02-A: the assigned coordinator gets the form, the review panel and the history.
   it("EVENT-UPDATE-01-A shows the assigned coordinator the update form, pending changes and history", async () => {
     asCoordinator();
@@ -680,6 +694,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     expect(callsTo("/planning/history")).toHaveLength(1);
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: saving sends only the changed fields, then re-reads the view.
   it("EVENT-UPDATE-03-A saves only the changed fields and then refreshes the planning view", async () => {
     asCoordinator();
@@ -713,6 +728,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     );
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-03-A / 04-A / 07-A: each action posts its decision to the right change, then refreshes.
   it.each([
     ["Confirm Change", "confirm", undefined],
@@ -746,6 +762,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     },
   );
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-A: a refused decision is reported on the change and the actions stay available.
   it("EVENT-FLAG-04-A shows why a decision was refused and keeps the actions available", async () => {
     asCoordinator();
@@ -773,6 +790,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     ).toBeEnabled();
   });
 
+  // Traceability: Jira 49 AC1 (matrix 19890466)
   // EVENT-UPDATE-01-B: a coordinator who is not assigned to the event never loads planning data.
   it("EVENT-UPDATE-01-B does not load planning information for an unassigned coordinator", async () => {
     asCoordinator({ event: eventRecord({ coordinatorId: "someone-else" }) });
@@ -787,6 +805,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // EVENT-VIEW-01-B: no other role gets planning information, even for an approved event.
   it.each(["attendee", "venue_staff", "tech_support"] as const)(
     "EVENT-VIEW-01-B never loads planning information for the %s role",
@@ -805,6 +824,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     },
   );
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // EVENT-VIEW-01-C: a Confirmed event is shown read-only, with no form, to the organiser and the coordinator.
   it.each([
     [
@@ -842,6 +862,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     },
   );
 
+  // Traceability: Jira 156 DoD4 (matrix 38010922)
   // SPM-156 EVENT-UPDATE-07-D: on a read-only (Confirmed) event the assigned
   // coordinator still sees the change history, as a card of its own; while
   // editing, the history appears once, inside the review panel.
@@ -919,6 +940,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // EVENT-VIEW-05-B: AC5 — background refreshes pause while the tab is hidden and resume when it is visible again.
   it("EVENT-VIEW-05-B skips the automatic refresh while the tab is hidden", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -954,6 +976,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     expect(planningCalls().length).toBeGreaterThan(loaded);
   });
 
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // EVENT-VIEW-05-C: a failed refresh keeps the last data on screen and tells the user.
   it("EVENT-VIEW-05-C keeps the last planning data and shows an alert when a refresh fails", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -986,6 +1009,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     );
   });
 
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // EVENT-VIEW-05-C: with nothing loaded yet, a failure is shown instead of a blank page.
   it("EVENT-VIEW-05-C shows an alert instead of a blank panel when planning information cannot be loaded", async () => {
     asCoordinator();
@@ -1012,6 +1036,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     expect(screen.getByText("Event Details")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   // EVENT-VIEW-02-A: a response that is not planning data is ignored rather than crashing the page.
   it("EVENT-VIEW-02-A treats a malformed planning response as an error, not as data", async () => {
     asCoordinator();
@@ -1097,6 +1122,7 @@ describe("EventDetailPage planning: multi-role accounts (SPM-49 AC1)", () => {
     roles: ["organiser" as const, "coordinator" as const],
   };
 
+  // Traceability: Jira 49 AC1 (matrix 19890466)
   // EVENT-UPDATE-01-D: an assigned coordinator who is also an organiser gets the
   // editing UI, exactly as the backend allows.
   it("EVENT-UPDATE-01-D shows the update form to an assigned coordinator whose primary role is organiser", async () => {
@@ -1114,6 +1140,7 @@ describe("EventDetailPage planning: multi-role accounts (SPM-49 AC1)", () => {
     await waitFor(() => expect(callsTo("/planning/history")).toHaveLength(1));
   });
 
+  // Traceability: Jira 49 AC1 (matrix 19890466)
   // EVENT-UPDATE-01-D: holding the coordinator role is not enough; the account
   // must be the assigned coordinator, and an organiser who does not own the
   // event does not load planning data either.
@@ -1133,6 +1160,7 @@ describe("EventDetailPage planning: multi-role accounts (SPM-49 AC1)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // EVENT-VIEW-01-A: the same dual-role account still gets the read-only view
   // for an event it owns but does not coordinate.
   it("EVENT-VIEW-01-A shows a dual-role owner the read-only view of an event they do not coordinate", async () => {
@@ -1198,6 +1226,7 @@ describe("EventDetailPage planning: the form shows authoritative values after a 
     }) as typeof api);
   }
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-E: after a flagged-only save the form goes back to the current
   // value, shows the proposal separately and locks the field so it cannot be
   // re-submitted by accident.
@@ -1238,6 +1267,7 @@ describe("EventDetailPage planning: the form shows authoritative values after a 
     );
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-E: a second save does not resend the proposal that is awaiting review.
   it("EVENT-FLAG-01-E does not resend a flagged proposal on the next save", async () => {
     asCoordinator({ pendingChanges: [] });
@@ -1270,6 +1300,7 @@ describe("EventDetailPage planning: the form shows authoritative values after a 
     expect(callsTo("/planning", "PATCH")).toHaveLength(1);
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-A: when a save applies a change, the refreshed view has a new
   // lastUpdatedAt; the form updates in place and keeps the confirmation visible.
   it("EVENT-UPDATE-05-A keeps the confirmation and shows the saved value after the view refreshes", async () => {
@@ -1327,6 +1358,7 @@ describe("EventDetailPage planning: the form shows authoritative values after a 
 });
 
 describe("SPM-153 Mark as Completed on the event page (coordinator)", () => {
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-A (page): completing from the event page moves the page to the completed state.
   it("COMPLETE-EVENT-01-A: marking the ended event completed updates the page to completed", async () => {
     asCoordinator({ event: eventRecord({ status: "confirmed", endDateTime: "2020-01-01T12:00:00.000Z" }) });

@@ -70,6 +70,7 @@ afterEach(cleanup);
 describe("AppShell (SPM-88 AC4: where the request decisions appear)", () => {
   const banner = () => within(screen.getByRole("banner"));
 
+  // Traceability: Jira 88 AC4 (matrix 37322836)
   /**
    * DECISION-NOTIFY-04-E: the bell is in the top bar on /events, /requests, /settings and an event
    * page; no Request Decisions panel is on any page; View Request closes the dropdown and the event

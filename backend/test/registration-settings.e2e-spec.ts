@@ -158,6 +158,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
 
   // Oracles below are literals from the resolved table; a version is 0 until a save happens (D5, 2.6).
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // 01-A: the coordinator enables registration and saves SET-OK; the settings persist and the version increases.
   it('CONFIG-REG-01-A: saving SET-OK persists the settings and bumps the version to 1', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator A');
@@ -176,6 +177,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     });
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // 01-B: disabling keeps the saved values, and a direct registration is refused with REGISTRATION_DISABLED.
   it('CONFIG-REG-01-B: disabling keeps the values and refuses registration with REGISTRATION_DISABLED', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator B');
@@ -207,6 +209,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(refused.body.message).toBe('Registration is not available for this event.');
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // 01-C: an event never configured reads as disabled.
   it('CONFIG-REG-01-C: a never-enabled event reads as disabled with version 0', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator C');
@@ -215,6 +218,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(read.body).toMatchObject({ registrationEnabled: false, version: 0 });
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // 01-D: only the assigned coordinator reads or changes the settings; no token is 401.
   it.each([
     ['another coordinator', ['COORDINATOR'], 'Other Coordinator'],
@@ -231,6 +235,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(read.body).toMatchObject({ registrationEnabled: false, version: 0 });
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   it('CONFIG-REG-01-D: a request without a session is 401', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator D2');
     const eventId = await seedEvent({ coordinatorId: coordinator.uid });
@@ -238,6 +243,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     await put(eventId, undefined, { ...SET_OK, version: 0 }).expect(401);
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // 01-E: enabling needs all three values; omitted fields keep their saved values (F1).
   it('CONFIG-REG-01-E: enabling without an opening time is refused with SETTINGS_INCOMPLETE', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator E');
@@ -255,12 +261,14 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ registrationEnabled: false, version: 0 });
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   it('CONFIG-REG-01-E: disabling with nothing else is accepted', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator E2');
     const eventId = await seedEvent({ coordinatorId: coordinator.uid, status: 'Planning' });
     await put(eventId, coordinator, { registrationEnabled: false, version: 0 }).expect(200);
   });
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   // 02-A: the times round-trip as UTC instants; the closing time is before the event start.
   it('CONFIG-REG-02-A: stored times round-trip to the same instants in UTC', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 02A');
@@ -275,6 +283,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
   });
 
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   // 02-C: an opening time in the past is valid and reads back as the same instant.
   it('CONFIG-REG-02-C: an opening time before now is accepted and reads back', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 02C');
@@ -283,6 +292,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body.registrationOpensAt).toBe('2026-10-18T03:00:00.000Z');
   });
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   // 02-D: date-times without an offset or with invalid parts are refused before anything is saved.
   it.each([
     ['no offset', '2026-10-19T09:00:00'],
@@ -299,6 +309,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body.version).toBe(0);
   });
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   // An opening time changed alone is judged against the saved closing time.
   it('CONFIG-REG-05-C: an opening time at or after the saved closing time is refused with INVALID_PERIOD', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 02E');
@@ -313,6 +324,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     });
   });
 
+  // Traceability: Jira 139 AC3 (matrix 28869217)
   // 03-C: a refused save changes nothing, including the fields that were valid in the same request.
   it('CONFIG-REG-03-C: a refused period leaves the capacity and the closing time unchanged', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 03C');
@@ -337,6 +349,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
   });
 
 
+  // Traceability: Jira 139 AC5 (matrix 28869217)
   // 05-C (equal to the opening time) and 06-D (after the event start): both refused with INVALID_PERIOD, nothing saved.
   it.each([
     ['CONFIG-REG-05-C', 'equal to the opening time', { registrationClosesAt: '2026-10-19T09:00:00+08:00' }, 'Registration closing time must be after the opening time.'],
@@ -351,6 +364,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ registrationClosesAt: '2026-10-28T15:59:00.000Z', version: 1 });
   });
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   // 05-C: capacity must be a JSON whole number; a numeric string is refused (F6).
   it.each([0, -1, 2.5, '10', null])('CONFIG-REG-07-C: capacity %j is refused with INVALID_CAPACITY', async (capacity) => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 05C');
@@ -361,6 +375,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body.capacity).toBe(10);
   });
 
+  // Traceability: Jira 139 AC7 (matrix 28869217)
   // 05-D: the upper bound is the column maximum; a value above it is refused, never a server error.
   it('CONFIG-REG-07-D: 2147483648 is refused with CAPACITY_TOO_LARGE and 2147483647 is accepted', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 05D');
@@ -370,6 +385,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     await put(eventId, coordinator, { capacity: 2147483647, version: 0 }).expect(200);
   });
 
+  // Traceability: Jira 139 AC6 (matrix 28869217)
   // 06-A: changing the closing time after saving it.
   it('CONFIG-REG-06-A: a later closing time is saved and shown', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 06A');
@@ -424,6 +440,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ capacity: 12, registrationClosesAt: '2026-10-28T15:59:00.000Z', version: 1 });
   });
 
+  // Traceability: Jira 139 AC8 (matrix 28869217)
   // 07-B: capacity below the Confirmed count is refused and the typed value does not reach the database.
   it('CONFIG-REG-08-C: capacity below the Confirmed count is refused with CAPACITY_BELOW_CONFIRMED', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 07B');
@@ -435,6 +452,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body.capacity).toBe(10);
   });
 
+  // Traceability: Jira 139 AC8 (matrix 28869217)
   // 07-C: Withdrawn entries do not count against the minimum.
   it('CONFIG-REG-08-A: withdrawn entries do not count against the minimum', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 07C');
@@ -446,6 +464,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
   });
 
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-A and 09-E: raising capacity promotes the earliest waiting entries, one notification each, in join order.
   it('CONFIG-REG-09-A/E: raising capacity promotes the earliest waiting entries with one notification each', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 09A');
@@ -484,6 +503,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(await statusOf(eventId, waiter)).toBe('Removed');
   });
 
+  // Traceability: Jira 139 Cross-cutting (matrix 28869217)
   // 10-A: saved settings drive what an attendee can do. Before opening, the attendee is refused; after it, they register.
   it('CONFIG-REG-11-A: the saved window decides whether an attendee can register', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 10A');
@@ -505,6 +525,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     await request(app.getHttpServer()).post(`/api/events/${eventId}/registrations`).set('Cookie', attendee.cookie).send(details).expect(201);
   });
 
+  // Traceability: Jira 139 Cross-cutting (matrix 28869217)
   // 12-A: the request is strict: counts, status and the event id from the client are refused, and nothing changes.
   it('CONFIG-REG-11-C: client-supplied counts, status and event id are refused with 400 and nothing changes', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 12A');
@@ -513,6 +534,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ capacity: 10, version: 0 });
   });
 
+  // Traceability: Jira 139 AC8 (matrix 28869217)
   // 07-E: a capacity cut to the Confirmed count and a registration race for the last place. Both lock the event row,
   // so exactly one wins in every run and Registered never exceeds the saved capacity. Run 20 times (Phase 4).
   it('CONFIG-REG-08-D: a capacity cut and a registration racing for the last place never both succeed', async () => {
@@ -536,6 +558,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
       expect(saved.confirmedCount).toBeLessThanOrEqual(saved.capacity);
     }
   });
+  // Traceability: Jira 139 AC4 (matrix 28869217)
   // 04-A (v2.0): registration details can be set in each of the three allowed statuses.
   it.each(['Approved', 'Planning', 'Confirmed'])('CONFIG-REG-04-A: a %s event accepts the settings', async (status) => {
     const coordinator = await user(['COORDINATOR'], `Coordinator 04A ${status}`);
@@ -544,6 +567,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ registrationEnabled: true, capacity: 50, version: 1 });
   });
 
+  // Traceability: Jira 139 AC4 (matrix 28869217)
   // 04-E: the backend enforces the status rule when the UI is bypassed: a Completed event refuses a PUT and keeps its settings.
   it('CONFIG-REG-04-E: a PUT on a Completed event with the UI bypassed is refused and the settings are unchanged', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 04E');
@@ -554,6 +578,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body).toEqual(before);
   });
 
+  // Traceability: Jira 139 AC4 (matrix 28869217)
   // 04-B (v2.0): a Submitted event refuses the settings (plain case, so the status allowlist can be mutated).
   it('CONFIG-REG-04-B: a Submitted event refuses the settings', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 04B submitted');
@@ -563,6 +588,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ registrationEnabled: false, version: 0 });
   });
 
+  // Traceability: Jira 139 AC4 (matrix 28869217)
   // 04-B (v2.0): every other status refuses registration details with one message, and nothing is saved.
   it.each(['Submitted', 'Completed', 'Cancelled', 'Rejected'])('CONFIG-REG-04-B: a %s event refuses the settings', async (status) => {
     const coordinator = await user(['COORDINATOR'], `Coordinator 04B ${status}`);
@@ -576,6 +602,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
   });
   // ---- v2.0 cases (docs/specs/SPM-139-test-cases.md) -------------------------------------------------------------
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   // 01-F: turning registration back on restores the saved values.
   it('CONFIG-REG-01-F: switching off and back on keeps the saved period and capacity', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 01F');
@@ -588,6 +615,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
   });
 
 
+  // Traceability: Jira 139 AC3 (matrix 28869217)
   // 03-B: the smallest and a very large valid capacity are saved and read back.
   it('CONFIG-REG-03-B: capacities 1 and 100000 are saved and read back', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 03B');
@@ -599,6 +627,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(big, coordinator).expect(200)).body.capacity).toBe(100000);
   });
 
+  // Traceability: Jira 139 AC3 (matrix 28869217)
   // 03-B: a capacity of 1 fills after one registration; the second attendee sees the event full.
   it('CONFIG-REG-03-B: a capacity of 1 fills after one registration', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 03B fill');
@@ -613,6 +642,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(full.body.code).toBe('registration_full');
   });
 
+  // Traceability: Jira 139 AC6 (matrix 28869217)
   // 06-C: the closing boundary at the event start: 17:59 and 18:00 are accepted; 18:01 is refused.
   it.each([
     ['2026-11-07T17:59:00+08:00', '2026-11-07T09:59:00.000Z'],
@@ -624,6 +654,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body.registrationClosesAt).toBe(readBack);
   });
 
+  // Traceability: Jira 139 AC6 (matrix 28869217)
   it('CONFIG-REG-06-C: closing 18:01 is refused with INVALID_PERIOD and nothing is saved', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 06C late');
     const eventId = await seedEvent({ coordinatorId: coordinator.uid, status: 'Planning' });
@@ -633,6 +664,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
   });
 
 
+  // Traceability: Jira 139 AC4 (matrix 28869217)
   // 04-C: the period can change after saving, in Planning and in Confirmed; the existing registrations are unchanged.
   it('CONFIG-REG-04-C: a Planning closing time and a Confirmed capacity change are saved and read back', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 04C');
@@ -648,6 +680,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(await statusOf(confirmed, holder)).toBe('Registered');
   });
 
+  // Traceability: Jira 139 AC4 (matrix 28869217)
   // 04-D: an event cancelled before the save cannot be configured; the save is refused and nothing changes.
   it('CONFIG-REG-04-D: a save after the event is cancelled is refused with EVENT_NOT_CONFIGURABLE', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 04D');
@@ -658,6 +691,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body.capacity).toBe(50);
   });
 
+  // Traceability: Jira 139 AC8 (matrix 28869217)
   // 08-D (lock): a save waits for a registration that holds the event row lock, then counts the place that registration took.
   // The wait is bounded: the test polls pg_locks for a waiting request (200 tries, 50 ms apart) and fails if none appears.
   it('CONFIG-REG-08-D: a save waits for a registration that holds the event row lock, then counts its place', async () => {
@@ -694,6 +728,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     }
   });
 
+  // Traceability: Jira 139 AC8 (matrix 28869217)
   // 08-B: the capacity cannot go below the Confirmed count; Waitlisted entries do not count toward it.
   it('CONFIG-REG-08-B: 4 is refused below the 5 Confirmed; 5 is accepted and the waiting list is unchanged', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 08B');
@@ -708,6 +743,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     for (const w of waiters) expect(await statusOf(eventId, w)).toBe('Waitlisted');
   });
 
+  // Traceability: Jira 139 AC8 (matrix 28869217)
   // 08-E: the minimum follows the live Confirmed count after a withdrawal.
   it('CONFIG-REG-08-E: after one withdrawal the minimum is 4, not 5', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 08E');
@@ -721,6 +757,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(refused.body.message).toBe('Capacity cannot be lower than the number of Confirmed registrations (4).');
   });
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-B: a capacity larger than the waiting list moves everyone in; the spare place is open to a direct registrant.
   it('CONFIG-REG-09-B: raising 5 to 12 moves all three waiting entries in and leaves a place for a direct registrant', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 09B');
@@ -735,6 +772,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
       .send({ fullName: 'Direct 09B', email: 'd09b@example.com', contactNumber: '91234567' }).expect(201);
   });
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-C: an empty waiting list promotes nobody and notifies nobody.
   it('CONFIG-REG-09-C: raising capacity with an empty waiting list promotes and notifies nobody', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 09C');
@@ -747,6 +785,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
   });
 
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-D: spots go to the waiting list in join order, not attendee id order.
   it('CONFIG-REG-09-D: the first to join is promoted first, whatever the attendee ids', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 09D');
@@ -764,6 +803,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(await statusOf(eventId, latest)).toBe('Waitlisted');
   });
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-F: a failure during promotion rolls the capacity change back; the retry succeeds.
   it('CONFIG-REG-09-F: a fault during promotion leaves capacity and the waiting list unchanged, and the retry succeeds', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 09F');
@@ -790,6 +830,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(await statusOf(eventId, w2)).toBe('Registered');
   });
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-G: a direct registrant racing a capacity increase never jumps the waiting list.
   // The Promise.all order is not controlled; both orders must give the same outcome, so every run asserts it. The
   // deterministic path is the sequential case below.
@@ -816,6 +857,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     }
   });
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-G (sequential): a registration sent after the capacity save returns is refused; the waiting list keeps the spots.
   it('CONFIG-REG-09-G (sequential): a registration sent after the save returns is refused and the waiting list keeps the spots', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 09G seq');
@@ -834,6 +876,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(await statusOf(eventId, direct)).toBeUndefined();
   });
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-H: a 500-entry waiting list moves in join order when capacity rises to 505, one notification each.
   it('CONFIG-REG-09-H: 500 waiting entries are all promoted with one notification each', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 09H');
@@ -869,6 +912,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(recipients.rows[0].count).toBe(500);
   });
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-I: a closed event with no waiting list promotes nobody when capacity rises.
   it('CONFIG-REG-09-I: raising capacity on a closed event with no waiting list promotes nobody', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 09I');
@@ -879,6 +923,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(notes.rows[0].count).toBe(0);
   });
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-I (switched off): raising capacity removes the waiting list and promotes nobody.
   it('CONFIG-REG-09-I (switched off): raising capacity on a switched-off event removes the waiting list and promotes nobody', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 09I off');
@@ -890,6 +935,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ capacity: 7, confirmedCount: 0 });
   });
 
+  // Traceability: Jira 139 AC10 (matrix 28869217)
   // 10-A: switching off keeps the Confirmed attendees and removes every waiting entry.
   it('CONFIG-REG-10-A: switching off keeps the Confirmed places and removes the waiting entries', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 10A');
@@ -904,6 +950,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ registrationEnabled: false, confirmedCount: 2 });
   });
 
+  // Traceability: Jira 139 AC10 (matrix 28869217)
   // 10-B: entries removed by switching off are not restored on switch-on; a new join waits as Waitlisted.
   it('CONFIG-REG-10-B: a removed entry is not restored on switch-on, and a new join waits as Waitlisted', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 10B');
@@ -918,6 +965,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(await statusOf(eventId, removed)).toBe('Waitlisted');
   });
 
+  // Traceability: Jira 139 AC10 (matrix 28869217)
   // 10-C: switching off notifies nobody and leaves a Withdrawn record unchanged.
   it('CONFIG-REG-10-C: switching off notifies nobody and leaves a Withdrawn record unchanged', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 10C');
@@ -933,6 +981,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
   });
 
 
+  // Traceability: Jira 139 Cross-cutting (matrix 28869217)
   // 11-B: registration capacity is not checked against venue capacity: 500 and 5 are saved with a 100-place venue booked.
   it('CONFIG-REG-11-B: registration capacity 500 and 5 are saved and read back with a venue of capacity 100 booked', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 11B');
@@ -954,6 +1003,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ capacity: 5, version: 2 });
   });
 
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   // 02-B: an opening time entered in SGT is stored in UTC and read back as the same instant across a date boundary.
   it('CONFIG-REG-02-B: an SGT opening time is stored in UTC and read back across the date boundary', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 02B');
@@ -964,6 +1014,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect((await get(eventId, coordinator).expect(200)).body.registrationOpensAt).toBe('2026-11-10T16:30:00.000Z');
   });
 
+  // Traceability: Jira 139 AC3 (matrix 28869217)
   // 03-A: the saved capacity is returned, and an Attendee sees it as the registration limit with every place available.
   it('CONFIG-REG-03-A: the saved capacity is returned and an Attendee sees it as the limit with every place available', async () => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 03A');
@@ -985,6 +1036,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     await get(randomUUID(), coordinator).expect(404);
   });
 
+  // Traceability: Jira 139 AC9 (matrix 28869217)
   // 09-E: only the moved Attendees get a notification, once each; the Attendee left waiting gets none.
   // No mail transport exists in the backend (see SPM-138 A-MAIL), so the check is on in-app notifications only.
   it('CONFIG-REG-09-E: only the moved Attendees get one notification each, and the one left waiting gets none', async () => {

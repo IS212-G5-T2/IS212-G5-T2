@@ -150,6 +150,7 @@ describe("EventListPage", () => {
   });
 
   // Kills: a pending change request marked on the wrong card (both or neither), or the pending fetch not called with 'Pending'.
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-A: an event with a change request awaiting review is marked on My Events; others are not. */
   it("REQ-CHANGE-05-A marks events with a pending change request on My Events", async () => {
     const pendingEvent = submittedEvent();
@@ -172,6 +173,7 @@ describe("EventListPage", () => {
   });
 
   // Kills: no notice when pending requests fail, Retry not re-fetching them, or the notice left showing after recovery.
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-F: if pending change requests cannot load, the events still show with a visible notice and Retry. */
   it("REQ-CHANGE-05-F shows a notice with Retry when pending change requests cannot load", async () => {
     const event = submittedEvent();
@@ -200,6 +202,7 @@ describe("EventListPage", () => {
   });
 
   // Kills: the pending section missing the event name, the 'Demo Organiser · Room layout' summary, or the review link target.
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   /** REVIEW-CHANGE-01-A (SPM-65 AC1): a coordinator sees their pending change requests and the badge. */
   it("REVIEW-CHANGE-01-A lists the coordinator's pending change requests and marks the event", async () => {
     const event = { ...submittedEvent(), coordinatorId: "coordinator-1" };
@@ -226,6 +229,7 @@ describe("EventListPage", () => {
 
   // Kills: the pending section placed below the events list, or the New tag missing from unopened requests.
   // SPM-77 removed the Assignment Updates panel, so the ordering is now checked against the events list.
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   /** REVIEW-CHANGE-01-F: the pending list is at the top, above the events list, and tags unopened requests New. */
   it("REVIEW-CHANGE-01-F puts pending change requests first and tags unopened ones New", async () => {
     const event = { ...submittedEvent(), coordinatorId: "coordinator-1" };
@@ -250,6 +254,7 @@ describe("EventListPage", () => {
     expect(pendingSection.compareDocumentPosition(eventCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   // Kills: the pending list hidden when the New-tag lookup fails, or a notice shown for it.
   it("REVIEW-CHANGE-01-F still lists pending requests when the New tags cannot load", async () => {
     useAppStore.setState({
@@ -279,6 +284,7 @@ describe("EventListPage", () => {
   });
 
   // Kills: a superseded New-tag or pending-request load overwriting the newer result after a Retry (missing active guards).
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   /** REVIEW-CHANGE-01-F: after a Retry, an older pending list or New-tag result that settles late is ignored. */
   it("REVIEW-CHANGE-01-F keeps the newer pending list and New tags when an older load settles after a retry", async () => {
     useAppStore.setState({
@@ -321,6 +327,7 @@ describe("EventListPage", () => {
   });
 
   // Kills: the 'No pending change requests.' empty state missing for a coordinator with nothing pending.
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   /** REVIEW-CHANGE-01-D: with nothing pending the coordinator sees the empty state; attendees see neither. */
   it("REVIEW-CHANGE-01-D shows the coordinator's empty state", async () => {
     useAppStore.setState({
@@ -336,6 +343,7 @@ describe("EventListPage", () => {
     expect(await screen.findByText("No pending change requests.")).toBeTruthy();
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /**
    * REQ-CHANGE-05-F: a pending-requests load superseded by a Retry that then fails late shows no notice once the
    * newer load has succeeded. Replaces an unmount-only test that could not fail (React ignores state updates after
@@ -372,6 +380,7 @@ describe("EventListPage", () => {
   });
 
   // Kills: a pending-request failure without a message not showing the notice.
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-F: a failure without a message still shows the notice. */
   it("REQ-CHANGE-05-F shows the notice for a failure without a message", async () => {
     apiMock.mockResolvedValue([submittedEvent()]);
@@ -433,6 +442,7 @@ describe("EventListPage", () => {
     expect(screen.queryByText("Welcome Evening")).toBeNull();
   });
 
+  // Traceability: Jira 77 AC1 (matrix 39190702)
   // SPM-77 AC1: the top-bar bell replaces the "Assignment Updates" panel (the SPM-123 panel test is retired).
   // ASSIGN-NOTIFY-01-F: even with unread assignment, reassignment and unassignment notices in the feed, the
   // Coordinator's events page renders no Assignment Updates panel and does not load the notifications feed.
@@ -479,6 +489,7 @@ describe("EventListPage", () => {
     expect(apiMock).not.toHaveBeenCalledWith("/notifications");
   });
 
+  // Traceability: Jira 62 AC2 (matrix 16678936)
   // VIEW-REG-DET-02-A (status badge beside the event status)
   // SPM-61: attendees get Upcoming/Registered/Past/Cancelled filters, see
   // "Confirmed" for Approved events, and a Registered badge beside the status.
@@ -762,6 +773,7 @@ describe("CARD-BADGE-05-A-STATE: the list shows a withdrawn registration as With
 
 // SPM-94 AC1 / R1: the organiser's Draft requests show in My Events; Submitted ones do not come from this list.
 describe("SPM-94 AC1: organiser drafts in My Events", () => {
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: the Draft requests section missing, a draft link pointing elsewhere, or a Submitted request listed as a draft.
   it("TRACK-EVENT-STATUS-01-A: lists the organiser's Draft requests and links each to its draft", async () => {
     // Arrange: one Draft and one Submitted request from /requests; the events list is empty.
@@ -793,6 +805,7 @@ describe("SPM-94 AC1: organiser drafts in My Events", () => {
 
 // SPM-94 AC4 / 04-B A and B: each visit (Back, or a new tab) refetches the list and shows the server's latest status.
 describe("SPM-94 AC4: each visit shows the latest status", () => {
+  // Traceability: Jira 94 AC4 (matrix 22839633)
   // Kills: a revisit showing the earlier status (no refetch on remount), or the list request count wrong.
   it("TRACK-EVENT-STATUS-04-B: a remount requests the list again and shows the newer status", async () => {
     // Arrange: the first visit sees Submitted; by the next visit the server holds Approved.
@@ -830,6 +843,7 @@ describe("SPM-94 AC4: each visit shows the latest status", () => {
 
 // SPM-94 drafts section: a superseded drafts request that answers late must not replace the current drafts.
 describe("SPM-94 drafts: a superseded drafts load cannot replace the current one", () => {
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: a superseded drafts response (Draft A) replacing the current drafts (Draft B).
   it("TRACK-EVENT-STATUS-01-A: a late stale drafts response is ignored after Retry reloads the page", async () => {
     // Arrange: the first events load fails so the page offers Retry; the first drafts request is held open.
@@ -879,6 +893,7 @@ function draftRecord(id: string, name: string): DraftRecord {
 
 // SPM-94 drafts are the organiser's own: other roles never request them, and a failed drafts request leaves the events list intact.
 describe("SPM-94 drafts: role guard and failure path", () => {
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: a coordinator requesting /requests, or a Draft requests section rendered for a coordinator.
   it("TRACK-EVENT-STATUS-01-A: a coordinator never requests drafts or sees a Draft requests section", async () => {
     useAppStore.setState({
@@ -901,6 +916,7 @@ describe("SPM-94 drafts: role guard and failure path", () => {
     expect(screen.queryByText("Leaked Draft")).toBeNull();
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: a failed drafts request hiding the events, or raising an alert for the drafts failure.
   it("TRACK-EVENT-STATUS-01-A: when the drafts request fails, the events still list and no error is shown", async () => {
     apiMock.mockImplementation(((path: string) =>
@@ -919,6 +935,7 @@ describe("SPM-94 drafts: role guard and failure path", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: a nameless draft rendered blank instead of the 'Untitled draft' label.
   it("TRACK-EVENT-STATUS-01-A: a draft with no name shows the Untitled draft label", async () => {
     apiMock.mockImplementation(((path: string) =>
@@ -939,6 +956,7 @@ describe("SPM-94 drafts: role guard and failure path", () => {
 
 // SPM-94 AC2/AC3: the organiser list page hands each card the server's indicator fields.
 describe("SPM-94 AC2/AC3 on the organiser list page", () => {
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: the list page dropping the indicator fields before they reach the card.
   it("TRACK-EVENT-STATUS-01-A: the organiser list shows both indicators on a card", async () => {
     serveEvents(() => Promise.resolve([{ ...submittedEvent(), status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"], safetyIndicator: "AWAITING_CHECK" }]));
@@ -957,6 +975,7 @@ describe("SPM-94 AC2/AC3 on the organiser list page", () => {
 
 // SPM-94 ordering: every view lists events from the earliest start date to the latest, so a grid row reads left (earlier) to right (later).
 describe("SPM-94 ordering: events read from the earliest start date", () => {
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: cards shown in server order instead of ascending start date.
   it("TRACK-EVENT-STATUS-01-A ORDER: the cards follow the start date, whatever order the server sends", async () => {
     const base = submittedEvent();
@@ -1011,6 +1030,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
     );
 
   // Kills: the default view hiding some of my events, or a status checkbox pre-checked with no filter chosen.
+  // Traceability: Jira 95 AC1 (matrix 28803536)
   /** SPM-95 AC1: with no filter selected, I see all of my events. */
   it("FILTER-EVT-01-B: with no filter selected, every one of my events is listed and no filter is checked", async () => {
     apiMock.mockResolvedValue(sampleEvents());
@@ -1025,6 +1045,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
   });
 
   // Kills: a multi-status filter combined with AND (only events in both statuses kept), or a non-selected status still shown.
+  // Traceability: Jira 95 AC2 (matrix 28803536)
   /** SPM-95 AC2: selecting several statuses shows only my events that match any of them. */
   it("FILTER-EVT-02-C: selecting Submitted and Approved shows events in either status and hides the rest", async () => {
     const user = userEvent.setup();
@@ -1041,6 +1062,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
   });
 
   // Kills: the 'Active filters' summary wrong, or Clear all filters not restoring the unfiltered list.
+  // Traceability: Jira 95 AC3 (matrix 28803536)
   /** SPM-95 AC3: the active filters are visible, and one action clears them all. */
   it("FILTER-EVT-03-A: the active filters are named, and Clear all filters restores the unfiltered list", async () => {
     const user = userEvent.setup();
@@ -1062,6 +1084,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
   });
 
   // Kills: the 'No matching events found' message missing when the selected filter matches nothing.
+  // Traceability: Jira 95 AC4 (matrix 28803536)
   /** SPM-95 AC4: when no event matches the selected filters, the list says "No matching events found". */
   it("FILTER-EVT-04-A: a filter with no matching event shows the No matching events found message", async () => {
     const user = userEvent.setup();
@@ -1076,6 +1099,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
   });
 
   // Kills: Awaiting Safety Check keeping events without a pending safety indicator, or keeping other statuses.
+  // Traceability: Jira 95 AC5 (matrix 28803536)
   /** SPM-95 AC5: Awaiting Safety Check keeps only events whose safety check is awaited. */
   it("FILTER-EVT-05-G: Awaiting Safety Check shows only the event awaiting its safety check", async () => {
     const user = userEvent.setup();
@@ -1089,6 +1113,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
   });
 
   // Kills: filtering triggering a new events load instead of narrowing the list already returned (event load count not 1).
+  // Traceability: Jira 95 AC6 (matrix 28803536)
   /** SPM-95 AC6: filtering narrows the organiser's own list from the server and fetches no other events. */
   it("FILTER-EVT-06-A: filtering narrows the list the server returned for me without loading events again", async () => {
     const user = userEvent.setup();
@@ -1103,6 +1128,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
   });
 
   // Kills: the status filter kept in the store after the list unmounts, so a revisit is not unfiltered.
+  // Traceability: Jira 95 AC7 (matrix 28803536)
   /** SPM-95 AC7: leaving the list for an event's details and returning shows the unfiltered list, and nothing is stored globally. */
   it("FILTER-EVT-07-A: returning to the list after leaving it resets the filters to unfiltered", async () => {
     const user = userEvent.setup();
@@ -1128,6 +1154,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
 // SPM-95 keeps other roles' status filter as it was; these tests cover the branches the organiser change left on shared code.
 describe("SPM-95: the other roles' status filter and the drafts loader", () => {
   // Kills: the organiser status filter applied to coordinators, hiding non-submitted events under the All statuses value.
+  // Traceability: Jira 95 AC1 (matrix 28803536)
   /** SPM-95 AC1 (other roles): a coordinator whose status filter is the All statuses value sees every event. */
   it("FILTER-EVT-01-C: a coordinator with the All statuses value sees every event, not only Submitted", async () => {
     apiMock.mockResolvedValue([submittedEvent(), { ...submittedEvent(), id: "00000000-0000-4000-8000-0000000009a1", name: "Approved Party", status: "approved" }]);
@@ -1149,6 +1176,7 @@ describe("SPM-95: the other roles' status filter and the drafts loader", () => {
   });
 
   // Kills: a drafts answer that is not a list rendering a Draft requests section.
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   /** TRACK-EVENT-STATUS-01-A (drafts loader): a drafts answer that is not a list shows no Drafts section and leaves the events. */
   it("TRACK-EVENT-STATUS-01-A: a drafts response that is not a list shows no Drafts section and the events still list", async () => {
     apiMock.mockImplementation(((path: string) =>
@@ -1166,6 +1194,7 @@ describe("SPM-95: the other roles' status filter and the drafts loader", () => {
     expect(screen.queryByRole("region", { name: "Draft requests" })).toBeNull();
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   /** TRACK-EVENT-STATUS-01-A (drafts loader): a drafts failure that arrives after the page was left is ignored. */
   it("TRACK-EVENT-STATUS-01-A: a drafts failure that arrives after the page was left shows nothing", async () => {
     const drafts = deferred<DraftRecord[]>();
@@ -1225,6 +1254,7 @@ describe("EventListPage: coordinator pending requests after a decision (SPM-40, 
   }
 
   // Kills: an approved request still in the pending view, or not listed under the Approved filter.
+  // Traceability: Jira 40 AC1 (matrix 13336613)
   /** EVENT-APPROVE-02-C: an approved request leaves the default Submitted (pending) view and is listed under the Approved filter. */
   it("EVENT-APPROVE-02-C drops an approved request from the pending view and lists it under Approved", async () => {
     const user = userEvent.setup();
@@ -1245,6 +1275,7 @@ describe("EventListPage: coordinator pending requests after a decision (SPM-40, 
   });
 
   // Kills: a rejected request still in the pending view, or not listed under the Rejected filter.
+  // Traceability: Jira 83 AC5 (matrix 12124249)
   /** EVENT-REJECT-02-C: a rejected request leaves the default Submitted (pending) view and is listed under the Rejected filter. */
   it("EVENT-REJECT-02-C drops a rejected request from the pending view and lists it under Rejected", async () => {
     const user = userEvent.setup();

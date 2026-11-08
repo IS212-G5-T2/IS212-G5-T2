@@ -53,6 +53,7 @@ beforeEach(() => {
 });
 
 describe('SPM-57 separate equipment request editor routes', () => {
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-A: create is a separate page and preserves an event preselected by its caller. */
   it('renders a dedicated create form with event context and returns after submission', async () => {
     const user = userEvent.setup();
@@ -71,6 +72,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(updateEquipmentRequest).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 57 AC4 (matrix 28868989)
   /** EQUIP-REQUEST-04-N: server submission errors stay visible and do not navigate to a false confirmation. */
   it('keeps the create editor open when the submit endpoint refuses the request', async () => {
     vi.mocked(submitEquipmentRequest).mockRejectedValue(new Error('Request refused'));
@@ -86,6 +88,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/equipment/requests/create');
   });
 
+  // Traceability: Jira 57 AC4 (matrix 28868989)
   /** EQUIP-REQUEST-04-N: create failures use a safe message and do not fabricate success. */
   it('shows a safe create failure message when the submit endpoint rejects with a non-Error value', async () => {
     vi.mocked(submitEquipmentRequest).mockRejectedValue('offline');
@@ -98,6 +101,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not submit equipment request.');
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: the update route preloads the selected request and preserves its identity/reference. */
   it('renders a prefilled update page and updates by request ID without submitting a new request', async () => {
     const user = userEvent.setup();
@@ -122,6 +126,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(submitEquipmentRequest).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: an update remains tied to its request event even if it is no longer in the create-event feed. */
   it('keeps the original event fixed when the eligible-events feed no longer returns it', async () => {
     const user = userEvent.setup();
@@ -136,6 +141,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     }));
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-N: a submitted event is excluded from the create picker and can only be updated. */
   it('prevents creating another request for an event already in My Equipment Requests', async () => {
     vi.mocked(getMyEquipmentRequests).mockResolvedValue([record]);
@@ -146,6 +152,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
   });
 
   /** EQUIP-REQUEST-01-N and EQUIP-REQUEST-08-N: closed events are filtered out of the separate create form. */
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-N: only eligible events are exposed by the create-page event picker. */
   it('offers only request-eligible events on the create page', async () => {
     vi.mocked(getAssignedEvents).mockResolvedValue([
@@ -164,6 +171,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(screen.queryByRole('option', { name: 'Confirmed' })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-N: if editor data cannot load, the user can return to the request list. */
   it('provides a fallback message when request form data cannot be loaded', async () => {
     vi.mocked(getAssignedEvents).mockRejectedValue('offline');
@@ -211,6 +219,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     await waitFor(() => expect(getMyEquipmentRequests).toHaveBeenCalled());
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: Cancel from the separate editor returns to My Equipment Requests. */
   it('navigates back to the request list from the separate editor page', async () => {
     const user = userEvent.setup();
@@ -235,6 +244,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(screen.queryByRole('textbox', { name: /Equipment name/ })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-N: update errors retain the prefilled editor instead of silently navigating away. */
   it('keeps the update form available when the update endpoint rejects', async () => {
     vi.mocked(getMyEquipmentRequests).mockResolvedValue([record]);
@@ -247,6 +257,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(screen.getByTestId('location')).toHaveTextContent(`/equipment/requests/${record.id}/update`);
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: update failures use a safe message and retain the editor. */
   it('shows a safe update failure message when the update endpoint rejects with a non-Error value', async () => {
     vi.mocked(getMyEquipmentRequests).mockResolvedValue([record]);

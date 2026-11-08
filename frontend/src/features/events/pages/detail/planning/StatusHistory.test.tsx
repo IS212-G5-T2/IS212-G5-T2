@@ -19,6 +19,7 @@ describe("SPM-148 AC4: the status history is shown in Singapore time", () => {
   });
   afterEach(cleanup);
 
+  // Traceability: Jira 148 AC4 (matrix 26902550)
   // Kills: M10 time shown as UTC, entry or actor missing.
   it("PLAN-STATUS-04-A: shows Approved to Planning at 12:00 SGT with the Coordinator's name", async () => {
     // Arrange: 04:00Z is 12:00 SGT.
@@ -34,6 +35,7 @@ describe("SPM-148 AC4: the status history is shown in Singapore time", () => {
     expect(apiMock).toHaveBeenCalledWith(`/events/${EVENT_ID}/status-history`);
   });
 
+  // Traceability: Jira 148 AC4 (matrix 26902550)
   // Kills: M10 UTC date shown instead of the SGT date.
   it("PLAN-STATUS-04-D: 16:30Z on 10 Nov is shown as 11 Nov 00:30 SGT", async () => {
     apiMock.mockResolvedValue([
@@ -45,6 +47,7 @@ describe("SPM-148 AC4: the status history is shown in Singapore time", () => {
     expect(await screen.findByText(/11 Nov 2026 00:30 SGT/)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 148 AC4 (matrix 26902550)
   // Kills: an error from the history endpoint breaking the page.
   it("PLAN-STATUS-04-A: renders nothing when the history cannot be read", async () => {
     apiMock.mockImplementation(() => Promise.reject(new Error("boom")));

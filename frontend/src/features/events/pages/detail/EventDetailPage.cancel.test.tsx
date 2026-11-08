@@ -105,6 +105,7 @@ afterEach(() => {
 });
 
 describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator only", () => {
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: F39 (the page hides Cancel Event on a Planning event)
   it("CANCEL-EVENT-01-A (page): the assigned coordinator sees Cancel Event on a Planning event", async () => {
     // Arrange
@@ -117,6 +118,7 @@ describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator only"
     expect(trigger).toBeInTheDocument();
   });
 
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: F40 (the page offers Cancel Event to the submitting organiser on a Confirmed event)
   it("CANCEL-EVENT-01-B (page): the submitting organiser does not see Cancel Event on a Confirmed event", async () => {
     // Arrange
@@ -146,6 +148,7 @@ describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator only"
     expect(screen.queryByRole("button", { name: "Cancel Event" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 136 AC3 (matrix 23691421)
   // Kills: F33 (cancelled allowed: the Cancel Event button shows on a cancelled event), F34 (completed allowed), F35 (rejected allowed)
   it.each([
     ["completed", "completed"],
@@ -164,6 +167,7 @@ describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator only"
 });
 
 describe("SPM-136 status timeline: a cancelled event ends at Cancelled", () => {
+  // Traceability: Jira 136 AC3, AC5 (matrix 23691421)
   // Kills: the timeline ending at completed instead of cancelled (status flow step removed or renamed)
   // Kills (SPM-155 mutants, frontend/scripts/testing/mutation/spm155.mutants.mjs): FM55, FM59, FM63.
   it("CANCEL-EVENT-03-C (timeline): the coordinator sees Confirmed then Cancelled, with Cancelled as the current step", async () => {
@@ -182,6 +186,7 @@ describe("SPM-136 status timeline: a cancelled event ends at Cancelled", () => {
 });
 
 describe("SPM-136 AC2 and AC3: cancelling from the page", () => {
+  // Traceability: Jira 136 AC3 (matrix 23691421)
   // Kills: F6, F7, F15
   it("CANCEL-EVENT-03-A (page): after confirming, the page shows Cancelled and the banner without a reload", async () => {
     // Arrange
@@ -202,6 +207,7 @@ describe("SPM-136 AC2 and AC3: cancelling from the page", () => {
 });
 
 describe("SPM-136 AC2: dismissing the dialog from the page (CANCEL-EVENT-02-B)", () => {
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: F8
   it("CANCEL-EVENT-02-B (page): Keep event closes the dialog, the event stays Planning and no cancel request is sent", async () => {
     // Arrange
@@ -221,6 +227,7 @@ describe("SPM-136 AC2: dismissing the dialog from the page (CANCEL-EVENT-02-B)",
 });
 
 describe("SPM-136 AC7: a cancelled event shows no change controls (07-A UI)", () => {
+  // Traceability: Jira 136 AC7 (matrix 23691421)
   // Kills: F6
   it("CANCEL-EVENT-07-A (page): the cancelled event shows the banner and hides the planning update form and confirm controls", async () => {
     // Arrange

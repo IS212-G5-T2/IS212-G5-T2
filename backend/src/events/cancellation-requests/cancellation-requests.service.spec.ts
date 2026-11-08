@@ -113,6 +113,7 @@ const MSG_FORBIDDEN = 'You do not have permission to perform this action.';
 
 describe('SPM-155 create: identity, lookup and authorisation come before the body (AC1, D7)', () => {
   // Kills: M22
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-E (DERIVED D7): no identity is 401 and nothing is read. */
   it('CANCEL-REQUEST-01-E: no identity is refused with 401 before any database access', async () => {
     // Arrange
@@ -155,6 +156,7 @@ describe('SPM-155 create: identity, lookup and authorisation come before the bod
   });
 
   // Kills: M25a, M25b, M4c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-D subtest B (DERIVED D5): the caller's own Draft is 409 EVENT_NOT_CANCELLABLE (MSG-CR-02), not 404. */
   it('CANCEL-REQUEST-01-D: the own unsubmitted Draft of the Organiser is refused 409 EVENT_NOT_CANCELLABLE', async () => {
     // Arrange: no events row, but a Draft with this id belongs to the caller
@@ -171,6 +173,7 @@ describe('SPM-155 create: identity, lookup and authorisation come before the bod
   });
 
   // Kills: M3a, M4c, M4f, M4g, M4h, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-E (DERIVED D7): the 403 comes before the status check, so a non-owner learns nothing about status. */
   it.each([
     ['ORG-02, another organiser', org2],
@@ -190,6 +193,7 @@ describe('SPM-155 create: identity, lookup and authorisation come before the bod
   });
 
   // Kills: M3b, M4c, M4f, M4g, M4h, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-E: a user who owns the event id but lacks the ORGANISER role is refused. */
   it('CANCEL-REQUEST-01-E: a user whose uid matches the organiser but who has no ORGANISER role is refused 403', async () => {
     // Arrange: same uid as the event's organiser_id, role Attendee only
@@ -217,6 +221,7 @@ describe('SPM-155 create: identity, lookup and authorisation come before the bod
   });
 
   // Kills: M4c, M4f, M4g, M4h, M5a, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H subtest C: for the owner a 501-character reason is 422 INVALID_REASON and writes nothing. */
   it('CANCEL-REQUEST-01-H: the owner\'s 501-character reason is refused 422 INVALID_REASON and nothing is written', async () => {
     // Arrange
@@ -233,6 +238,7 @@ describe('SPM-155 create: identity, lookup and authorisation come before the bod
 
 describe('SPM-155 create: eligible statuses and the pending rule (AC1, D5)', () => {
   // Kills: M12a, M14c, M19, M2b, M4f, M4g, M4h, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-B (DERIVED D5): Submitted, Approved, Planning and Confirmed accept a request (the set is SPM-136's). */
   it.each(['Submitted', 'Approved', 'Planning', 'Confirmed'])('CANCEL-REQUEST-01-B: a %s event accepts a request', async (status) => {
     // Arrange
@@ -248,6 +254,7 @@ describe('SPM-155 create: eligible statuses and the pending rule (AC1, D5)', () 
   });
 
   // Kills: M2a, M2d, M4c, M4f, M4g, M4h, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-C and 01-D (DERIVED D5): every status outside the set is 409 EVENT_NOT_CANCELLABLE and writes nothing. */
   it.each(['Completed', 'Cancelled', 'Rejected', 'Under Review', 'Draft'])(
     'CANCEL-REQUEST-01-C: a %s event is refused 409 EVENT_NOT_CANCELLABLE and nothing is written',
@@ -265,6 +272,7 @@ describe('SPM-155 create: eligible statuses and the pending rule (AC1, D5)', () 
   );
 
   // Kills: M4a, M4f, M4g, M4h, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-F (SPEC): a second request while one is pending is 409 CANCELLATION_REQUEST_PENDING (MSG-CR-03). */
   it('CANCEL-REQUEST-01-F: a pending request refuses a second with 409 CANCELLATION_REQUEST_PENDING and writes nothing', async () => {
     // Arrange
@@ -279,6 +287,7 @@ describe('SPM-155 create: eligible statuses and the pending rule (AC1, D5)', () 
   });
 
   // Kills: M4b, M4f, M4g, M4h, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-F: the database's unique violation (a race that passed the check) is the same 409, not a 500. */
   it('CANCEL-REQUEST-01-F: a unique violation on insert is mapped to 409 CANCELLATION_REQUEST_PENDING', async () => {
     // Arrange: the insert fails with SQLSTATE 23505
@@ -291,6 +300,7 @@ describe('SPM-155 create: eligible statuses and the pending rule (AC1, D5)', () 
     expect(result).toEqual({ status: 409, body: { code: 'CANCELLATION_REQUEST_PENDING', message: MSG_PENDING } });
   });
 
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   // Kills: M4c, M4f, M4g, M4h, M7c
   it('CANCEL-REQUEST-01-F: any other database error is not mapped to a 409', async () => {
     // Arrange
@@ -303,6 +313,7 @@ describe('SPM-155 create: eligible statuses and the pending rule (AC1, D5)', () 
 
 describe('SPM-155 create: the order of its reads and writes (AC1)', () => {
   // Kills: M4f, M4g, M4h, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-F (DERIVED D7): create locks the event row, then reads for a pending request, then inserts, all in one transaction. */
   it('CANCEL-REQUEST-01-F: create locks the event row, then checks for a pending request, then inserts, inside one transaction', async () => {
     // Arrange
@@ -324,6 +335,7 @@ describe('SPM-155 create: the order of its reads and writes (AC1)', () => {
 
 describe('SPM-155 create: what is written (AC1, AC2)', () => {
   // Kills: M1, M12a, M19, M4f, M4g, M4h, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-A (SPEC): one INSERT with the session user as requester and the injected instant; the event is not touched. */
   it('CANCEL-REQUEST-01-A: inserts one pending row for the session user at the injected instant and never updates the event', async () => {
     // Arrange: Approved event, owner ORG-01
@@ -342,6 +354,7 @@ describe('SPM-155 create: what is written (AC1, AC2)', () => {
   });
 
   // Kills: M27, M4f, M4g, M4h, M5c, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H subtest A: no reason is stored as null. */
   it('CANCEL-REQUEST-01-H: no reason (or spaces only) is stored as null', async () => {
     // Arrange
@@ -356,6 +369,7 @@ describe('SPM-155 create: what is written (AC1, AC2)', () => {
   });
 
   // Kills: M28, M4f, M4g, M4h, M7c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-A: a session user without a display name is recorded by e-mail, then by the word Organiser. */
   it.each([
     ['no name, has e-mail', { ...org1, name: undefined }, 'org01@example.test'],
@@ -374,6 +388,7 @@ describe('SPM-155 create: what is written (AC1, AC2)', () => {
 
 describe('SPM-155 decide: the order of checks (AC3, D7)', () => {
   // Kills: M22
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-C (DERIVED D7): no identity is 401. */
   it('CANCEL-REQUEST-03-C: no identity is refused with 401 and nothing is read', async () => {
     // Arrange
@@ -422,6 +437,7 @@ describe('SPM-155 decide: the order of checks (AC3, D7)', () => {
   });
 
   // Kills: M21, M6a, M6c
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-C (SPEC, D3): only the assigned Coordinator decides; everyone else is 403 FORBIDDEN, before any write. */
   it.each([
     ['COO-02, not assigned', coo2],
@@ -442,6 +458,7 @@ describe('SPM-155 decide: the order of checks (AC3, D7)', () => {
   });
 
   // Kills: M6b
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-C (DERIVED D3): authority needs the COORDINATOR role as well as the assignment. */
   it('CANCEL-REQUEST-03-C: a user whose uid is the assigned coordinator id but who has no COORDINATOR role is refused 403', async () => {
     // Arrange: an Attendee session carrying the assigned coordinator's uid
@@ -456,6 +473,7 @@ describe('SPM-155 decide: the order of checks (AC3, D7)', () => {
   });
 
   // Kills: M20, M21, M6a, M6c
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-G (DERIVED D3): on an unassigned event nobody can decide, not even the Lead or a Coordinator. */
   it.each([
     ['LEAD-01', lead],
@@ -473,6 +491,7 @@ describe('SPM-155 decide: the order of checks (AC3, D7)', () => {
   });
 
   // Kills: M21, M6a, M6c, M7c, M7d, M7e, M7f
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-C (DERIVED D3): authority is the coordinator assigned now, read on the locked event row. */
   it('CANCEL-REQUEST-03-C: the coordinator who was replaced is refused 403, the new one is accepted', async () => {
     // Arrange: the event is now assigned to coo-02
@@ -502,6 +521,7 @@ describe('SPM-155 decide: the order of checks (AC3, D7)', () => {
   });
 
   // Kills: M15, M31, M7c, M7d, M7e, M7f
+  // Traceability: Jira 155 AC4 (matrix 35848252)
   /** CANCEL-REQUEST-04-E (DERIVED D7): an already decided request on a cancelled event answers CANCELLATION_REQUEST_DECIDED, not EVENT_NOT_CANCELLABLE. */
   it('CANCEL-REQUEST-04-E: an accepted request on a Cancelled event is refused 409 CANCELLATION_REQUEST_DECIDED (MSG-CR-06)', async () => {
     // Arrange
@@ -516,6 +536,7 @@ describe('SPM-155 decide: the order of checks (AC3, D7)', () => {
   });
 
   // Kills: M31, M7c, M7d, M7e, M7f
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-D (SPEC): a decided request, whichever way it was decided, is refused 409 CANCELLATION_REQUEST_DECIDED. */
   it.each([
     ['accepted', 'decline'],
@@ -534,6 +555,7 @@ describe('SPM-155 decide: the order of checks (AC3, D7)', () => {
   });
 
   // Kills: M13, M2c, M7c, M7d, M7e, M7f
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-F (DERIVED D4/D5): a pending request on an event outside the eligible set is 409 EVENT_NOT_CANCELLABLE for accept and decline. */
   it.each([
     ['Completed', 'accept'],
@@ -556,6 +578,7 @@ describe('SPM-155 decide: the order of checks (AC3, D7)', () => {
   });
 
   // Kills: M7a, M7b, M7c, M7d, M7e, M7f
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-E (SPEC): a decision that loses the compare-and-set is 409 CANCELLATION_REQUEST_DECIDED and does not cancel the event. */
   it('CANCEL-REQUEST-03-E: a lost compare-and-set is refused 409 CANCELLATION_REQUEST_DECIDED and the core is not called', async () => {
     // Arrange: the row looked pending when read, but the guarded UPDATE matches nothing
@@ -593,6 +616,7 @@ describe('SPM-155 decide: rows that vanish under the locks (AC3)', () => {
 
 describe('SPM-155 decide: what accept and decline do (AC3, AC4, AC5)', () => {
   // Kills: M10a, M10b, M12c, M17a, M35, M7c, M7d, M7e, M7f, M9
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-A and 04-A (SPEC): accept records the coordinator and instant, then runs the core on the same client with that actor. */
   it('CANCEL-REQUEST-03-A: accept updates the request for COO-01 at the injected instant, then calls the core on the same client', async () => {
     // Arrange
@@ -615,6 +639,7 @@ describe('SPM-155 decide: what accept and decline do (AC3, AC4, AC5)', () => {
   });
 
   // Kills: M10b, M11, M12b, M18d, M7c, M7d, M7e, M7f
+  // Traceability: Jira 155 AC5 (matrix 35848252)
   /** CANCEL-REQUEST-05-A and 05-C (SPEC): decline writes the request and, since SPM-162, only the Organiser's outcome notice; it never calls the core. */
   it('CANCEL-REQUEST-05-A: decline writes only the request row, with COO-01 and the instant, and never calls the core', async () => {
     // Arrange
@@ -639,6 +664,7 @@ describe('SPM-155 decide: what accept and decline do (AC3, AC4, AC5)', () => {
   });
 
   // Kills: M7c, M7d, M7e, M7f, M8, M9
+  // Traceability: Jira 155 AC4 (matrix 35848252)
   /** CANCEL-REQUEST-04-C (SPEC): a failure inside the core propagates, so the surrounding transaction rolls the request update back. */
   it('CANCEL-REQUEST-04-C: a failure in the core propagates out of decide (the transaction rolls back)', async () => {
     // Arrange
@@ -650,6 +676,7 @@ describe('SPM-155 decide: what accept and decline do (AC3, AC4, AC5)', () => {
   });
 
   // Kills: M7c, M7d, M7e, M7f
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-E (DERIVED D7): the event row is locked before the request row, in one transaction. */
   it('CANCEL-REQUEST-03-E: decide locks the event, then the request, inside one transaction', async () => {
     // Arrange
@@ -669,6 +696,7 @@ describe('SPM-155 decide: what accept and decline do (AC3, AC4, AC5)', () => {
 
 describe('SPM-155 recorded names and row shapes (AC3)', () => {
   // Kills: M28, M7c, M7d, M7e, M7f
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-B: a Coordinator session without a display name is recorded by e-mail, then by the word Coordinator. */
   it.each([
     ['no name, has e-mail', { ...coo1, name: undefined }, 'coo01@example.test'],
@@ -685,6 +713,7 @@ describe('SPM-155 recorded names and row shapes (AC3)', () => {
   });
 
   // Kills: M33, M34
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: instants that arrive as text are returned as ISO strings, and a missing reason reads null. */
   it('CANCEL-REQUEST-02-A: a row with text instants and no reason maps to ISO strings and a null reason', async () => {
     // Arrange: requested_at and decided_at as ISO text with an offset, reason undefined
@@ -714,6 +743,7 @@ describe('SPM-155 reads (AC2)', () => {
   };
 
   // Kills: M16a
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-D (SPEC): ORG-02, ATT-01, the Lead and an unassigned Coordinator are refused 403; an unknown event is 404; no identity is 401. */
   it.each([
     ['ORG-02', org2],
@@ -731,6 +761,7 @@ describe('SPM-155 reads (AC2)', () => {
     expect(result).toEqual({ status: 403, body: { code: 'FORBIDDEN', message: MSG_FORBIDDEN } });
   });
 
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   // Kills: M22, M23b, M32
   it('CANCEL-REQUEST-02-D: no identity is 401 and an unknown event is 404 EVENT_NOT_FOUND', async () => {
     // Arrange
@@ -748,6 +779,7 @@ describe('SPM-155 reads (AC2)', () => {
   });
 
   // Kills: M14b, M33
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A and 02-SUP-CLOSED: the owner and the assigned coordinator read the list with the status derived from the live event. */
   it.each([
     ['ORG-01, the owner', org1],
@@ -776,6 +808,7 @@ describe('SPM-155 reads (AC2)', () => {
   });
 
   // Kills: M17a, M33, M35
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-B: a decided request carries who decided it and when. */
   it('CANCEL-REQUEST-02-B: an accepted request shows the decider and the decision instant', async () => {
     // Arrange
@@ -790,6 +823,7 @@ describe('SPM-155 reads (AC2)', () => {
   });
 
   // Kills: M16c, M22
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: the dashboard list is for Organisers and Coordinators only. */
   it.each([
     ['ATT-01', att1],
@@ -804,6 +838,7 @@ describe('SPM-155 reads (AC2)', () => {
   });
 
   // Kills: M14c, M16b
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: the dashboard list is scoped in SQL to the caller's own events (owner for an Organiser, assigned for a Coordinator). */
   it('CANCEL-REQUEST-02-A: the dashboard query is scoped to the caller uid and role', async () => {
     // Arrange
@@ -824,6 +859,7 @@ describe('SPM-155 reads (AC2)', () => {
 describe('SPM-162 decide: the request-outcome notice (AC1, AC6)', () => {
   const noticeWrites = (statements: Array<{ sql: string; params: unknown[] }>) => statements.filter((s) => /INSERT INTO notifications/.test(s.sql));
 
+  // Traceability: Jira 162 AC1 (matrix 39125695)
   /** CANCEL-OUTCOME-01-D (SPM-162 AC1, AC3): accept runs the core with the Organiser skipped, then writes one accepted notice for ORG-01 on the same client at the decision instant. */
   it('CANCEL-OUTCOME-01-D: accept writes one accepted notice for the Organiser on the same client', async () => {
     // Arrange
@@ -840,6 +876,7 @@ describe('SPM-162 decide: the request-outcome notice (AC1, AC6)', () => {
     expect(client.query.mock.calls.filter(([sql]) => /INSERT INTO notifications/.test(sql as string))).toHaveLength(1);
   });
 
+  // Traceability: Jira 162 AC1 (matrix 39125695)
   /** CANCEL-OUTCOME-01-E (SPM-162 AC1): decline writes one declined notice for ORG-01 on the same client at the decision instant and never calls the core. */
   it('CANCEL-OUTCOME-01-E: decline writes one declined notice for the Organiser and never calls the core', async () => {
     // Arrange
@@ -855,6 +892,7 @@ describe('SPM-162 decide: the request-outcome notice (AC1, AC6)', () => {
     expect(notices[0].params.slice(1)).toEqual(['org-01', 'cancellation_request_declined', 'Your cancellation request for "Hack Night" was declined. The event keeps its current status.', EVENT, NOW]);
   });
 
+  // Traceability: Jira 162 AC6 (matrix 39125695)
   /** CANCEL-OUTCOME-06-E (SPM-162 AC6): a refused or already-decided decision writes no notice (403, 400, 409 decided, 409 not cancellable, a lost compare-and-set). */
   it.each([
     ['a Coordinator who is not assigned', coo2, { decision: 'accept' }, eventRow('Confirmed'), requestRow('pending'), requestRow('accepted')],
@@ -876,6 +914,7 @@ describe('SPM-162 decide: the request-outcome notice (AC1, AC6)', () => {
     expect(core.cancelInTransaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 162 AC6 (matrix 39125695)
   /** CANCEL-OUTCOME-06-F (SPM-162 AC6): if the core fails on accept, no notice is attempted; if the notice write fails on decline, the error propagates so the transaction rolls the decision back. */
   it('CANCEL-OUTCOME-06-F: a failing core writes no notice, and a failing notice write propagates out of decide', async () => {
     // Arrange 1: the core throws on accept
@@ -907,6 +946,7 @@ describe('SPM-171 create: the notice to the assigned Coordinator (AC1, AC2, AC7)
   const requestInserts = (statements: Array<{ sql: string; params: unknown[] }>) =>
     statements.filter((s) => /INSERT INTO event_cancellation_requests/.test(s.sql));
 
+  // Traceability: Jira 171 AC1 (matrix 40402962)
   /** CANCEL-REQ-NOTIF-01-A (SPM-171 AC1, AC2): a saved request writes one notice for the assigned Coordinator, typed, worded as the AC and linked to the event, at the submission instant. */
   it('CANCEL-REQ-NOTIF-01-A: a saved request writes one notice for the assigned Coordinator at the submission instant', async () => {
     // Arrange
@@ -921,6 +961,7 @@ describe('SPM-171 create: the notice to the assigned Coordinator (AC1, AC2, AC7)
     expect(notices[0].params.slice(1)).toEqual(['coo-01', 'cancellation_request_submitted', 'Farid Rahman requested to cancel "Hack Night".', EVENT, NOW]);
   });
 
+  // Traceability: Jira 171 AC2 (matrix 40402962)
   /** CANCEL-REQ-NOTIF-02-A (SPM-171 AC2): the notice names the submitting Organiser from the session, falling back to the email and then to "Organiser", and never carries the reason. */
   it.each([
     ['a name', 'Farid Rahman requested to cancel "Hack Night".', { ...org1 }],
@@ -939,6 +980,7 @@ describe('SPM-171 create: the notice to the assigned Coordinator (AC1, AC2, AC7)
     expect(notice.params[3]).not.toContain('Secret reason');
   });
 
+  // Traceability: Jira 171 AC6 (matrix 40402962)
   /** CANCEL-REQ-NOTIF-06-A (SPM-171 AC6): a request submitted while no Coordinator is assigned writes the request but no notice (the assignment sends it later). */
   it('CANCEL-REQ-NOTIF-06-A: an unassigned event saves the request and writes no notice', async () => {
     // Arrange
@@ -952,6 +994,7 @@ describe('SPM-171 create: the notice to the assigned Coordinator (AC1, AC2, AC7)
     expect(noticeWrites(statements)).toHaveLength(0);
   });
 
+  // Traceability: Jira 171 AC7 (matrix 40402962)
   /** CANCEL-REQ-NOTIF-07-A (SPM-171 AC7): every refusal (another pending request, event not cancellable, invalid reason, not the owner, no identity, unknown event, the unique-index backstop) writes no notice. */
   it.each([
     ['another request is pending', org1, { reason: 'x' }, { event: eventRow('Confirmed'), pendingExists: true }],
@@ -973,6 +1016,7 @@ describe('SPM-171 create: the notice to the assigned Coordinator (AC1, AC2, AC7)
     expect(noticeWrites(statements)).toHaveLength(0);
   });
 
+  // Traceability: Jira 171 AC7 (matrix 40402962)
   /** CANCEL-REQ-NOTIF-07-B (SPM-171 AC7): the notice is written after the request row, and a failing notice write propagates out of create so the transaction rolls the request back. */
   it('CANCEL-REQ-NOTIF-07-B: the notice follows the request insert and its failure propagates', async () => {
     // Arrange

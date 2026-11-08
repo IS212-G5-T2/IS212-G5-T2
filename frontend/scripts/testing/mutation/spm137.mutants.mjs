@@ -1,15 +1,15 @@
 // SPM-137 frontend mutants: the Coordinator's venue booking decision notices in the top-bar bell (which types the bell
 // lists, the /bookings?booking=<id> link and its fallback, mark-read on opening) and the Bookings page that opens the
 // linked booking (details dialog, status and rejection reason, unknown or not-visible id, loading, closing, switching).
-// Each mutant maps to its VENUE-BOOK-NOTIF test by ID prefix; the runner matches the prefix by name.
+// Each mutant maps to its BOOKING-NOTIFY test by ID prefix; the runner matches the prefix by name.
 const BELL_TEST = 'src/components/notifications/NotificationBell.test.tsx';
 const PAGE_TEST = 'src/features/bookings/pages/requests/BookingsPage.test.tsx';
 const BELL = 'src/components/notifications/NotificationBell.tsx';
 const ROW = 'src/components/notifications/NotificationRow.tsx';
 const PAGE = 'src/features/bookings/pages/requests/BookingsPage.tsx';
 const DIALOG = 'src/features/bookings/pages/requests/CoordinatorBookingDialog.tsx';
-const bell = (...ids) => ids.map((id) => ({ suite: 'bookingNotices', file: BELL_TEST, title: `VENUE-BOOK-NOTIF-${id} ` }));
-const page = (...ids) => ids.map((id) => ({ suite: 'bookingNotices', file: PAGE_TEST, title: `VENUE-BOOK-NOTIF-${id} ` }));
+const bell = (...ids) => ids.map((id) => ({ suite: 'bookingNotices', file: BELL_TEST, title: `BOOKING-NOTIFY-${id} ` }));
+const page = (...ids) => ids.map((id) => ({ suite: 'bookingNotices', file: PAGE_TEST, title: `BOOKING-NOTIFY-${id} ` }));
 
 export const SUITES = {
   bookingNotices: {

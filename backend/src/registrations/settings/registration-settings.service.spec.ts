@@ -11,6 +11,7 @@ import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import { RegistrationSettingsService } from './registration-settings.service.js';
 
 describe('SPM-139 settings service guard', () => {
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   it('CONFIG-REG-01-D: refuses a request with no signed-in user before any database read', async () => {
     const service = new RegistrationSettingsService({} as never);
     await expect(service.get(undefined, '00000000-0000-4000-8000-000000000139')).rejects.toBeInstanceOf(UnauthorizedException);
@@ -60,6 +61,7 @@ const refusal = (promise: Promise<unknown>) => promise.then(
 );
 
 describe('SPM-139 reading the registration settings (CONFIG-REG case group 01)', () => {
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   /** CONFIG-REG-01-A: the assigned coordinator reads the saved period, capacity, Confirmed count and version. */
   it('returns the saved settings with ISO dates, the Confirmed count and the version', async () => {
     const { service } = harness({ counts: [2] });
@@ -76,6 +78,7 @@ describe('SPM-139 reading the registration settings (CONFIG-REG case group 01)',
     await expect(service.get(COORDINATOR, EVENT_ID)).resolves.toMatchObject({ registrationEnabled: false, registrationOpensAt: null, registrationClosesAt: null });
   });
 
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   /** CONFIG-REG-01-D: access checks run before any data is read. */
   it('refuses a non-coordinator with 403 before reading', async () => {
     const { service, statements } = harness();

@@ -59,6 +59,7 @@ afterEach(() => {
 });
 
 describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
+  // Traceability: Jira 120 AC5 (matrix 16613384)
   // WITHDRAW-EVENT-REG-05-C, WITHDRAW-EVENT-REG-05-E
   // Oracle (SPEC 05-C + 05-E UI): a remounted page refetches (first GET returns Registered, second Withdrawn)
   // and shows the withdrawn card with the Withdrawn entry at 4 Oct 2026, 12:00 (SGT, not the UTC hour 04).
@@ -157,6 +158,7 @@ describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
   // WITHDRAW-EVENT-REG-07-B
   // Oracle: a shared-API 401 clears the session so the route guard redirects to /login.
   // Kills: ignoring the shared 401; success shown after a 401.
+  // Traceability: Jira 120 Cross-cutting (matrix 16613384)
   /** WITHDRAW-EVENT-REG-07-B: verifies the shared API 401 path reaches the protected route guard. */
   it("WITHDRAW-EVENT-REG-07-B (frontend): a 401 signs the user out and redirects to login", async () => {
     // Arrange
@@ -187,6 +189,7 @@ describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
     expect(screen.queryByText(/has been processed/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 120 Cross-cutting (matrix 16613384)
   // WITHDRAW-EVENT-REG-07-B
   // Oracle (DERIVED, narrow scope): only a 401 signs the user out; a 403 or other error does not.
   // Kills: session cleared on any failure.

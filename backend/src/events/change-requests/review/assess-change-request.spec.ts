@@ -50,6 +50,7 @@ const projector: EquipmentArrangementRow = {
 const none = { registered: 0, waitlisted: 0 };
 
 describe('assessChangeRequest', () => {
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   /** REVIEW-CHANGE-03-B: unchanged or non-impacting fields have nothing to check. */
   it('REVIEW-CHANGE-03-B reports no conflicts for a description or an unchanged value', () => {
     expect(
@@ -76,6 +77,7 @@ describe('assessChangeRequest', () => {
     });
   });
 
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   /** REVIEW-CHANGE-03-A, REVIEW-CHANGE-03-E: a move outside the held window lists the venue once with every reason and moves equipment. */
   it('REVIEW-CHANGE-03-A merges every reason per venue and lists equipment once', () => {
     const result = assessChangeRequest(
@@ -118,6 +120,7 @@ describe('assessChangeRequest', () => {
     expect(result.hasConflicts).toBe(true);
   });
 
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   /** REVIEW-CHANGE-03-F: attendance above capacity is a venue conflict; equipment needs list every reservation. */
   it('REVIEW-CHANGE-03-F reports capacity and equipment requirement checks', () => {
     const result = assessChangeRequest(
@@ -135,6 +138,7 @@ describe('assessChangeRequest', () => {
     ]);
   });
 
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   /** REVIEW-CHANGE-03-G: registrations above the requested attendance, and attendees a move affects. */
   it('REVIEW-CHANGE-03-G reports registration conflicts', () => {
     const fewer = assessChangeRequest(

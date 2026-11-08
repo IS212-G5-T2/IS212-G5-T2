@@ -57,6 +57,7 @@ describe("equipment API contracts", () => {
     });
   });
 
+  // Traceability: Jira 117 AC2 (matrix 19858517)
   /**
    * EQUIP-VIEW-02-C: stored locations are read from the dedicated locations endpoint.
    * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/21102712/EQUIP-VIEW-02#C
@@ -91,6 +92,7 @@ describe("equipment API contracts", () => {
     );
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-04-A / EQUIP-UNAVAIL-04-C: default inventory hides unavailable items; opt-in reveals them.
    * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/21528785/EQUIP-UNAVAIL-04
@@ -104,6 +106,7 @@ describe("equipment API contracts", () => {
     expect(apiMock).toHaveBeenCalledWith(endpoint);
   });
 
+  // Traceability: Jira 119 AC1 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-01-A: marking an available record unavailable submits its ID and reason by PATCH.
    * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/21495947/EQUIP-UNAVAIL-01#A
@@ -117,6 +120,7 @@ describe("equipment API contracts", () => {
     });
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-05-A: audit history is retrieved from the shared audit-trail endpoint.
    * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/21037353/EQUIP-UNAVAIL-05#A

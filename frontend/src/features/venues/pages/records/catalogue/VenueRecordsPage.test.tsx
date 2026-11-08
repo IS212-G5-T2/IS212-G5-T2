@@ -101,6 +101,7 @@ function namesInCards(): string[] {
 }
 
 describe("VenueRecordsPage (SPM-124)", () => {
+  // Traceability: Jira 124 AC2 (matrix 19858622)
   // VEN-VIEW-02-A (AC2): every seeded venue keeps its own required row fields.
   it("VEN-VIEW-02-A: shows all three venues with correct fields and status", async () => {
     // Arrange: use the three concrete records from the published test case.
@@ -220,6 +221,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(apiMock).toHaveBeenLastCalledWith("/venues?mine=true");
   });
 
+  // Traceability: Jira 124 AC4 (matrix 19858622)
   // VEN-VIEW-04-A (AC4): an active blockout makes its venue unavailable with a reason.
   it("VEN-VIEW-04-A: shows the current unavailable period and Maintenance reason", async () => {
     // Arrange: the API has already classified the fixed-time active period.
@@ -237,6 +239,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(within(card!).queryByText("available")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 124 AC4 (matrix 19858622)
   // VEN-VIEW-04-B (AC4): a future scheduled period and its reason show before it starts.
   it("VEN-VIEW-04-B: shows a future scheduled period and its reason while the venue stays available", async () => {
     // Arrange: Marina Auditorium has a Renovation period from 10 Oct 2026 08:00 SGT, and the API reports it as available now.
@@ -269,6 +272,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(within(card!).getByText(/Unavailable .*Renovation/)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 124 AC4 (matrix 19858622)
   // VEN-VIEW-04-C (AC4): a venue without blockouts has no invented reason.
   it("VEN-VIEW-04-C: shows no unavailable period for an available venue", async () => {
     // Arrange: Seminar Room 2 has no current or scheduled unavailable period.
@@ -321,6 +325,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(screen.getByText("Venue record detail opened")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 124 AC3 (matrix 19858622)
   // VEN-VIEW-03-A (AC3): the exact seeded venue name narrows the catalogue.
   it("VEN-VIEW-03-A: searches by venue name", async () => {
     // Arrange: load the three venues in the published test case.
@@ -349,6 +354,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(screen.getByText("80")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 124 AC3 (matrix 19858622)
   // VEN-VIEW-03-B (AC3): location search excludes records at other locations.
   it("VEN-VIEW-03-B: searches by venue location", async () => {
     // Arrange: the three venues have distinct published locations.
@@ -381,6 +387,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(screen.getByText("Annex Level 2")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 124 AC3 (matrix 19858622)
   // VEN-VIEW-03-C (AC3): an unmatched query leaves no stale rows.
   it("VEN-VIEW-03-C: shows no venue rows for an unmatched search", async () => {
     // Arrange: a populated catalogue has loaded.
@@ -406,6 +413,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     ).toBeEnabled();
   });
 
+  // Traceability: Jira 124 AC2 (matrix 19858622)
   // VEN-VIEW-02-B (AC2): an empty data source must not invent catalogue rows.
   it("VEN-VIEW-02-B: shows no venue rows for an empty catalogue", async () => {
     // Arrange: the API returns no records.
@@ -424,6 +432,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 124 AC5 (matrix 19858622)
   // VEN-VIEW-05-A (AC5): name order reverses without losing a venue.
   it("VEN-VIEW-05-A: sorts names in both directions", async () => {
     // Arrange: three distinct venue names arrive out of alphabetical order.
@@ -460,6 +469,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     ]);
   });
 
+  // Traceability: Jira 124 AC5 (matrix 19858622)
   // VEN-VIEW-05-B (AC5): capacity ordering is numeric, including single-digit values.
   it("VEN-VIEW-05-B: sorts capacities numerically in both directions", async () => {
     // Arrange: the specified capacities defeat lexicographic sorting.
@@ -500,6 +510,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     ]);
   });
 
+  // Traceability: Jira 124 AC5 (matrix 19858622)
   // VEN-VIEW-05-C (AC5): location order reverses while records stay attached to rows.
   it("VEN-VIEW-05-C: sorts locations in both directions", async () => {
     // Arrange: known locations arrive out of order.
@@ -532,6 +543,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     ]);
   });
 
+  // Traceability: Jira 124 AC5 (matrix 19858622)
   // VEN-VIEW-05-D (AC5): status ordering must differ from the alphabetical name order.
   it("VEN-VIEW-05-D: sorts an asymmetric three-venue status fixture", async () => {
     // Arrange: names and statuses deliberately produce different orderings.

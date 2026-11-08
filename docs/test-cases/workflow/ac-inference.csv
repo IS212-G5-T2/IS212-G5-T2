@@ -1,0 +1,133 @@
+story,test_id,title,ac,confidence,basis
+SPM-36,EVE-CRE-SUP-01,,AC2,medium,matrix row 3: omitted optional choices default to empty; AC2 lists the form fields incl. facilities and layout
+SPM-36,EVE-CRE-SUP-04,,AC4,high,rejects invalid submission (UUID); AC4 rejects invalid information
+SPM-36,EVE-CRE-03-A,,AC6,medium,matrix: complete valid request can be submitted; AC6 saved with status Submitted
+SPM-36,EVE-CRE-SUP-08,,SUPPORTING (no SPM-36 AC),low,registrationEnabled flag belongs to SPM-139; no SPM-36 AC covers it
+SPM-36,EVE-CRE-06-BND-1,,AC6,high,saves organiser under their email; AC6 request saved under my account; matrix family EVE-CRE-06
+SPM-36,EVE-CRE-06-BND-2,,AC6,high,saves organiser as Organiser with blank email; AC6; matrix family EVE-CRE-06
+SPM-36,EVE-CRE-07-C,,AC7,high,Back button hidden after submit; AC7 confirmation and My Events; matrix family EVE-CRE-07
+SPM-36,EVE-CRE-07-D,,AC7,medium,Back button kept on normal open; matrix family EVE-CRE-07 (AC7 navigation after submit)
+SPM-36,EVE-CRE-07-E,,AC7,medium,Back button returns to previous page; matrix family EVE-CRE-07
+SPM-36,EVE-CRE-07-F,,AC7,medium,event list load error with Retry; AC7 My Events list; matrix family EVE-CRE-07
+SPM-36,EVE-CRE-07-G,,AC7,medium,superseded My Events load; AC7 My Events list; matrix family EVE-CRE-07
+SPM-36,EVE-CRE-07-H,,AC7,medium,superseded My Events load fails late; AC7 My Events list; matrix family EVE-CRE-07
+SPM-37,EVE-DRF-SUP-02,,AC4,medium,malformed IDs rejected before DB; AC4 reused or invalid identifiers
+SPM-37,EVE-DRF-SUP-03,,SUPPORTING (no SPM-37 AC),medium,authentication gate on draft routes (matrix row 8); no SPM-37 AC
+SPM-37,EVE-DRF-SUP-04,,SUPPORTING (no SPM-37 AC),medium,organiser-role gate on draft routes (matrix row 8); no SPM-37 AC
+SPM-37,,rejects a repeated submission when the linked event is %s,AC7,medium,repeated draft submit refused by event status; AC7 submission is locked and atomic
+SPM-37,EVE-DRF-SUP-13,,SUPPORTING (no SPM-37 AC),medium,owner taken from verified caller (matrix row 9); ownership has no SPM-37 AC
+SPM-37,EVE-DRF-SUP-16,,AC4,medium,malformed envelope rejected (matrix row 11); AC4 invalid information is refused
+SPM-37,EVE-DRF-SUP-17,,AC4,medium,malformed fields rejected (matrix row 11); AC4 invalid information is refused
+SPM-37,EVE-DRF-SUP-18,,AC4,high,invalid version rejected (matrix row 11); AC4 stale or concurrent saves are refused
+SPM-37,EVE-DRF-SUP-19,,AC4,high,nonnegative safe version accepted (matrix row 11); AC4 version handling
+SPM-37,EVE-DRF-SUP-20,,AC4,medium,invalid operation ID rejected (matrix row 11); AC4 reused identifiers
+SPM-37,EVE-DRF-11-A,,AC2,low,draft field length boundaries (matrix row 11); AC2 draft stored even if incomplete
+SPM-37,EVE-DRF-11-B,,AC2,low,supported layout accepted in a draft (matrix row 11); AC2
+SPM-37,EVE-DRF-11-C,,AC2,low,wizard step accepted in a draft (matrix row 11); AC2
+SPM-37,EVE-DRF-11-D,,SUPPORTING (parent SPM-36 AC8),medium,attachment count boundary (matrix row 11); attachments are SPM-36 AC8
+SPM-37,EVE-DRF-10-A,,SUPPORTING (parent SPM-36 AC8),high,"five supporting files kept, sixth refused (matrix row 10); SPM-36 AC8"
+SPM-37,EVE-DRF-10-B,,SUPPORTING (parent SPM-36 AC8),medium,large attachment data accepted (matrix row 10); SPM-36 AC8
+SPM-37,EVE-DRF-10-C,,SUPPORTING (parent SPM-36 AC8),medium,"oversized body refused with 413, nothing written (matrix row 10); SPM-36 AC8"
+SPM-37,EVE-DRF-SUP-24,,AC4,medium,malformed and missing IDs return 404 (matrix row 9); AC4 invalid identifiers
+SPM-37,EVE-DRF-08-A,,SUPPORTING (no SPM-37 AC),medium,401 on every protected draft route without session (matrix row 8); no SPM-37 AC
+SPM-37,EVE-DRF-08-B,,SUPPORTING (no SPM-37 AC),medium,attendee refused organiser-only routes (matrix row 8); no SPM-37 AC
+SPM-37,EVE-DRF-SUP-35,,SUPPORTING (parent SPM-36 AC4),medium,attendance boundary on submission (matrix row 11); attendance validation is SPM-36 AC4
+SPM-37,EVE-DRF-SUP-36,,SUPPORTING (parent SPM-36 AC4),medium,end time relative to start (matrix row 11); SPM-36 AC4
+SPM-37,EVE-DRF-SUP-37,,AC3,low,resumed draft with missing basic fields returns to step one (matrix row 11); AC3 reopen with values
+SPM-37,EVE-DRF-SUP-38,,AC7,low,corrupt persisted schedule cannot submit (matrix row 11); AC7 submission
+SPM-37,EVE-DRF-SUP-41,,SUPPORTING (parent SPM-36 AC8),medium,file count boundary (matrix row 10); SPM-36 AC8
+SPM-37,EVE-DRF-SUP-42,,AC6,low,"cancelled file selection harmless, read failure allows retry (matrix row 10); AC6 retry after failed save"
+SPM-37,EVE-DRF-SUP-43,,SUPPORTING (no SPM-37 AC),medium,browser session credentials (matrix row 8); no SPM-37 AC
+SPM-37,EVE-DRF-SUP-53,,SUPPORTING (parent SPM-36 AC8),medium,file size boundary (matrix row 10); SPM-36 AC8
+SPM-37,,"renders a draft whose stored fields have no name, and keeps the rest of the list",AC3,medium,saved drafts listed in My Requests with stored values; AC3
+SPM-38,EVE-REV-01-B,,AC4,medium,empty list for a user with no event role; AC4 access restriction (matrix family says AC1)
+SPM-38,EVE-REV-03-E,,AC3,high,attachment opens with recorded type; AC3 view or download files
+SPM-38,EVE-REV-03-F,,AC3,high,attachment generic type fallback; AC3 view or download files
+SPM-38,EVE-REV-03-G,,AC3,high,preview link released after opening; AC3 view or download files
+SPM-38,EVE-REV-01-C,,AC1,medium,superseded event load ignored; AC1 view full submitted details (matrix family EVE-REV-01)
+SPM-38,EVE-REV-01-D,,AC1,medium,superseded event load failure ignored; AC1 (matrix family EVE-REV-01)
+SPM-39,REQ-CLAR-03,,AC1,high,Coordinator not assigned cannot request clarification; AC1 on event assigned to me (matrix Extra row)
+SPM-39,REQ-CLAR-SUP-38,,AC1,medium,unrelated person refused on reply; AC1 scope is the assigned event
+SPM-39,REQ-CLAR-SUP-39,,AC1,medium,unrelated person refused on resolve; AC1 scope is the assigned event
+SPM-39,REQ-CLAR-SUP-62,,AC1,high,coordinator of event B refused on event A; AC1 scope is the assigned event
+SPM-39,REQ-CLAR-SUP-40,,SUPPORTING (no SPM-39 AC),medium,401 without authentication; no SPM-39 AC
+SPM-39,PLAN-STATUS-07-A,,AC1,low,assigned Coordinator posts clarification in Planning; SPM-39 AC1 (cross-story: SPM-148 AC7)
+SPM-39,PLAN-STATUS-07-D,,AC1,low,no composer after Confirmed; SPM-39 AC1 (cross-story: SPM-148 AC7)
+SPM-40,EVENT-APPROVE-03-B,,AC2,medium,approve refused for non-coordinator and wrong coordinator; AC2 coordinator can approve
+SPM-40,EVENT-APPROVE-03-C,,AC2,low,malformed or unknown event id on approve; AC2
+SPM-40,LEAD-ASN-10-A,,AC3,low,approval keeps the assigned coordinator; AC3 status becomes Approved (cross-story: SPM-123 AC10)
+SPM-47,LEAD-REASN-08-F,,AC8,high,reassignment notice labels for the coordinator who receives it; AC8 both coordinators notified
+SPM-47,LEAD-REASN-10-G,,AC10,high,Lead reads only coordinator-unavailable notices; AC10
+SPM-55,,SPM-159 processExpiredTentativeHolds expires only elapsed approved holds not yet processed and returns their i,NONE (no SPM-55 AC; cross-story SPM-159/132),medium,hold-expiry processing; no SPM-55 AC covers it
+SPM-57,,rejects %s and names the offending field,AC4,high,"missing or invalid type, name or quantity is an error; AC4"
+SPM-57,EQUIP-AVAIL-04-BND-1,,NONE (no SPM-57 AC; cross-story SPM-58 AC4),medium,no active stock for the window; reservation limit is SPM-58 AC4
+SPM-57,EQUIP-AVAIL-04,,NONE (no SPM-57 AC; cross-story SPM-58),medium,unknown request id on reserve; SPM-58 review scope
+SPM-61,EVENT-REG-03-SEC-1,,AC3,low,"script payload in submitted report data; AC3 submitted details (cross-cutting, matrix row EVENT-REG-03)"
+SPM-61,EVENT-REG-05-SEC-1,,AC5,medium,matrix family EVENT-REG-05 = AC5 (cannot register twice); cross-cutting security
+SPM-61,SUP-EVENT-REG-REREG-A,,SUPPORTING (parent AC5),medium,re-registration after withdrawal (assumption A5); no Jira AC
+SPM-61,SUP-EVENT-REG-REREG-B,,SUPPORTING (parent AC5),medium,re-registration after withdrawal (assumption A5); no Jira AC
+SPM-63,SUP-VIEW-REG-INFO-SEARCH,,SUPPORTING (parent AC1),high,report search and filters; parent AC1 view the report
+SPM-63,SUP-VIEW-REG-INFO-SPECIAL,,SUPPORTING (parent AC1),high,report special-request view; parent AC1
+SPM-63,SUP-VIEW-REG-INFO-TODAY,,SUPPORTING (parent AC1),high,report today filter; parent AC1
+SPM-63,SUP-VIEW-REG-INFO-TODAY-BND,,SUPPORTING (parent AC1),high,report today boundary; parent AC1
+SPM-64,REQ-CHANGE-08-B,,AC1,low,"create passes session user, event id and body; AC1 request a change"
+SPM-64,REQ-CHANGE-08-SUP-SERVICE,,SUPPORTING (parent AC8),medium,storage errors rethrown; parent AC8 one pending request
+SPM-64,REQ-CHANGE-08-A,,AC1,medium,only the owning organiser can request; AC1
+SPM-64,REQ-CHANGE-08-C,,SUPPORTING (no SPM-64 AC),medium,malformed event id returns 404; identifier validation
+SPM-64,REQ-CHANGE-08-D,,AC6,medium,prototype key refused; AC6 non-permitted field error
+SPM-65,SPM-65,delegates the SPM-65 review routes,AC4,low,review routes delegate to approve and deny; AC4
+SPM-65,REVIEW-CHANGE-11-A,,AC1,medium,"anonymous, non-coordinator and other coordinators refused; AC1 assigned events only"
+SPM-65,REVIEW-CHANGE-11-B,,AC4,low,unknown request id and missing event refused; AC4 decisions
+SPM-65,REVIEW-CHANGE-11-SUP-CLIENT,,AC4,low,client calls the review routes; AC4 decisions
+SPM-95,,SPM-95 AC5: venue %s with equipment %j does not match Awaiting Safety Check,AC5,high,title names AC5; Awaiting Safety Check virtual filter
+SPM-95,PLAN-STATUS-05-A,,AC2,medium,Planning filter lists only Planning events; AC2 select statuses (cross-story SPM-148 AC5)
+SPM-95,PLAN-STATUS-05-B,,AC2,medium,Approved and Planning filters after reload; AC2 (cross-story SPM-148 AC5)
+SPM-95,PLAN-STATUS-05-C,,AC2,medium,Planning filter with no match shows empty message; AC2 (cross-story SPM-148 AC5)
+SPM-95,PLAN-STATUS-09-A,,NONE (no SPM-95 AC; cross-story SPM-94 AC1),medium,Planning badge in the Organiser list; status display is SPM-94 AC1
+SPM-113,EQUIP-AVAIL-08-C,,AC8,high,status quantities updated without reactivating unavailable equipment; AC8 breakdown by maintenance status
+SPM-113,EQUIP-AVAIL-08-BND-1,,AC8,high,oversized status breakdown refused; AC8
+SPM-119,EQUIP-UNAVAIL-07-SEC-06,,"AC1, AC7",medium,"malformed equipment id refused without a transaction; matrix cross-cutting says AC1, AC7"
+SPM-119,EQUIP-UNAVAIL-07-SEC-1,,"AC1, AC6",medium,non-tech-support refused for mark and reactivate; matrix cross-cutting role protection
+SPM-119,EQUIP-UNAVAIL-07-SEC-04,,"AC1, AC2",medium,"403 before malformed-id validation; matrix says AC1, AC2 authorisation ordering"
+SPM-119,EQUIP-UNAVAIL-07-SEC-02,,"AC1, AC6",medium,every other role denied; matrix role protection for mark and reactivate
+SPM-119,EQUIP-UNAVAIL-07-SEC-05,,AC7,high,"forged changedBy ignored, session user recorded; matrix says AC7 server-owned actor"
+SPM-120,ATT-03,,AC5,medium,"withdrawing another attendee refused, row stays Registered; AC5 withdrawal effect is ownership-scoped"
+SPM-120,ATT-01,,AC5,medium,owner withdraws and status becomes Withdrawn; AC5 (control case)
+SPM-120,WITHDRAW-EVENT-REG-07-A,,AC5,medium,non-owner gets 404 with same body; AC5 withdrawal ownership
+SPM-120,WITHDRAW-EVENT-REG-07-B,,AC1,low,no session refused 401; AC1 access the withdraw option
+SPM-120,WITHDRAW-EVENT-REG-07-INT-1,,AC1,low,authentication before body validation; AC1 access
+SPM-120,WITHDRAW-EVENT-REG-07-INT-2,,AC5,low,body validated before ownership; AC5 withdrawal
+SPM-120,WITHDRAW-EVENT-REG-07-INT-5,,AC4,medium,withdrawn registration on a past event returns already withdrawn; AC4 cut-off at event start
+SPM-120,WITHDRAW-EVENT-REG-08-A,,AC5,low,concurrent withdrawal (matrix cross-cutting 08-A); AC5 status change
+SPM-120,SUP-WITHDRAW-EVENT-REG-CAP-01,,SUPPORTING (parent AC5),medium,spot released after withdrawal; parent AC5
+SPM-120,SUP-EVENT-REG-REREG-C,,SUPPORTING (parent AC5),medium,re-registration after withdrawal (assumption A5); parent AC5
+SPM-123,LEAD-ASN-10-B,,AC10,high,approval or rejection keeps the assigned coordinator; matrix AC10 (Jira wording is AC9)
+SPM-123,LEAD-ASN-09-C,,AC9,medium,coordinator reads only own assignment notifications; matrix AC9 (notices moved to SPM-77)
+SPM-138,JOIN-WAITLIST-14-A,,AC3,low,report shows every status incl. Waitlisted; totals count Confirmed only; AC3 status shows Waitlisted
+SPM-139,CONFIG-REG-11-A,,AC1,medium,"switched-off event reports closed, not disabled; AC1 turn registration on or off"
+SPM-139,CONFIG-REG-11-C,,AC1,low,unknown settings field refused with 400; AC1 settings validity
+SPM-139,CONFIG-REG-11-B,,AC3,high,capacity saved independent of venue capacity; AC3 maximum attendees
+SPM-148,PLAN-STATUS-08-A,,AC1,low,unsupported target body refused; AC1 status change via first booking request
+SPM-148,PLAN-STATUS-09-A,,AC5,medium,Planning shown in Organiser list and history; AC5 Planning appears in list
+SPM-148,PLAN-STATUS-10-A-OK,,AC4,medium,Confirm records Planning to Confirmed; AC4 status history
+SPM-148,PLAN-STATUS-10-A,,AC1,low,Confirm refused from Approved; AC1 status transition
+SPM-57,,trims the equipment name and accepts the integer ceiling,AC3,medium,trimmed name and maximum quantity accepted; AC3 item name and quantity
+SPM-57,,forwards a cannot-provide decision,NONE (no SPM-57 AC; cross-story SPM-58 AC9),medium,Cannot Provide with reason is SPM-58 AC9
+SPM-57,,creates reservations from request items,NONE (no SPM-57 AC; cross-story SPM-58 AC3),medium,reserve against a request is SPM-58 AC3
+SPM-57,,guards reservation insertion,NONE (no SPM-57 AC; cross-story SPM-58 AC3),medium,reserve against a request is SPM-58 AC3
+SPM-57,,does not change a non-pending request,NONE (no SPM-57 AC; cross-story SPM-58 AC8),medium,only Pending Review requests change status; SPM-58 AC8
+SPM-57,,refuses to reserve a pending request once its event is Confirmed,NONE (no SPM-57 AC; cross-story SPM-58 AC12),medium,requests can be updated only until Confirmed; SPM-58 AC12
+SPM-57,,retires an already-Reserved reservation,NONE (no SPM-57 AC; cross-story SPM-58 AC11),medium,reschedule returns request to Pending Review; SPM-58 AC11
+SPM-57,,guards Cannot Provide against missing,NONE (no SPM-57 AC; cross-story SPM-58 AC9),medium,Cannot Provide reason is SPM-58 AC9
+SPM-57,,refuses to approve requests after their event is Confirmed,NONE (no SPM-57 AC; cross-story SPM-58 AC12),medium,no change once Confirmed; SPM-58 AC12
+SPM-57,,answers 404 when the request to reserve does not exist,NONE (no SPM-57 AC; cross-story SPM-58 AC3),medium,reserve against a request is SPM-58 AC3
+SPM-57,,sends the Cannot provide reason,NONE (no SPM-57 AC; cross-story SPM-58 AC9),medium,Cannot Provide reason is SPM-58 AC9
+SPM-57,,sends the reserve action,NONE (no SPM-57 AC; cross-story SPM-58 AC3),medium,reserve against a request is SPM-58 AC3
+SPM-57,,closes the Cannot provide prompt on Cancel,NONE (no SPM-57 AC; cross-story SPM-58 AC9),medium,Cannot Provide reason prompt is SPM-58 AC9
+SPM-57,,shows a generic message when Cannot provide rejects,NONE (no SPM-57 AC; cross-story SPM-58 AC9),medium,Cannot Provide failure is SPM-58 AC9
+SPM-57,,shows the server message when reserving fails with an Error,NONE (no SPM-57 AC; cross-story SPM-58 AC3),medium,reserve failure message is SPM-58 AC3
+SPM-57,,shows a generic message when reserving rejects,NONE (no SPM-57 AC; cross-story SPM-58 AC3),medium,reserve failure message is SPM-58 AC3
+SPM-57,,shows the server message when Cannot provide fails,NONE (no SPM-57 AC; cross-story SPM-58 AC9),medium,Cannot Provide failure is SPM-58 AC9
+SPM-57,,closes the review details when Close review is clicked,NONE (no SPM-57 AC; cross-story SPM-58 AC1),medium,review of pending requests is SPM-58 AC1
+SPM-57,,derives sufficiency from the available quantity,NONE (no SPM-57 AC; cross-story SPM-58 AC2),medium,availability sufficiency for a request is SPM-58 AC2
+SPM-55,,SPM-159 processExpiredTentativeHolds,NONE (no SPM-55 AC; cross-story SPM-133 AC6),medium,processing expiry sets stored status to Expired; SPM-133 AC6

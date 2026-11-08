@@ -51,6 +51,7 @@ const open = async () => userEvent.click(await screen.findByRole("button", { nam
 
 describe("SPM-155 CancellationRequestPanel: making a request (AC1)", () => {
   // Kills: FM10, FM11, FM15, FM7
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-A: Request Cancellation, enter the reason, send; MSG-CR-01 is shown and the status then reads Pending. */
   it("CANCEL-REQUEST-01-A: the owner sends the reason, sees MSG-CR-01, and the reloaded request reads Pending", async () => {
     // Arrange: Approved event, no requests; after the POST the server returns the pending request
@@ -71,6 +72,7 @@ describe("SPM-155 CancellationRequestPanel: making a request (AC1)", () => {
   });
 
   // Kills: FM12, FM4
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-C subtests A and B: no Request Cancellation action on a Completed or Cancelled event. */
   it.each(["completed", "cancelled", "rejected", "draft"])("CANCEL-REQUEST-01-C: a %s event offers no Request Cancellation action", async (status) => {
     // Arrange / Act
@@ -82,6 +84,7 @@ describe("SPM-155 CancellationRequestPanel: making a request (AC1)", () => {
   });
 
   // Kills: FM13, FM49
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-E subtest E: ORG-02, COO-01 and ATT-01 see no action and the panel asks the server for nothing. */
   it.each([
     ["ORG-02", { id: "org-02", role: "organiser" }],
@@ -97,6 +100,7 @@ describe("SPM-155 CancellationRequestPanel: making a request (AC1)", () => {
   });
 
   // Kills: FM14
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-F step 4: a double click on Send request sends one request; the button is disabled while it is pending. */
   it("CANCEL-REQUEST-01-F: double-clicking Send request posts once and disables the button while pending", async () => {
     // Arrange: a POST that stays pending until released
@@ -118,6 +122,7 @@ describe("SPM-155 CancellationRequestPanel: making a request (AC1)", () => {
   });
 
   // Kills: FM15, FM7
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-F: with a pending request there is no Request Cancellation action. */
   it("CANCEL-REQUEST-01-F: a pending request hides the Request Cancellation action", async () => {
     // Arrange
@@ -132,6 +137,7 @@ describe("SPM-155 CancellationRequestPanel: making a request (AC1)", () => {
   });
 
   // Kills: FM16
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-F: a 409 from the server is shown in an alert (MSG-CR-03 text) and the form stays open. */
   it("CANCEL-REQUEST-01-F: a server refusal is shown in an alert and the form stays open for the Organiser", async () => {
     // Arrange
@@ -148,6 +154,7 @@ describe("SPM-155 CancellationRequestPanel: making a request (AC1)", () => {
   });
 
   // Kills: FM17
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H subtests B and C (UI): 500 characters is accepted, 501 shows the field error and disables Send. */
   it("CANCEL-REQUEST-01-H: the counter reads 500/500 and Send stays enabled; 501 shows the error and disables Send", async () => {
     // Arrange
@@ -169,6 +176,7 @@ describe("SPM-155 CancellationRequestPanel: making a request (AC1)", () => {
   });
 
   // Kills: FM8
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H: the count is in code points, so 500 emoji are allowed. */
   it("CANCEL-REQUEST-01-H: 500 emoji count as 500 characters and are allowed", async () => {
     // Arrange
@@ -184,6 +192,7 @@ describe("SPM-155 CancellationRequestPanel: making a request (AC1)", () => {
   });
 
   // Kills: FM18
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H subtest D: script text is displayed literally and no script element exists. */
   it("CANCEL-REQUEST-01-H: a reason of <script>alert(1)</script> is shown as plain text and no script runs", async () => {
     // Arrange
@@ -200,6 +209,7 @@ describe("SPM-155 CancellationRequestPanel: making a request (AC1)", () => {
 
 describe("SPM-155 CancellationRequestPanel: the status (AC2)", () => {
   // Kills: FM19, FM7
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: Pending with the request date in SGT. */
   it("CANCEL-REQUEST-02-A: shows Status: Pending and the request date 12 Oct 2026, 12:00 SGT", async () => {
     // Arrange
@@ -215,6 +225,7 @@ describe("SPM-155 CancellationRequestPanel: the status (AC2)", () => {
   });
 
   // Kills: FM20
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-B and 02-C: Accepted and Declined with the decision date and who decided. */
   it.each([
     ["accepted", "Status: Accepted"],
@@ -232,6 +243,7 @@ describe("SPM-155 CancellationRequestPanel: the status (AC2)", () => {
   });
 
   // Kills: FM21, FM22, FM7
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-E: the newest request is current; the earlier Declined one stays listed. */
   it("CANCEL-REQUEST-02-E: the newest pending request is current and the earlier Declined request is still listed", async () => {
     // Arrange: newest first, as the API returns them
@@ -271,6 +283,7 @@ describe("SPM-155 CancellationRequestPanel: the status (AC2)", () => {
   });
 
   // Kills: FM20, FM54, FM7
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-F: every mount reads the server again; no stale Pending is shown while the new read is in flight, and a reload shows Declined. */
   it("CANCEL-REQUEST-02-F: a remount shows the latest status (Declined) rather than the earlier Pending", async () => {
     // Arrange: first mount reads Pending
@@ -292,6 +305,7 @@ describe("SPM-155 CancellationRequestPanel: the status (AC2)", () => {
   });
 
   // Kills: FM25
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: if the status cannot be loaded the Organiser is told, not shown an empty panel. */
   it("CANCEL-REQUEST-02-A: a failed load shows an alert", async () => {
     // Arrange
@@ -307,6 +321,7 @@ describe("SPM-155 CancellationRequestPanel: the status (AC2)", () => {
 
 describe("SPM-155 CancellationRequestPanel: form controls and fallbacks", () => {
   // Kills: FM43
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-A: Close hides the form again and sends nothing. */
   it("CANCEL-REQUEST-01-A: Close hides the form without sending anything", async () => {
     // Arrange
@@ -323,6 +338,7 @@ describe("SPM-155 CancellationRequestPanel: form controls and fallbacks", () => 
   });
 
   // Kills: FM16
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-F: a failure that carries no message still tells the Organiser. */
   it("CANCEL-REQUEST-01-F: a rejection that is not an Error shows the fallback alert", async () => {
     // Arrange
@@ -338,6 +354,7 @@ describe("SPM-155 CancellationRequestPanel: form controls and fallbacks", () => 
   });
 
   // Kills: FM25, FM50
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: a load failure that carries no message still shows the alert, without a trailing detail. */
   it("CANCEL-REQUEST-02-A: a load rejection that is not an Error shows the alert with no detail", async () => {
     // Arrange

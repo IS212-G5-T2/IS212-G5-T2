@@ -318,6 +318,7 @@ describe('Equipment records (SPM-111 e2e)', () => {
       .expect(403);
   });
 
+  // Traceability: Jira 117 AC1 (matrix 19858517)
   // EQUIP-VIEW-01-F (AC1, HTTP boundary). Kills: an @Get() route handler missing
   // its guard, or a guard present only on POST. Only POST had HTTP-level 401/403
   // coverage before this case.
@@ -336,6 +337,7 @@ describe('Equipment records (SPM-111 e2e)', () => {
       .expect(403);
   });
 
+  // Traceability: Jira 117 AC4 (matrix 19858517)
   // EQUIP-VIEW-04-C (AC4, real SQL). Kills: a stray WHERE maintenance_status =
   // 'Active' (or equivalent) in the real list() query. This is the one case in
   // the whole suite that actually proves the inventory is not implicitly

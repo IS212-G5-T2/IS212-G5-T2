@@ -22,6 +22,7 @@ describe("SPM-155 cancellation request API client", () => {
   });
 
   // Kills: FM1
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-A: the request is a POST to the event's cancellation-requests route carrying the reason only. */
   it("CANCEL-REQUEST-01-A: posts the reason to the event's cancellation-requests route", async () => {
     // Act
@@ -35,6 +36,7 @@ describe("SPM-155 cancellation request API client", () => {
   });
 
   // Kills: FM1, FM2
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H subtest A: no reason sends an empty object, never `reason: ""` or a client status. */
   it("CANCEL-REQUEST-01-H: a blank reason sends an empty body", async () => {
     // Act
@@ -45,6 +47,7 @@ describe("SPM-155 cancellation request API client", () => {
   });
 
   // Kills: FM47
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: reads the event's requests and the caller's dashboard list. */
   it("CANCEL-REQUEST-02-A: reads the event's requests and the dashboard list", async () => {
     // Act / Assert
@@ -55,6 +58,7 @@ describe("SPM-155 cancellation request API client", () => {
   });
 
   // Kills: FM3
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-A and 03-B: the decision is a POST of exactly { decision } to the request's decision route. */
   it.each([["accept"], ["decline"]] as const)("CANCEL-REQUEST-03-A: decision %s posts only the decision", async (decision) => {
     // Act

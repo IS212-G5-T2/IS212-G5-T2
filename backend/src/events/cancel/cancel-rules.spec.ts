@@ -9,6 +9,7 @@ import { isConfirmed, isCancellable } from './cancel-rules.js';
 describe('SPM-136 cancellation rules', () => {
   // CANCEL-EVENT-02-C: only the boolean true confirms; every other value is refused (decision D5).
   describe('CANCEL-EVENT-02-C: confirmation must be the boolean true', () => {
+    // Traceability: Jira 136 AC2 (matrix 23691421)
     // Kills: R1 (confirmation never accepted)
     it('CANCEL-EVENT-02-C: accepts confirmed: true', () => {
       // Arrange
@@ -21,6 +22,7 @@ describe('SPM-136 cancellation rules', () => {
       expect(accepted).toBe(true);
     });
 
+    // Traceability: Jira 136 AC2 (matrix 23691421)
     // Kills: M10 (the string "true"); R3 (omitted, empty object, null: only false refused); R6 (false: any boolean
     // confirms); R8 (no body: the missing-body guard removed); R4 (the number 1: loose equality with true)
     it.each([
@@ -68,6 +70,7 @@ describe('SPM-136 cancellation rules', () => {
 
   // CANCEL-EVENT-03-B: Submitted, Approved, Planning and Confirmed are cancellable; the rest are not (decision F9).
   describe('CANCEL-EVENT-03-B: the cancellable set', () => {
+    // Traceability: Jira 136 AC3 (matrix 23691421)
     // Kills: S22 (Submitted row), M12 (Approved row), S30 (Planning row), S31 (Confirmed row)
     it.each(['Submitted', 'Approved', 'Planning', 'Confirmed'])('CANCEL-EVENT-03-B: %s is cancellable', (status) => {
       // Act
@@ -77,6 +80,7 @@ describe('SPM-136 cancellation rules', () => {
       expect(cancellable).toBe(true);
     });
 
+    // Traceability: Jira 136 AC3 (matrix 23691421)
     // Kills: M2 (Completed row), S21 (Rejected row), S32 (Cancelled row), S33 (lower-case rows), S34 (the unknown
     // statuses '' and 'Under Review' under a deny-list)
     it.each(['Completed', 'Rejected', 'Cancelled', 'submitted', 'confirmed', '', 'Under Review'])(

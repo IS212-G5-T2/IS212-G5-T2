@@ -117,6 +117,7 @@ beforeEach(() => {
 });
 
 describe("SPM-48 coordinator dashboard", () => {
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   /** MONITOR-QUEUE-01-A: the dashboard reads the coordinator queue, opens on All statuses and lists every row it returns. */
   it("MONITOR-QUEUE-01-A lists every queued event on All statuses", async () => {
     renderPage();
@@ -129,6 +130,7 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(QUEUE.map((e) => e.name));
   });
 
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   /**
    * MONITOR-QUEUE-01-A (review finding, PR #80): a coordinator who signs in after another on the same browser starts on
    * All statuses and sees every queued event, not the previous coordinator's filter.
@@ -152,6 +154,7 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(QUEUE.length);
   });
 
+  // Traceability: Jira 48 AC2 (matrix 23691437)
   /** MONITOR-QUEUE-02-A: the filter offers All statuses and the seven standard terms, and each narrows the list. */
   it("MONITOR-QUEUE-02-A filters by each standard status term", async () => {
     const user = userEvent.setup();
@@ -168,6 +171,7 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(QUEUE.length);
   });
 
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   /** MONITOR-QUEUE-01-C: an empty queue shows the empty-state message and no error. */
   it("MONITOR-QUEUE-01-C shows the empty state for an empty queue", async () => {
     apiMock.mockImplementation((() => Promise.resolve([])) as typeof api);
@@ -176,6 +180,7 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  // Traceability: Jira 48 AC5 (matrix 23691437)
   /** MONITOR-QUEUE-05-B: the four action-needed events carry the marker; EVT-406, EVT-410 and EVT-411 do not. */
   it("MONITOR-QUEUE-05-B marks exactly the events that need action", async () => {
     renderPage();
@@ -186,6 +191,7 @@ describe("SPM-48 coordinator dashboard", () => {
       expect(within(card(name)).queryByText("Needs action")).toBeNull();
   });
 
+  // Traceability: Jira 48 AC6 (matrix 23691437)
   /** MONITOR-QUEUE-06-A, 08-A, 09-A: the queue's indicators show on their cards, and the SPM-94 indicator is not repeated. */
   it("MONITOR-QUEUE-06-A shows each card’s queue indicators once", async () => {
     renderPage();
@@ -197,6 +203,7 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(within(card("EVT-415")).getByText("Hold expired: Hall A, expired 09 Nov 2026, 12:00 SGT")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 48 AC6 (matrix 23691437)
   /**
    * MONITOR-QUEUE-06-B, 07-C: the queue-only safety states (reset, rejected) show on their cards. The SPM-94 indicator
    * has no value for them, so only the queue label can show them.
@@ -217,6 +224,7 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(within(card("EVT-417")).getByText("Safety Arrangement Rejected")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 48 AC9 (matrix 23691437)
   /**
    * MONITOR-QUEUE-09-A: a card whose venue became unavailable does not also say the venue is reserved; the combined
    * label keeps only the equipment part. A card with an available reserved venue keeps its labels.
@@ -241,6 +249,7 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(within(card("EVT-404")).getByText("Equipment & Venue Reserved")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 48 AC4 (matrix 23691437)
   /** MONITOR-QUEUE-04-A: Retry after a failed load reads the queue again and shows the latest statuses. */
   it("MONITOR-QUEUE-04-A reloads the latest queue after a failed load", async () => {
     const user = userEvent.setup();
@@ -257,6 +266,7 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(apiMock.mock.calls.filter(([path]) => path === "/coordinator/queue")).toHaveLength(2);
   });
 
+  // Traceability: Jira 48 AC4 (matrix 23691437)
   /** MONITOR-QUEUE-04-B: revisiting the page reads the queue again, so a new request and a changed status appear. */
   it("MONITOR-QUEUE-04-B shows the latest queue on revisit", async () => {
     const first = renderPage();
@@ -271,6 +281,7 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(apiMock.mock.calls.filter(([path]) => path === "/coordinator/queue")).toHaveLength(2);
   });
 
+  // Traceability: Jira 48 AC2 (matrix 23691437)
   /** MONITOR-QUEUE-02-A: other staff roles who open /events keep their filter as before: statuses only, behind the placeholder. */
   it("MONITOR-QUEUE-02-A leaves the venue staff filter unchanged", async () => {
     useAppStore.setState({ currentUser: { id: "vs-1", name: "VS-01", email: "vs@example.test", role: "venue_staff" } });
@@ -282,6 +293,7 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(apiMock).not.toHaveBeenCalledWith("/coordinator/queue");
   });
 
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   /** MONITOR-QUEUE-01-A: an organiser's list still reads /events, never the coordinator queue. */
   it("MONITOR-QUEUE-01-A keeps other roles on the events list", async () => {
     useAppStore.setState({ currentUser: { id: "org-1", name: "ORG-01", email: "org@example.test", role: "organiser" } });

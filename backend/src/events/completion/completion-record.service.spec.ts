@@ -12,12 +12,14 @@ const COORDINATOR: AuthenticatedUser = { uid: 'coord-a', roles: ['COORDINATOR'] 
 const VALID_BODY = { attendanceCount: 10 };
 
 describe('COMPLETE-EVENT-05-F: completion record authorisation', () => {
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-F: a read without an identity is refused with 401', async () => {
     const service = new CompletionRecordService({ query: vi.fn() } as never);
 
     await expect(service.read(undefined, EVENT)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-F: a save whose locked row names another coordinator is refused with 403 and writes nothing', async () => {
     const query = vi.fn(async () => ({ rows: [{ coordinator_id: 'coord-a' }], rowCount: 1 }));
     const client = {
@@ -33,6 +35,7 @@ describe('COMPLETE-EVENT-05-F: completion record authorisation', () => {
     expect(client.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO completion_records'))).toBe(false);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-F: a save whose event row has disappeared is refused with 404', async () => {
     const query = vi.fn(async () => ({ rows: [{ coordinator_id: 'coord-a' }], rowCount: 1 }));
     const client = { query: vi.fn(async () => ({ rows: [], rowCount: 0 })) };

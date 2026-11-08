@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { assertEventNotCancelled } from './cancelled-guard.js';
 
 describe('CANCEL-EVENT-07-A: assertEventNotCancelled', () => {
+  // Traceability: Jira 136 AC7 (matrix 23691421)
   // Kills: S23
   it('CANCEL-EVENT-07-A: refuses a Cancelled event with 409 EVENT_CANCELLED and MSG-CN-04', () => {
     // Act: call the guard with a Cancelled status and capture what it throws
@@ -25,6 +26,7 @@ describe('CANCEL-EVENT-07-A: assertEventNotCancelled', () => {
     });
   });
 
+  // Traceability: Jira 136 AC7 (matrix 23691421)
   // Kills: G1
   it.each(['Submitted', 'Approved', 'Planning', 'Confirmed', 'Completed', 'Rejected'])(
     'CANCEL-EVENT-07-A: does not refuse a %s event (the guard only applies to Cancelled)',

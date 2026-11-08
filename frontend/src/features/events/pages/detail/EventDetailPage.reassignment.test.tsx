@@ -90,6 +90,7 @@ beforeEach(() => {
 });
 
 describe("SPM-46 AC2: who the event came from and when", () => {
+  // Traceability: Jira 46 AC2 (matrix 21103441)
   // The new coordinator sees a banner naming the previous coordinator and the time.
   // Kills: a banner that drops the previous coordinator, the time, or uses the wrong wording.
   it("REASN-VIEW-02-G tells the new coordinator who the event was reassigned from and when", async () => {
@@ -105,6 +106,7 @@ describe("SPM-46 AC2: who the event came from and when", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 46 AC2 (matrix 21103441)
   // No banner on an event that was never reassigned, or for the organiser.
   // Kills: F2 (banner for everyone), F3 (banner without reassignment data).
   it("REASN-VIEW-02-H shows no reassignment banner for an event never reassigned, or to the organiser", async () => {
@@ -129,6 +131,7 @@ describe("SPM-46 AC2: who the event came from and when", () => {
 });
 
 describe("SPM-46 AC3: the full context", () => {
+  // Traceability: Jira 46 AC3 (matrix 21103441)
   // The new coordinator sees the details, the approval in the status timeline and the earlier clarification.
   // Kills: F7 (clarification history not loaded), F8 (event detail fields swapped).
   it("REASN-VIEW-03-A shows the new coordinator the details, the approval decision and the clarification history", async () => {
@@ -166,6 +169,7 @@ describe("SPM-46 AC3: the full context", () => {
 });
 
 describe("SPM-46 AC4: after the event moves away", () => {
+  // Traceability: Jira 46 AC4 (matrix 21103441)
   // The previous coordinator sees why they can't open it, not a generic "not found".
   // Kills: F6 (refusal replaced by a generic "Event not found").
   it("REASN-VIEW-04-C tells the previous coordinator the event was reassigned, with a way back", async () => {

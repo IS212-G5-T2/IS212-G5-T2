@@ -42,6 +42,7 @@ describe('SPM-177 clarification notices in the notification feed', () => {
     service = module.get(EventsService);
   });
 
+  // Traceability: Jira 177 DoD1 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-01-A (SPM-177 DoD1): the feed asks for all three clarification types for an Organiser.
    * Kills: a type missing from the Organiser list.
@@ -53,6 +54,7 @@ describe('SPM-177 clarification notices in the notification feed', () => {
     for (const type of TYPES) expect(types).toContain(type);
   });
 
+  // Traceability: Jira 177 DoD1 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-02-A (SPM-177 DoD1): the feed asks for all three types for a Coordinator, and never for the Lead
    * alone or an Attendee.
@@ -69,6 +71,7 @@ describe('SPM-177 clarification notices in the notification feed', () => {
     for (const type of TYPES) expect(types.includes(type)).toBe(included);
   });
 
+  // Traceability: Jira 177 DoD1 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-03-A (SPM-177 DoD1): the audience follows the recipient: the Organiser for a notice they own, the
    * Coordinator for a notice addressed to the assigned Coordinator.
@@ -84,6 +87,7 @@ describe('SPM-177 clarification notices in the notification feed', () => {
     expect(forCoordinator[0]).toMatchObject({ type, audienceRole: 'coordinator', relatedEventId: EVENT });
   });
 
+  // Traceability: Jira 177 DoD1 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-03-A (SPM-177 DoD1): the recipient rule applies to the clarification types only; any other notice
    * type still falls through to the existing labelling (an Organiser notice here) even when it is addressed to the
@@ -96,6 +100,7 @@ describe('SPM-177 clarification notices in the notification feed', () => {
     expect(items[0]).toMatchObject({ type: 'rejection', audienceRole: 'organiser' });
   });
 
+  // Traceability: Jira 177 DoD3 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-04-A (SPM-177 DoD3): Organiser and Coordinator can mark their notice read (the query carries the
    * clarification types and the recipient); a call that updates no row is not found.
@@ -113,6 +118,7 @@ describe('SPM-177 clarification notices in the notification feed', () => {
     }
   });
 
+  // Traceability: Jira 177 DoD3 (matrix 8060934)
   /** CLARIFY-NOTIF-04-A: a notice the caller cannot read (no row updated) is not found. */
   it('CLARIFY-NOTIF-04-A reports not found when no row was updated', async () => {
     db.query.mockResolvedValue({ rows: [] });

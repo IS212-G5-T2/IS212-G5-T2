@@ -79,6 +79,7 @@ describe('SPM-50 venue service', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 50 AC4 (matrix 14975043)
   // SPM-50 / VEN-CRE-04-A, VEN-CRE-05-A, VEN-CRE-05-B: a valid request saves one complete record and confirms success.
   it('creates a venue with a successful confirmation', async () => {
     // Act using the complete Confluence fixture.
@@ -110,6 +111,7 @@ describe('SPM-50 venue service', () => {
     expect(create).toHaveBeenNthCalledWith(2, otherStaff.uid, venueInput);
   });
 
+  // Traceability: Jira 50 AC3 (matrix 14975043)
   // SPM-50 / VEN-CRE-03-A: invalid input is blocked before SQL even when staff is authorized.
   it('blocks invalid input without writing a record', async () => {
     // Act with a missing field and assert no insert.
@@ -268,6 +270,7 @@ describe('SPM-55 venue booking review service', () => {
     hasPermission.mockResolvedValue(true);
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-A: only Venue Staff with venue update permission can list pending requests. */
   it('SPM-55 AC1 lists pending requests for Venue Staff and rejects other callers before any query', async () => {
     listPendingVenueBookings.mockResolvedValue([{ id: bookingId }]);
@@ -287,6 +290,7 @@ describe('SPM-55 venue booking review service', () => {
     expect(listPendingVenueBookings).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-C: a Venue Staff member without venue update permission is denied the pending list. */
   it('SPM-55 AC1 denies the pending list when the Venue update permission is missing', async () => {
     hasPermission.mockResolvedValue(false);
@@ -296,6 +300,7 @@ describe('SPM-55 venue booking review service', () => {
     expect(listPendingVenueBookings).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 55 AC2 (matrix 34537876)
   /** VEN-REV-02-A: approval confirms the booking for the authenticated owner and returns the updated record. */
   it('SPM-55 AC2 approves a pending request using the verified staff identity', async () => {
     approveBooking.mockResolvedValue({ kind: 'decided', booking: decided });
@@ -305,6 +310,7 @@ describe('SPM-55 venue booking review service', () => {
     expect(approveBooking).toHaveBeenCalledWith(staff.uid, bookingId);
   });
 
+  // Traceability: Jira 55 AC2 (matrix 34537876)
   /** VEN-REV-02-C: approval of a booking outside the caller's venues is reported as not found. */
   it('SPM-55 AC2 reports a missing or foreign booking as not found on approval', async () => {
     approveBooking.mockResolvedValue({ kind: 'not-found' });
@@ -313,6 +319,7 @@ describe('SPM-55 venue booking review service', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 55 AC2 (matrix 34537876)
   /** VEN-REV-02-C: a malformed booking ID is rejected before the repository is queried. */
   it('SPM-55 AC2 rejects a malformed booking ID on approval without querying', async () => {
     await expect(
@@ -321,6 +328,7 @@ describe('SPM-55 venue booking review service', () => {
     expect(approveBooking).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-C: a non-Venue-Staff caller cannot approve or reject. */
   it('SPM-55 AC2 AC3 denies approval and rejection to Coordinators without querying', async () => {
     await expect(
@@ -336,8 +344,9 @@ describe('SPM-55 venue booking review service', () => {
     expect(rejectBooking).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 137 AC7 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-07-E (SPM-137 AC7): a decision the service refuses before saving (malformed id, blank rejection
+   * BOOKING-NOTIFY-07-E (SPM-137 AC7): a decision the service refuses before saving (malformed id, blank rejection
    * reason, caller who is not Venue Staff) never reaches the repository, which is the only place a notification is
    * written, so nothing can be notified.
    * Kills: validating after calling the repository, or notifying from the service layer.
@@ -347,12 +356,13 @@ describe('SPM-55 venue booking review service', () => {
     ['a blank rejection reason', () => service.rejectVenueBooking(staff, bookingId, { reason: '   ' })],
     ['a missing rejection reason', () => service.rejectVenueBooking(staff, bookingId, {})],
     ['a caller who is not Venue Staff', () => service.rejectVenueBooking(coordinator, bookingId, { reason: 'Clash' })],
-  ])('VENUE-BOOK-NOTIF-07-E refuses %s before the repository is reached', async (_label, decide) => {
+  ])('BOOKING-NOTIFY-07-E refuses %s before the repository is reached', async (_label, decide) => {
     await expect(decide()).rejects.toBeInstanceOf(Error);
     expect(rejectBooking).not.toHaveBeenCalled();
     expect(approveBooking).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 55 AC6 (matrix 34537876)
   /** VEN-REV-06-A: a cancelled, approved or rejected request returns a clear 409 and is not changed. */
   it.each(['cancelled', 'approved', 'rejected', 'released'])('SPM-55 AC6 returns BOOKING_ALREADY_DECIDED when approving a %s request', async (status) => {
       approveBooking.mockResolvedValue({ kind: 'already-decided', status });
@@ -367,6 +377,7 @@ describe('SPM-55 venue booking review service', () => {
     },
   );
 
+  // Traceability: Jira 56 AC2 (matrix 34636305)
   /** VEN-CONF-02-A: approval reports the conflict and returns its occupied interval to the review UI. */
   it('VEN-CONF-02-A SPM-56 includes conflicting occupied periods in the approval error', async () => {
     const conflicts = [{
@@ -425,6 +436,7 @@ describe('SPM-55 venue booking review service', () => {
     });
   });
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-03-A: rejection stores the trimmed, non-empty reason and returns the rejected booking. */
   it('SPM-55 AC3 rejects a pending request with the trimmed reason', async () => {
     rejectBooking.mockResolvedValue({
@@ -450,6 +462,7 @@ describe('SPM-55 venue booking review service', () => {
     );
   });
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-03-B: a rejection without a non-empty reason is refused before any write. */
   it.each([
     ['a missing body', undefined],
@@ -469,6 +482,7 @@ describe('SPM-55 venue booking review service', () => {
     expect(rejectBooking).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-03-B: a reason longer than the 1000-character limit is refused, while exactly 1000 characters is accepted. */
   it('SPM-55 AC3 enforces the 1000-character rejection reason limit', async () => {
     const tooLong = { reason: 'x'.repeat(1001) };
@@ -496,6 +510,7 @@ describe('SPM-55 venue booking review service', () => {
     expect(rejectBooking).toHaveBeenLastCalledWith(staff.uid, bookingId, 'x'.repeat(990));
   });
 
+  // Traceability: Jira 55 AC6 (matrix 34537876)
   /** VEN-REV-06-A: rejecting an already decided or cancelled request returns 409 with the decided status. */
   it.each(['cancelled', 'approved', 'rejected', 'released'])('SPM-55 AC6 returns BOOKING_ALREADY_DECIDED when rejecting a %s request', async (status) => {
       rejectBooking.mockResolvedValue({ kind: 'already-decided', status });
@@ -510,6 +525,7 @@ describe('SPM-55 venue booking review service', () => {
     },
   );
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-03-C: rejecting a booking outside the caller's venues is reported as not found. */
   it('SPM-55 AC3 reports a missing or foreign booking as not found on rejection', async () => {
     rejectBooking.mockResolvedValue({ kind: 'not-found' });
@@ -525,6 +541,7 @@ describe('SPM-55 venue booking review service', () => {
     expect(rejectBooking).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-03-D: authorization runs before reason validation, so a Coordinator with an empty reason gets 403, not 400. */
   it('SPM-55 AC3 denies a Coordinator with an invalid rejection body before validating the reason', async () => {
     await expect(
@@ -593,6 +610,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 121 AC4 (matrix 28770883)
   /** VEN-UPD-04-A VEN-UPD-04-SVC-A: duplicate name+location from the DB returns 409. */
   it('VEN-UPD-04-SVC-A maps the duplicate constraint to 409 with field errors', async () => {
     const pgDup = Object.assign(new Error('duplicate key'), {
@@ -643,6 +661,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).toHaveBeenCalledWith(staff.uid, venueId, expect.objectContaining({ name: validBody.name }));
   });
 
+  // Traceability: Jira 121 AC3 (matrix 28770883)
   /** VEN-UPD-03-A: AC3 — submitting a body with an empty required field returns 400 before the repository is called. */
   it('VEN-UPD-03-A returns 400 with field errors when a required field is empty', async () => {
     await expect(
@@ -651,6 +670,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 121 AC3 (matrix 28770883)
   /** VEN-UPD-03-B: AC3 — empty capacity, setup or turnaround is rejected, not silently stored. */
   it.each([
     { field: 'capacity', value: undefined },
@@ -663,6 +683,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 121 AC3 (matrix 28770883)
   /** VEN-UPD-03-C VEN-UPD-03-C-SVC: AC3 — nonempty invalid capacity values are rejected. */
   it.each([0, -1, 1_000_001, 2.5])('VEN-UPD-03-C-SVC rejects capacity %s', async (capacity) => {
     await expect(
@@ -671,6 +692,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 121 AC2 (matrix 28770883)
   /** VEN-UPD-02-BND-1 VEN-UPD-02-BND-1-SVC: AC2 — capacity boundaries 1 and 1000000 are accepted through update. */
   it.each([1, 1_000_000])('VEN-UPD-02-BND-1-SVC accepts boundary capacity %s', async (capacity) => {
     const result = await service.update(staff, venueId, { ...validBody, capacity });
@@ -678,6 +700,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).toHaveBeenCalledWith(staff.uid, venueId, expect.objectContaining({ capacity }));
   });
 
+  // Traceability: Jira 121 AC3 (matrix 28770883)
   /** VEN-UPD-03-D VEN-UPD-03-D-SVC: AC3 — negative or fractional durations are rejected. */
   it.each([
     { field: 'setupTimeMinutes', value: -1 },
@@ -690,6 +713,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 121 AC2 (matrix 28770883)
   /** VEN-UPD-02-BND-2 VEN-UPD-02-BND-2-SVC: AC2 — zero durations are accepted; negative are rejected. */
   it('VEN-UPD-02-BND-2-SVC accepts zero setup and turnaround', async () => {
     const result = await service.update(staff, venueId, {
@@ -705,6 +729,7 @@ describe('SPM-121 venue service update', () => {
     );
   });
 
+  // Traceability: Jira 121 AC3 (matrix 28770883)
   /** VEN-UPD-03-BND-1 VEN-UPD-03-BND-1-SVC: AC3 — whitespace-only required strings are rejected. */
   it.each(['name', 'location', 'operatingInformation'])(
     'VEN-UPD-03-BND-1-SVC rejects whitespace-only %s',
@@ -716,6 +741,7 @@ describe('SPM-121 venue service update', () => {
     },
   );
 
+  // Traceability: Jira 121 AC3 (matrix 28770883)
   /** VEN-UPD-03-BND-2 VEN-UPD-03-BND-2-SVC: AC3 — overlength text fields are rejected. */
   it.each([
     { field: 'name', length: 201 },
@@ -728,6 +754,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 121 AC3 (matrix 28770883)
   /** VEN-UPD-03-IMG-1 VEN-UPD-03-IMG-1-SVC: AC3 — invalid image type or oversized image is rejected. */
   it.each([
     { desc: 'text/plain type', image: { name: 'notes.txt', type: 'text/plain', size: 4, dataUrl: 'data:text/plain;base64,dGVzdA==' } },
@@ -739,6 +766,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 121 AC2 (matrix 28770883)
   /** VEN-UPD-02-A VEN-UPD-02-A-SVC: AC2 — all ten field groups are forwarded to the repository on update. */
   it('VEN-UPD-02-A-SVC forwards all venue fields including image to the repository', async () => {
     const image = { name: 'hall.png', type: 'image/png', size: 4, dataUrl: 'data:image/png;base64,dGVzdA==' };
@@ -758,6 +786,7 @@ describe('SPM-121 venue service update', () => {
     }));
   });
 
+  // Traceability: Jira 121 AC7 (matrix 28770883)
   /** VEN-UPD-07-SEC-1 VEN-UPD-07-SEC-1-SVC: AC7 — same-role, different-creator API attempt returns 403. */
   it('VEN-UPD-07-SEC-1-SVC rejects update from a different Venue Staff via API', async () => {
     updateFn.mockResolvedValueOnce({ kind: 'forbidden' });
@@ -767,6 +796,7 @@ describe('SPM-121 venue service update', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  // Traceability: Jira 121 AC5 (matrix 28770883)
   /** VEN-UPD-05-B VEN-UPD-05-B-SVC: AC5 — a failed save does not return a success message. */
   it('VEN-UPD-05-B-SVC throws instead of returning success when the repository errors', async () => {
     updateFn.mockRejectedValueOnce(new Error('DB connection lost'));
@@ -796,6 +826,7 @@ describe('SPM-125 venue history service', () => {
     get.mockResolvedValue({ ...venue, ownerId: staff.uid });
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /** VEN-IMPACT-01-C, VEN-IMPACT-05-A (AC1, AC5): Venue Staff get the venue's histories as the repository reads them. */
   it('VEN-IMPACT-01-C VEN-IMPACT-05-A returns both histories to Venue Staff', async () => {
     listUnavailabilityHistory.mockResolvedValue([{ id: 'h-1' }]);
@@ -807,6 +838,7 @@ describe('SPM-125 venue history service', () => {
     expect(listBookingHistory).toHaveBeenCalledWith(venue.id);
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /**
    * VEN-IMPACT-01-SEC-1, VEN-IMPACT-05-SEC-1 (AC1, AC5): no session answers 401 and a Coordinator 403, before any
    * history is read.
@@ -819,6 +851,7 @@ describe('SPM-125 venue history service', () => {
     expect(listBookingHistory).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /** VEN-IMPACT-01-BND-1, VEN-IMPACT-05-BND-1 (AC1, AC5): a malformed or unknown venue id answers 404. */
   it('VEN-IMPACT-01-BND-1 VEN-IMPACT-05-BND-1 answers 404 for a malformed or unknown venue', async () => {
     listUnavailabilityHistory.mockResolvedValue(undefined);
@@ -832,6 +865,7 @@ describe('SPM-125 venue history service', () => {
     expect(listBookingHistory).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /**
    * VEN-IMPACT-01-BND-1 (AC1): a malformed venue or period id answers 404 before the repository is reached, so no
    * history entry can be written for it; a period that cannot be ended early (unknown, or not active) answers 404
@@ -882,6 +916,7 @@ describe('SPM-125 venue history service', () => {
 /** SPM-132 AC9/10: service boundaries preserve not-found, lifecycle and Completed-event refusals. */
 describe('VEN-HOLD-DEC-09-B service refusal mapping', () => {
   const bookingId = '00000000-0000-4000-8000-000000000132';
+  // Traceability: Jira 132 AC9 (matrix 39125047)
   /** VEN-HOLD-DEC-09-B: conversion and release refuse malformed IDs before accessing persistence. */
   it.each(['convertTentativeHold', 'releaseTentativeHold'] as const)('VEN-HOLD-DEC-09-B rejects malformed IDs for %s', async (method) => {
     const action = vi.fn();
@@ -890,6 +925,7 @@ describe('VEN-HOLD-DEC-09-B service refusal mapping', () => {
     expect(action).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 132 AC9 (matrix 39125047)
   /** VEN-HOLD-DEC-09-B: repository outcomes become stable HTTP status codes, with no successful action returned. */
   it.each([
     ['not-found', 404, undefined],
@@ -905,6 +941,7 @@ describe('VEN-HOLD-DEC-09-B service refusal mapping', () => {
     }
   });
 
+  // Traceability: Jira 132 AC10 (matrix 39125047)
   /** VEN-HOLD-DEC-10-A: a successful hold action returns the persisted outcome to the caller. */
   it('VEN-HOLD-DEC-10-A returns a successful release unchanged', async () => {
     const outcome = { kind: 'updated', id: bookingId, status: 'released', requestKind: 'tentative_hold' };

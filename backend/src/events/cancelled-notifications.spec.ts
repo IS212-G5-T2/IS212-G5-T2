@@ -36,6 +36,7 @@ describe('CANCEL-EVENT-06-A (TR-136-05, RR-136-05): audience of the EventCancell
     service = module.get(EventsService);
   });
 
+  // Traceability: Jira 136 AC6 (matrix 23691421)
   // Kills: N1 (the organiser's copy labelled as the attendee copy)
   it('CANCEL-EVENT-06-A: the organiser who submitted the event reads the organiser copy', async () => {
     // Arrange: the organiser's unread notice for the event the organiser submitted
@@ -49,6 +50,7 @@ describe('CANCEL-EVENT-06-A (TR-136-05, RR-136-05): audience of the EventCancell
     expect(item).toMatchObject({ type: 'EventCancelled', audienceRole: 'organiser', read: false });
   });
 
+  // Traceability: Jira 136 AC6 (matrix 23691421)
   // Kills: N2 (the coordinator's copy labelled as the attendee copy)
   it('CANCEL-EVENT-06-A: the assigned coordinator reads the coordinator copy', async () => {
     // Arrange: the assigned coordinator's unread notice for the event
@@ -97,6 +99,8 @@ describe('CANCEL-EVENT-06-A (TR-136-05, RR-136-05): audience of the EventCancell
    * SPM-138 (not an SPM-136 case): a WaitlistPromoted notice is labelled for the attendee whatever the event relation,
    * so the EventCancelled audience derivation does not relabel it.
    */
+  // Traceability: Jira 136 AC6 (matrix 23691421)
+  // ID: CANCEL-EVENT-06-A
   it('SPM-138 a WaitlistPromoted notice is labelled for the attendee whatever the event relation', async () => {
     // Arrange: one WaitlistPromoted notice for an attendee who is neither organiser nor coordinator of the event
     db.query.mockResolvedValue({ rows: [{ ...notice('att-04', 'org-01'), type: 'WaitlistPromoted', message: 'You have been promoted.' }] });

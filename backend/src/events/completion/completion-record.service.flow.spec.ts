@@ -52,6 +52,7 @@ function world(status = 'Completed', coordinatorId = 'coord-a') {
 const FULL = { attendanceCount: 42, operationalNotes: 'Setup began 08:00.', issues: [{ description: 'Projector bulb failed.' }] };
 
 describe('COMPLETE-EVENT-05-A: a read and a save of the completion record', () => {
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-A: a read with nothing saved returns nulls and an empty list', async () => {
     const { service } = world();
 
@@ -64,6 +65,7 @@ describe('COMPLETE-EVENT-05-A: a read and a save of the completion record', () =
     });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-A: a save stores the three items and returns them with the saved message', async () => {
     const { state, service } = world();
 
@@ -80,6 +82,7 @@ describe('COMPLETE-EVENT-05-A: a read and a save of the completion record', () =
     expect(state.record).toMatchObject({ attendance_count: 42, operational_notes: 'Setup began 08:00.' });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-A: a read returns what a save stored', async () => {
     const { service } = world();
     await service.save(COORDINATOR, EVENT, FULL);
@@ -89,6 +92,7 @@ describe('COMPLETE-EVENT-05-A: a read and a save of the completion record', () =
 });
 
 describe('COMPLETE-EVENT-05-B: a subset save keeps the items it does not carry', () => {
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-B: a save without issues keeps the saved issues and writes none', async () => {
     const { state, service } = world();
     await service.save(COORDINATOR, EVENT, FULL);
@@ -99,6 +103,7 @@ describe('COMPLETE-EVENT-05-B: a subset save keeps the items it does not carry',
     expect(state.record).toMatchObject({ attendance_count: 50, operational_notes: 'Setup began 08:00.' });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-B: a save without attendance keeps the saved attendance', async () => {
     const { state, service } = world();
     await service.save(COORDINATOR, EVENT, FULL);
@@ -108,6 +113,7 @@ describe('COMPLETE-EVENT-05-B: a subset save keeps the items it does not carry',
     expect(state.record).toMatchObject({ attendance_count: 42, operational_notes: 'Revised.' });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-B: a first save with no attendance or notes stores them as null', async () => {
     const { state, service } = world();
 
@@ -119,6 +125,7 @@ describe('COMPLETE-EVENT-05-B: a subset save keeps the items it does not carry',
 });
 
 describe('COMPLETE-EVENT-05-B: an explicit null clears the saved item', () => {
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-B: a save with null attendance and null notes clears both', async () => {
     const { state, service } = world();
     await service.save(COORDINATOR, EVENT, FULL);
@@ -130,6 +137,7 @@ describe('COMPLETE-EVENT-05-B: an explicit null clears the saved item', () => {
 });
 
 describe('COMPLETE-EVENT-05-C and 05-D: refusals write nothing', () => {
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-C: a save on an event that is not Completed is refused with 409 and writes nothing', async () => {
     const { state, service } = world('Confirmed');
 
@@ -137,6 +145,7 @@ describe('COMPLETE-EVENT-05-C and 05-D: refusals write nothing', () => {
     expect(state.record).toBeNull();
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-D: an invalid body is refused with 422 that names the field, and writes nothing', async () => {
     const { state, service } = world();
 
@@ -149,18 +158,21 @@ describe('COMPLETE-EVENT-05-C and 05-D: refusals write nothing', () => {
 });
 
 describe('COMPLETE-EVENT-05-F: only the assigned coordinator, and only for a real event', () => {
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-F: a read by another coordinator is refused with 403', async () => {
     const { service } = world();
 
     await expect(service.read(OTHER, EVENT)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-F: a malformed event id is 404 on read', async () => {
     const { service } = world();
 
     await expect(service.read(COORDINATOR, 'not-a-uuid')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-F: an unknown event id is 404 on read', async () => {
     const database = {
       query: vi.fn(async () => ({ rows: [], rowCount: 0 })),

@@ -31,6 +31,7 @@ beforeEach(() => {
 });
 
 describe("SPM-148 AC6: the Lead's coordinator list counts Planning", () => {
+  // Traceability: Jira 148 AC6 (matrix 26902550)
   // Oracle: SPEC (prompt 2.6 06-B: COO-04 active 4, Planning 1). The count is the value
   // the workload API returns; the page only displays it.
   // Kills: the list dropping Planning events (it would show 3 active), or a stale count.

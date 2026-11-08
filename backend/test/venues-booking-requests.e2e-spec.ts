@@ -418,6 +418,7 @@ describe.skipIf(!databaseUrl)(
       return count;
     }
 
+    // Traceability: Jira 54 AC4 (matrix 22839839)
     /** VEN-BKG-03-A, VEN-BKG-04-A / VEN-BKG-08-A: the trimmed request is confirmed and appears as a persisted Pending row in My Bookings with its venue and event. */
     it('VEN-BKG-04-A SPM-54 creates a pending request with a reference in My Bookings', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -469,6 +470,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 54 AC7 (matrix 22839839)
     /** VEN-BKG-07-B: two distinct low-capacity venues can be requested independently; their aggregate capacity need not meet attendance. */
     it('VEN-BKG-07-B SPM-54 accepts independent low-capacity venue requests with suitability advisories', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -530,6 +532,7 @@ describe.skipIf(!databaseUrl)(
       expect(event.rows).toEqual([{ status: 'Planning' }]);
     });
 
+    // Traceability: Jira 54 AC1 (matrix 22839839)
     /** VEN-BKG-01-C / VEN-BKG-02-C: suitability mismatches remain advisory, but a real schedule conflict still refuses the request. */
     it('VEN-BKG-01-C VEN-BKG-02-C SPM-54 rejects a schedule conflict even when suitability is also mismatched', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -574,6 +577,7 @@ describe.skipIf(!databaseUrl)(
       expect(candidate.rows).toEqual([]);
     });
 
+    // Traceability: Jira 54 AC3 (matrix 22839839)
     /** VEN-BKG-03-SEC-1: server uses persisted event times even if the client sends different times. */
     it('VEN-BKG-03-SEC-1 SPM-54 persists assigned event times despite client tampering', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -617,6 +621,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 54 AC2 (matrix 22839839)
     /** VEN-BKG-02-BND-1: a confirmed event whose raw times are disjoint is refused when the candidate's setup buffer overlaps by one minute; exact adjacency remains available. */
     it('VEN-BKG-02-BND-1 SPM-54 rejects a one-minute setup overlap but accepts exact buffer adjacency', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -674,6 +679,7 @@ describe.skipIf(!databaseUrl)(
       expect(persisted.rows).toEqual([{ status: 'pending' }]);
     });
 
+    // Traceability: Jira 54 AC2 (matrix 22839839)
     /** VEN-BKG-02-BND-2: a confirmed event whose raw times are disjoint is refused when its prior booking's turnaround buffer overlaps by one minute. */
     it('VEN-BKG-02-BND-2 SPM-54 rejects a one-minute turnaround overlap in PostgreSQL', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -710,6 +716,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 54 AC1, AC2 (matrix 22839839)
     /** VEN-BKG-02-C: distinct assigned events race for a fresh venue; submissions are still serialized on the venue row, and since pending requests coexist (E2E-09 [S2]) both are recorded. */
     it('VEN-BKG-02-C SPM-54 serializes different-event submissions on the venue row and records both pending requests', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -782,6 +789,7 @@ describe.skipIf(!databaseUrl)(
       expect(insertsWaiting).toBe(0);
     });
 
+    // Traceability: Jira 54 AC7 (matrix 22839839)
     /** SPM-54 AC7: parallel duplicate submissions create one active event/venue request; retained cancelled/rejected rows permit retry. */
     it('VEN-BKG-07-A SPM-54 serializes duplicates and allows retries after final history statuses', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -845,6 +853,7 @@ describe.skipIf(!databaseUrl)(
       ]);
     });
 
+    // Traceability: Jira 54 AC5 (matrix 22839839)
     /** VEN-BKG-05-A/B, 06-A/B, 07-A/B: replacing an affected booking adds an independent venue row, leaves the original unchanged, and a failed third request leaves both saved rows intact. */
     it('VEN-BKG-05-A VEN-BKG-05-B VEN-BKG-06-A VEN-BKG-07-A VEN-BKG-07-B SPM-54 supports replacement while preserving independent booking history', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -925,6 +934,7 @@ describe.skipIf(!databaseUrl)(
       ]);
     });
 
+    // Traceability: Jira 54 AC5 (matrix 22839839)
     /** VEN-BKG-05-B: only the coordinator assigned to the event may replace its venue request. */
     it('VEN-BKG-05-B SPM-54 refuses an unassigned coordinator replacing a venue request', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -965,6 +975,7 @@ describe.skipIf(!databaseUrl)(
       ]);
     });
 
+    // Traceability: Jira 54 AC9 (matrix 22839839)
     /** VEN-BKG-09-A/SEC-1, VEN-BKG-10-A/B: one booking cancels independently, unowned cancellation is refused, and final cancellation requires explicit confirmation. */
     it('VEN-BKG-09-A VEN-BKG-09-SEC-1 VEN-BKG-10-A VEN-BKG-10-B VEN-BKG-10-SEC-1 SPM-54 cancels independently and requires explicit final-booking confirmation', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1030,6 +1041,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 54 AC10 (matrix 22839839)
     /** VEN-BKG-10-A/B: concurrent unconfirmed cancellations serialize on their shared event row, leaving one active booking and refusing the last cancellation. */
     it('VEN-BKG-10-A VEN-BKG-10-B SPM-54 requires confirmation when concurrent cancellations target the final two bookings', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1102,6 +1114,7 @@ describe.skipIf(!databaseUrl)(
       ]);
     });
 
+    // Traceability: Jira 54 AC9 (matrix 22839839)
     /** VEN-BKG-09-A: concurrent cancellation attempts on one of two active requests change only the target and retain its sibling. */
     it('VEN-BKG-09-A SPM-54 serializes cancellation of one booking while preserving another active request', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1268,6 +1281,7 @@ describe.skipIf(!databaseUrl)(
       ).toBe(true);
     });
 
+    // Traceability: Jira 54 AC3 (matrix 22839839)
     /** VEN-BKG-03-SEC-2: only the event's assigned coordinator can create its booking request. */
     it('VEN-BKG-03-SEC-2 SPM-54 rejects an unassigned Coordinator without persisting a request', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1295,6 +1309,7 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows).toEqual([]);
     });
 
+    // Traceability: Jira 54 AC1, AC2 (matrix 22839839)
     /** VEN-BKG-02-B / SPM-54 AC2, E2E-09 [S2]: a pending request without hold expiry does NOT block an overlapping different event (pending requests coexist; approval re-checks), and it is still not shown as a schedule hold. */
     it('VEN-BKG-02-B SPM-54 lets an overlapping pending request coexist with an unbounded pending request, settled at approval', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1378,6 +1393,7 @@ describe.skipIf(!databaseUrl)(
       });
     });
 
+    // Traceability: Jira 51 AC10 (matrix 24117310)
     /** VEN-AVL-10-A: a pending row without hold expiry and without a booking request for its event is not an active hold, so an overlapping submission is accepted. Kills: pending request without a Venue Staff expiry counted as an active hold (B11). */
     it('VEN-AVL-10-A ignores a pending row without hold expiry and without a request record when an overlapping request is submitted', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1420,6 +1436,7 @@ describe.skipIf(!databaseUrl)(
       ]);
     });
 
+    // Traceability: Jira 51 AC2 (matrix 24117310)
     /** VEN-AVL-02-C: pending requests are tentative, not confirmed; rejected requests are absent. The schema supports rejected, not cancelled. */
     it('does not expose pending or rejected requests as confirmed venue bookings', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1468,6 +1485,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 51 AC7 (matrix 24117310)
     /** VEN-AVL-07-SEC-1: a fresh confirmed-booking conflict returns 409 and records no request. Kills: conflict result ignored before insert (B09). */
     it('rejects a fresh confirmed-booking conflict without persisting a request', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1628,6 +1646,7 @@ describe.skipIf(!databaseUrl)(
       expect(activeConflict.body.message).toContain('Active hold');
     });
 
+    // Traceability: Jira 51 AC8 (matrix 24117310)
     /** VEN-AVL-08-A: a candidate after a booking conflicts when only turnaround occupancy overlaps. */
     it('rejects a candidate after a booking when turnaround occupancy overlaps', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1661,6 +1680,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 51 AC8 (matrix 24117310)
     /** VEN-AVL-08-B: a candidate before a booking conflicts when only setup occupancy overlaps. Kills: B12-A. */
     it('rejects a candidate before a booking when setup occupancy overlaps', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1694,6 +1714,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 51 AC7 (matrix 24117310)
     /** VEN-AVL-07-C: a Maintenance blockout rejects a request, reports its reason, and inserts no booking. */
     it('rejects a request inside a Maintenance blockout without persisting it', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1722,6 +1743,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 51 AC8 (matrix 24117310)
     /** VEN-AVL-08-A: setup and turnaround blockout intersections both reject without insertion. Kills: setup or turnaround occupancy omitted for blockouts (B12-B, B12-C). */
     it('rejects setup-only and turnaround-only blockout conflicts without insertion', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1777,6 +1799,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 54 AC6 (matrix 22839839)
     /** VEN-BKG-06-A: a setup-buffer-only blockout marks the original booking affected while retaining its event and replacement request. */
     it('VEN-BKG-06-A SPM-54 marks a setup-buffer-only blockout as affecting the original booking and preserves replacement context', async () => {
       await expectBufferedBlockoutInMyBookings({
@@ -1785,6 +1808,7 @@ describe.skipIf(!databaseUrl)(
       });
     });
 
+    // Traceability: Jira 54 AC6 (matrix 22839839)
     /** VEN-BKG-06-A: a turnaround-buffer-only blockout marks the original booking affected while retaining its event and replacement request. */
     it('VEN-BKG-06-A SPM-54 marks a turnaround-buffer-only blockout as affecting the original booking and preserves replacement context', async () => {
       await expectBufferedBlockoutInMyBookings({
@@ -1793,6 +1817,7 @@ describe.skipIf(!databaseUrl)(
       });
     });
 
+    // Traceability: Jira 54 AC6 (matrix 22839839)
     /** VEN-BKG-06-A: a blockout outside the buffered window does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-INTERSECTION. */
     it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout outside its buffered window', async () => {
       await expectBufferedBlockoutInMyBookings(
@@ -1804,6 +1829,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 54 AC6 (matrix 22839839)
     /** VEN-BKG-06-A: a blockout ending exactly at the setup-buffer boundary does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-SETUP-INCLUSIVE. */
     it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout ending at its setup-buffer boundary', async () => {
       await expectBufferedBlockoutInMyBookings(
@@ -1815,6 +1841,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 54 AC6 (matrix 22839839)
     /** VEN-BKG-06-A: a blockout starting exactly at the turnaround-buffer end does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-TURNAROUND-INCLUSIVE. */
     it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout starting at its turnaround-buffer end', async () => {
       await expectBufferedBlockoutInMyBookings(
@@ -1842,6 +1869,7 @@ describe.skipIf(!databaseUrl)(
       return request(app.getHttpServer()).post(`/api/venues/bookings/${bookingId}/approve`).set('Cookie', cookie);
     }
 
+    // Traceability: Jira 55 AC2 (matrix 34537876)
     /**
      * VEN-REV-02-B SPM-55 AC2: approval re-checks the slot against real PostgreSQL. A slot that overlaps an approved
      * booking, or a blockout, at the same venue is refused with BOOKING_SLOT_CONFLICT; the request stays pending and
@@ -1888,6 +1916,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 55 AC2 (matrix 34537876)
     /**
      * VEN-REV-02-B SPM-55 AC2 (boundary): the overlap check pads the approved booking with the venue's setup before
      * its start and turnaround after its end, using strict comparisons, and only compares bookings at the same venue.
@@ -1924,6 +1953,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 55 AC2, AC5 (matrix 34537876)
     /** VEN-REV-10-A SPM-55 AC2 AC5: Venue Staff approve a pending request; the booking moves to approved and an audit row is written. */
     it('VEN-REV-10-A SPM-55 approves a pending booking request and writes an audit log row', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1963,6 +1993,7 @@ describe.skipIf(!databaseUrl)(
       expect(log.rows[0].action).toBe('approved');
     });
 
+    // Traceability: Jira 55 AC3, AC5 (matrix 34537876)
     /** VEN-REV-10-B SPM-55 AC3 AC5: Venue Staff reject a pending request with a reason; the booking moves to rejected, the reason is stored, and an audit row is written. */
     it('VEN-REV-10-B SPM-55 rejects a pending booking request with a reason and writes an audit log row', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -2009,6 +2040,7 @@ describe.skipIf(!databaseUrl)(
       expect(log.rows[0].reason).toBe('Clashes with scheduled maintenance');
     });
 
+    // Traceability: Jira 55 AC1 (matrix 34537876)
     /**
      * VEN-REV-11-A SPM-55: migration 022 backfill assigns the surviving note only to the most-recent booking attempt.
      * The real migration file runs inside a transaction against temporary tables that shadow venue_bookings and
@@ -2070,6 +2102,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 159 AC3 (matrix 34603557)
     /** VEN-HOLD-03-BND-1: exactly 336 hours from the setup-adjusted occupied start is eligible. */
     it('VEN-HOLD-03-BND-1 accepts the exact 336-hour setup-adjusted boundary', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2122,6 +2155,7 @@ describe.skipIf(!databaseUrl)(
       expect(saved.rows[0].end_at.toISOString()).toBe('2030-01-24T14:00:00.000Z');
     });
 
+    // Traceability: Jira 159 AC3 (matrix 34603557)
     /** VEN-HOLD-03-A/BND-2: a setup-adjusted start one minute inside the lead-time minimum is refused without a row. */
     it('VEN-HOLD-03-A refuses a setup-adjusted start 335 hours 59 minutes away', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2150,6 +2184,7 @@ describe.skipIf(!databaseUrl)(
       expect(saved.rows).toHaveLength(0);
     });
 
+    // Traceability: Jira 159 AC10 (matrix 34603557)
     /** VEN-HOLD-10-A: event timing and venue are inherited, and independent venue requests stay separate. */
     it('VEN-HOLD-10-A creates one pending hold per selected venue from persisted event times', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2190,6 +2225,7 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows.every((row) => row.status === 'pending')).toBe(true);
     });
 
+    // Traceability: Jira 159 AC7 (matrix 34603557)
     /** VEN-HOLD-07-B/C: confirmed bookings and active holds block an occupied-period overlap. */
     it('VEN-HOLD-07-B blocks a confirmed booking and VEN-HOLD-07-C blocks an active hold', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2237,6 +2273,7 @@ describe.skipIf(!databaseUrl)(
         .expect(409);
     });
 
+    // Traceability: Jira 159 AC8 (matrix 34603557)
     /** VEN-HOLD-08-A: an overlapping Pending hold request for another event does not block submission. */
     it('VEN-HOLD-08-A allows overlapping Pending hold requests for different events', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2272,6 +2309,7 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows).toHaveLength(2);
     });
 
+    // Traceability: Jira 159 AC9 (matrix 34603557)
     /** VEN-HOLD-09-B/C: any same-pair Pending request, including an ordinary booking, or an Active hold rejects a duplicate. */
     it('VEN-HOLD-09-B rejects duplicate holds for a Pending hold or ordinary booking request', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2328,6 +2366,7 @@ describe.skipIf(!databaseUrl)(
       expect(ordinaryRows.rows).toEqual([{ status: 'pending', request_kind: 'booking' }]);
     });
 
+    // Traceability: Jira 159 AC11 (matrix 34603557)
     /** VEN-HOLD-11-A: changing event timing invalidates pending hold requests and allows resubmission. */
     it('VEN-HOLD-11-A invalidates a Pending hold after event time changes', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2361,6 +2400,7 @@ describe.skipIf(!databaseUrl)(
       expect(retry.body.id).not.toBe(response.body.id);
     });
 
+    // Traceability: Jira 159 AC13 (matrix 34603557)
     /** VEN-HOLD-13-A: changing venue setup marks pending holds for staff reassessment. */
     it('VEN-HOLD-13-A flags a pending hold when setup duration changes', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2409,6 +2449,7 @@ describe.skipIf(!databaseUrl)(
       expect(recalculatedStart).toBe('2030-01-25T08:00:00.000Z');
       expect(flagged.eventStart).toBe(beforeRow.eventStart);
     });
+    // Traceability: Jira 159 AC3 (matrix 34603557)
     /** VEN-HOLD-03-BND-2: one second inside the cutoff is rejected. */
     it('VEN-HOLD-03-BND-2 refuses one second less than 336 hours without saving', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2419,6 +2460,7 @@ describe.skipIf(!databaseUrl)(
       const rows = await pool.query('SELECT id FROM venue_bookings WHERE event_id = $1 AND venue_id = $2', [eventId, venueId]);
       expect(rows.rows).toHaveLength(0);
     });
+    // Traceability: Jira 159 AC3 (matrix 34603557)
     /** VEN-HOLD-03-BND-3: setup duration moves an otherwise eligible event inside the cutoff. */
     it('VEN-HOLD-03-BND-3 includes configured setup when checking lead time', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2429,6 +2471,7 @@ describe.skipIf(!databaseUrl)(
       const rows = await pool.query('SELECT id FROM venue_bookings WHERE event_id = $1 AND venue_id = $2', [eventId, venueId]);
       expect(rows.rows).toHaveLength(0);
     });
+    // Traceability: Jira 159 AC5 (matrix 34603557)
     /** VEN-HOLD-05-B: backend eligibility is enforced independently of frontend checks. */
     it('VEN-HOLD-05-B rejects an ineligible direct API request without persistence', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2440,6 +2483,7 @@ describe.skipIf(!databaseUrl)(
       const rows = await pool.query('SELECT id FROM venue_bookings WHERE event_id = $1 AND venue_id = $2', [eventId, venueId]);
       expect(rows.rows).toHaveLength(0);
     });
+    // Traceability: Jira 159 AC6 (matrix 34603557)
     /** VEN-HOLD-06-A: success confirms Venue Staff review and leaves the hold Pending. */
     it('VEN-HOLD-06-A acknowledges review without claiming an active hold', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2452,6 +2496,7 @@ describe.skipIf(!databaseUrl)(
       const row = await pool.query('SELECT status, hold_expires_at, request_kind, special_request FROM venue_bookings WHERE id = $1', [response.body.id]);
       expect(row.rows[0]).toEqual({ status: 'pending', hold_expires_at: null, request_kind: 'tentative_hold', special_request: 'Microphones, please.' });
     });
+    // Traceability: Jira 159 AC4 (matrix 34603557)
     /** VEN-HOLD-04-A: a tentative hold expires 14 days after approval; a standard booking receives no hold expiry. */
     it('VEN-HOLD-04-A sets the hold expiry from approval time without changing ordinary bookings', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2617,6 +2662,7 @@ describe.skipIf(!databaseUrl)(
         }),
       ]));
     });
+    // Traceability: Jira 159 AC7 (matrix 34603557)
     /** VEN-HOLD-07-BND-1: occupied intervals touching at an endpoint do not overlap. */
     it('VEN-HOLD-07-BND-1 permits a request adjacent to confirmed occupancy', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2628,6 +2674,7 @@ describe.skipIf(!databaseUrl)(
       const response = await request(app.getHttpServer()).post(`/api/venues/${venueId}/booking-requests`).set('Cookie', coordinator.cookie).send({ eventId: target, request_kind: 'tentative_hold' }).expect(201);
       expect(response.body.status).toBe('pending');
     });
+    // Traceability: Jira 159 AC7 (matrix 34603557)
     /** VEN-HOLD-07-C: an active hold intersecting setup time blocks the request. */
     it('VEN-HOLD-07-C blocks an active hold overlapping only the setup buffer', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2893,6 +2940,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 159 AC8 (matrix 34603557)
     /** VEN-HOLD-08-B: simultaneous approvals serialize at the venue lock; one winner is audited and the loser stays Pending. */
     it('VEN-HOLD-08-B permits only one overlapping Pending request to be approved', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -2945,6 +2993,7 @@ describe.skipIf(!databaseUrl)(
         { booking_id: winner.id, actor_user_id: owner.id, action: 'approved' },
       ]);
     });
+    // Traceability: Jira 159 AC9 (matrix 34603557)
     /** VEN-HOLD-09-C: an eligible event with an Active same-pair hold gets the duplicate refusal and leaves that hold unchanged. */
     it('VEN-HOLD-09-C refuses another request for an event/venue with an Active hold', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -3028,6 +3077,7 @@ describe.skipIf(!databaseUrl)(
         { status: 'pending', request_kind: 'booking', hold_expires_at: null },
       ]);
     });
+    // Traceability: Jira 159 AC10 (matrix 34603557)
     /** VEN-HOLD-10-B: conflict at one selected venue does not affect a separate venue request. */
     it('VEN-HOLD-10-B succeeds for a free venue when another selected venue conflicts', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -3043,6 +3093,7 @@ describe.skipIf(!databaseUrl)(
       const rows = await pool.query('SELECT venue_id, status FROM venue_bookings WHERE event_id = $1', [eventId]);
       expect(rows.rows).toEqual([{ venue_id: venueB, status: 'pending' }]);
     });
+    // Traceability: Jira 159 AC11 (matrix 34603557)
     /** VEN-HOLD-11-B: a request cancelled by an event timing change cannot be approved. */
     it('VEN-HOLD-11-B refuses approval of an event-time-invalidated request', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -3055,6 +3106,7 @@ describe.skipIf(!databaseUrl)(
       const row = await pool.query('SELECT status FROM venue_bookings WHERE id = $1', [response.body.id]);
       expect(row.rows[0].status).toBe('cancelled');
     });
+    // Traceability: Jira 159 AC12 (matrix 34603557)
     /** VEN-HOLD-12-D: once a blocking booking is removed, retry creates one Pending request. */
     it('VEN-HOLD-12-D allows retry after the conflict is resolved', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -3070,6 +3122,7 @@ describe.skipIf(!databaseUrl)(
       const rows = await pool.query('SELECT id FROM venue_bookings WHERE event_id = $1 AND venue_id = $2 AND request_kind = \'tentative_hold\'', [eventId, venueId]);
       expect(rows.rows).toEqual([{ id: retry.body.id }]);
     });
+    // Traceability: Jira 159 AC5, AC9, AC12 (matrix 34603557)
     /** VEN-HOLD-12-SEC-1: simultaneous identical submissions serialize to at most one request. */
     it('VEN-HOLD-12-SEC-1 stores one request for concurrent identical submissions', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -3082,6 +3135,7 @@ describe.skipIf(!databaseUrl)(
       const rows = await pool.query('SELECT id FROM venue_bookings WHERE event_id = $1 AND venue_id = $2 AND request_kind = \'tentative_hold\'', [eventId, venueId]);
       expect(rows.rows).toHaveLength(1);
     });
+    // Traceability: Jira 159 AC13 (matrix 34603557)
     /** VEN-HOLD-13-B: setup reassessment that moves occupied start inside the cutoff blocks approval. */
     it('VEN-HOLD-13-B refuses approval when a setup change makes the lead time too short', async () => {
       const coordinator = await createUser('COORDINATOR');
@@ -3166,6 +3220,7 @@ describe.skipIf(!databaseUrl)(
 
     // ─── SPM-56: Approval-time conflict detection ──────────────────────
 
+    // Traceability: Jira 56 AC2 (matrix 34636305)
     /** VEN-CONF-01-A VEN-CONF-01-SEC-1 VEN-CONF-02-A VEN-CONF-02-C: approval against a newly approved occupied interval returns 409 with conflict details and does not change the pending booking's status. */
     it('VEN-CONF-01-A VEN-CONF-01-SEC-1 VEN-CONF-02-A VEN-CONF-02-C SPM-56 rejects approval against a newly approved occupied interval', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3213,6 +3268,7 @@ describe.skipIf(!databaseUrl)(
       expect(blocker.rows).toEqual([{ status: 'approved' }]);
     });
 
+    // Traceability: Jira 56 AC4 (matrix 34636305)
     /** VEN-CONF-02-B VEN-CONF-04-B: a pending hold and a different-venue booking do not block approval. */
     it('VEN-CONF-02-B VEN-CONF-04-B SPM-56 approves when only a pending hold and other-venue booking overlap', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3255,6 +3311,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body).toMatchObject({ status: 'approved' });
     });
 
+    // Traceability: Jira 56 AC4 (matrix 34636305)
     /** VEN-CONF-04-C: a pending tentative hold on the same venue does not block a booking approval. */
     it('VEN-CONF-04-C SPM-56 accepts a booking request beside a pending tentative hold', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3289,6 +3346,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body).toMatchObject({ status: 'approved' });
     });
 
+    // Traceability: Jira 56 AC5 (matrix 34636305)
     /** VEN-CONF-04-A VEN-CONF-05-B VEN-CONF-06-D: an approved, not-yet-expired hold blocks approval and is labelled as a tentative hold with its full setup/turnaround-padded occupied interval (the API side of 06-D), while an expired hold on the same slot is not reported. */
     it('VEN-CONF-04-A VEN-CONF-05-B VEN-CONF-06-D SPM-56 blocks on an unexpired approved hold with its padded interval and omits an expired one', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3379,6 +3437,7 @@ describe.skipIf(!databaseUrl)(
       return { holdId, approvedId, pendingId: pending.rows[0].id };
     }
 
+    // Traceability: Jira 56 AC5 (matrix 34636305)
     /** VEN-CONF-05-A: an approved hold whose expiry is before the decision clock does not block, and its row is preserved. */
     it('VEN-CONF-05-A SPM-56 approves over an expired hold and preserves the hold row', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3396,6 +3455,7 @@ describe.skipIf(!databaseUrl)(
       expect(hold.rows).toEqual([{ status: 'approved', request_kind: 'tentative_hold' }]);
     });
 
+    // Traceability: Jira 56 AC5 (matrix 34636305)
     /** VEN-CONF-05-BND-1: a hold whose expiry equals the decision clock is expired (hold_expires_at <= now), so it does not block. */
     it('VEN-CONF-05-BND-1 SPM-56 treats a hold expiring exactly at the decision clock as expired', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3413,6 +3473,7 @@ describe.skipIf(!databaseUrl)(
       expect(hold.rows).toEqual([{ status: 'approved' }]);
     });
 
+    // Traceability: Jira 56 AC5 (matrix 34636305)
     /** VEN-CONF-05-C: an expired hold does not mask an independent approved ordinary booking; only that booking is reported and B stays pending. */
     it('VEN-CONF-05-C SPM-56 still reports an approved booking when an expired hold overlaps the same slot', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3432,6 +3493,7 @@ describe.skipIf(!databaseUrl)(
       expect(Object.fromEntries(rows.rows.map((r) => [r.id, r.status]))).toEqual({ [approvedId as string]: 'approved', [pendingId]: 'pending' });
     });
 
+    // Traceability: Jira 56 AC4 (matrix 34636305)
     /** VEN-CONF-04-D: two overlapping pending holds approved one after the other; only the first succeeds. */
     it('VEN-CONF-04-D SPM-56 allows only one overlapping hold approval when approvals are sequential', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3468,6 +3530,7 @@ describe.skipIf(!databaseUrl)(
       expect(responseB.status).toBe(409);
     });
 
+    // Traceability: Jira 56 AC4 (matrix 34636305)
     /** VEN-CONF-04-PERF-1: two overlapping pending holds approved at the same moment; exactly one commits and the other conflicts. */
     it('VEN-CONF-04-PERF-1 SPM-56 commits exactly one of two simultaneous overlapping hold approvals', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3499,6 +3562,7 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows[1].hold_expires_at).toBeNull();
     });
 
+    // Traceability: Jira 56 AC4 (matrix 34636305)
     /** VEN-CONF-04-B: an active approved hold on a different venue never blocks an ordinary booking approval, and the hold is left unchanged. */
     it('VEN-CONF-04-B SPM-56 ignores an active hold on a different venue', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3533,6 +3597,7 @@ describe.skipIf(!databaseUrl)(
       expect(hold.rows).toEqual([{ status: 'approved', hold_expires_at: new Date(testNow.getTime() + 24 * 3_600_000) }]);
     });
 
+    // Traceability: Jira 56 AC4 (matrix 34636305)
     /** VEN-CONF-04-D: a second sequential overlapping hold approval is rejected after the first succeeded. */
     it('VEN-CONF-04-D SPM-56 refuses a second sequential overlapping hold approval', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3575,6 +3640,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 56 AC3 (matrix 34636305)
     /** VEN-CONF-03-VAR-1: updated setup buffer is applied at approval time. */
     it('VEN-CONF-03-VAR-1 SPM-56 rechecks against the current setup buffer', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3605,6 +3671,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body.code).toBe('BOOKING_SLOT_CONFLICT');
     });
 
+    // Traceability: Jira 56 AC3 (matrix 34636305)
     /**
      * VEN-CONF-03-A VEN-CONF-03-B: setup-only and turnaround-only overlaps are detected. The venue's buffers are
      * deliberately unequal (setup 45, turnaround 15) so that applying either buffer on the wrong side changes the
@@ -3657,6 +3724,7 @@ describe.skipIf(!databaseUrl)(
       expect(turnaroundDb.rows[0].status).toBe('pending');
     });
 
+    // Traceability: Jira 56 AC3 (matrix 34636305)
     /** VEN-CONF-01-BND-1 VEN-CONF-03-BND-1: exactly touching occupied endpoints are not conflicts (half-open intervals). */
     it('VEN-CONF-01-BND-1 VEN-CONF-03-BND-1 SPM-56 allows exactly touching occupied endpoints', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3727,6 +3795,7 @@ describe.skipIf(!databaseUrl)(
       expect(Object.fromEntries(rows.rows.map((r) => [r.id, r.status]))).toEqual({ [pendingA.rows[0].id]: 'approved', [pendingB.rows[0].id]: 'pending' });
     });
 
+    // Traceability: Jira 56 AC1 (matrix 34636305)
     /**
      * VEN-CONF-01-PERF-1: overlapping pending ordinary bookings on one venue are approved at the same moment.
      * For each overlapping pair exactly one commits and the other stays pending. The rows are seeded without venue_booking_requests rows
@@ -3766,6 +3835,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 56 AC1 (matrix 34636305)
     /** VEN-CONF-01-B: an approved booking on one venue does not conflict with a pending booking on a different venue for the same interval; the second is approved and the first is unchanged. */
     it('VEN-CONF-01-B SPM-56 approves a booking whose only overlap is an approved booking on a different venue', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3788,6 +3858,7 @@ describe.skipIf(!databaseUrl)(
       expect(Object.fromEntries(rows.rows.map((r) => [r.id, r.status]))).toEqual({ [pendingA]: 'approved', [pendingB]: 'approved' });
     });
 
+    // Traceability: Jira 56 AC6 (matrix 34636305)
     /** VEN-CONF-06-E: an unavailable period blocks only its own venue; it is reported with its recorded (unpadded) interval and reason, and an unavailable period on another venue is not reported. */
     it('VEN-CONF-06-E SPM-56 isolates unavailable periods per venue and reports the raw unavailable interval', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3843,6 +3914,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 56 AC6 (matrix 34636305)
     /** VEN-CONF-06-A VEN-CONF-06-C VEN-CONF-06-E: the database returns each booking's full setup/turnaround occupied interval and an unavailable period's raw interval with its reason. */
     it('VEN-CONF-06-A VEN-CONF-06-C VEN-CONF-06-E SPM-56 returns buffered booking intervals and the raw unavailable interval', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -3886,6 +3958,7 @@ describe.skipIf(!databaseUrl)(
       expect(db.rows[0].status).toBe('pending');
     });
 
+    // Traceability: Jira 55 AC1 (matrix 34537876)
     /**
      * VEN-REV-12-A SPM-55 AC1 (review SPM55-REVIEW-002): the Venue Staff review list shows and orders each request
      * by its stored booking slot, not the event's current schedule or the submission order. Y is submitted first but
@@ -3995,6 +4068,7 @@ describe.skipIf(!databaseUrl)(
       return lists;
     }
 
+    // Traceability: Jira 55 AC1 (matrix 34537876)
     /**
      * VEN-REV-12-B SPM-55 AC1 (review SPM55-REVIEW-003): each booking attempt keeps its own special request. A
      * rejected request keeps its note after the coordinator resubmits for the same event and venue with a new note,
@@ -4012,6 +4086,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 55 AC1 (matrix 34537876)
     /**
      * VEN-REV-12-C SPM-55 AC1 (review SPM55-REVIEW-003): an attempt submitted without a special request stays without
      * one after the coordinator resubmits with a note, in both the Venue Staff list and My Bookings; it never borrows the
@@ -4031,6 +4106,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 132 AC12 (matrix 39125047)
     /** VEN-HOLD-DEC-09-A and VEN-HOLD-DEC-12-A: Venue Staff converts a live hold and it is stored as a confirmed booking. */
     it('VEN-HOLD-DEC-12-A converts an active tentative hold to a confirmed booking', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -4060,6 +4136,7 @@ describe.skipIf(!databaseUrl)(
       }]);
     });
 
+    // Traceability: Jira 132 AC9 (matrix 39125047)
     /** VEN-HOLD-DEC-09-B: missing and completed-event holds cannot be converted or released. */
     it('VEN-HOLD-DEC-09-B refuses missing and completed-event hold decisions', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4080,6 +4157,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0]).toEqual({ status: 'approved', request_kind: 'tentative_hold' });
     });
 
+    // Traceability: Jira 132 AC9 (matrix 39125047)
     /** VEN-HOLD-DEC-09-B: conversion is refused at the exact expiry instant using the server clock. */
     it('VEN-HOLD-DEC-09-B refuses conversion at the expiry instant without changing the hold', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -4107,6 +4185,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0].hold_expires_at.toISOString()).toBe(fixedNow.toISOString());
     });
 
+    // Traceability: Jira 132 AC13 (matrix 39125047)
     /** VEN-HOLD-DEC-10-A and VEN-HOLD-DEC-13-A: releasing an active hold frees the calendar interval. */
     it('VEN-HOLD-DEC-13-A releases an active hold and removes it from the calendar', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -4130,6 +4209,7 @@ describe.skipIf(!databaseUrl)(
       expect(venue.body.reservations).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: bookingId })]));
     });
 
+    // Traceability: Jira 132 AC1 (matrix 39125047)
     /** VEN-HOLD-DEC-01-SEC-2: Coordinator cannot convert or release a Venue Staff hold. */
     it('VEN-HOLD-DEC-01-SEC-2 denies approve, reject, convert, and release to a Coordinator', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -4153,6 +4233,7 @@ describe.skipIf(!databaseUrl)(
       ]));
     });
 
+    // Traceability: Jira 132 AC1 (matrix 39125047)
     /** VEN-HOLD-DEC-01-A: the staff queue contains only Pending tentative holds for that staff member's venues. */
     it('VEN-HOLD-DEC-01-A scopes the pending hold queue to managed venues', async () => {
       const staffA = await createUser('VENUE_STAFF');
@@ -4170,6 +4251,7 @@ describe.skipIf(!databaseUrl)(
       expect(rows.filter((row) => [local, foreign].includes(row.id))).toEqual([expect.objectContaining({ id: local, eventId: eventA })]);
     });
 
+    // Traceability: Jira 132 AC1 (matrix 39125047)
     /** VEN-HOLD-DEC-01-B: no Pending hold for managed venues produces an empty queue. */
     it('VEN-HOLD-DEC-01-B returns an empty queue when no pending holds exist', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4178,6 +4260,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body).toEqual([]);
     });
 
+    // Traceability: Jira 132 AC1 (matrix 39125047)
     /** VEN-HOLD-DEC-01-SEC-1: a Coordinator sees only their own tentative-hold request, not another event's. */
     it('VEN-HOLD-DEC-01-SEC-1 hides another Coordinator event hold from the caller list', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4219,6 +4302,7 @@ describe.skipIf(!databaseUrl)(
       expect(unchanged.rows[0]).toEqual({ status: 'pending', hold_expires_at: null });
     });
 
+    // Traceability: Jira 132 AC1 (matrix 39125047)
     /** VEN-HOLD-DEC-01-VAR-1: the assigned Coordinator can see their own pending tentative hold in My Bookings. */
     it('VEN-HOLD-DEC-01-VAR-1 shows the assigned Coordinator their own pending hold', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4231,6 +4315,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, status: 'pending', requestKind: 'tentative_hold' })]));
     });
 
+    // Traceability: Jira 132 AC2 (matrix 39125047)
     /** VEN-HOLD-DEC-02-A: queue details include the venue, requested slot, Coordinator and approval-based duration. */
     it('VEN-HOLD-DEC-02-A returns pending hold details and its 336-hour duration', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4248,6 +4333,7 @@ describe.skipIf(!databaseUrl)(
       })]));
     });
 
+    // Traceability: Jira 132 AC2 (matrix 39125047)
     /** VEN-HOLD-DEC-02-B: a Pending request has no running expiry before approval. */
     it('VEN-HOLD-DEC-02-B keeps expiry unset until staff approval', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4260,6 +4346,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0]).toEqual({ status: 'pending', hold_expires_at: null });
     });
 
+    // Traceability: Jira 132 AC3 (matrix 39125047)
     /** VEN-HOLD-DEC-03-A: an eligible Pending hold is approved and receives the approval-time expiry. */
     it('VEN-HOLD-DEC-03-A approves an eligible hold with no new conflicts', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4275,6 +4362,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0].hold_expires_at.toISOString()).toBe('2030-01-24T12:00:00.000Z');
     });
 
+    // Traceability: Jira 132 AC3 (matrix 39125047)
     /** VEN-HOLD-DEC-03-B: a closure added after submission blocks decision-time approval. */
     it('VEN-HOLD-DEC-03-B refuses approval after a conflicting closure is added', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4290,6 +4378,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0]).toEqual({ status: 'pending', hold_expires_at: null });
     });
 
+    // Traceability: Jira 132 AC3 (matrix 39125047)
     /** VEN-HOLD-DEC-03-C: a confirmed booking added after submission blocks decision-time approval. */
     it('VEN-HOLD-DEC-03-C refuses approval after a conflicting confirmed booking is added', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4306,6 +4395,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0].status).toBe('pending');
     });
 
+    // Traceability: Jira 132 AC4 (matrix 39125047)
     /** VEN-HOLD-DEC-04-A: a setup-adjusted event start beyond 336 hours is eligible for submission. */
     it('VEN-HOLD-DEC-04-A accepts a hold whose setup-adjusted start is beyond 336 hours', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4317,6 +4407,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body).toMatchObject({ status: 'pending', requestKind: 'tentative_hold' });
     });
 
+    // Traceability: Jira 132 AC4 (matrix 39125047)
     /** VEN-HOLD-DEC-04-BND-1: setup-adjusted occupied start exactly 336 hours away is permitted. */
     it('VEN-HOLD-DEC-04-BND-1 permits the exact 336-hour setup-adjusted lead boundary', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4328,6 +4419,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body).toMatchObject({ status: 'pending', holdDurationHours: 336, holdStartsAt: 'venue-staff-approval' });
     });
 
+    // Traceability: Jira 132 AC4 (matrix 39125047)
     /** VEN-HOLD-DEC-04-BND-2: one second inside the cutoff is rejected when setup time is included. */
     it('VEN-HOLD-DEC-04-BND-2 rejects a setup-adjusted start one second inside 336 hours', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4341,21 +4433,25 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows).toHaveLength(0);
     });
 
+    // Traceability: Jira 132 AC4 (matrix 39125047)
     /** VEN-HOLD-DEC-04-A: after submission, Venue Staff approval is allowed when the occupied start is 336 hours and one second away. */
     it('VEN-HOLD-DEC-04-A approves a pending request one second beyond the 336-hour decision boundary', async () => {
       await exerciseApprovalLeadBoundary('DEC-04-A approval lead above threshold', 1_000, 201);
     });
 
+    // Traceability: Jira 132 AC4 (matrix 39125047)
     /** VEN-HOLD-DEC-04-BND-1: after submission, approval at exactly 336 hours remains permitted. */
     it('VEN-HOLD-DEC-04-BND-1 permits a pending request at the exact 336-hour approval boundary', async () => {
       await exerciseApprovalLeadBoundary('DEC-04-BND-1 approval equality', 0, 201);
     });
 
+    // Traceability: Jira 132 AC4 (matrix 39125047)
     /** VEN-HOLD-DEC-04-BND-2: after submission, approval one second inside 336 hours is refused and leaves the request Pending. */
     it('VEN-HOLD-DEC-04-BND-2 refuses a pending request one second inside the approval boundary', async () => {
       await exerciseApprovalLeadBoundary('DEC-04-BND-2 approval shortfall', -1_000, 409);
     });
 
+    // Traceability: Jira 132 AC5 (matrix 39125047)
     /** VEN-HOLD-DEC-05-A: the approved response and persisted row expose an expiry exactly 336h from approval. */
     it('VEN-HOLD-DEC-05-A exposes the expiry after staff approval', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4370,6 +4466,7 @@ describe.skipIf(!databaseUrl)(
       expect(listing.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, holdExpiresAt: '2030-01-24T12:00:00.000Z' })]));
     });
 
+    // Traceability: Jira 132 AC5 (matrix 39125047)
     /** VEN-HOLD-DEC-05-B: Pending hold data has no expiry value before the approval decision. */
     it('VEN-HOLD-DEC-05-B shows no expiry before approval', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4384,6 +4481,7 @@ describe.skipIf(!databaseUrl)(
       expect(row).not.toHaveProperty('holdExpiresAt');
     });
 
+    // Traceability: Jira 132 AC6 (matrix 39125047)
     /** VEN-HOLD-DEC-06-A: expiry is computed from approval time as exactly 336 hours. */
     it('VEN-HOLD-DEC-06-A expires 336 hours after the approval instant', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4398,6 +4496,7 @@ describe.skipIf(!databaseUrl)(
       expect(approved.body.holdExpiresAt).toBe(saved.rows[0].hold_expires_at.toISOString());
     });
 
+    // Traceability: Jira 132 AC6 (matrix 39125047)
     /** VEN-HOLD-DEC-06-BND-1: the hold is expired at equality with its expiry, not one instant later. */
     it('VEN-HOLD-DEC-06-BND-1 is active one second before expiry and expired at equality', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4424,6 +4523,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0]).toEqual({ status: 'approved', hold_expiry_processed_at: null });
     });
 
+    // Traceability: Jira 132 AC6 (matrix 39125047)
     /** VEN-HOLD-DEC-06-B: repeated expiry processing records one transition and creates no duplicate booking. */
     it('VEN-HOLD-DEC-06-B processes an expired hold idempotently', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4465,6 +4565,7 @@ describe.skipIf(!databaseUrl)(
       expect(duplicateCount.rows[0].count).toBe('0');
     });
 
+    // Traceability: Jira 132 AC6 (matrix 39125047)
     /** VEN-HOLD-DEC-06-B: upgrading an existing processed marker preserves history and allows only expired holds. */
     it('VEN-HOLD-DEC-06-B upgrades legacy processed markers idempotently', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4483,6 +4584,7 @@ describe.skipIf(!databaseUrl)(
       expect(after.rows[0]).toEqual({ status: 'expired', request_kind: 'tentative_hold' });
     });
 
+    // Traceability: Jira 132 AC7 (matrix 39125047)
     /** VEN-HOLD-DEC-07-A: Venue Staff rejects a Pending hold and the supplied reason is persisted. */
     it('VEN-HOLD-DEC-07-A rejects a pending hold with a nonempty reason', async () => {
       const { staff, holdId } = await createPendingHold('DEC-07-A rejection reason');
@@ -4492,6 +4594,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0]).toEqual({ status: 'rejected', rejection_reason: 'Venue unavailable' });
     });
 
+    // Traceability: Jira 132 AC7 (matrix 39125047)
     /** VEN-HOLD-DEC-07-B: rejection without a reason is invalid and leaves the request pending. */
     it('VEN-HOLD-DEC-07-B refuses rejection when the reason is missing', async () => {
       const { staff, holdId } = await createPendingHold('DEC-07-B missing reason');
@@ -4500,6 +4603,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0]).toEqual({ status: 'pending', rejection_reason: null });
     });
 
+    // Traceability: Jira 132 AC7 (matrix 39125047)
     /** VEN-HOLD-DEC-07-C: whitespace-only rejection reason is invalid and leaves the request pending. */
     it('VEN-HOLD-DEC-07-C refuses a whitespace-only rejection reason', async () => {
       const { staff, holdId } = await createPendingHold('DEC-07-C whitespace reason');
@@ -4508,6 +4612,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0]).toEqual({ status: 'pending', rejection_reason: null });
     });
 
+    // Traceability: Jira 132 AC7 (matrix 39125047)
     /** VEN-HOLD-DEC-07-BND-1: a one-character reason is the accepted minimum. */
     it('VEN-HOLD-DEC-07-BND-1 accepts a one-character rejection reason', async () => {
       const { staff, holdId } = await createPendingHold('DEC-07-BND-1 minimum reason');
@@ -4515,6 +4620,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body.rejectionReason).toBe('x');
     });
 
+    // Traceability: Jira 132 AC7 (matrix 39125047)
     /** VEN-HOLD-DEC-07-BND-2: the maximum 1,000-character reason is accepted and persisted intact. */
     it('VEN-HOLD-DEC-07-BND-2 accepts a 1000-character rejection reason', async () => {
       const { staff, holdId } = await createPendingHold('DEC-07-BND-2 maximum reason');
@@ -4525,6 +4631,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0].rejection_reason).toBe(reason);
     });
 
+    // Traceability: Jira 132 AC7 (matrix 39125047)
     /** VEN-HOLD-DEC-07-BND-3: a 1,001-character reason is refused without changing the request. */
     it('VEN-HOLD-DEC-07-BND-3 refuses a 1001-character rejection reason', async () => {
       const { staff, holdId } = await createPendingHold('DEC-07-BND-3 excessive reason');
@@ -4533,6 +4640,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0]).toEqual({ status: 'pending', rejection_reason: null });
     });
 
+    // Traceability: Jira 132 AC8 (matrix 39125047)
     /** VEN-HOLD-DEC-08-B: a Pending tentative hold is not an active calendar reservation. */
     it('VEN-HOLD-DEC-08-B omits a pending hold from the active venue calendar', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4545,6 +4653,7 @@ describe.skipIf(!databaseUrl)(
       expect(venue.body.reservations).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId })]));
     });
 
+    // Traceability: Jira 132 AC8 (matrix 39125047)
     /** VEN-HOLD-DEC-08-BND-1: closure and confirmed-booking buffers separately prevent approval and preserve the pending hold. */
     it('VEN-HOLD-DEC-08-BND-1 refuses setup-only and turnaround-only approval conflicts', async () => {
       for (const [label, kind, blockerStart, blockerEnd] of [
@@ -4577,6 +4686,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 132 AC10 (matrix 39125047)
     /** VEN-HOLD-DEC-10-B: releasing one event/venue hold leaves another venue's active hold unchanged. */
     it('VEN-HOLD-DEC-10-B releases only the selected venue hold', async () => {
       const staffA = await createUser('VENUE_STAFF');
@@ -4597,6 +4707,7 @@ describe.skipIf(!databaseUrl)(
       expect(otherVenue.body.reservations).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdB, status: 'tentative' })]));
     });
 
+    // Traceability: Jira 132 AC11 (matrix 39125047)
     /** VEN-HOLD-DEC-11-B: a confirmed booking prevents a new overlapping tentative hold. */
     it('VEN-HOLD-DEC-11-B blocks a tentative hold that overlaps confirmed occupancy', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4612,6 +4723,7 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows).toHaveLength(0);
     });
 
+    // Traceability: Jira 132 AC11 (matrix 39125047)
     /** VEN-HOLD-DEC-11-C: another unexpired approved tentative hold prevents an overlapping hold. */
     it('VEN-HOLD-DEC-11-C blocks a new hold that overlaps another active hold', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4625,6 +4737,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body.message).toContain('DEC-11-C active blocker');
     });
 
+    // Traceability: Jira 132 AC11 (matrix 39125047)
     /** VEN-HOLD-DEC-11-PERF-1: competing overlapping approvals cannot both become Active. */
     it('VEN-HOLD-DEC-11-PERF-1 allows only one of two conflicting hold approvals', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4642,6 +4755,7 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows.filter(({ status }) => status === 'pending')).toHaveLength(1);
     });
 
+    // Traceability: Jira 132 AC12 (matrix 39125047)
     /** VEN-HOLD-DEC-12-B: conversion remains a confirmed booking after a fresh venue-calendar read. */
     it('VEN-HOLD-DEC-12-B persists conversion across a calendar reload', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -4657,6 +4771,7 @@ describe.skipIf(!databaseUrl)(
       expect(history.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: holdId, status: 'approved', requestKind: 'booking' })]));
     });
 
+    // Traceability: Jira 132 AC13 (matrix 39125047)
     /** VEN-HOLD-DEC-13-B: release keeps the historical row and does not alter unrelated confirmed venue bookings. */
     it('VEN-HOLD-DEC-13-B retains released history and leaves unrelated bookings untouched', async () => {
       const staffA = await createUser('VENUE_STAFF');
@@ -4678,6 +4793,7 @@ describe.skipIf(!databaseUrl)(
       expect(secondCalendar.body.reservations).toEqual(expect.arrayContaining([expect.objectContaining({ id: confirmedBooking, status: 'booked' })]));
     });
 
+    // Traceability: Jira 132 AC9 (matrix 39125047)
     /** VEN-HOLD-DEC-09-PERF-1: a held venue lock blocks lifecycle decisions until the transaction releases it. */
     it('VEN-HOLD-DEC-09-PERF-1 waits for the venue lock before converting a hold', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -4701,6 +4817,7 @@ describe.skipIf(!databaseUrl)(
       expect((await decision)?.status).toBe(201);
     }, 10_000);
 
+    // Traceability: Jira 132 AC9 (matrix 39125047)
     /** VEN-HOLD-DEC-09-PERF-1: conversion and release race on one active hold; exactly one transition may win. */
     it('VEN-HOLD-DEC-09-PERF-1 serializes concurrent conversion and release of one active hold', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -4725,6 +4842,7 @@ describe.skipIf(!databaseUrl)(
       ).toBe(true);
     });
 
+    // Traceability: Jira 132 AC6 (matrix 39125047)
     /** VEN-HOLD-DEC-06-B: the Nest scheduled tick, without a manual processor call, persists the first due expiry to PostgreSQL. */
     it('VEN-HOLD-DEC-06-B persists expiry on the first scheduled database-backed tick', async () => {
       const previousNow = testNow;

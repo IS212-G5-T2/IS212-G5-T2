@@ -262,6 +262,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
 
   // ---- AC1 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-G (SPM-134 AC1): a hold that expires within 48 hours gets one reminder, in the assigned
    * Coordinator's feed only; a second run sends nothing more (the reminder is sent exactly once).
@@ -282,6 +283,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect((await hold(due.id)).hold_reminder_sent_at).toEqual(baseNow);
   });
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-BND-1 (SPM-134 AC1, boundary): the reminder is sent at the first run where now is at least 48 hours
    * before the expiry: not 1 ms earlier, yes exactly at 48 hours. A hold more than 48 hours away is not reminded.
@@ -303,6 +305,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(reminder.created_at).toEqual(new Date(expiry.getTime() - 48 * HOUR));
   });
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-CONC-1 (SPM-134 AC1, concurrency): two overlapping reminder runs send one reminder: exactly one run
    * returns the hold and one notice is stored.
@@ -319,6 +322,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(await typesFor(due.id)).toEqual([REMINDER]);
   });
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-SEC-1 (SPM-134 AC1, security): the event's Organiser and a Coordinator of another event do not see
    * the reminder and cannot mark it read.
@@ -350,6 +354,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
 
   // ---- AC2 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 134 AC2 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-02-D (SPM-134 AC2): when the hold has expired the processor changes it to expired and the assigned
    * Coordinator gets one expired notice; a second run adds nothing.
@@ -370,6 +375,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect((await storedFor(elapsed.id))[0].created_at).toEqual(new Date(baseNow.getTime() - 60_000));
   });
 
+  // Traceability: Jira 134 AC2 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-02-BND-1 (SPM-134 AC2, boundary): a hold expires exactly at its expiry instant (not 1 ms before), and
    * only then does it get an expired notice.
@@ -390,6 +396,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(await typesFor(target.id)).toEqual([EXPIRED]);
   });
 
+  // Traceability: Jira 134 AC2 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-02-CONC-1 (SPM-134 AC2, concurrency): overlapping expiry runs send one expired notice for the hold.
    * Kills: writing the notice outside the guarded status change.
@@ -405,6 +412,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(await typesFor(elapsed.id)).toEqual([EXPIRED]);
   });
 
+  // Traceability: Jira 134 AC2 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-02-INT-1 (SPM-134 AC2, atomicity): if the expired notice cannot be saved (a trigger forces the insert to
    * fail for this hold only), the hold is not expired either; once the failure is gone the next run expires it and sends
@@ -439,6 +447,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
 
   // ---- AC3 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 134 AC3 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-03-E (SPM-134 AC3): Venue Staff release an active hold; the assigned Coordinator gets one released
    * notice and the hold is released.
@@ -455,6 +464,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect((await hold(active.id)).status).toBe('released');
   });
 
+  // Traceability: Jira 134 AC3 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-03-F (SPM-134 AC3): Venue Staff convert an active hold to a confirmed booking; the assigned
    * Coordinator gets one converted notice and the hold is now an ordinary approved booking.
@@ -471,6 +481,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(await hold(active.id)).toMatchObject({ status: 'approved', request_kind: 'booking' });
   });
 
+  // Traceability: Jira 134 AC3 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-03-STATE-1 (SPM-134 AC3, state): repeating a release, converting a released hold, releasing a converted
    * hold, or releasing an expired hold is refused with 409 and writes no further notice.
@@ -499,6 +510,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
 
   // ---- AC4 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 134 AC4 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-04-C (SPM-134 AC4): the delivered texts are exactly the four sentences of the story, with the venue
    * name, the event name in quotes and the expiry in Singapore time (3 Jun 16:30 UTC is 4 Jun 00:30 SGT), and each is
@@ -536,6 +548,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
 
   // ---- AC5 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 134 AC5 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-05-A (SPM-134 AC5): a hold released before the reminder time is never reminded, even when the clock
    * later reaches 48 hours before its original expiry.
@@ -554,6 +567,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(await typesFor(target.id)).toEqual([RELEASED]);
   });
 
+  // Traceability: Jira 134 AC5 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-05-B (SPM-134 AC5): a hold converted before the reminder time is never reminded.
    * Kills: reminding a converted hold. Note: a converted hold has hold_expires_at NULL, so the reminder UPDATE's
@@ -573,6 +587,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(await typesFor(target.id)).toEqual([CONVERTED]);
   });
 
+  // Traceability: Jira 134 AC5 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-05-C (SPM-134 AC5): a hold whose expiry has passed but is not yet processed gets no reminder (not even
    * at the exact expiry instant); processing it sends only the expired notice.
@@ -594,6 +609,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(await typesFor(atExpiry.id)).toEqual([EXPIRED]);
   });
 
+  // Traceability: Jira 134 AC5 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-05-D (SPM-134 AC5): a hold that was reminded and then released or converted never produces an expired
    * notice, even after its original expiry time has passed.
@@ -619,6 +635,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
 
   // ---- AC6 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 134 AC6 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-06-G (SPM-134 AC6): each notice's hold opens from the Coordinator's own bookings list with its current
    * status and expiry: reminded (approved, with expiry), expired (expired, holdExpired true, with expiry), released
@@ -659,6 +676,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
 
   // ---- AC7 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 134 AC7 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-07-A (SPM-134 AC7): a new hold notice is unread; once the Coordinator marks it read it stays read after
    * signing out and back in (a fresh session).
@@ -681,6 +699,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
 
   // ---- AC8 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 134 AC8 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-08-A (SPM-134 AC8): an event with several tentative holds gets separate notifications for each: two
    * reminders, then one released and one expired, each linked to its own hold.
@@ -716,6 +735,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
       .expect(201);
   }
 
+  // Traceability: Jira 134 AC9 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-09-B (SPM-134 AC9): the event is reassigned before the reminder is sent; the new Coordinator receives
    * it and the previous one receives none.
@@ -735,6 +755,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect((await storedFor(due.id)).map((row) => row.recipient_id)).toEqual([b.id]);
   });
 
+  // Traceability: Jira 134 AC9 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-09-D (SPM-134 AC9, SC-SPM134-02, confirmed by the story owner chaw678 on 4 Nov 2026): when the event is reassigned after the reminder, the previous
    * Coordinator's unread hold notice for it is marked read (its link would open a hold that is no longer theirs), the
@@ -758,6 +779,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(await noticesFor(b, target.id)).toMatchObject([{ type: EXPIRED, read: false }]);
   });
 
+  // Traceability: Jira 134 AC9 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-09-E (SPM-134 AC9, SC-SPM134-05, decided by the story owner chaw678 on 4 Nov 2026): if the event has no
    * Coordinator when the reminder is due, the reminder is consumed and nobody is notified; it is not re-sent when a
@@ -790,6 +812,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
 
   // ---- AC10 --------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 134 AC10 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-10-B (SPM-134 AC10): for a cancelled event no reminder or expired notice is sent and no reminder marker
    * is set, and a release or conversion by Venue Staff sends no notice either.
@@ -813,6 +836,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect((await hold(due.id)).hold_reminder_sent_at).toBeNull();
   });
 
+  // Traceability: Jira 134 AC10 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-10-C (SPM-134 AC10): cancelling an event releases its holds (SPM-136) without a "released" notice.
    * Kills: sending the Venue Staff release notice from the cancellation path.
@@ -838,6 +862,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
   /** The stored reminder rows of a hold (never deleted, only marked read). */
   const remindersOf = async (holdId: string) => (await storedFor(holdId)).filter((row) => row.type === REMINDER);
 
+  // Traceability: Jira 134 AC11 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-11-E (SPM-134 AC11): when Venue Staff convert a reminded hold, the Coordinator's unread reminder for it
    * is marked read, stays in the history (feed and table) and the converted notice is still unread.
@@ -857,6 +882,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(notices.map((n) => [n.type, n.read]).sort()).toEqual([[CONVERTED, false], [REMINDER, true]].sort());
   });
 
+  // Traceability: Jira 134 AC11 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-11-F (SPM-134 AC11): when Venue Staff release a reminded hold, the unread reminder is marked read,
    * kept, and the released notice is unread.
@@ -875,6 +901,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(notices.map((n) => [n.type, n.read]).sort()).toEqual([[RELEASED, false], [REMINDER, true]].sort());
   });
 
+  // Traceability: Jira 134 AC11 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-11-G (SPM-134 AC11, isolation): only the reminder of the released hold changes. An already read reminder
    * stays read (and is not duplicated), another notice type of the same hold (an SPM-165 approval notice) stays unread, and
@@ -904,6 +931,7 @@ describe.skipIf(!databaseUrl)('SPM-134 tentative hold lifecycle notifications HT
     expect(await remindersOf(other.id)).toMatchObject([{ read: false }]);
   });
 
+  // Traceability: Jira 134 AC11 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-11-H (SPM-134 AC11): a refused release or conversion (foreign Venue Staff 404, hold already expired by
    * time 409, hold already released 409) marks the reminder read in none of the cases.

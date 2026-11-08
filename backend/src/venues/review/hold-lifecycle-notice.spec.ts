@@ -60,6 +60,7 @@ const TYPE_OF = {
 } as const;
 
 describe('SPM-134 hold lifecycle messages and notice writer', () => {
+  // Traceability: Jira 134 AC4 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-04-A (SPM-134 AC4): the four messages are exactly the sentences in the story, with the venue name,
    * the quoted event name and, for the reminder and expired ones, the expiry in Singapore time.
@@ -80,6 +81,7 @@ describe('SPM-134 hold lifecycle messages and notice writer', () => {
     );
   });
 
+  // Traceability: Jira 134 AC4 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-04-B (SPM-134 AC4, SC-SPM134-01, confirmed by the story owner chaw678 on 4 Nov 2026): the expiry is written in the app's existing
    * Singapore format (formatSgt), including when the Singapore date is one day after the UTC date.
@@ -94,6 +96,7 @@ describe('SPM-134 hold lifecycle messages and notice writer', () => {
     );
   });
 
+  // Traceability: Jira 134 AC4 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-04-BND-1 (SPM-134 AC4, boundary): quotes, punctuation and 200+ character names appear unchanged.
    * Kills: escaping or truncating the names.
@@ -109,6 +112,7 @@ describe('SPM-134 hold lifecycle messages and notice writer', () => {
     expect(tentativeHoldExpiredMessage(venue, event, expiresAt)).toContain(`${venue} for "${event}" expired on`);
   });
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-A (SPM-134 AC1, AC3): each lifecycle event writes exactly one notification for the Coordinator the
    * event has now, with its own type, linked to the event and the hold, stamped with the time the caller passes.
@@ -128,6 +132,7 @@ describe('SPM-134 hold lifecycle messages and notice writer', () => {
     expect(createdAt).toEqual(sentAt);
   });
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-B (SPM-134 AC1): a hold that cannot be found, or whose event has no Coordinator, has no recipient:
    * nothing is written and the call does not fail.
@@ -144,6 +149,7 @@ describe('SPM-134 hold lifecycle messages and notice writer', () => {
     expect(inserts(c)).toHaveLength(0);
   });
 
+  // Traceability: Jira 134 AC9 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-09-A (SPM-134 AC9): the recipient is read from the event on every call, so a hold whose event was
    * reassigned between two notices addresses the second to the new Coordinator.
@@ -161,6 +167,7 @@ describe('SPM-134 hold lifecycle messages and notice writer', () => {
     expect(lookup).toContain('FROM venue_bookings b JOIN events e ON e.id = b.event_id JOIN venues v ON v.id = b.venue_id');
   });
 
+  // Traceability: Jira 134 AC10 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-10-A (SPM-134 AC10): no hold notification is written for a cancelled event, whichever the lifecycle
    * event; an event in any other status still gets one.

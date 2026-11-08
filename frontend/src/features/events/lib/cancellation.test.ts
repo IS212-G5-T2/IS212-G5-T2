@@ -19,6 +19,7 @@ const coordinator = { id: "coo-01", role: "coordinator", roles: ["coordinator"] 
 const organiser = { id: "org-01", role: "organiser", roles: ["organiser"] };
 
 describe("SPM-136 canCancelEvent", () => {
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: F24 (the assigned-coordinator branch dropped: only the organiser is offered)
   it("CANCEL-EVENT-01-A (FE): the assigned coordinator is offered Cancel Event", () => {
     // Act: the assigned coordinator is checked against the event
@@ -28,6 +29,7 @@ describe("SPM-136 canCancelEvent", () => {
     expect(offered).toBe(true);
   });
 
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: F25 (the submitting organiser is offered Cancel Event)
   it("CANCEL-EVENT-01-B (FE): the submitting organiser is not offered Cancel Event", () => {
     // Act: the submitting organiser is checked against the event
@@ -53,6 +55,7 @@ describe("SPM-136 canCancelEvent", () => {
     expect(offered).toBe(false);
   });
 
+  // Traceability: Jira 136 AC3 (matrix 23691421)
   // Kills: F3 (approved dropped), F29 (submitted dropped), F30 (planning dropped), F31 (confirmed dropped)
   it.each(["submitted", "approved", "planning", "confirmed"])("CANCEL-EVENT-03-B: %s is offered for the assigned coordinator", (status) => {
     // Act: the assigned coordinator is checked against an event in this status
@@ -62,6 +65,7 @@ describe("SPM-136 canCancelEvent", () => {
     expect(offered).toBe(true);
   });
 
+  // Traceability: Jira 136 AC3 (matrix 23691421)
   // Kills: F32 (a deny-list instead of the allow-list: draft is offered), F33 (cancelled allowed), F34 (completed
   // allowed), F35 (rejected allowed)
   it.each(["completed", "rejected", "cancelled", "draft"])("CANCEL-EVENT-03-B: %s is not offered Cancel Event", (status) => {

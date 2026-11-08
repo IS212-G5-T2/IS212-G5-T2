@@ -32,14 +32,17 @@ function completedRepository() {
 }
 
 describe('COMPLETE-EVENT-06-D: the equipment repository refuses a Completed event', () => {
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-D: update reports event-completed and writes no item', async () => {
     await expect(completedRepository().update(COORDINATOR.uid, REQUEST, { ...BODY, items: BODY.items.map((i) => ({ ...i, equipmentType: 'Audio' as const })) })).resolves.toEqual({ kind: 'event-completed' });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-D: reserve reports event-completed', async () => {
     await expect(completedRepository().reserve(REQUEST)).resolves.toEqual({ kind: 'event-completed' });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-D: markCannotProvide reports event-completed', async () => {
     await expect(completedRepository().markCannotProvide(REQUEST, 'Out for repair')).resolves.toEqual({ kind: 'event-completed' });
   });
@@ -55,6 +58,7 @@ describe('COMPLETE-EVENT-06-D: the equipment service answers 409 EVENT_COMPLETED
     return { service: new EquipmentRequestsService(repository as never), repository };
   }
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-D: update is refused with 409 EVENT_COMPLETED', async () => {
     const { service } = serviceWith('event-completed');
 
@@ -67,12 +71,14 @@ describe('COMPLETE-EVENT-06-D: the equipment service answers 409 EVENT_COMPLETED
     });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-D: reserve is refused with 409 EVENT_COMPLETED', async () => {
     const { service } = serviceWith('event-completed');
 
     await expect(service.reserve(SUPPORT, REQUEST)).rejects.toMatchObject({ response: { code: 'EVENT_COMPLETED' } });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-D: markCannotProvide is refused with 409 EVENT_COMPLETED', async () => {
     const { service } = serviceWith('event-completed');
 

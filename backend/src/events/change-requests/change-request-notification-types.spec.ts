@@ -28,6 +28,7 @@ beforeEach(async () => {
 const requestedTypes = () => database.query.mock.calls[0][1][1] as string[];
 
 describe('SPM-65 change request decision notices in the notification feeds', () => {
+  // Traceability: Jira 65 AC7 (matrix 28016830)
   /** REVIEW-CHANGE-07-D: the organiser's feed asks for both decision notices. Kills: the organiser branch of notificationTypesFor dropping them. */
   it("REVIEW-CHANGE-07-D includes the change request decisions in the organiser's feed", async () => {
     await service.notifications(organiser('org-1'));
@@ -35,6 +36,7 @@ describe('SPM-65 change request decision notices in the notification feeds', () 
     expect(requestedTypes()).toEqual(expect.arrayContaining(SPM65_DECISION_TYPES));
   });
 
+  // Traceability: Jira 65 AC7 (matrix 28016830)
   /** REVIEW-CHANGE-07-D: a coordinator-only user is not sent the organiser's decision notices. Kills: the decisions leaking into every feed. */
   it("REVIEW-CHANGE-07-D leaves the change request decisions out of a coordinator's feed", async () => {
     await service.notifications(coordinator('coord-1'));

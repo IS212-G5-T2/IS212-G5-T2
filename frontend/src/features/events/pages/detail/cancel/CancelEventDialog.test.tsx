@@ -62,6 +62,7 @@ afterEach(() => {
 });
 
 describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before anything takes effect", () => {
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: F13
   it("CANCEL-EVENT-02-A: opens a modal with the MSG-CN-01 text, the two buttons and Keep event focused, and sends nothing", () => {
     // Arrange
@@ -77,6 +78,7 @@ describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before any
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: F10, F14
   it("CANCEL-EVENT-02-A: confirm sends one cancel request with confirmed true and announces MSG-CN-02", async () => {
     // Arrange
@@ -97,6 +99,7 @@ describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before any
     expect(screen.getByRole("status")).toHaveTextContent("Annual Gala Dinner has been cancelled.");
   });
 
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: F14
   it("CANCEL-EVENT-02-A: after success the dialog stays open showing MSG-CN-02 with only a Close button, which sends nothing", async () => {
     // Arrange
@@ -116,6 +119,7 @@ describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before any
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: F9, F14
   it("CANCEL-EVENT-02-A: while the request is pending the confirm button is disabled and busy, and a second click sends nothing", async () => {
     // Arrange: the server answer is held until the test releases it
@@ -137,6 +141,7 @@ describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before any
     await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
   });
 
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: F36 (the error alert not rendered, so a refused cancel shows nothing)
   it("CANCEL-EVENT-02-A: a refused cancel (409) is shown as an alert and the dialog stays open", async () => {
     // Arrange: the event is no longer cancellable on the server
@@ -229,6 +234,7 @@ describe("CANCEL-EVENT-02-B: dismissing the dialog leaves the event untouched", 
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: P2
   it("CANCEL-EVENT-02-B: Tab from the last button returns to Keep event, and Shift+Tab from Keep event goes to the confirm button", async () => {
     // Arrange: focus starts on Keep event
@@ -247,6 +253,7 @@ describe("CANCEL-EVENT-02-B: dismissing the dialog leaves the event untouched", 
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: F38 (every key closes the dialog, so the letter key closes it)
   it("CANCEL-EVENT-02-B: a letter key does nothing: no close, no request", async () => {
     // Enter would activate the focused Keep event button (a real click), so a plain letter is the probe.
@@ -264,6 +271,7 @@ describe("CANCEL-EVENT-02-B: dismissing the dialog leaves the event untouched", 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: F37 (the fallback text dropped: a bare rejection shows no alert text)
   it("CANCEL-EVENT-02-A: a failure that is not an Error is shown with the fallback text and the dialog stays open", async () => {
     // Arrange: the transport rejects with a bare value
@@ -462,7 +470,9 @@ describe("CANCEL-EVENT-02-B (TR-136-13): the Shift+Tab trap keeps focus inside t
    * TR-136-13: focus starts on Keep event, the first control. Shift+Tab wraps backwards to Confirm cancellation (the last
    * control) and never reaches the page control before the dialog. Page controls surround the dialog so an escape is visible.
    */
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: F13, P2
+  // ID: CANCEL-EVENT-02-B
   it("TR-136-13: Shift Tab from Keep event, the first control, wraps to Confirm cancellation and does not leave the dialog", async () => {
     // Arrange: focus starts on Keep event (initial focus), with a page control on each side of the dialog
     const user = userEvent.setup();
@@ -485,7 +495,9 @@ describe("CANCEL-EVENT-02-B (TR-136-13): the Shift+Tab trap keeps focus inside t
    * TR-136-13: from Confirm cancellation, Shift+Tab moves back to Keep event inside the dialog, and a further Tab
    * returns to Confirm cancellation. Nothing is sent to the server by moving focus.
    */
+  // Traceability: Jira 136 AC2 (matrix 23691421)
   // Kills: F13
+  // ID: CANCEL-EVENT-02-B
   it("TR-136-13: Tab to Confirm cancellation then Shift Tab returns to Keep event, all inside the dialog, with no request", async () => {
     // Arrange
     const user = userEvent.setup();

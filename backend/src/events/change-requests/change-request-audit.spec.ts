@@ -8,6 +8,7 @@ import { recordOutcome, toAuditEntry } from './change-request-audit.js';
 const NOW = new Date('2030-01-01T00:00:00.000Z');
 
 describe('change request audit', () => {
+  // Traceability: Jira 65 AC10 (matrix 28016830)
   /** REVIEW-CHANGE-10-A: the entry records the request, outcome, changes, requester, decider and time. */
   it('REVIEW-CHANGE-10-A inserts one entry with the full outcome', async () => {
     const query = vi.fn().mockResolvedValue({});
@@ -54,6 +55,7 @@ describe('change request audit', () => {
     expect(query.mock.calls[1][1][9]).toBeNull();
   });
 
+  // Traceability: Jira 65 AC10 (matrix 28016830)
   it('REVIEW-CHANGE-10-B maps a stored entry, leaving out an empty reason', () => {
     const row = {
       id: 'a1',

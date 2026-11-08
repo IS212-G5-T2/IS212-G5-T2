@@ -32,6 +32,7 @@ const renderCard = (props: Partial<React.ComponentProps<typeof EventCard>> = {})
 
 describe("SPM-155 EventCard indicator (D13b, AC2)", () => {
   // Kills: FM37, FM51
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: a pending request reads "Cancellation requested". */
   it.each([
     ["pending", "Cancellation requested"],
@@ -47,6 +48,7 @@ describe("SPM-155 EventCard indicator (D13b, AC2)", () => {
   });
 
   // Kills: FM38
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: with no request the card has no cancellation indicator. */
   it("CANCEL-REQUEST-02-A: a card with no request shows no cancellation indicator", () => {
     // Act

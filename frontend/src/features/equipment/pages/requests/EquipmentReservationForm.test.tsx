@@ -14,12 +14,14 @@ const event: EventRecord = {
 };
 
 describe('SPM-57 equipment request form', () => {
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: the form cannot submit while a request update is already in flight. */
   it('SAFETY-OUTCOME-06 disables submission while updating', () => {
     render(<EquipmentReservationForm events={[event]} initialEventId={event.id} submitting onSubmit={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Submitting…' })).toBeDisabled();
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: an in-flight edit shows its update state and cannot send a duplicate request. */
   it('SAFETY-OUTCOME-06 keeps an equipment re-review submission disabled while updating', () => {
     const onSubmit = vi.fn();
@@ -28,18 +30,21 @@ describe('SPM-57 equipment request form', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: edit mode without the selected event cannot submit. */
   it('SAFETY-OUTCOME-06 disables submission when an edited event is unavailable', () => {
     render(<EquipmentReservationForm events={[]} initialEventId={event.id} submitting={false} onSubmit={vi.fn()} isEditing />);
     expect(screen.getByRole('button', { name: 'Update Event' })).toBeDisabled();
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: a new request cannot be submitted while the eligible event picker has no events. */
   it('SAFETY-OUTCOME-06 disables new-request submission when no eligible event is available', () => {
     render(<EquipmentReservationForm events={[]} initialEventId="" submitting={false} onSubmit={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Submit Request' })).toBeDisabled();
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: coordinator revisions keep unselected reservations intact and submit stable item identifiers. */
   it('edits only selected safety-review equipment and retains all item IDs', async () => {
     const user = userEvent.setup();
@@ -70,6 +75,7 @@ describe('SPM-57 equipment request form', () => {
     ]));
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-A: an assigned eligible event opens the request form with its details prefilled. */
   it('EQUIP-REQUEST-01-A shows the selected event name, date, time, and expected attendance', () => {
     render(<EquipmentReservationForm events={[event]} initialEventId={event.id} submitting={false} onSubmit={vi.fn()} />);
@@ -81,6 +87,7 @@ describe('SPM-57 equipment request form', () => {
     expect(within(document.querySelector('dl')!).getByText(`${new Date(event.startDateTime).toLocaleTimeString()} – ${new Date(event.endDateTime).toLocaleTimeString()}`)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 57 AC2 (matrix 28868989)
   /** EQUIP-REQUEST-02-A: changing the event selection updates the event context displayed above its equipment items. */
   it('EQUIP-REQUEST-02-A updates the prefilled event context after selection changes', async () => {
     const second = { ...event, id: 'event-2', name: 'Second Showcase', startDateTime: '2031-11-24T14:30:00.000Z', endDateTime: '2031-11-25T01:45:00.000Z', expectedAttendance: 47 };
@@ -97,6 +104,7 @@ describe('SPM-57 equipment request form', () => {
     expect(updatedDetails.getByText('47')).toBeInTheDocument();
   });
 
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-A, EQUIP-REQUEST-05-A: one or more item rows preserve distinct name, type, and quantity values. */
   it('EQUIP-REQUEST-03-A submits multiple independently populated equipment items', async () => {
     const user = userEvent.setup();
@@ -121,6 +129,7 @@ describe('SPM-57 equipment request form', () => {
     ]));
   });
 
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-BND-1: the maximum PostgreSQL integer quantity is accepted without imposing a lower business cap. */
   it('EQUIP-REQUEST-03-BND-1 submits the maximum PostgreSQL integer quantity', async () => {
     const user = userEvent.setup();
@@ -133,6 +142,7 @@ describe('SPM-57 equipment request form', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(event.id, [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 2_147_483_647 }]));
   });
 
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-BND-1 and EQUIP-REQUEST-04-BND-1: quantity one is valid and zero, fractional, or over-limit quantities are rejected. */
   it.each(['0', '-1', '1.5', '2147483648'])('EQUIP-REQUEST-03-BND-1 blocks invalid quantity %s without submitting', async (quantity) => {
     const user = userEvent.setup();
@@ -146,6 +156,7 @@ describe('SPM-57 equipment request form', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 57 AC4 (matrix 28868989)
   /** EQUIP-REQUEST-04-BND-1: quantity one submits, while zero is rejected and the entered type and quantity remain visible. */
   it('EQUIP-REQUEST-04-BND-1 accepts quantity one and retains the zero boundary input on rejection', async () => {
     const user = userEvent.setup();
@@ -167,6 +178,7 @@ describe('SPM-57 equipment request form', () => {
     expect(onSubmit).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 57 AC4 (matrix 28868989)
   /** EQUIP-REQUEST-04-A: missing equipment type and quantity show field errors and prevent request submission. */
   it('reports a missing type without submitting', async () => {
     const onSubmit = vi.fn();
@@ -176,6 +188,7 @@ describe('SPM-57 equipment request form', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 57 AC4 (matrix 28868989)
   /** EQUIP-REQUEST-04-A: an omitted quantity is identified without persisting a request. */
   it('reports a missing quantity without submitting', async () => {
     const onSubmit = vi.fn();
@@ -188,6 +201,7 @@ describe('SPM-57 equipment request form', () => {
   });
 
   /** EQUIP-REQUEST-03-N: a blank equipment name is identified and blocks submission. */
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-N: a required equipment name must be nonblank before form submission. */
   it('requires a nonblank equipment name before submission', async () => {
     const user = userEvent.setup();
@@ -199,6 +213,7 @@ describe('SPM-57 equipment request form', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-N: a whitespace-only name is invalid, while a nonblank name is trimmed before submission. */
   it('rejects whitespace-only equipment names and trims valid names', async () => {
     const user = userEvent.setup();
@@ -216,6 +231,7 @@ describe('SPM-57 equipment request form', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(event.id, [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }]));
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-N: without an eligible event, no event data is exposed and submission remains unavailable. */
   it('EQUIP-REQUEST-01-N does not allow a request when no eligible event can be selected', () => {
     render(<EquipmentReservationForm events={[]} initialEventId="missing" submitting={false} onSubmit={vi.fn()} />);
@@ -223,6 +239,7 @@ describe('SPM-57 equipment request form', () => {
     expect(screen.getByRole('button', { name: 'Submit Request' })).toBeDisabled();
   });
 
+  // Traceability: Jira 57 AC2 (matrix 28868989)
   /** EQUIP-REQUEST-02-N: an unavailable event id does not populate event details or permit submission. */
   it('EQUIP-REQUEST-02-N does not expose details or submit for an unknown event id', async () => {
     const onSubmit = vi.fn();
@@ -234,6 +251,7 @@ describe('SPM-57 equipment request form', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-N: submitting without a selected event displays a validation error and does not call the submission handler. */
   it('requires an event to be selected before submission', async () => {
     const onSubmit = vi.fn();
@@ -243,6 +261,7 @@ describe('SPM-57 equipment request form', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-A: users can remove an extra equipment row before submitting the remaining item. */
   it('removes an additional equipment item from the request form', async () => {
     const user = userEvent.setup();

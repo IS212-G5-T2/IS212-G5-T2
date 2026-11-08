@@ -18,6 +18,7 @@ afterEach(() => {
 });
 
 describe("SPM-123 Lead API", () => {
+  // Traceability: Jira 123 AC2 (matrix 21102810)
   // The queue is a plain GET.
   it("LEAD-ASN-02-F loads the queue from GET /api/lead/queue", async () => {
     // Act: load the queue.
@@ -30,6 +31,7 @@ describe("SPM-123 Lead API", () => {
     expect(init.body).toBeUndefined();
   });
 
+  // Traceability: Jira 123 AC3 (matrix 21102810)
   // The coordinators list is a plain GET.
   it("LEAD-ASN-03-E loads coordinators from GET /api/lead/coordinators", async () => {
     // Act: load the coordinators.
@@ -41,6 +43,7 @@ describe("SPM-123 Lead API", () => {
     expect(init.method).toBeUndefined();
   });
 
+  // Traceability: Jira 123 AC5 (matrix 21102810)
   // Assigning posts only the chosen coordinator's id.
   it("LEAD-ASN-05-F assigns with POST /api/lead/queue/:id/assign and { coordinatorId }", async () => {
     // Arrange: the server confirms.
@@ -59,6 +62,7 @@ describe("SPM-123 Lead API", () => {
 });
 
 describe("SPM-47 Lead reassignment API", () => {
+  // Traceability: Jira 47 AC1 (matrix 21496116)
   // The reassignment list is a plain GET.
   it("LEAD-REASN-01-F loads assigned events from GET /api/lead/assigned", async () => {
     // Act: load the list.
@@ -71,6 +75,7 @@ describe("SPM-47 Lead reassignment API", () => {
     expect(init.body).toBeUndefined();
   });
 
+  // Traceability: Jira 47 AC3 (matrix 21496116)
   // Reassigning sends the chosen coordinator and the one the page showed.
   it("LEAD-REASN-03-E reassigns with POST /api/lead/events/:id/reassign and { coordinatorId, currentCoordinatorId }", async () => {
     // Arrange: the server confirms.

@@ -51,6 +51,7 @@ describe("SPM-153 Mark as Completed (action)", () => {
     vi.useRealTimers();
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-B (FE): before the end instant the button is disabled and says why.
   it("COMPLETE-EVENT-01-B: shows the reason and disables the button before the event has ended", () => {
     vi.setSystemTime(BEFORE_END);
@@ -60,6 +61,7 @@ describe("SPM-153 Mark as Completed (action)", () => {
     expect(screen.getByText(MSG_TOO_EARLY)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-C (FE): the button becomes available at the end instant, without a reload.
   it("COMPLETE-EVENT-01-C: enables the button at the end instant with no reload", () => {
     vi.setSystemTime(BEFORE_END);
@@ -74,6 +76,7 @@ describe("SPM-153 Mark as Completed (action)", () => {
     expect(screen.queryByText(MSG_TOO_EARLY)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-A (FE): the click sends the status change; the button is replaced by the completed line.
   it("COMPLETE-EVENT-01-A: marks the event Completed and states it in place of the button", async () => {
     vi.setSystemTime(AT_END);
@@ -96,6 +99,7 @@ describe("SPM-153 Mark as Completed (action)", () => {
     expect(onCompleted).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-B (added, FE): the client clock says ended but the server refuses; the server wins.
   it("COMPLETE-EVENT-01-B: shows the server's refusal and keeps the button disabled when the client clock is ahead", async () => {
     vi.setSystemTime(AT_END);
@@ -114,6 +118,7 @@ describe("SPM-153 Mark as Completed (action)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   // COMPLETE-EVENT-02-B (FE) and 01-D (FE): the button is not shown for other statuses or other users.
   it.each([
     ["a Planning event", { status: "planning" }],
@@ -127,6 +132,7 @@ describe("SPM-153 Mark as Completed (action)", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // The completed line is shown to any viewer of a Completed event, and no button is offered.
   it("COMPLETE-EVENT-01-A: a Completed event states the completion to any viewer and offers no button", () => {
     renderPanel({ status: "completed", isAssignedCoordinator: false });
@@ -135,6 +141,7 @@ describe("SPM-153 Mark as Completed (action)", () => {
     expect(screen.queryByRole("button", { name: "Mark as Completed" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   // COMPLETE-EVENT-02-E (FE): a double click sends one request.
   it("COMPLETE-EVENT-02-E: a double click sends one request", async () => {
     vi.setSystemTime(AT_END);
@@ -148,6 +155,7 @@ describe("SPM-153 Mark as Completed (action)", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-A (failure): a failed completion shows the server's message and keeps the button available.
   it("COMPLETE-EVENT-01-A: a failed completion shows the server's message and keeps the button", async () => {
     vi.setSystemTime(AT_END);
@@ -161,6 +169,7 @@ describe("SPM-153 Mark as Completed (action)", () => {
     expect(screen.getByRole("button", { name: "Mark as Completed" })).toBeEnabled();
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // COMPLETE-EVENT-01-A (fallback): a failure that is not an Error shows the fallback message.
   it("COMPLETE-EVENT-01-A: a failure that is not an Error shows the fallback message", async () => {
     vi.setSystemTime(AT_END);

@@ -37,6 +37,7 @@ describe("SPM-30: signing out from the sidebar", () => {
     expect(screen.getByRole("button", { name: "Log out" }).parentElement).toHaveClass("mt-auto");
   });
 
+  // Traceability: Jira 30 AC1 (matrix 6652076)
   // Log out sits at the bottom of the sidebar, where Settings used to be.
   it("USER-LOGIN-01-F logs out from the sidebar and returns to the login page", async () => {
     // Arrange: the sidebar on the events page.

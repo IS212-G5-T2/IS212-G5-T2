@@ -205,6 +205,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     );
   }
 
+  // Traceability: Jira 135 AC1 (matrix 22905205)
   // CONFIRM-EVENT-01-A (BE): one Approved venue, Reserved equipment, Approved safety -> Confirmed.
   it('CONFIRM-EVENT-01-A: the assigned coordinator confirms a fully arranged Planning event', async () => {
     // Arrange: EVT-201 "Product Launch Mixer" (Planning), VB-201 Main Hall Approved, EQ-201 Projector x1 and Microphone x2 Reserved, Safety Approved
@@ -238,6 +239,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     ]);
   });
 
+  // Traceability: Jira 135 AC1 (matrix 22905205)
   // CONFIRM-EVENT-01-B (BE): two venue bookings both Approved, both equipment lines Reserved.
   it('CONFIRM-EVENT-01-B: every one of several Approved bookings and equipment lines is checked', async () => {
     // Arrange: EVT-211 "Innovation Conference"
@@ -282,6 +284,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
       expect(await notificationCount(organiser.uid, eventId)).toBe(0);
     });
 
+    // Traceability: Jira 135 AC1 (matrix 22905205)
     it('CONFIRM-EVENT-01-C (D): no session gets 401 and nothing changes', async () => {
       // Arrange
       const { eventId } = await seedReadyEvent();
@@ -295,6 +298,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     });
   });
 
+  // Traceability: Jira 135 AC2 (matrix 22905205)
   // CONFIRM-EVENT-02-B (BE): readiness is enforced on the server, not only in the UI.
   it('CONFIRM-EVENT-02-B: a blocked confirm returns CONFIRM_BLOCKED with the three outstanding items and changes nothing', async () => {
     // Arrange: EVT-205 (VB-205 Pending, equipment Requested, safety Awaiting Check)
@@ -317,6 +321,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await notificationCount(organiser.uid, eventId)).toBe(0);
   });
 
+  // Traceability: Jira 135 AC2 (matrix 22905205)
   // CONFIRM-EVENT-02-C (BE): one Pending booking among Approved ones blocks and names only that venue.
   it('CONFIRM-EVENT-02-C: one Pending booking blocks confirmation and only Breakout Room 1 is named', async () => {
     // Arrange: EVT-206 "Regional Summit"
@@ -336,6 +341,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await statusOf(eventId)).toBe('Planning');
   });
 
+  // Traceability: Jira 135 AC2 (matrix 22905205)
   // CONFIRM-EVENT-02-D (BE): readiness is evaluated at submit time, not from the page-load snapshot.
   it('CONFIRM-EVENT-02-D: a venue flagged unavailable after page load blocks the confirm without a refresh', async () => {
     // Arrange: EVT-201 clone; the page loads with nothing outstanding
@@ -359,6 +365,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await statusOf(eventId)).toBe('Planning');
   });
 
+  // Traceability: Jira 135 AC2, AC3 (matrix 22905205)
   // CONFIRM-EVENT-03-A (BE): the coordinator sees exactly the three outstanding items in order.
   it('CONFIRM-EVENT-03-A: arrangements-status lists venue, equipment and safety in order with their states', async () => {
     // Arrange: EVT-205 (VB-205 Pending, equipment Requested, safety Awaiting Check)
@@ -379,6 +386,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     ]);
   });
 
+  // Traceability: Jira 135 AC3 (matrix 22905205)
   // CONFIRM-EVENT-03-B (BE): satisfied items are not listed; after the venue is approved the confirm succeeds.
   it('CONFIRM-EVENT-03-B: only the unsatisfied venue is listed, and confirmation succeeds once it is approved', async () => {
     // Arrange: EVT-202 (venue Pending, equipment Reserved, safety Approved)
@@ -402,6 +410,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await statusOf(eventId)).toBe('Confirmed');
   });
 
+  // Traceability: Jira 135 AC4 (matrix 22905205)
   // CONFIRM-EVENT-04-B (BE, real DB): a re-send on a Confirmed event is 409 with one history row.
   it('CONFIRM-EVENT-04-B (A): re-sending on a Confirmed event returns 409 EVENT_ALREADY_CONFIRMED and writes nothing', async () => {
     // Arrange: EVT-201 already confirmed once
@@ -417,6 +426,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await notificationCount(organiser.uid, eventId)).toBe(1);
   });
 
+  // Traceability: Jira 135 AC4 (matrix 22905205)
   // CONFIRM-EVENT-04-B (B, real DB): five parallel confirms -> exactly one 200, four 409, one row, one notification.
   it('CONFIRM-EVENT-04-B (B): five parallel confirms yield one 200, four 409, one history row and one notification', async () => {
     // Arrange: a fresh ready event
@@ -433,6 +443,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await notificationCount(organiser.uid, eventId)).toBe(1);
   });
 
+  // Traceability: Jira 135 AC4 (matrix 22905205)
   // CONFIRM-EVENT-04-B (B, deterministic): a confirm that waits behind a concurrent committed change gets 409 and writes nothing.
   // Not timing-dependent: the competing transaction holds the event row, the request is observed blocked on a
   // database lock, and only then is the competing transaction committed. Kills: M11c (no lock, unconditional UPDATE).
@@ -479,6 +490,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     }
   }, 15_000);
 
+  // Traceability: Jira 135 AC5 (matrix 22905205)
   // CONFIRM-EVENT-05-A (BE): the organiser gets exactly one EventConfirmed notification, present on the 200.
   it('CONFIRM-EVENT-05-A: the submitting organiser sees one unread EventConfirmed notification after confirm', async () => {
     // Arrange: EVT-201 ready, ORG-01 has zero notifications
@@ -499,6 +511,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     });
   });
 
+  // Traceability: Jira 135 AC5 (matrix 22905205)
   // CONFIRM-EVENT-05-B (BE): the organiser sees the allowlisted arrangements only.
   it('CONFIRM-EVENT-05-B: the organiser sees venue, equipment and safety on a Confirmed event through an allowlist', async () => {
     // Arrange: EVT-201 confirmed
@@ -521,6 +534,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(response.body.safety).toEqual({ state: 'Approved' });
   });
 
+  // Traceability: Jira 135 AC5 (matrix 22905205)
   // CONFIRM-EVENT-05-C (BE): a blocked attempt notifies nobody; the success notifies only ORG-01.
   it('CONFIRM-EVENT-05-C: a blocked attempt notifies nobody; the success notifies only the submitting organiser', async () => {
     // Arrange: EVT-205 blocked, EVT-201 ready; all users start with zero EventConfirmed notifications
@@ -542,6 +556,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await notificationCount(coordinator.uid, eventId)).toBe(0);
   });
 
+  // Traceability: Jira 135 AC5 (matrix 22905205)
   // CONFIRM-EVENT-06-A (Rejected) / 06-B (Cancelled) (BE): these events cannot be confirmed.
   // Status code: the Confluence expected result is HTTP 422 MSG-CF-05, and that is the oracle here. The execution
   // notes on the same pages say "HTTP 409", which is the already-Confirmed case (CONFIRM-EVENT-04-B,

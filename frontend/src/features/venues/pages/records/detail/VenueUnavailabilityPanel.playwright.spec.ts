@@ -7,6 +7,7 @@ const venueName = "SPM-122 unavailability browser";
 
 test.use({ timezoneId: "Asia/Singapore", as: "venue_staff" });
 
+// Traceability: Jira 122 AC1 (matrix 21103356)
 // SPM-122 / VEN-UNAVAIL-01-A/03-A/04-A/06-A: review, confirm, persist, and reload a real venue blockout.
 test("creates an unavailable period through the browser and displays it after reload", async ({ page }) => {
   // Arrange: signed in as seeded Venue Staff (test.use above); create an isolated venue through the real API.

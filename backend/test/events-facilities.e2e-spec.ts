@@ -118,6 +118,7 @@ describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', 
   }
 
   // Kills: submission dropping facilities or accessibility on write (required_facilities or accessibility_needs not stored), or the list omitting them.
+  // Traceability: Jira 144 AC3 (matrix 23692099)
   /** EVE-FAC-03-B, EVE-FAC-06-A, and EVE-FAC-06-B: facility and accessibility values persist through HTTP under the authenticated owner and appear on its Submitted request. */
   it('EVE-FAC-03-B EVE-FAC-06-A EVE-FAC-06-B persists supported facilities and accessibility for its owner', async () => {
     const input = validRequest();
@@ -169,6 +170,7 @@ describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', 
   });
 
   // Kills: the HTTP validator accepting 'Unsupported facility' (201) or persisting an events row after the 400.
+  // Traceability: Jira 144 AC4 (matrix 23692099)
   /** EVE-FAC-04-A: the real HTTP validator rejects an unsupported facility and PostgreSQL receives no event row. */
   it('EVE-FAC-04-A rejects an unsupported facility without saving an event', async () => {
     const input = { ...validRequest(), facilities: ['Unsupported facility'] };
@@ -187,6 +189,7 @@ describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', 
   });
 
   // Kills: the HTTP validator accepting 'Wheelchair ramps' or persisting an event row after the 400.
+  // Traceability: Jira 144 AC4 (matrix 23692099)
   /** EVE-FAC-04-A: the HTTP validator rejects an unsupported accessibility value and persists no event. */
   it('EVE-FAC-04-A rejects unsupported accessibility without saving an event', async () => {
     const input = { ...validRequest(), accessibility: ['Wheelchair ramps'] };

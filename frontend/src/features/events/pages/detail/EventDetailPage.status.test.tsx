@@ -80,6 +80,7 @@ afterEach(() => {
 });
 
 describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
+  // Traceability: Jira 94 AC2 (matrix 22839633)
   // Kills: X5 (indicator removed from the planning page), X4 (shown without the server flag).
   it("TRACK-EVENT-STATUS-02-A: the assignment indicator is not rendered (redundant with Coordinator field)", async () => {
     current = eventRecord({ status: "submitted", coordinatorId: undefined, awaitingCoordinatorAssignment: true });
@@ -88,6 +89,7 @@ describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
     expect(screen.queryByText("Awaiting Coordinator Assignment")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // Kills: X5 (indicator removed from the planning page), the three indicator texts swapped.
   it.each([
     ["AWAITING_CHECK", "Awaiting Safety Officer Check"],
@@ -101,6 +103,7 @@ describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
     expect(screen.getAllByText(/^(Awaiting Safety Officer Check|Safety Changes Requested|Safety Check Cleared)$/)).toHaveLength(1);
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // Kills: a null safety indicator rendering a safety label on the planning page.
   it("TRACK-EVENT-STATUS-03-B: a null safety indicator shows no safety text on the planning page", async () => {
     current = eventRecord({ status: "planning", safetyIndicator: null });
@@ -109,6 +112,7 @@ describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
     expect(screen.queryByText(/^(Awaiting Safety Officer Check|Safety Changes Requested|Safety Check Cleared)$/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // Oracle: indicators are the organiser's view only (planning header is gated by isOwner).
   // Kills: the safety indicator shown to the assigned coordinator (who is not the owner) on the planning page.
   it("TRACK-EVENT-STATUS-03-B: the assigned coordinator, not the owner, sees no indicators on the page", async () => {
@@ -123,6 +127,7 @@ describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
 });
 
 describe("SPM-94 AC4: a revisit shows the server's status, not the store's copy", () => {
+  // Traceability: Jira 94 AC4 (matrix 22839633)
   // Oracle: the page requests the event on every visit and shows what the server holds (Approved).
   // Kills: a refetch skipped when the store already holds the event (stale Submitted copy shown).
   it("TRACK-EVENT-STATUS-04-B: a revisit with a stale Submitted copy in the store shows Approved from the server", async () => {
@@ -137,6 +142,7 @@ describe("SPM-94 AC4: a revisit shows the server's status, not the store's copy"
 });
 
 describe("SPM-94 AC1: the planning page marks the exact current step", () => {
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Oracle: the timeline shows only the stages reached: the current step is shaded and no later stage is shown.
   // Kills: a timeline one step ahead or behind (the step after the current one would be shown).
   // Kills (SPM-155 mutants, frontend/scripts/testing/mutation/spm155.mutants.mjs): FM56, FM57.
@@ -153,6 +159,7 @@ describe("SPM-94 AC1: the planning page marks the exact current step", () => {
     expect(within(timeline).queryByText(next)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Oracle: a rejected event shows the rejected step in the danger colour, after the submitted step.
   // Kills: the rejected step shaded as primary instead of danger, or the submitted step not shaded as reached.
   it("TRACK-EVENT-STATUS-01-B: rejected marks the rejected step in the danger colour", async () => {

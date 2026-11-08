@@ -170,6 +170,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
 
   // ---- AC1 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 162 AC1 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-01-A (SPM-162 AC1): the Coordinator accepts; the Organiser's feed holds exactly one outcome notice,
    * typed accepted, for that event, and one row is stored for the Organiser.
@@ -184,6 +185,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect((await storedFor(eventId, org.uid)).filter((row) => row.type === ACCEPTED)).toHaveLength(1);
   });
 
+  // Traceability: Jira 162 AC1 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-01-B (SPM-162 AC1): the Coordinator declines; the Organiser's feed holds exactly one declined notice
    * and the event keeps its status.
@@ -198,6 +200,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect((await pool.query('SELECT status FROM events WHERE id = $1', [eventId])).rows[0].status).toBe('Confirmed');
   });
 
+  // Traceability: Jira 162 AC1 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-01-SEC-1 (SPM-162 AC1, security): another Organiser, the assigned Coordinator, another Coordinator,
    * the Lead and an attendee never see the outcome notice in their feeds.
@@ -214,6 +217,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
 
   // ---- AC2 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 162 AC2 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-02-D (SPM-162 AC2): the accepted notice reads exactly as the Jira wording and carries the decision time.
    * Kills: changed wording, a timestamp other than the decision time.
@@ -228,6 +232,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect(notice.createdAt).toBe(T0);
   });
 
+  // Traceability: Jira 162 AC2 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-02-E (SPM-162 AC2): the declined notice reads exactly as the Jira wording and carries the decision time.
    * Kills: changed wording, a reason appended, a timestamp other than the decision time.
@@ -244,6 +249,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
 
   // ---- AC3 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 162 AC3 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-03-A (SPM-162 AC3): on accept the Organiser has the outcome notice and no EventCancelled; the
    * attendee and the Coordinator still get EventCancelled.
@@ -260,6 +266,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect((await feed(org)).filter((n) => n.type === 'EventCancelled')).toEqual([]);
   });
 
+  // Traceability: Jira 162 AC3 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-03-B (SPM-162 AC3): a Coordinator cancelling directly (SPM-136, no request) is unchanged: the
    * Organiser gets EventCancelled and no outcome notice.
@@ -274,6 +281,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect(await outcomeNotices(org)).toEqual([]);
   });
 
+  // Traceability: Jira 162 AC3 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-03-F (SPM-162 AC3): after an accept the Coordinator's feed shows EventCancelled (labelled as a
    * Coordinator notice) and no outcome notice.
@@ -291,6 +299,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
 
   // ---- AC5 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 162 AC5 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-05-A (SPM-162 AC5): a new outcome notice is unread, in the feed and in the table.
    * Kills: a notice created as read.
@@ -304,6 +313,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect((await storedFor(eventId, org.uid)).map((row) => row.read)).toEqual([false]);
   });
 
+  // Traceability: Jira 162 AC5 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-05-B (SPM-162 AC5): the Organiser marks the notice read; it stays read after signing out and back in
    * (a new session through the real login route).
@@ -322,6 +332,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect((await storedFor(eventId, org.uid)).map((row) => row.read)).toEqual([true]);
   });
 
+  // Traceability: Jira 162 AC5 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-05-SEC-1 (SPM-162 AC5, security): another Organiser cannot mark the notice read; it is refused 404
    * and the notice stays unread.
@@ -339,6 +350,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
 
   // ---- AC6 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 162 AC6 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-06-A (SPM-162 AC6): a second decision on an already-decided request is refused 409 and adds no
    * notice: after an accept then another accept, and after a decline then an accept, the Organiser still has one.
@@ -358,6 +370,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect((await storedFor(eventId, org.uid)).filter((row) => row.type === ACCEPTED || row.type === DECLINED).map((row) => row.type)).toEqual([type]);
   });
 
+  // Traceability: Jira 162 AC6 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-06-B (SPM-162 AC6): a refused decision (another Coordinator, the Organiser, the Lead, an unknown
    * request) is 403 and writes no notice; the request stays pending.
@@ -373,6 +386,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect(await requestStatus(requestId)).toBe('pending');
   });
 
+  // Traceability: Jira 162 AC6 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-06-C (SPM-162 AC6): an invalid body is 400, and a decision on an event that can no longer be
    * cancelled is 409 EVENT_NOT_CANCELLABLE; neither writes a notice.
@@ -390,6 +404,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect(await requestStatus(requestId)).toBe('pending');
   });
 
+  // Traceability: Jira 162 AC6 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-06-D (SPM-162 AC6): when a release fails during an accept, everything rolls back: 500, the request
    * is still pending, the event is not cancelled and no notice of any kind exists; the retry then succeeds with one.
@@ -412,6 +427,7 @@ describe.skipIf(!database)('SPM-162 cancellation request outcome notifications o
     expect((await storedFor(eventId, org.uid)).map((row) => row.type)).toEqual([ACCEPTED]);
   });
 
+  // Traceability: Jira 162 AC6 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-06-CONC-1 (SPM-162 AC6, concurrency): four decisions fired together give exactly one 200 and three
    * 409, and the Organiser has exactly one outcome notice whose type matches the winning decision.

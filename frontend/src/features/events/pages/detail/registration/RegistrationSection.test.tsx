@@ -60,12 +60,14 @@ afterEach(() => vi.useRealTimers());
 
 // EVENT-REG-01-A, EVENT-REG-01-B, EVENT-REG-01-C
 describe("EVENT-REG-01-A/B/C: register button only while open (AC1)", () => {
+  // Traceability: Jira 61 AC1 (matrix 16482307)
   // EVENT-REG-01-A
   // 01-A: "I can see the registration button only if the registration period is open"
   it("01-A open: Register button is shown", () => {
     renderSection();
     expect(registerButton()).toBeInTheDocument();
   });
+  // Traceability: Jira 61 AC1 (matrix 16482307)
   // EVENT-REG-01-B
   // 01-B: before opening there is no button and the SGT opening time is shown.
   it("01-B not yet open: no button, shows the opening time in SGT", () => {
@@ -73,6 +75,7 @@ describe("EVENT-REG-01-A/B/C: register button only while open (AC1)", () => {
     expect(registerButton()).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Registration has not started" })).toBeInTheDocument();
   });
+  // Traceability: Jira 61 AC1 (matrix 16482307)
   // EVENT-REG-01-C
   // 01-C[A]: after the close time there is no button, only status text.
   it("01-C[A] closed by time: no button, closed text", () => {
@@ -80,6 +83,7 @@ describe("EVENT-REG-01-A/B/C: register button only while open (AC1)", () => {
     expect(registerButton()).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Registration has closed" })).toBeInTheDocument();
   });
+  // Traceability: Jira 61 AC1 (matrix 16482307)
   // EVENT-REG-01-C
   // 01-C[B]: manual close needs a schema field that does not exist (D17).
   it.todo("01-C[B] Blocked: no manual_close_at field exists (D17)");
@@ -278,6 +282,7 @@ describe("EVENT-REG-03-SEC-1: escape on output", () => {
 
 // EVENT-REG-05-A (AC5), SUP-EVENT-REG-REREG-B (supporting, no Jira AC)
 describe("EVENT-REG-05-A (AC5) and supporting re-registration: already registered", () => {
+  // Traceability: Jira 61 AC5 (matrix 16482307)
   // EVENT-REG-05-A
   // VIEW-REG-DET-02-A
   // 05-A: "I cannot register twice for the same event": no button when registered.
@@ -325,6 +330,7 @@ describe("SPM-62 AC2/AC3: registered attendee sees their registration details", 
     specialRequirements: "Wheelchair access",
   };
 
+  // Traceability: Jira 62 AC3 (matrix 16678936)
   // VIEW-REG-DET-03-A
   it("AC3 shows full name, email, contact number and special requirements", () => {
     renderSection(baseEvent, full);
@@ -334,6 +340,7 @@ describe("SPM-62 AC2/AC3: registered attendee sees their registration details", 
     expect(within(screen.getByText("Special requirements").parentElement!).getByText("Wheelchair access")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 62 AC3 (matrix 16678936)
   // VIEW-REG-DET-03-B
   // Optional fields captured at registration (contact number, special
   // requirements) must never render as blank rows when absent.
@@ -343,6 +350,7 @@ describe("SPM-62 AC2/AC3: registered attendee sees their registration details", 
     expect(screen.queryByText("Special requirements")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 62 AC3 (matrix 16678936)
   // VIEW-REG-DET-03-C
   // Older records may lack fullName (SPM-61 comment on the Registration
   // type); the attendee's stored name is still shown via the fallback.
@@ -362,6 +370,7 @@ describe("SPM-62 AC4: registration details stay visible before and after the eve
     email: "alice@example.com",
   };
 
+  // Traceability: Jira 62 AC4 (matrix 16678936)
   // VIEW-REG-DET-04-A
   it("shows full registration details once the event has completed", () => {
     renderSection({ ...baseEvent, status: "completed" }, full);
@@ -369,6 +378,7 @@ describe("SPM-62 AC4: registration details stay visible before and after the eve
     expect(within(screen.getByText("Full name").parentElement!).getByText("Alice Tan")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 62 AC4 (matrix 16678936)
   // VIEW-REG-DET-04-B
   it("shows full registration details for a cancelled event", () => {
     renderSection({ ...baseEvent, status: "cancelled" }, full);
@@ -418,6 +428,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
 
   beforeEach(() => vi.setSystemTime(T0));
 
+  // Traceability: Jira 120 AC1 (matrix 16613384)
   // WITHDRAW-EVENT-REG-01-A
   // Oracle (SPEC 01-A): REG-9001 on future EVT-101 shows an enabled button named "Withdraw" and no unavailable text.
   // Not automated: styling prominence (visual). No availability flag exists (D11).
@@ -444,6 +455,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     },
   );
 
+  // Traceability: Jira 120 AC1 (matrix 16613384)
   // WITHDRAW-EVENT-REG-01-B
   // Oracle (SPEC 01-B + D6): REG-9002 on started EVT-104 has no actionable control and shows the AC5 text.
   // The "Event has occurred" badge bullet was removed from the case (no such badge in this app).
@@ -456,6 +468,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(within(section()).getByText("Event has already occurred")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 120 AC4 (matrix 16613384)
   // WITHDRAW-EVENT-REG-04-A
   // Oracle (SPEC 04-A + D11): nothing can start a withdrawal for REG-9002; no request is made.
   // Kills: past-event control opens the prompt.
@@ -467,6 +480,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 120 AC4 (matrix 16613384)
   // WITHDRAW-EVENT-REG-04-A
   // Oracle (DERIVED from AC4/[A7]): the cut-off is the START, not the end. An event that started a minute
   // ago and has not ended is already blocked.
@@ -478,6 +492,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(within(section()).getByText("Event has already occurred")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 120 AC5 (matrix 16613384)
   // WITHDRAW-EVENT-REG-05-A
   // Oracle (SPEC 05-A A + AC5): exactly "Event has already occurred", visible, in the withdrawal area.
   // Kills: wording differs from AC5; generic text.
@@ -489,6 +504,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(message).toBeVisible();
   });
 
+  // Traceability: Jira 120 AC5 (matrix 16613384)
   // WITHDRAW-EVENT-REG-05-A
   // Oracle (Added 05-A B): the page loaded before the start; the server answers 422 on confirm.
   // The dialog closes, the AC5 text appears, Withdraw disappears, the status stays Registered.
@@ -510,6 +526,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(screen.getByRole("heading", { name: "You're registered" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 120 AC5 (matrix 16613384)
   // WITHDRAW-EVENT-REG-05-D
   // Oracle (Added 05-D frontend): "already withdrawn" (e.g. done in another tab) closes the dialog and
   // reloads the registration, so the page shows the withdrawn status instead of a stale Registered.

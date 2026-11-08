@@ -22,6 +22,7 @@ function renderPanel(periods: Array<{ id: string; start: string; end: string; re
 }
 
 describe("SPM-122 venue unavailable period controls", () => {
+  // Traceability: Jira 122 AC1 (matrix 21103356)
   // VEN-UNAVAIL-01-A/02-A/04-A: a selected venue receives the exact reviewed period.
   it("reviews and saves a free-text period, then lists affected events", async () => {
     // Arrange: the server returns a saved period and one affected event.
@@ -49,6 +50,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(onSaved).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 122 AC1 (matrix 21103356)
   // SPM-122 / VEN-UNAVAIL-01-A/04-A: local date-time fields must preserve the user's time outside UTC.
   it("sends Singapore local date-times as the corresponding UTC instants", async () => {
     // Arrange a reviewed Singapore afternoon interval; conversion is explicit and host-timezone independent.
@@ -71,6 +73,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(sent.end).toBe("2030-01-12T10:00:00.000Z");
   });
 
+  // Traceability: Jira 122 AC3 (matrix 21103356)
   // VEN-UNAVAIL-03-A: cancellation before confirmation causes no write.
   it("cancels a reviewed period without saving", async () => {
     // Arrange a fully entered period.
@@ -88,6 +91,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 122 AC1 (matrix 21103356)
   // VEN-UNAVAIL-01-B/02-B: invalid intervals and whitespace reasons block review.
   it("blocks reversed times and a whitespace-only reason with field errors", async () => {
     // Arrange invalid values.
@@ -105,6 +109,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 122 AC1 (matrix 21103356)
   // VEN-UNAVAIL-01-B/02-B: an untouched form must identify every missing required field.
   it("blocks review when both date-times and the reason are missing", async () => {
     // Arrange the untouched form and attempt to review it.
@@ -136,6 +141,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 122 AC5 (matrix 21103356)
   // VEN-UNAVAIL-05-A/B: an active period may end early while another stays intact.
   it("shows a dated reason and ends only the selected active period", async () => {
     // Arrange two periods, only the first marked current by the server.
@@ -159,6 +165,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(onSaved).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 122 AC5 (matrix 21103356)
   // VEN-UNAVAIL-05-A: cancelling early-end confirmation leaves the active period untouched.
   it("cancels an early-end confirmation without a write", async () => {
     // Arrange an active period and open its confirmation.
@@ -173,6 +180,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(screen.getByRole("button", { name: "End Early" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // VEN-UNAVAIL-04-A/07-C: a saved period with no conflicts is reported truthfully.
   it("shows an empty affected-booking result after a successful save", async () => {
     // Arrange a valid form and a server response with zero existing bookings.
@@ -191,6 +199,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(onSaved).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // VEN-UNAVAIL-04-A/05-A: a rejected write must not claim success or refresh stale data.
   it("shows a server validation error and keeps the period unsaved", async () => {
     // Arrange a valid-looking form that the server rejects with a field error.
@@ -223,6 +232,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(onSaved).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // VEN-UNAVAIL-04-A: an unfamiliar server field error must still be visible and recoverable.
   it("shows an unfamiliar server validation error and allows another review", async () => {
     // Arrange a valid form and a rejection whose field is not part of this form.
@@ -243,6 +253,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // VEN-UNAVAIL-04-A: a transport failure cannot be mistaken for a completed save.
   it("shows a connection failure without claiming the period was saved", async () => {
     // Arrange a valid form and a non-API transport exception.
@@ -262,6 +273,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // VEN-UNAVAIL-04-A: a server rejection without field detail remains visible to staff.
   it("shows a form-level server rejection", async () => {
     // Arrange a valid review and a server error without a field-error map.
@@ -280,6 +292,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 122 AC5 (matrix 21103356)
   // VEN-UNAVAIL-05-A: a failed early-end request must leave the venue state intact.
   it("shows an early-end failure without reporting a shortened period", async () => {
     // Arrange an active period and a rejected server request.
@@ -295,6 +308,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 122 AC5 (matrix 21103356)
   // VEN-UNAVAIL-05-A: an unexpected early-end failure is still visible.
   it("shows a generic early-end failure without refreshing", async () => {
     // Arrange an active period and a transport exception.
@@ -309,6 +323,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // VEN-UNAVAIL-04-SEC-1: non-staff readers see periods but no write controls.
   it("shows availability to a non-staff reader without management actions", () => {
     // Arrange and assert read-only controls.
@@ -344,6 +359,7 @@ describe("SPM-125 notified Coordinators after saving an unavailable period", () 
     status: "booked", affectedByUnavailablePeriod: true, ...(coordinatorNotified ? { coordinatorNotified } : {}),
   });
 
+  // Traceability: Jira 125 AC6 (matrix 39125581)
   /**
    * VEN-IMPACT-06-C (AC6): the result says how many Coordinators were notified and marks each affected booking
    * "Coordinator notified", or says when a booking had no assigned Coordinator to notify.
@@ -381,6 +397,7 @@ describe("SPM-125 notified Coordinators after saving an unavailable period", () 
     expect(items[2]).not.toHaveTextContent("Occupied incl. setup and turnaround");
   });
 
+  // Traceability: Jira 125 AC6 (matrix 39125581)
   /** VEN-IMPACT-06-BND-2 (AC6): one notified Coordinator is worded in the singular. */
   it("VEN-IMPACT-06-BND-2 words one notified Coordinator in the singular", async () => {
     const region = await saveWith([affected("b1", "Welcome Event", true)]);
@@ -390,6 +407,7 @@ describe("SPM-125 notified Coordinators after saving an unavailable period", () 
     );
   });
 
+  // Traceability: Jira 125 AC6 (matrix 39125581)
   /** VEN-IMPACT-06-BND-3 (AC6): when no affected booking has a Coordinator, the result says nobody was notified. */
   it("VEN-IMPACT-06-BND-3 says no Coordinator was notified when no affected booking has one", async () => {
     const region = await saveWith([affected("b1", "Unassigned Talk")]);

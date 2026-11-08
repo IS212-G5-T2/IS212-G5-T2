@@ -307,6 +307,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   // ---------- AC1: who can cancel ----------
 
   /** CANCEL-EVENT-01-A: the assigned Coordinator cancels a Confirmed event. */
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: M4
   it('CANCEL-EVENT-01-A: the assigned coordinator cancels EVT-301 and the audit row names COO-01', async () => {
     // Arrange: EVT-301 Confirmed, assigned to COO-01, submitted by ORG-01
@@ -326,6 +327,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   });
 
   /** CANCEL-EVENT-01-B: the submitting Organiser cannot cancel, even on their own Confirmed event. */
+  // Traceability: Jira 136 AC1 (matrix 23691421)
   // Kills: M8 (any Organiser may cancel)
   it('CANCEL-EVENT-01-B: the submitting organiser is refused 403 on EVT-301 and nothing changes', async () => {
     // Arrange: EVT-301 Confirmed, submitted by ORG-01 and assigned to COO-01
@@ -346,6 +348,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * Attendee, an anonymous caller nor the Coordinator Lead can cancel. Each refusal changes nothing.
    */
   describe('CANCEL-EVENT-01-C: only the assigned coordinator can cancel', () => {
+    // Traceability: Jira 136 AC1 (matrix 23691421)
     // Kills: M1, S19 (COO-02 row); M1, M8, S19 (ORG-02 row); M1, M8 (ORG-01 submitter row); M1, S19 (ATT-01 row);
     // M1, M7, S19 (LEAD-01 row).
     // The no-token case was deleted: its 401 comes from the shared AuthenticationMiddleware before any SPM-136 code runs,
@@ -375,7 +378,9 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
   /** CANCEL-EVENT-02-C: a body that does not carry boolean true confirmation is refused with MSG-CN-03. */
   describe('CANCEL-EVENT-02-C: the server refuses a cancel request without strict confirmation', () => {
+    // Traceability: Jira 136 AC2 (matrix 23691421)
     // Kills: M3 (every row); M10 (the string "true" row and the number 1 row)
+    // ID: CANCEL-EVENT-02-C
     it.each([
       ['confirmed omitted', { targetStatus: 'Cancelled' }],
       ['confirmed false', { targetStatus: 'Cancelled', confirmed: false }],
@@ -399,6 +404,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   // ---------- AC3: status becomes Cancelled, and only from cancellable statuses ----------
 
   /** CANCEL-EVENT-03-A: the stored row records who cancelled and when, from the injected clock. */
+  // Traceability: Jira 136 AC3 (matrix 23691421)
   // Kills: M4, M11
   it('CANCEL-EVENT-03-A: stores cancelled_by COO-01 and cancelled_at equal to the injected clock instant', async () => {
     // Arrange
@@ -419,7 +425,9 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
   /** CANCEL-EVENT-03-B: every status that is cancellable becomes Cancelled; every other status refuses. */
   describe('CANCEL-EVENT-03-B: cancellable statuses are Submitted, Approved, Planning and Confirmed', () => {
+    // Traceability: Jira 136 AC3 (matrix 23691421)
     // Kills: M4 (every row); S18 (Planning, Submitted and Approved rows); S19 and S22 (Submitted row); M12 and S19 (Approved row)
+    // ID: CANCEL-EVENT-03-B
     it.each([
       ['Planning (EVT-302)', 'Planning', 200],
       ['Confirmed (EVT-301)', 'Confirmed', 200],
@@ -465,6 +473,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-03-C: five simultaneous confirmed requests from both authorised users cancel once.
    * The Projector stock is 5; EVT-301 holds 2 and EVT-308 holds 1, so 2 are free before and 4 after.
    */
+  // Traceability: Jira 136 AC3, AC5 (matrix 23691421)
   // Kills: M4, S17, S19, S20, S24
   it('CANCEL-EVENT-03-C: five parallel cancels produce one success, one history row, one notice per recipient and one release', async () => {
     // Arrange: inventory Projector 5, EVT-301 with Projector x2 (Reserved); EVT-308 with Projector x1 (Reserved)
@@ -511,6 +520,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   // ---------- AC4: venue bookings and holds are released ----------
 
   /** CANCEL-EVENT-04-A: the approved booking and the live hold are released and the venue frees the slot. */
+  // Traceability: Jira 136 AC4 (matrix 23691421)
   // Kills: M4, M5, S11
   it('CANCEL-EVENT-04-A: VB-301a and VB-301b are released with released_at T0 and the slot is free for others', async () => {
     // Arrange: VB-301a Main Hall Approved; VB-301b Breakout Room 1 live hold
@@ -540,6 +550,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-04-B: another event's booking at Main Hall (a different slot) is untouched, and the
    * cancelled event's old slot no longer conflicts.
    */
+  // Traceability: Jira 136 AC4 (matrix 23691421)
   // Kills: M4, M14
   it('CANCEL-EVENT-04-B: VB-308 stays Approved at Main Hall and the released slot is not in conflict', async () => {
     // Arrange: EVT-301 at Main Hall 2026-11-05 10:00-12:00 SGT; EVT-308 Approved at Main Hall on 2026-11-06
@@ -564,6 +575,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-04-C: a fault while releasing equipment, after the status, venue and registration writes,
    * leaves the whole cancellation unapplied. A retry without the fault releases everything.
    */
+  // Traceability: Jira 136 AC3, AC4, AC5 (matrix 23691421)
   // Kills: M4, M5, M6, M15, S11
   it('CANCEL-EVENT-04-C: a release fault rolls back the whole cancellation and a retry completes it', async () => {
     // Arrange: EVT-301 Confirmed; the equipment releaser is replaced by one that throws
@@ -685,6 +697,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   // ---------- AC5: equipment reservations are released ----------
 
   /** CANCEL-EVENT-05-A: both equipment lines are Released and the stock they held becomes available. */
+  // Traceability: Jira 136 AC5 (matrix 23691421)
   // Kills: M4, M6, S12, S13
   it('CANCEL-EVENT-05-A: Projector shows 4 of 5 and Microphone 10 of 10 after the cancellation', async () => {
     // Arrange: inventory Projector 5 and Microphone 10; EVT-301 holds Projector x2 and Microphone x4; EVT-308 holds Projector x1
@@ -723,6 +736,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   }
 
   /** CANCEL-EVENT-05-B (part): another event's Projector reservation is untouched by the cancellation. */
+  // Traceability: Jira 136 AC5 (matrix 23691421)
   // Kills: E1 (the equipment release not scoped to the cancelled event: EQ-308 of another event is released too)
   it('CANCEL-EVENT-05-B: EQ-308 stays Reserved x1 after EVT-301 is cancelled', async () => {
     // Arrange: EVT-301 holds Projector x2; EVT-308 holds Projector x1 Reserved
@@ -744,6 +758,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-06-A: the organiser, the assigned coordinator and every Registered attendee get exactly one
    * unread notice. Two clones of EVT-301 are cancelled by COO-01, each with the same three Registered attendees.
    */
+  // Traceability: Jira 136 AC6 (matrix 23691421)
   // Kills: M4, M17, S17, S19, S24
   it('CANCEL-EVENT-06-A: ORG-01, COO-01, ATT-01..03 each get one unread notice on each cancelled clone', async () => {
     // Arrange: two EVT-301 clones, each with the same three Registered attendees
@@ -793,6 +808,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-06-B: every Waitlisted attendee is notified of the cancellation. EVT-301 has ATT-04 and ATT-05 Waitlisted
    * with no notifications; COO-01 cancels; each gets exactly one in-app notice with the waitlist wording.
    */
+  // Traceability: Jira 136 AC6 (matrix 23691421)
   // Kills: W1, W2, W6
   it('CANCEL-EVENT-06-B: ATT-04 and ATT-05 on the EVT-301 waiting list each get exactly one "Your waitlist place is cancelled" notice', async () => {
     // Arrange: EVT-301 Confirmed and full (limit 3, ATT-01..03 Registered) with an open list, so ATT-04 and ATT-05 stay
@@ -823,6 +839,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   });
 
   /** CANCEL-EVENT-06-C: non-recipients get nothing and recipients get one notice each. */
+  // Traceability: Jira 136 AC6 (matrix 23691421)
   // Kills: M4, M18, S17, S20, S24
   it('CANCEL-EVENT-06-C: the withdrawn attendee, an unrelated attendee, another organiser and another coordinator get nothing', async () => {
     // Arrange: EVT-301 with ATT-06 Withdrawn; ATT-07 unregistered; ORG-02 and COO-02 not linked to EVT-301
@@ -842,6 +859,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   // ---------- AC8: registrations ----------
 
   /** CANCEL-EVENT-08-A (registrations): Registered rows become Cancelled with a reason; nothing is promoted. */
+  // Traceability: Jira 136 AC8 (matrix 23691421)
   // Kills: M4, M19, S14
   it('CANCEL-EVENT-08-A: three Registered rows become Cancelled with reason "Event cancelled" and nothing is promoted', async () => {
     // Arrange: EVT-301 with ATT-01..03 Registered (the waiting-list half is the combined case below)
@@ -922,6 +940,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-08-B: the Withdrawn row is untouched, withdrawing a cancelled registration is refused,
    * the report shows zero, and a new registration is refused as closed.
    */
+  // Traceability: Jira 136 AC8 (matrix 23691421)
   // Kills: M4, M19, S9
   it('CANCEL-EVENT-08-B: withdrawn rows stay identical, cancelled registrations cannot be withdrawn or re-registered', async () => {
     // Arrange: EVT-301 cancelled; ATT-06 Withdrawn (withdrawn_at 2026-10-10T04:00Z)

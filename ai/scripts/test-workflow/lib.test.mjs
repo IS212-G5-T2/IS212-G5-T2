@@ -66,6 +66,7 @@ describe('CONFIRM-EVENT-01-C: authorisation', () => {
   /** Another coordinator is refused. */
   it('refuses %s with 403', () => {});
 
+  // Traceability: Jira 135 AC6 (matrix 22905205)
   // plain comment
   it.each([
     ['a', 1],

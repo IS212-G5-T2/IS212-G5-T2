@@ -61,6 +61,7 @@ describe("SafetyCheckChangesNeeded", () => {
     expect(screen.getByText("Changes needed")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04/05: each feedback row names only the venue and equipment selected for that item. */
   it("shows the selected venue and equipment names beside their own feedback and omits unknown IDs", () => {
     renderFeedback({
@@ -110,6 +111,7 @@ describe("SafetyCheckChangesNeeded", () => {
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: separate submitted rows appear as separate checkboxes and contribute individually to the coordinator count. */
   it("SAFETY-DECISION-03 counts three change rows and resolves the selected item", async () => {
     const user = userEvent.setup();

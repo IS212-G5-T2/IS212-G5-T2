@@ -123,6 +123,7 @@ describe('ChangeRequestsService.create', () => {
     script = { event: eventRow() };
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-A, REQ-CHANGE-03-A, REQ-CHANGE-04-A: the owner's request is stored Pending, returned, and the coordinator notified. */
   it('REQ-CHANGE-01-A stores a pending request and notifies the assigned coordinator', async () => {
     const { svc, calls } = service({ ...script, safety: true });
@@ -145,6 +146,7 @@ describe('ChangeRequestsService.create', () => {
     expect(notification.params[3]).toBe(EVENT_ID);
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-G: the live event is never written when a request is made. */
   it('REQ-CHANGE-01-G never updates the event itself', async () => {
     const { svc, calls } = service(script);
@@ -155,6 +157,7 @@ describe('ChangeRequestsService.create', () => {
     expect(sqlOf(calls)).toContain('FOR UPDATE');
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-B, REQ-CHANGE-01-E: only fields that differ from the stored values are kept; dates compare as instants and lists as sets. */
   it('REQ-CHANGE-01-B keeps only the fields that actually change, with their original values', async () => {
     const { svc } = service(script);
@@ -174,6 +177,7 @@ describe('ChangeRequestsService.create', () => {
     expect(record.reason).toBe('More speakers.');
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-E: values identical to the current ones are not a request. */
   it('REQ-CHANGE-01-E rejects a request whose values equal the current values', async () => {
     const { svc, calls } = service(script);
@@ -183,6 +187,7 @@ describe('ChangeRequestsService.create', () => {
     expect(sqlOf(calls)).not.toContain('INSERT');
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /**
    * REQ-CHANGE-01-C: the end must stay after the start once merged with the stored values (10:30 to 13:30 UTC).
    * The equal-time rows are the boundary: an end equal to the start is not later than it (SPM-175, mutant C4).
@@ -199,6 +204,7 @@ describe('ChangeRequestsService.create', () => {
     expect(error.getResponse().errors).toEqual({ [field]: MESSAGES.endBeforeStart });
   });
 
+  // Traceability: Jira 64 AC7, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-F (AC7): Submitted, Approved, Planning and Confirmed accept requests. */
   it.each(['Submitted', 'Approved', 'Planning', 'Confirmed'])(
     'REQ-CHANGE-01-F accepts a request on a %s event',
@@ -227,6 +233,7 @@ describe('ChangeRequestsService.create', () => {
     expect(lookup.params).toEqual([EVENT_ID]);
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   /** SPM-153 AC6 (COMPLETE-EVENT-06-E): a Completed event refuses change requests with MSG-CP-06. */
   it('COMPLETE-EVENT-06-E refuses a request on a Completed event with 409 EVENT_COMPLETED', async () => {
     const { svc } = service({ event: eventRow({ status: 'Completed' }) });
@@ -239,6 +246,7 @@ describe('ChangeRequestsService.create', () => {
     });
   });
 
+  // Traceability: Jira 64 AC7, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-F: closed events refuse change requests. */
   it.each(['Rejected', 'Cancelled'])(
     'REQ-CHANGE-01-F refuses a request on a %s event',
@@ -251,6 +259,7 @@ describe('ChangeRequestsService.create', () => {
     },
   );
 
+  // Traceability: Jira 64 AC7, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-F: an event that has started (at the start instant) refuses requests. */
   it('REQ-CHANGE-01-F refuses a request once the event has started', async () => {
     const { svc } = service({ event: eventRow({ start_date_time: NOW, end_date_time: new Date('2027-01-01T02:00:00Z') }) });
@@ -260,6 +269,7 @@ describe('ChangeRequestsService.create', () => {
     });
   });
 
+  // Traceability: Jira 64 AC8, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-H: a second request while one is pending is refused. */
   it('REQ-CHANGE-01-H refuses a second request while one is pending', async () => {
     const { svc, calls } = service({ ...script, pending: true });
@@ -270,6 +280,7 @@ describe('ChangeRequestsService.create', () => {
     expect(sqlOf(calls)).not.toContain('INSERT');
   });
 
+  // Traceability: Jira 64 AC8, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-H: a concurrent duplicate caught by the unique index is reported the same way. */
   it('REQ-CHANGE-01-H maps the one-pending unique index to the same 409', async () => {
     const { svc } = service({ ...script, insertError: Object.assign(new Error('dup'), { code: '23505' }) });
@@ -286,6 +297,7 @@ describe('ChangeRequestsService.create', () => {
     await expect(svc.create(organiser, EVENT_ID, { changes: { description: 'New' } })).rejects.toBe(failure);
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-C: an unassigned event's request is stored, with nobody to notify until the Lead assigns it. */
   it('REQ-CHANGE-03-C stores a request on an unassigned event without a notification', async () => {
     const { svc, calls } = service({ event: eventRow({ status: 'Submitted', coordinator_id: null }) });
@@ -293,6 +305,7 @@ describe('ChangeRequestsService.create', () => {
     expect(sqlOf(calls)).not.toContain('INSERT INTO notifications');
   });
 
+  // Traceability: Jira 64 Cross-cutting (matrix 28016760)
   /** REQ-CHANGE-08-A: only an authenticated organiser who owns the event may submit. */
   it('REQ-CHANGE-08-A refuses everyone but the owning organiser', async () => {
     const body = { changes: { description: 'New' } };
@@ -303,6 +316,7 @@ describe('ChangeRequestsService.create', () => {
     await expect(service({}).svc.create(organiser, EVENT_ID, body)).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 64 Cross-cutting (matrix 28016760)
   /** REQ-CHANGE-08-C: a malformed event id is a 404 without touching the database. */
   it('REQ-CHANGE-08-C answers 404 for a malformed event id', async () => {
     const { svc, calls } = service(script);
@@ -333,6 +347,7 @@ describe('ChangeRequestsService.create', () => {
 });
 
 describe('ChangeRequestsService reads', () => {
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-A: the owner lists the event's requests; REQ-CHANGE-03-A: so does its assigned coordinator. */
   it('REQ-CHANGE-05-A lists an event\'s requests for its owner and its assigned coordinator', async () => {
     for (const user of [organiser, coordinator]) {
@@ -344,6 +359,7 @@ describe('ChangeRequestsService reads', () => {
     }
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-C, REQ-CHANGE-03-B: nobody else can read an event's requests. */
   it('REQ-CHANGE-05-C hides an event\'s requests from other organisers, coordinators and attendees', async () => {
     const otherCoordinator = { ...coordinator, uid: 'coord-2' } as AuthenticatedUser;
@@ -354,6 +370,7 @@ describe('ChangeRequestsService reads', () => {
     await expect(service({}).svc.listForEvent(undefined, EVENT_ID)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-B: decided requests carry who decided, when and why. */
   it('REQ-CHANGE-05-B returns the decision details of a decided request', async () => {
     const { svc, database } = service({ event: eventRow() });
@@ -400,6 +417,7 @@ describe('ChangeRequestsService reads', () => {
     expect(vi.mocked(database.query).mock.calls[1][0]).toContain('event_safety_checks');
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-A: the dashboard list is scoped to the caller's own events and roles. */
   it('REQ-CHANGE-05-A lists the caller\'s requests scoped by role, optionally by status', async () => {
     const { svc, calls } = service({});
@@ -410,6 +428,7 @@ describe('ChangeRequestsService reads', () => {
     expect(calls[1].params).toEqual(['coord-1', false, true, null]);
   });
 
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   /** REVIEW-CHANGE-01-A (SPM-65 AC1): each record names the organiser and carries the review fields. */
   it('REVIEW-CHANGE-01-A maps the organiser name, re-check list and safety reset', () => {
     const { svc } = service({});
@@ -434,6 +453,7 @@ describe('ChangeRequestsService reads', () => {
 
 describe('ChangeRequestsService.withdraw', () => {
   /** REQ-CHANGE-09-C (AC8): the owner withdraws their own pending request. */
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** Also REVIEW-CHANGE-12-A (SPM-65 AC11): withdrawing closes the request (status Withdrawn) and audits it. */
   it('REQ-CHANGE-09-C withdraws the owner\'s pending request', async () => {
     const { svc, calls } = service({ event: eventRow(), request: requestRow() });
@@ -445,6 +465,7 @@ describe('ChangeRequestsService.withdraw', () => {
     expect(audit?.params).toEqual(expect.arrayContaining([REQUEST_ID, 'Withdrawn', 'Organiser 1']));
   });
 
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** REQ-CHANGE-09-B (AC8): a request that is already decided or withdrawn cannot be withdrawn. */
   it.each(['Approved', 'Denied', 'Withdrawn'])('REQ-CHANGE-09-B refuses to withdraw a %s request', async (status) => {
     const { svc, calls } = service({ event: eventRow(), request: requestRow({ status }) });
@@ -455,6 +476,7 @@ describe('ChangeRequestsService.withdraw', () => {
     expect(sqlOf(calls)).not.toContain("SET status = 'Withdrawn'");
   });
 
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** REQ-CHANGE-09-A (AC8): only the owner may withdraw, and only a request of that event. */
   it('REQ-CHANGE-09-A refuses other users, unknown requests and malformed ids', async () => {
     await expect(service({}).svc.withdraw(undefined, EVENT_ID, REQUEST_ID)).rejects.toBeInstanceOf(UnauthorizedException);

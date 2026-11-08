@@ -49,6 +49,7 @@ describe('SPM-134 hold lifecycle notices in the notification feed', () => {
     service = module.get(EventsService);
   });
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-F (SPM-134 AC1): the feed asks for the four hold lifecycle types only for a Coordinator, so an
    * Organiser's, the Lead's or an Attendee's bell cannot receive them, and the query is scoped to the signed-in user.
@@ -70,6 +71,7 @@ describe('SPM-134 hold lifecycle notices in the notification feed', () => {
     for (const type of TYPES) expect(params[1].includes(type)).toBe(included);
   });
 
+  // Traceability: Jira 134 AC6 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-06-A (SPM-134 AC6): each lifecycle notice in the feed carries the id of its hold (the bell link target)
    * and is labelled a Coordinator notice. A non-hold notice (EventApproved) is the control and keeps the Organiser label.
@@ -92,6 +94,7 @@ describe('SPM-134 hold lifecycle notices in the notification feed', () => {
     expect(items[0].createdAt).toBe('2030-01-10T12:00:00.000Z');
   });
 
+  // Traceability: Jira 134 AC7 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-07-C (SPM-134 AC7): a Coordinator can mark a hold lifecycle notice read, scoped to their own notices;
    * an Organiser's call carries none of the types and finds nothing.

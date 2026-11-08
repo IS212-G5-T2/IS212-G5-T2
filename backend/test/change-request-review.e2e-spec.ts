@@ -129,6 +129,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
       )
     ).rows;
 
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   /** REVIEW-CHANGE-01-A, REVIEW-CHANGE-01-B, REVIEW-CHANGE-01-C: the coordinator's pending list holds their events' pending requests only. */
   it('REVIEW-CHANGE-01-A lists pending requests for the assigned coordinator only', async () => {
     const second = await seedEvent('Approved');
@@ -175,6 +176,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     });
   });
 
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   /** REVIEW-CHANGE-01-E: after reassignment only the new coordinator can decide the request. */
   it('REVIEW-CHANGE-01-E moves the decision to the newly assigned coordinator', async () => {
     const created = await submit({ description: 'Updated agenda.' }).expect(
@@ -188,6 +190,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     await approve(created.body.id, otherCoordinator).expect(200);
   });
 
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   /** REVIEW-CHANGE-03-A, REVIEW-CHANGE-03-C, REVIEW-CHANGE-03-E, REVIEW-CHANGE-03-H: the read-only preview lists venue and equipment conflicts and changes nothing. */
   it('REVIEW-CHANGE-03-A previews booking, turnaround and equipment conflicts without changing anything', async () => {
     const venue = await insertVenue('CR Hall', 150, 15, 15);
@@ -259,6 +262,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     ).toBe(0);
   });
 
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   /** REVIEW-CHANGE-03-F, REVIEW-CHANGE-03-G: capacity and registrations are checked too; a compatible change has no conflicts. */
   it('REVIEW-CHANGE-03-G reports attendance below the registered count and the attendees a move affects', async () => {
     const venue = await insertVenue('CR Small Room', 60);
@@ -317,6 +321,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     });
   });
 
+  // Traceability: Jira 65 AC4 (matrix 28016830)
   /** REVIEW-CHANGE-04-A, REVIEW-CHANGE-07-A, REVIEW-CHANGE-07-B, REVIEW-CHANGE-07-D, REVIEW-CHANGE-10-A: approving applies only the requested fields, notifies and audits once. */
   it('REVIEW-CHANGE-04-A approves, updates only the requested fields, notifies the organiser and audits', async () => {
     const before = await eventRow();
@@ -385,6 +390,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     ]);
   });
 
+  // Traceability: Jira 156 DoD3, DoD5, DoD6, DoD7 (matrix 38010922)
   /** EVENT-UPDATE-07-E (SPM-156): an approved request is in the event's change history; a denied one is not. */
   it('EVENT-UPDATE-07-E records an approved change request on an Approved event in change history', async () => {
     const approved = await seedEvent('Approved');
@@ -460,6 +466,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     expect(after.rows[0].n).toBe(2);
   });
 
+  // Traceability: Jira 65 AC4 (matrix 28016830)
   /** REVIEW-CHANGE-04-B, REVIEW-CHANGE-04-C: a request is decided once; parallel decisions settle to one. */
   it('REVIEW-CHANGE-04-C decides a request exactly once', async () => {
     const created = await submit({ expectedAttendance: 90 }).expect(201);
@@ -476,6 +483,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     );
   });
 
+  // Traceability: Jira 65 AC11 (matrix 28016830)
   /**
    * REVIEW-CHANGE-12-A (AC11): a pending request is closed automatically when the organiser withdraws it.
    * Its status is Withdrawn (agreed 18 Oct 2026); it leaves the coordinator's pending list, cannot be
@@ -516,6 +524,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     ]);
   });
 
+  // Traceability: Jira 65 AC4 (matrix 28016830)
   /** REVIEW-CHANGE-04-D: values that are no longer valid are refused and nothing changes. */
   it('REVIEW-CHANGE-04-D refuses values that are no longer valid', async () => {
     const created = await submit({ description: 'x' }).expect(201);
@@ -537,6 +546,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     expect(await auditRows()).toEqual([]);
   });
 
+  // Traceability: Jira 65 AC11 (matrix 28016830)
   /**
    * REVIEW-CHANGE-12-B (AC11), REVIEW-CHANGE-04-E: a pending request is closed automatically when the event is cancelled.
    * Status Closed, decided by System with the reason; it leaves the pending list, cannot be decided and is audited.
@@ -583,6 +593,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     expect((await auditRows()).map((row) => row.outcome)).toEqual(['Closed']);
   });
 
+  // Traceability: Jira 65 AC5 (matrix 28016830)
   /** REVIEW-CHANGE-05-A, REVIEW-CHANGE-05-B, REVIEW-CHANGE-05-D, REVIEW-CHANGE-08-E, REVIEW-CHANGE-10-B: denying needs a reason, leaves the event as it was (safety check included), notifies and audits. */
   it('REVIEW-CHANGE-05-A denies with a reason and leaves the event unchanged', async () => {
     await pool.query(
@@ -634,6 +645,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     });
   });
 
+  // Traceability: Jira 65 AC8 (matrix 28016830)
   /** REVIEW-CHANGE-08-A, REVIEW-CHANGE-08-C, REVIEW-CHANGE-08-D: approving resets an existing safety check and a Confirmed event returns to Planning. */
   it('REVIEW-CHANGE-08-D resets the safety check and returns a Confirmed event to Planning', async () => {
     const confirmed = await seedEvent('Confirmed');
@@ -700,6 +712,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     ).toEqual([]);
   });
 
+  // Traceability: Jira 65 AC8 (matrix 28016830)
   /** REVIEW-CHANGE-08-B, REVIEW-CHANGE-08-C: approving a change to any permitted detail resets an existing safety check. */
   it.each([
     ['startDateTime', { startDateTime: '2030-04-14T11:00:00Z' }],
@@ -737,6 +750,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     },
   );
 
+  // Traceability: Jira 65 AC9 (matrix 28016830)
   /** REVIEW-CHANGE-09-A, REVIEW-CHANGE-09-B, REVIEW-CHANGE-09-D: the affected arrangements are listed after approval and ticked off one by one. */
   it('REVIEW-CHANGE-09-A lists arrangements to re-check after approval and ticks them off', async () => {
     const venue = await insertVenue('CR Hall', 150);
@@ -795,6 +809,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     await tick(recheck[1].id, organiser as DatabaseUser).expect(403);
   });
 
+  // Traceability: Jira 65 AC9 (matrix 28016830)
   /** REVIEW-CHANGE-09-C: a description-only approval has nothing to re-check. */
   it('REVIEW-CHANGE-09-C lists nothing when no arrangement is affected', async () => {
     const venue = await insertVenue('CR Hall', 150);
@@ -806,6 +821,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     expect(response.body.request.recheck).toEqual([]);
   });
 
+  // Traceability: Jira 65 AC10 (matrix 28016830)
   /** REVIEW-CHANGE-10-D: the audit log is append-only, newest first, and readable by the owner and assigned coordinator only. */
   it('REVIEW-CHANGE-10-D keeps an append-only audit log for the owner and the assigned coordinator', async () => {
     const first = await submit({ description: 'First change.' }).expect(201);
@@ -848,6 +864,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
       .expect(404);
   });
 
+  // Traceability: Jira 65 Cross-cutting (matrix 28016830)
   /** REVIEW-CHANGE-11-A, REVIEW-CHANGE-11-B: only the assigned coordinator decides, and inputs are strict. */
   it('REVIEW-CHANGE-11-A refuses everyone but the assigned coordinator and invalid input', async () => {
     const created = await submit({ description: 'New agenda.' }).expect(201);

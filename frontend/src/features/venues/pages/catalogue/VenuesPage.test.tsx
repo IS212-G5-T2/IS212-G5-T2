@@ -201,6 +201,7 @@ describe("VenuesPage catalogue loading", () => {
     );
   });
 
+  // Traceability: Jira 52 AC2 (matrix 28868679)
   /** SPM-52 AC1-AC2 (extends SPM-51 filtering): name/location search and capacity, facility and accessibility filters narrow the list, and the creation status still displays. */
   it("VEN-SRCH-02-G applies each editable catalogue filter and displays the creation status", async () => {
     const user = userEvent.setup();
@@ -440,6 +441,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
 
   afterEach(() => cleanup());
 
+  // Traceability: Jira 52 AC1 (matrix 28868679)
   /** SPM-52 AC1: the name search matches a partial name ignoring letter case. */
   it("VEN-SRCH-01-D narrows the cards by a partial, case-insensitive name", async () => {
     const user = userEvent.setup();
@@ -453,6 +455,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(screen.getByText("1 venue matches your criteria.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 52 AC2 (matrix 28868679)
   /** SPM-52 AC2: capacity, room layout, facilities and accessibility must all match (only venues matching all selections are shown). */
   it("VEN-SRCH-02-F shows only venues that match every selected capacity, layout, facility and accessibility criterion", async () => {
     const user = userEvent.setup();
@@ -471,6 +474,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(visibleVenueNames()).toEqual(["Orchid Hall"]);
   });
 
+  // Traceability: Jira 52 AC3 (matrix 28868679)
   /** SPM-52 AC3: a date and time range hides venues busy in that range: one with a booking that overlaps it directly, and one whose booking clashes only with its setup or turnaround buffer. Free venues stay visible. */
   it("VEN-SRCH-03-G hides venues busy in the requested range, including buffer time", async () => {
     const overlapping: VenueRecord = {
@@ -498,6 +502,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(visibleVenueNames()).toEqual(["Orchid Hall", "Maple Room"]);
   });
 
+  // Traceability: Jira 52 AC4 (matrix 28868679)
   /** SPM-52 AC4: opening the search from an event starts every filter from that event's requirements. */
   it("VEN-SRCH-04-D starts the filters from the event and lists only venues that suit it and are free", async () => {
     apiMock.mockResolvedValue([orchid, maple, fern, coral, cypress, cedar]);
@@ -513,6 +518,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(screen.getByRole("checkbox", { name: "Wheelchair access" })).toBeChecked();
   });
 
+  // Traceability: Jira 52 AC4 (matrix 28868679)
   /** SPM-52 AC4: event-derived filters remain editable and the results follow each change. Unchecking Projector lists a venue that differs only by lacking it; a capacity change narrows the list; clearing the filters restores the event's results. */
   it("VEN-SRCH-04-E lets the user change any event-derived filter without re-applying the event", async () => {
     const user = userEvent.setup();
@@ -551,6 +557,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(visibleVenueNames()).toEqual(["Orchid Hall", "Coral Workshop Lab", "Cypress Training Suite"]);
   });
 
+  // Traceability: Jira 52 AC4 (matrix 28868679)
   /** SPM-52 AC4 failure: when the event cannot load, no event filters are applied and the search still works. */
   it("VEN-SRCH-04-F keeps the search usable with empty filters when the event cannot be loaded", async () => {
     const user = userEvent.setup();
@@ -569,6 +576,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(visibleVenueNames()).toEqual(["Maple Room"]);
   });
 
+  // Traceability: Jira 52 AC5 (matrix 28868679)
   /** SPM-52 AC5: a non-whole minimum capacity (99.5) is reported and not applied; applied, it would drop the 20-seat room, so that room staying visible proves the criterion is ignored. Entering a valid capacity then applies it. */
   it("VEN-SRCH-05-E reports an invalid minimum capacity and keeps the results unfiltered by it", async () => {
     const user = userEvent.setup();
@@ -586,6 +594,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(visibleVenueNames()).toEqual(["Orchid Hall"]);
   });
 
+  // Traceability: Jira 52 AC5 (matrix 28868679)
   /** SPM-52 AC5: an end time equal to or before the start time is reported and not applied; a half-entered range is reported on the empty field. Both venues stay visible until a valid range is entered. */
   it("VEN-SRCH-05-F reports an end time not after the start time and does not apply the range", async () => {
     apiMock.mockResolvedValue([orchid, fern]);
@@ -609,6 +618,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(visibleVenueNames()).toEqual(["Orchid Hall"]);
   });
 
+  // Traceability: Jira 52 AC6 (matrix 28868679)
   /** SPM-52 AC6: the count reflects the current criteria, with the singular form for one match. */
   it("VEN-SRCH-06-A shows how many venues match the current criteria", async () => {
     const user = userEvent.setup();
@@ -623,6 +633,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(screen.getByText("1 venue matches your criteria.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 52 AC6 (matrix 28868679)
   /** SPM-52 AC6: each result shows layouts and offers one Check Availability button, with no separate availability link. */
   it("VEN-SRCH-06-B shows layouts and offers one Check Availability button per result", async () => {
     apiMock.mockResolvedValue([orchid, coral]);
@@ -634,6 +645,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(screen.queryByRole("link", { name: /availability/i })).toBeNull();
   });
 
+  // Traceability: Jira 52 AC6 (matrix 28868679)
   /** SPM-52 AC6: without event context, Check Availability opens the SPM-51 availability view for that venue with no query string. */
   it("VEN-SRCH-06-C opens the venue availability view from a result without requiring an event", async () => {
     const user = userEvent.setup();
@@ -645,6 +657,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(await screen.findByText("Venue availability screen: venue-orchid; event:")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 52 AC6 (matrix 28868679)
   /** SPM-52 AC6: with event context, Check Availability opens the SPM-51 view for that venue carrying the event. */
   it("VEN-SRCH-06-H carries the event into the availability view opened from a result", async () => {
     const user = userEvent.setup();
@@ -656,6 +669,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(await screen.findByText("Venue availability screen: venue-orchid; event: event-60")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 52 AC7 (matrix 28868679)
   /** SPM-52 AC7: one action clears every search and filter criterion. */
   it("VEN-SRCH-07-A clears all search and filter criteria in one step", async () => {
     const user = userEvent.setup();
@@ -682,6 +696,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(visibleVenueNames()).toEqual(["Orchid Hall", "Maple Room"]);
   });
 
+  // Traceability: Jira 52 AC8 (matrix 28868679)
   /** SPM-52 AC8: when nothing matches, the page says so and suggests adjusting the filters. */
   it("VEN-SRCH-08-A explains that no venue matches and suggests adjusting the filters", async () => {
     const user = userEvent.setup();
@@ -696,6 +711,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(screen.getByText("0 venues match your criteria.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 52 AC8 (matrix 28868679)
   /** SPM-52 AC8 (failure path of the results area): while the catalogue request fails, the results area shows only the retry message, with no result count and no no-match text. Retrying restores the results and the count, and the search still applies. */
   it("VEN-SRCH-08-B shows no result count while the catalogue is unavailable and recovers on retry", async () => {
     const user = userEvent.setup();
@@ -712,6 +728,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(visibleVenueNames()).toEqual(["Maple Room"]);
   });
 
+  // Traceability: Jira 52 AC4 (matrix 28868679)
   /** SPM-52 AC4 (state): the event's requirements are applied when the event finishes loading after the page opens. */
   it("VEN-SRCH-04-H pre-fills the filters when the event finishes loading after the page opens", async () => {
     useAppStore.setState({ events: [] });
@@ -733,6 +750,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(screen.getByRole("checkbox", { name: "Projector" })).toBeChecked();
   });
 
+  // Traceability: Jira 52 AC3 (matrix 28868679)
   /** SPM-52 AC3 (concurrency): a tentative hold that expires while the page stays open stops blocking its venue at the expiry instant, without a reload. Venue A's only hold expires first (09:10) and venue B's hold expires later (09:30). The page must arm its clock for the earliest expiry: A reappears at 09:10 while B stays hidden, and B reappears at 09:30. */
   it("VEN-SRCH-03-I re-judges a venue when its tentative hold expires while the page is open", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
@@ -789,6 +807,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     }
   });
 
+  // Traceability: Jira 52 AC3 (matrix 28868679)
   /** SPM-52 AC3 (concurrency, timer limit): a hold more than 24.8 days away is re-checked through timers no longer than the browser's maximum delay (2,147,483,647 ms, about 24.86 days), and at least one timer is armed at 24 days or more. A longer delay would overflow and fire at once, re-judging the venue in a tight loop. The test checks the armed delays before any time is advanced, then that nothing fires during the next hour while the hold is still active. */
   it("VEN-SRCH-03-K caps the re-check timer for a hold more than 24.8 days away", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
@@ -832,6 +851,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     }
   });
 
+  // Traceability: Jira 52 AC5 (matrix 28868679)
   /** SPM-52 AC5 (interaction): a valid date range still narrows the results while the minimum capacity is invalid. */
   it("VEN-SRCH-05-H still applies a valid date range while the minimum capacity is invalid", async () => {
     const user = userEvent.setup();
@@ -850,6 +870,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(screen.getByText("Minimum capacity must be a positive whole number.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 52 AC5 (matrix 28868679)
   /** SPM-52 AC5: every entry that is not a positive whole number (text, zero, negative, decimal, exponent) shows the capacity error and is not applied. "99.5" would hide the 20-seat room and "1e3" would hide both venues if they were applied, so both venues staying visible proves each entry is ignored. */
   it("VEN-SRCH-05-J reports every non-whole or non-positive capacity entry and keeps the results unfiltered by it", async () => {
     const user = userEvent.setup();
@@ -865,6 +886,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     }
   });
 
+  // Traceability: Jira 52 AC6 (matrix 28868679)
   /** SPM-52 AC6 (state): a change from a matching to a non-matching criterion updates the count and the cards together. */
   it("VEN-SRCH-06-I updates the count and the visible cards together when the criteria stop matching", async () => {
     const user = userEvent.setup();
@@ -880,6 +902,7 @@ describe("VenuesPage search and filters (SPM-52)", () => {
     expect(screen.getByText("No venues match these filters.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 52 AC7 (matrix 28868679)
   /** SPM-52 AC7 (interaction): clear-all also removes facilities and accessibility needs that the event pre-filled, so every venue is shown again. */
   it("VEN-SRCH-07-B clears the event-derived facility and accessibility criteria as well", async () => {
     const user = userEvent.setup();

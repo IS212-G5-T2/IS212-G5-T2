@@ -39,6 +39,7 @@ describe('SPM-51 venue booking request submission', () => {
     vi.resetAllMocks();
   });
 
+  // Traceability: Jira 51 AC7 (matrix 24117310)
   /** VEN-AVL-07-SEC-1: an API conflict refuses the request and leaves persistence untouched. */
   it('returns a conflict when the fresh schedule check finds a new booking', async () => {
     submitBookingRequest.mockResolvedValue({
@@ -75,6 +76,7 @@ describe('SPM-51 venue booking request submission', () => {
     expect(submitBookingRequest).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 51 AC6 (matrix 24117310)
   /** VEN-AVL-06-A: a conflict-free request returns its persisted pending booking reference. */
   it('returns the recorded request and booking reference after persistence succeeds', async () => {
     submitBookingRequest.mockResolvedValue({
@@ -120,6 +122,7 @@ describe('SPM-51 venue booking request submission', () => {
     expect(submitBookingRequest).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 54 AC3 (matrix 22839839)
   /** VEN-BKG-03-SEC-2: an unassigned Coordinator cannot create a venue request for another Coordinator's event. */
   it('VEN-BKG-03-SEC-2 SPM-54 refuses an event not assigned to the caller', async () => {
     submitBookingRequest.mockResolvedValue({ kind: 'event-not-assigned' });
@@ -138,6 +141,7 @@ describe('SPM-51 venue booking request submission', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 54 AC1, AC2 (matrix 22839839)
   /** VEN-BKG-02-B: an event outside the open-for-booking states is blocked at the service boundary. */
   it('SPM-54 preserves the closed-event conflict response without creating a request', async () => {
     submitBookingRequest.mockResolvedValue({
@@ -155,6 +159,7 @@ describe('SPM-51 venue booking request submission', () => {
     expect(submitBookingRequest).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 54 AC4, AC8 (matrix 22839839)
   /** VEN-BKG-08-SEC-1: only the authenticated Coordinator can read bookings scoped to their assignment. */
   it('VEN-BKG-08-SEC-1 SPM-54 scopes the booking list to an authenticated Coordinator', async () => {
     listCoordinatorBookings.mockResolvedValue([{ id: 'booking-1' }]);
@@ -170,6 +175,7 @@ describe('SPM-51 venue booking request submission', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-SEC-1: malformed or unowned booking identifiers do not cancel another event's request. */
   it('VEN-BKG-09-SEC-1 SPM-54 rejects malformed and unowned venue booking cancellations', async () => {
     await expect(
@@ -191,6 +197,7 @@ describe('SPM-51 venue booking request submission', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: only active booking statuses can be cancelled; cancelled history rows remain unchanged. */
   it('SPM-54 refuses inactive bookings and returns retained cancellation status for active bookings', async () => {
     cancelCoordinatorBooking.mockResolvedValueOnce({ kind: 'not-active' });
@@ -203,6 +210,7 @@ describe('SPM-51 venue booking request submission', () => {
     ).resolves.toEqual({ id: venueId, status: 'cancelled' });
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-A and VEN-BKG-10-SEC-1: a last-active cancellation without the agreed confirmation boolean returns a warning. */
   it('VEN-BKG-10-A VEN-BKG-10-SEC-1 SPM-54 requires explicit confirmation for the last active booking', async () => {
     cancelCoordinatorBooking.mockResolvedValue({ kind: 'last-active' });

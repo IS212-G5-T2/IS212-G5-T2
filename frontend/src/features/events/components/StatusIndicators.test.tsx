@@ -35,12 +35,14 @@ function card(overrides: Partial<EventRecord> = {}): EventRecord {
 }
 
 describe("SPM-94 AC2: awaiting Coordinator assignment indicator", () => {
+  // Traceability: Jira 94 AC2 (matrix 22839633)
   // Kills: X4 (assignment indicator shown without the server flag), and the indicator text changing
   it("TRACK-EVENT-STATUS-02-A: shows the exact text when the event is awaiting assignment", () => {
     render(<AssignmentIndicator event={{ awaitingCoordinatorAssignment: true }} />);
     expect(screen.getByText("Awaiting Coordinator Assignment")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 94 AC2 (matrix 22839633)
   // Kills: AssignmentIndicator rendering a label for an assigned event (awaitingCoordinatorAssignment false).
   it("TRACK-EVENT-STATUS-02-B: renders nothing once the event is assigned", () => {
     const { container } = render(<AssignmentIndicator event={{ awaitingCoordinatorAssignment: false }} />);
@@ -49,6 +51,7 @@ describe("SPM-94 AC2: awaiting Coordinator assignment indicator", () => {
 });
 
 describe("SPM-94 AC3: one safety indicator from the safety state", () => {
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // Owner decision (18 Oct 2026): no safety label until the venue and all equipment are reserved.
   // Kills: SafetyIndicator showing a label before the venue and equipment are reserved.
   it("TRACK-EVENT-STATUS-03-B: a changes-requested label waits until the venue and equipment are reserved", () => {
@@ -58,6 +61,7 @@ describe("SPM-94 AC3: one safety indicator from the safety state", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // Kills: M9 (two indicators at once), and the three indicator texts swapped
   it.each([
     ["AWAITING_CHECK", "Awaiting Safety Officer Check"],
@@ -69,12 +73,14 @@ describe("SPM-94 AC3: one safety indicator from the safety state", () => {
     expect(screen.getAllByText(/Safety /)).toHaveLength(1);
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // Kills: SafetyIndicator rendering a label when safetyIndicator is null.
   it("TRACK-EVENT-STATUS-03-B: renders nothing when there is no safety indicator", () => {
     const { container } = render(<SafetyIndicator event={{ safetyIndicator: null, status: "planning", venueRequestStatus: null, equipmentStatuses: [] }} />);
     expect(container).toBeEmptyDOMElement();
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // Owner decision (18 Oct 2026): empty equipmentStatuses means no equipment is needed, so a reserved venue alone completes the check.
   // Kills: SafetyIndicator hiding AWAITING_CHECK when equipment is empty (the readiness rule inverted).
   it("TRACK-EVENT-STATUS-03-B: a planning event with an approved venue and no equipment shows Awaiting Safety Officer Check", () => {
@@ -84,6 +90,7 @@ describe("SPM-94 AC3: one safety indicator from the safety state", () => {
 });
 
 describe("SPM-94 AC3 on the organiser list card", () => {
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: EventCard rendering the assignment or safety indicator on the organiser card.
   it("TRACK-EVENT-STATUS-01-A: the organiser card does not show assignment indicator (redundant with Coordinator field)", () => {
     render(
@@ -98,6 +105,7 @@ describe("SPM-94 AC3 on the organiser list card", () => {
     expect(screen.queryByText("Awaiting Safety Officer Check")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: EventCard showing organiser indicators to the attendee view.
   it("TRACK-EVENT-STATUS-01-A: the attendee card never shows organiser indicators", () => {
     render(

@@ -112,6 +112,7 @@ describe("NotificationBell (SPM-83 AC6)", () => {
   });
 
   // Kills: a read decision listed in the bell, or a Show all / Show unread toggle appearing (the dev-side toggle was retired by SPM-88).
+  // Traceability: Jira 83 AC6 (matrix 12124249)
   /**
    * EVENT-REJECT-02-D (changed by the 29 Oct 2026 bell decision): only unread rejection decisions are listed; there
    * is no Show all / Show unread toggle, and a read decision is not shown.
@@ -133,6 +134,7 @@ describe("NotificationBell (SPM-83 AC6)", () => {
   });
 
   // Kills: a failed load not showing the 'Could not load request decisions.' alert, or Retry not re-fetching the feed.
+  // Traceability: Jira 83 AC6 (matrix 12124249)
   /**
    * EVENT-REJECT-02-E: organisers can retry after rejection-notification loading fails.
    */
@@ -153,6 +155,7 @@ describe("NotificationBell (SPM-83 AC6)", () => {
   });
 
   // Kills: an empty successful feed showing a badge, or the dropdown lacking the "You're all caught up" message.
+  // Traceability: Jira 83 AC6 (matrix 12124249)
   /**
    * EVENT-REJECT-02-F (through the bell, 29 Oct 2026 decision): an empty successful feed shows no badge and
    * "You're all caught up" in the dropdown.
@@ -175,6 +178,7 @@ describe("NotificationBell (SPM-83 AC6)", () => {
   });
 
   // Kills: an all-read feed showing a badge or the 'All caught up' state missing, or a read decision still listed or reviewable.
+  // Traceability: Jira 83 AC6 (matrix 12124249)
   /**
    * EVENT-REJECT-02-G (through the bell, 29 Oct 2026 decision): an all-read feed shows no badge, lists no
    * decision and offers no way to review read ones.
@@ -233,6 +237,7 @@ describe("NotificationBell (SPM-40 AC4)", () => {
 
   // Parent AC (SUPPORTING): SPM-65 AC not in pasted list (to confirm) (story reassigned on 23 Oct 2026)
   // Kills: a denial shown with its reason, or the change-request link going to the event page instead of /change-requests.
+  // Traceability: Jira 65 AC5 (matrix 28016830)
   /** SPM-65: change request decisions show without the reason (AC3 amendment) and open the Change Requests page. */
   it("REVIEW-CHANGE-05-D shows a change request denial without its reason and an approval as a confirmation", async () => {
     setUserRole("organiser");
@@ -341,6 +346,7 @@ describe("NotificationBell (SPM-88 AC2: approval content)", () => {
     vi.useRealTimers();
   });
 
+  // Traceability: Jira 88 AC2 (matrix 37322836)
   /**
    * DECISION-NOTIFY-02-A: an approval shows the event name, the word approved and the
    * decision date as visible text (not only in a title attribute).
@@ -358,6 +364,7 @@ describe("NotificationBell (SPM-88 AC2: approval content)", () => {
     expect(screen.getByText("28 Oct 2026")).toBeVisible();
   });
 
+  // Traceability: Jira 88 AC2 (matrix 37322836)
   /**
    * DECISION-NOTIFY-02-C: an approval has no reason block.
    * Kills: a Reason block rendered for an approval.
@@ -379,6 +386,7 @@ describe("NotificationBell (SPM-88 AC2: decision date boundaries)", () => {
     vi.useRealTimers();
   });
 
+  // Traceability: Jira 88 AC2 (matrix 37322836)
   /**
    * DECISION-NOTIFY-02-BND-1: the visible date is the viewer's local calendar day, written
    * without a leading zero, inside a <time> element. The two timestamps are 00:30 and 23:30
@@ -403,6 +411,7 @@ describe("NotificationBell (SPM-88 AC2: decision date boundaries)", () => {
     expect(dates.map((el) => el.getAttribute("datetime")).sort()).toEqual([earlyLocal, lateLocal].sort());
   });
 
+  // Traceability: Jira 88 AC2 (matrix 37322836)
   /**
    * DECISION-NOTIFY-02-BND-2: an unparseable createdAt still shows the decision, with no
    * "NaN" or "undefined" date or relative time text.
@@ -427,6 +436,7 @@ describe("NotificationBell (SPM-88 AC3: rejection content)", () => {
     vi.useRealTimers();
   });
 
+  // Traceability: Jira 88 AC3 (matrix 37322836)
   /**
    * DECISION-NOTIFY-03-A: a rejection shows the event name, the word rejected and the visible decision
    * date, and no reason (AC3 amended 30 Oct 2026; the reason is on the event page, AC4).
@@ -445,6 +455,7 @@ describe("NotificationBell (SPM-88 AC3: rejection content)", () => {
     expect(screen.getByRole("link", { name: "View Request" })).toHaveAttribute("href", "/events/event-1");
   });
 
+  // Traceability: Jira 88 AC3 (matrix 37322836)
   /**
    * DECISION-NOTIFY-03-INT-2: an event name containing quoted decision phrases keeps its full name in the
    * headline, and no reason appears, for a rejection and for an SPM-65 change request denial (whose backend
@@ -540,6 +551,7 @@ describe("NotificationBell (SPM-88 AC4: link to the event)", () => {
     vi.useRealTimers();
   });
 
+  // Traceability: Jira 88 AC4 (matrix 37322836)
   /**
    * DECISION-NOTIFY-04-A: the approval link opens the event detail page.
    * Kills: approval link pointing at the change-requests page or at a list.
@@ -556,6 +568,7 @@ describe("NotificationBell (SPM-88 AC4: link to the event)", () => {
     );
   });
 
+  // Traceability: Jira 88 AC4 (matrix 37322836)
   /**
    * DECISION-NOTIFY-04-B: the rejection link opens the event detail page, not the change requests page.
    * Kills: rejection routed to /change-requests (the SPM-64/65 change-request route).
@@ -598,6 +611,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     }),
   ];
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-A: two unread and one read notification show the badge "2" (bell name
    * "Notifications, 2 unread"), list the two unread newest first, and do not list the read one
@@ -633,6 +647,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     expect(screen.getAllByLabelText("Unread")).toHaveLength(2);
   });
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-B: View Request on an unread decision marks it read once, opens the event
    * and closes the dropdown. Second scenario: when the mark-read call fails, the page still opens
@@ -655,6 +670,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     expect(bellButton().getAttribute("aria-expanded")).toBe("false");
   });
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-B (second scenario, SPM-88 A3): when the mark-read call fails, View Request
    * still opens the event, the mark-read is attempted once, and the decision stays unread (badge 1,
@@ -683,6 +699,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     );
   });
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-B (approval, SPM-88 A3): View Request on an unread approval marks it read
    * once and opens the event. Rejections are covered above; this closes the approval path.
@@ -701,6 +718,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     expect(postReadCalls("notif-approval-1")).toHaveLength(1);
   });
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-C: Mark As Read on one of two unread decisions removes that row, the badge
    * becomes 1, the dropdown stays open and nothing navigates.
@@ -726,6 +744,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     expect(screen.getByRole("dialog", { name: "Notifications" })).toBeTruthy();
   });
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-E: a failed Mark As Read shows the exact error and leaves the badge and the
    * rows unchanged.
@@ -749,6 +768,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-F: dismissal. Esc closes the dropdown and returns focus to the bell; a click
    * on a focusable element outside closes it and focus stays on that element; clicking the bell
@@ -818,6 +838,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     expect(dialog()).toBeTruthy();
   });
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-G: a decision made while the organiser is online appears without reloading the
    * page: the feed reloads every 30 s, and also when the window regains focus. Only Date and the
@@ -863,6 +884,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     expect(bellButton().textContent).toBe("2");
   });
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-BND-1: with no unread decisions there is no badge (the bell is just
    * "Notifications") and the dropdown says "You're all caught up" with no rows, badges or
@@ -891,6 +913,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     expect(screen.queryByRole("button", { name: "Mark As Read" })).toBeNull();
   });
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-BND-2: with 6 unread decisions all 6 rows are rendered inside one labelled,
    * keyboard-focusable, height-capped scroll region and the badge shows "6"; there is no Show all
@@ -921,6 +944,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     expect(screen.queryByText(/total|more unread|All caught up/)).toBeNull();
   });
 
+  // Traceability: Jira 88 AC5 (matrix 37322836)
   /**
    * DECISION-NOTIFY-05-BND-3 (repurposed from the removed panel's last-unread case, 29 Oct 2026 decision):
    * the badge is capped at "9+". Exactly 9 unread show "9", 10 unread show "9+" (the bell name
@@ -977,6 +1001,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     };
   }
 
+  // Traceability: Jira 77 AC1 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-01-C (SPM-77 AC1): a signed-in Coordinator gets a bell, loads the notifications feed and sees
    * the assignment in the dropdown with the unread count 1.
@@ -994,6 +1019,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(bellButton().textContent).toBe("1");
   });
 
+  // Traceability: Jira 131 AC1 (matrix 36798544)
   /**
    * SAFETY-OUTCOME-01 (SPM-131 AC1): a Coordinator sees the Safety Officer's outcome in the same bell, can open
    * the event, and may mark it read. This guards the Coordinator-type filter as the old Assignment Updates panel
@@ -1017,6 +1043,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(screen.getByRole("button", { name: "Mark As Read" })).toBeTruthy();
   });
 
+  // Traceability: Jira 77 AC1 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-01-D (SPM-77 AC1): a user who is a Coordinator and also holds another role (Venue Staff) still
    * gets the bell and the assignment.
@@ -1032,6 +1059,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
   });
 
+  // Traceability: Jira 77 AC1 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-01-E (SPM-77 AC1, permission): roles that are neither Organiser nor Coordinator get no bell and
    * never load notifications.
@@ -1053,6 +1081,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     },
   );
 
+  // Traceability: Jira 77 AC2 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-02-C (SPM-77 AC2 and Note): the row shows the whole message (event name, assignment wording,
    * proposed date, no time) and the notification's own timestamp as a <time> element; no separate assignment date.
@@ -1072,6 +1101,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
   });
 
+  // Traceability: Jira 77 AC3, AC4 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-03-C (SPM-77 AC3 and AC4): View Request on an assignment links to /events/event-1, marks the
    * notification read once, opens the event and closes the dropdown.
@@ -1094,6 +1124,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
   });
 
+  // Traceability: Jira 77 AC6 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-06-A (SPM-77 AC6, SPM-47 AC8): a reassignment notice also links to the event it moved to the
    * Coordinator and marks itself read on opening.
@@ -1125,6 +1156,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(postReadCalls("notif-reassign-1")).toHaveLength(1);
   });
 
+  // Traceability: Jira 77 AC6 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-06-B (SPM-77 AC6): an unassignment notice has no link (the event now belongs to another
    * Coordinator) but can still be marked read.
@@ -1148,6 +1180,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(screen.getByRole("button", { name: "Mark As Read" })).toBeTruthy();
   });
 
+  // Traceability: Jira 77 AC4 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-04-C (SPM-77 AC4): the badge counts unread assignment, reassignment and unassignment notices
    * (3) and ignores one already read.
@@ -1169,6 +1202,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(screen.queryByText(/Already Read/)).toBeNull();
   });
 
+  // Traceability: Jira 77 AC4 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-04-D (SPM-77 AC4): Mark As Read posts the read call, drops the row and lowers the count without
    * following the link.
@@ -1189,6 +1223,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(screen.getByText("You're all caught up")).toBeTruthy();
   });
 
+  // Traceability: Jira 77 AC4 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-04-E (SPM-77 AC4): a notice the server already holds as read (stays read after sign-out and in)
    * is not shown or counted on load.
@@ -1232,6 +1267,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(screen.getByText(ASSIGNED_MESSAGE)).toBeTruthy();
   });
 
+  // Traceability: Jira 77 AC4 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-04-F (SPM-77 AC4, SUPPORTING): when the Coordinator's feed fails to load, the bell shows the
    * assignment-specific load error and Retry brings the notice back.
@@ -1249,6 +1285,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 77 AC6 (matrix 39190702)
   /**
    * ASSIGN-NOTIFY-06-C (SPM-77 AC6, DECIDED SC-SPM77-02): the bell replaces the Assignment Updates panel only, so a
    * Coordinator's change-request and cancellation notices do not appear in it (the Pending Change Requests section
@@ -1268,6 +1305,7 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
   });
 
+  // Traceability: Jira 88 AC4 (matrix 37322836)
   /**
    * DECISION-NOTIFY-04-F (SPM-88 AC4, regression guard carried into SPM-77): an Organiser's bell is unchanged by the Coordinator work: it
    * still lists its decisions, counts them and links to the event.
@@ -1355,12 +1393,13 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
     return view;
   }
 
+  // Traceability: Jira 137 AC1 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-01-G (SPM-137 AC1): a Coordinator's bell lists approved and rejected booking decision notices
+   * BOOKING-NOTIFY-01-G (SPM-137 AC1): a Coordinator's bell lists approved and rejected booking decision notices
    * with the unread count 2.
    * Kills: the venue booking types missing from the Coordinator's bell filter.
    */
-  it("VENUE-BOOK-NOTIF-01-G shows a Coordinator both an approved and a rejected booking notice with an unread count of 2", async () => {
+  it("BOOKING-NOTIFY-01-G shows a Coordinator both an approved and a rejected booking notice with an unread count of 2", async () => {
     setCoordinator();
     apiMock.mockResolvedValue([
       bookingNotice(),
@@ -1374,12 +1413,13 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
   });
 
+  // Traceability: Jira 137 AC2 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-02-F (SPM-137 AC2): the row shows the whole message exactly as stored, with the notification's own
+   * BOOKING-NOTIFY-02-F (SPM-137 AC2): the row shows the whole message exactly as stored, with the notification's own
    * timestamp as a <time> element, and no booking reference or rejection reason.
    * Kills: a row that rewrites the message, hides the decision time, or adds a reference or reason.
    */
-  it("VENUE-BOOK-NOTIF-02-F shows the full message and the decision time, with no reference or reason", async () => {
+  it("BOOKING-NOTIFY-02-F shows the full message and the decision time, with no reference or reason", async () => {
     setCoordinator();
     apiMock.mockResolvedValue([bookingNotice({ type: "venue_booking_rejected", message: REJECTED_MESSAGE })]);
 
@@ -1391,12 +1431,13 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
     expect(row).not.toHaveTextContent(/VB-|Reason/);
   });
 
+  // Traceability: Jira 137 AC3, AC4 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-A (SPM-137 AC3 and AC4): the link on an approved notice goes to /bookings?booking=booking-1,
+   * BOOKING-NOTIFY-03-A (SPM-137 AC3 and AC4): the link on an approved notice goes to /bookings?booking=booking-1,
    * marks the notification read once, lands on the Bookings page and closes the dropdown.
    * Kills: a link to the event page, a link without the booking id, opening without marking read.
    */
-  it("VENUE-BOOK-NOTIF-03-A View Booking opens /bookings for that booking and marks the notice read", async () => {
+  it("BOOKING-NOTIFY-03-A View Booking opens /bookings for that booking and marks the notice read", async () => {
     setCoordinator();
     apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [bookingNotice()]));
 
@@ -1411,11 +1452,12 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-B (SPM-137 AC3): a rejected notice links to its own booking too (not the first one listed).
+   * BOOKING-NOTIFY-03-B (SPM-137 AC3): a rejected notice links to its own booking too (not the first one listed).
    * Kills: every row linking to the same booking id.
    */
-  it("VENUE-BOOK-NOTIF-03-B links a rejected notice to its own booking", async () => {
+  it("BOOKING-NOTIFY-03-B links a rejected notice to its own booking", async () => {
     setCoordinator();
     apiMock.mockResolvedValue([
       bookingNotice({ type: "venue_booking_rejected", message: REJECTED_MESSAGE, relatedBookingId: "booking-2", id: "notif-booking-2" }),
@@ -1426,12 +1468,13 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
     expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings?booking=booking-2");
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-C (SPM-137 AC3, robustness): a notice that has no booking id (older data) still links to the
+   * BOOKING-NOTIFY-03-C (SPM-137 AC3, robustness): a notice that has no booking id (older data) still links to the
    * Bookings page, without a query string or the text "undefined".
    * Kills: a link ending in ?booking=undefined or null.
    */
-  it.each([null, undefined])("VENUE-BOOK-NOTIF-03-C links a notice with booking id %s to plain /bookings", async (missing) => {
+  it.each([null, undefined])("BOOKING-NOTIFY-03-C links a notice with booking id %s to plain /bookings", async (missing) => {
     setCoordinator();
     apiMock.mockResolvedValue([bookingNotice({ relatedBookingId: missing })]);
 
@@ -1440,12 +1483,13 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
     expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings");
   });
 
+  // Traceability: Jira 137 AC4 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-04-G (SPM-137 AC4): the badge counts booking notices with the other Coordinator notices, and a
+   * BOOKING-NOTIFY-04-G (SPM-137 AC4): the badge counts booking notices with the other Coordinator notices, and a
    * notice the server already holds as read is neither listed nor counted.
    * Kills: booking notices left out of the count; read notices shown.
    */
-  it("VENUE-BOOK-NOTIF-04-G counts unread booking notices with assignment notices and leaves out a read one", async () => {
+  it("BOOKING-NOTIFY-04-G counts unread booking notices with assignment notices and leaves out a read one", async () => {
     setCoordinator();
     apiMock.mockResolvedValue([
       bookingNotice(),
@@ -1460,12 +1504,13 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
   });
 
+  // Traceability: Jira 137 AC4 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-04-H (SPM-137 AC4): Mark As Read on a booking notice posts the read call, drops the row and lowers
+   * BOOKING-NOTIFY-04-H (SPM-137 AC4): Mark As Read on a booking notice posts the read call, drops the row and lowers
    * the count without opening the Bookings page.
    * Kills: Mark As Read not posting for this type, or leaving the notice counted.
    */
-  it("VENUE-BOOK-NOTIF-04-H Mark As Read marks a booking notice read and lowers the unread count", async () => {
+  it("BOOKING-NOTIFY-04-H Mark As Read marks a booking notice read and lowers the unread count", async () => {
     setCoordinator();
     apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [bookingNotice()]));
 
@@ -1480,11 +1525,11 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
   });
 
   /**
-   * VENUE-BOOK-NOTIF-04-I (SPM-137 AC4, SUPPORTING): opening and closing the bell does not mark a booking decision
+   * BOOKING-NOTIFY-04-I (SPM-137 AC4, SUPPORTING): opening and closing the bell does not mark a booking decision
    * notice read; only Mark As Read does, so the notice stays unread and the count stays 1.
    * Kills: marking the booking notices read (a fire-and-forget POST to /notifications/<id>/read) when the dropdown opens.
    */
-  it("VENUE-BOOK-NOTIF-04-I leaves a booking decision notice unread after the bell is opened and closed", async () => {
+  it("BOOKING-NOTIFY-04-I leaves a booking decision notice unread after the bell is opened and closed", async () => {
     setCoordinator();
     apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [bookingNotice()]));
 
@@ -1505,12 +1550,13 @@ describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
     expect(screen.getByText(APPROVED_MESSAGE)).toBeTruthy();
   });
 
+  // Traceability: Jira 137 AC5 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-05-C (SPM-137 AC5): an event with several booking decisions shows one row per decision, each with
+   * BOOKING-NOTIFY-05-C (SPM-137 AC5): an event with several booking decisions shows one row per decision, each with
    * its own link, and following one marks only that notice read.
    * Kills: grouping notices per event, or one link or read call serving all rows.
    */
-  it("VENUE-BOOK-NOTIF-05-C lists a separate row and link for each booking of the same event", async () => {
+  it("BOOKING-NOTIFY-05-C lists a separate row and link for each booking of the same event", async () => {
     setCoordinator();
     apiMock.mockImplementation((path: string) =>
       Promise.resolve(
@@ -1570,6 +1616,7 @@ describe("NotificationBell (SPM-162: cancellation request outcome notices)", () 
     };
   }
 
+  // Traceability: Jira 162 AC1 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-01-G (SPM-162 AC1): an Organiser's bell lists an accepted and a declined cancellation outcome with
    * an unread count of 2.
@@ -1589,6 +1636,7 @@ describe("NotificationBell (SPM-162: cancellation request outcome notices)", () 
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
   });
 
+  // Traceability: Jira 162 AC2 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-02-F (SPM-162 AC2): the row shows the whole message exactly as stored and the notification's own
    * timestamp as a <time> element, with no reason added.
@@ -1606,6 +1654,7 @@ describe("NotificationBell (SPM-162: cancellation request outcome notices)", () 
     expect(row).not.toHaveTextContent(/Reason/);
   });
 
+  // Traceability: Jira 162 AC4 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-04-B (SPM-162 AC4): the link on an outcome notice goes to /events/event-1, marks the notification
    * read once, lands on the event page and closes the dropdown.
@@ -1629,6 +1678,7 @@ describe("NotificationBell (SPM-162: cancellation request outcome notices)", () 
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
   });
 
+  // Traceability: Jira 162 AC4 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-04-C (SPM-162 AC4): two outcome notices for two events each link to their own event, and following
    * one marks only that notice read.
@@ -1656,6 +1706,7 @@ describe("NotificationBell (SPM-162: cancellation request outcome notices)", () 
     expect(postReadCalls("n1")).toHaveLength(0);
   });
 
+  // Traceability: Jira 162 AC5 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-05-D (SPM-162 AC5): the badge counts outcome notices with the Organiser's other notices, and a
    * notice the server already holds as read is neither listed nor counted.
@@ -1676,6 +1727,7 @@ describe("NotificationBell (SPM-162: cancellation request outcome notices)", () 
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
   });
 
+  // Traceability: Jira 162 AC5 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-05-E (SPM-162 AC5): Mark As Read on an outcome notice posts the read call, drops the row and lowers
    * the count without opening the event page.
@@ -1695,6 +1747,7 @@ describe("NotificationBell (SPM-162: cancellation request outcome notices)", () 
     expect(screen.queryByText(/Event detail page for/)).toBeNull();
   });
 
+  // Traceability: Jira 162 AC5 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-05-F (SPM-162 AC5): opening and closing the bell does not mark an outcome notice read; it stays
    * unread and counted until it is opened or marked read.
@@ -1769,6 +1822,7 @@ describe("NotificationBell (SPM-171: cancellation request submitted notices)", (
     };
   }
 
+  // Traceability: Jira 171 AC1 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-01-E (SPM-171 AC1, AC4): a Coordinator's bell lists the notice and counts it as unread, next to an
    * assignment notice.
@@ -1787,6 +1841,7 @@ describe("NotificationBell (SPM-171: cancellation request submitted notices)", (
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
   });
 
+  // Traceability: Jira 171 AC2 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-02-D (SPM-171 AC2): the row shows the whole message exactly as stored and the notification's own
    * timestamp as a <time> element, with no reason.
@@ -1804,6 +1859,7 @@ describe("NotificationBell (SPM-171: cancellation request submitted notices)", (
     expect(row).not.toHaveTextContent(/Reason/);
   });
 
+  // Traceability: Jira 171 AC3 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-03-A (SPM-171 AC3): the link goes to /events/event-1, marks the notification read once, lands on
    * the event page and closes the dropdown.
@@ -1824,6 +1880,7 @@ describe("NotificationBell (SPM-171: cancellation request submitted notices)", (
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
   });
 
+  // Traceability: Jira 171 AC3 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-03-B (SPM-171 AC3): two notices for two events each link to their own event, and following one
    * marks only that notice read.
@@ -1848,6 +1905,7 @@ describe("NotificationBell (SPM-171: cancellation request submitted notices)", (
     expect(postReadCalls("n1")).toHaveLength(0);
   });
 
+  // Traceability: Jira 171 AC4 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-04-A (SPM-171 AC4): Mark As Read posts the read call, drops the row and lowers the count without
    * opening the event page.
@@ -1867,6 +1925,7 @@ describe("NotificationBell (SPM-171: cancellation request submitted notices)", (
     expect(screen.queryByText(/Event detail page for/)).toBeNull();
   });
 
+  // Traceability: Jira 171 AC4 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-04-B (SPM-171 AC4): opening and closing the bell does not mark the notice read; it stays unread
    * and counted until it is opened or marked read.
@@ -1888,6 +1947,7 @@ describe("NotificationBell (SPM-171: cancellation request submitted notices)", (
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
   });
 
+  // Traceability: Jira 171 AC4 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-04-C (SPM-171 AC4): a notice the server already holds as read is neither listed nor counted, so it
    * stays read after the Coordinator signs out and back in.
@@ -1971,6 +2031,7 @@ describe("NotificationBell (SPM-125: venue unavailability and venue change notic
     return <p>Bookings page for {params.get("booking") ?? "no booking"}</p>;
   }
 
+  // Traceability: Jira 125 AC7 (matrix 39125581)
   /**
    * VEN-IMPACT-07-B (AC6, AC7): a Coordinator's bell lists the unavailability notice in full (event name, venue,
    * period and reason) with the notification time, counted as unread.
@@ -1991,6 +2052,7 @@ describe("NotificationBell (SPM-125: venue unavailability and venue change notic
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
   });
 
+  // Traceability: Jira 125 AC7 (matrix 39125581)
   /**
    * VEN-IMPACT-07-C (AC7): View Booking opens the Bookings page for that booking (`/bookings?booking=booking-1`, the SPM-137 link),
    * marks the notice read once and closes the dropdown.
@@ -2011,6 +2073,7 @@ describe("NotificationBell (SPM-125: venue unavailability and venue change notic
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
   });
 
+  // Traceability: Jira 125 AC8 (matrix 39125581)
   /**
    * VEN-IMPACT-08-D, VEN-IMPACT-09-D (AC8, AC9): setup/turnaround and capacity notices are listed for a Coordinator
    * and also open their booking; a notice without a booking id falls back to the Bookings page.
@@ -2099,6 +2162,7 @@ describe("NotificationBell (SPM-172: equipment request decision notices)", () =>
     return view;
   }
 
+  // Traceability: Jira 172 AC1 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-01-G (SPM-172 AC1): a Coordinator's bell lists reserved and cannot-provide notices with the unread
    * count 2.
@@ -2118,6 +2182,7 @@ describe("NotificationBell (SPM-172: equipment request decision notices)", () =>
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
   });
 
+  // Traceability: Jira 172 AC2 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-02-F (SPM-172 AC2): the row shows the whole message as stored with the notification's own timestamp as
    * a <time> element, and no cannot-provide reason.
@@ -2134,6 +2199,7 @@ describe("NotificationBell (SPM-172: equipment request decision notices)", () =>
     expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
   });
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-03-C (SPM-172 AC3 and AC4): the link on a reserved notice goes to /equipment/requests?request=request-1,
    * marks the notification read once, lands on the equipment requests page and closes the dropdown.
@@ -2154,6 +2220,7 @@ describe("NotificationBell (SPM-172: equipment request decision notices)", () =>
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
   });
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-03-D (SPM-172 AC3): a cannot-provide notice links to its own request, with the id escaped in the query.
    * Kills: every row linking to the same request id, an unescaped id.
@@ -2169,6 +2236,7 @@ describe("NotificationBell (SPM-172: equipment request decision notices)", () =>
     expect(await screen.findByRole("link", { name: "View Request" })).toHaveAttribute("href", "/equipment/requests?request=request%202%26x");
   });
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-03-E (SPM-172 AC3, robustness): a notice that has no request id still links to the equipment requests
    * page, without a query string or the text "undefined".
@@ -2183,6 +2251,7 @@ describe("NotificationBell (SPM-172: equipment request decision notices)", () =>
     expect(await screen.findByRole("link", { name: "View Request" })).toHaveAttribute("href", "/equipment/requests");
   });
 
+  // Traceability: Jira 172 AC4 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-04-C (SPM-172 AC4): Mark As Read on an equipment notice posts the read call, drops the row and lowers
    * the unread count; a notice already read on the server is neither listed nor counted.
@@ -2205,6 +2274,7 @@ describe("NotificationBell (SPM-172: equipment request decision notices)", () =>
     expect(postReadCalls("notif-equipment-3")).toHaveLength(0);
   });
 
+  // Traceability: Jira 172 AC4 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-04-D (SPM-172 AC4): opening and closing the bell leaves an equipment notice unread.
    * Kills: marking notices read when the dropdown opens.
@@ -2291,6 +2361,7 @@ describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
     return view;
   }
 
+  // Traceability: Jira 165 AC1 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-01-G (SPM-165 AC1): a Coordinator's bell lists approved and rejected tentative hold notices with
    * the unread count 2.
@@ -2310,6 +2381,7 @@ describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
   });
 
+  // Traceability: Jira 165 AC2 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-02-F (SPM-165 AC2): the row shows the whole message exactly as stored, with the notification's own
    * timestamp as a <time> element, and no reference or rejection reason.
@@ -2327,6 +2399,7 @@ describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
     expect(row).not.toHaveTextContent(/VB-|Reason/);
   });
 
+  // Traceability: Jira 165 AC3, AC4 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-03-A (SPM-165 AC3 and AC4): the link on an approved hold notice goes to /bookings?booking=hold-1,
    * marks the notification read once, lands on the Bookings page and closes the dropdown.
@@ -2347,6 +2420,7 @@ describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
   });
 
+  // Traceability: Jira 165 AC3 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-03-B (SPM-165 AC3): a rejected hold notice links to its own hold (not the first one listed).
    * Kills: every row linking to the same id.
@@ -2362,6 +2436,7 @@ describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
     expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings?booking=hold-2");
   });
 
+  // Traceability: Jira 165 AC3 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-03-C (SPM-165 AC3, robustness): a hold notice with no hold id still links to the Bookings page,
    * without a query string or the text "undefined".
@@ -2376,6 +2451,7 @@ describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
     expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings");
   });
 
+  // Traceability: Jira 165 AC4 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-04-D (SPM-165 AC4): a read hold notice is neither listed nor counted, and Mark As Read posts the
    * read call, drops the row and lowers the count without opening the Bookings page.
@@ -2403,6 +2479,7 @@ describe("NotificationBell (SPM-165: tentative hold decision notices)", () => {
     expect(screen.queryByText(/Bookings page at/)).toBeNull();
   });
 
+  // Traceability: Jira 165 AC5 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-05-C (SPM-165 AC5): an event with several hold decisions shows one row per decision, each with its
    * own link, and following one marks only that notice read.
@@ -2504,6 +2581,7 @@ describe("NotificationBell (SPM-134: tentative hold expiry, release and conversi
     return view;
   }
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-H (SPM-134 AC1): a Coordinator's bell lists the 48-hour hold reminder as an unread notice.
    * Kills: the reminder type missing from the Coordinator's bell filter.
@@ -2518,6 +2596,7 @@ describe("NotificationBell (SPM-134: tentative hold expiry, release and conversi
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
   });
 
+  // Traceability: Jira 134 AC2 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-02-E (SPM-134 AC2): a Coordinator's bell lists the hold expired notice.
    * Kills: the expired type missing from the Coordinator's bell filter.
@@ -2531,6 +2610,7 @@ describe("NotificationBell (SPM-134: tentative hold expiry, release and conversi
     expect(await screen.findByText(EXPIRED_MESSAGE)).toBeTruthy();
   });
 
+  // Traceability: Jira 134 AC3 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-03-G (SPM-134 AC3): a Coordinator's bell lists the released and the converted hold notices, with an
    * unread count of 2.
@@ -2550,6 +2630,7 @@ describe("NotificationBell (SPM-134: tentative hold expiry, release and conversi
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
   });
 
+  // Traceability: Jira 134 AC4 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-04-D (SPM-134 AC4): each row shows the whole message exactly as stored with the notification's own
    * timestamp as a <time> element, and nothing added.
@@ -2567,6 +2648,7 @@ describe("NotificationBell (SPM-134: tentative hold expiry, release and conversi
     expect(row).not.toHaveTextContent(/VB-/);
   });
 
+  // Traceability: Jira 134 AC6 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-06-B (SPM-134 AC6): the link on each of the four notice types goes to /bookings?booking=<hold id>,
    * lands on the Bookings page, closes the dropdown and marks the notification read once.
@@ -2586,6 +2668,7 @@ describe("NotificationBell (SPM-134: tentative hold expiry, release and conversi
     expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
   });
 
+  // Traceability: Jira 134 AC7 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-07-B (SPM-134 AC7): unread hold notices are counted, a read one is neither listed nor counted, and Mark
    * As Read posts the read call and clears the row without opening the Bookings page.
@@ -2616,6 +2699,7 @@ describe("NotificationBell (SPM-134: tentative hold expiry, release and conversi
     expect(screen.queryByText(/Bookings page at/)).toBeNull();
   });
 
+  // Traceability: Jira 134 AC8 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-08-B (SPM-134 AC8): an event with several holds shows one row per notice, each with its own link, and
    * following one marks only that notice read.
@@ -2657,6 +2741,7 @@ describe("NotificationBell clarification notices (SPM-177)", () => {
   const clarificationNotice = (type: (typeof CLARIFICATION_TYPES)[number], id: string): Notification =>
     rejectionNotification({ id, type, message: `Notice ${type}`, relatedEventId: "event-1" });
 
+  // Traceability: Jira 177 DoD1 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-07-A (SPM-177 DoD1): an Organiser's bell lists and counts all three clarification notices.
    * Kills: the Organiser bell filtering the new types out.
@@ -2669,6 +2754,7 @@ describe("NotificationBell clarification notices (SPM-177)", () => {
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
   });
 
+  // Traceability: Jira 177 DoD1 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-07-B (SPM-177 DoD1): a Coordinator's bell lists and counts all three clarification notices.
    * Kills: a type missing from the Coordinator filter.

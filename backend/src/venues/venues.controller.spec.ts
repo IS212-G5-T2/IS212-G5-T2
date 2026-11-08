@@ -33,6 +33,7 @@ describe('SPM-50 venue route wiring', () => {
   const controller = new VenuesController(service as unknown as VenuesService);
 
   // Kills: options() returning a facility or accessibility list that drops, renames or reorders a venue-schema entry.
+  // Traceability: Jira 144 AC2 (matrix 23692099)
   /** EVE-FAC-02-A and EVE-ACC-02-ALIGN-01: options expose current facility and accessibility schema labels/values. */
   it('EVE-FAC-02-A EVE-ACC-02-ALIGN-01 returns facility and accessibility options from venue schemas', () => {
     const response = controller.options();
@@ -57,6 +58,7 @@ describe('SPM-50 venue route wiring', () => {
     ]);
   });
 
+  // Traceability: Jira 50 AC4 (matrix 14975043)
   // SPM-50 / VEN-CRE-04-A: creation forwards the body and verified caller.
   // Kills: create that forwards the body without the verified identity, or returns a different value from the service.
   it('forwards venue creation and keeps module wiring importable', () => {
@@ -87,6 +89,7 @@ describe('SPM-50 venue route wiring', () => {
   });
 
   // Kills: submitBookingRequest that drops the venue id or body, or substitutes a body-supplied identity for the session identity.
+  // Traceability: Jira 51 AC6 (matrix 24117310)
   /** VEN-AVL-06-A: the authenticated booking API forwards the venue, body and verified identity. */
   it('forwards a venue booking request with the session identity', () => {
     const venueId = '00000000-0000-4000-8000-000000000124';
@@ -107,6 +110,7 @@ describe('SPM-50 venue route wiring', () => {
     );
   });
 
+  // Traceability: Jira 159 AC1 (matrix 34603557)
   /** VEN-HOLD-01-A: a tentative hold uses the shared booking request route and verified identity. */
   it('VEN-HOLD-01-A forwards a discriminated tentative hold through booking requests', () => {
     const coordinator: AuthenticatedUser = { uid: 'coordinator-1', roles: ['COORDINATOR'] };
@@ -124,6 +128,7 @@ describe('SPM-50 venue route wiring', () => {
     expect(Reflect.getMetadata(PATH_METADATA, controller.submitBookingRequest)).toBe(':id/booking-requests');
   });
 
+  // Traceability: Jira 55 AC1, AC2, AC3 (matrix 34537876)
   /** VEN-REV-07-A: the review endpoints keep their HTTP methods and paths. */
   it('SPM-55 maps the review endpoints to their HTTP methods and paths', () => {
     // Route metadata pins the method and path, so a renamed path or a changed verb fails here.
@@ -150,6 +155,7 @@ describe('SPM-50 venue route wiring', () => {
     expect(routeArgs('rejectVenueBooking')[requestKey]).toMatchObject({ index: 0, data: undefined });
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-A: the pending-list route forwards the verified staff identity. */
   it('SPM-55 forwards the pending list request with the session identity', () => {
     service.listPendingVenueBookings.mockReturnValue(['pending']);
@@ -158,6 +164,7 @@ describe('SPM-50 venue route wiring', () => {
     expect(service.listPendingVenueBookings).toHaveBeenCalledWith(identity);
   });
 
+  // Traceability: Jira 55 AC2 (matrix 34537876)
   /** VEN-REV-02-A: the approve route forwards the verified staff identity and the booking ID. */
   it('SPM-55 forwards the approve request with the session identity and booking ID', () => {
     const bookingId = '6f0d6f3a-2c1e-4b59-9d8a-0c3b7e1f2a44';
@@ -167,6 +174,7 @@ describe('SPM-50 venue route wiring', () => {
     expect(service.approveVenueBooking).toHaveBeenCalledWith(identity, bookingId);
   });
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-03-A: the reject route forwards the verified staff identity, the booking ID and the rejection body. */
   it('SPM-55 forwards the reject request with the session identity, booking ID and body', () => {
     const bookingId = '6f0d6f3a-2c1e-4b59-9d8a-0c3b7e1f2a44';
@@ -178,6 +186,7 @@ describe('SPM-50 venue route wiring', () => {
   });
 
   // Kills: listCoordinatorBookings called without the authenticated identity, or with another user's identity.
+  // Traceability: Jira 54 AC8 (matrix 22839839)
   /** VEN-BKG-08-SEC-1: coordinator booking history is fetched for the authenticated identity. */
   it('lists coordinator bookings for the authenticated user', () => {
     service.listCoordinatorBookings.mockReturnValue(['booking']);
@@ -186,6 +195,7 @@ describe('SPM-50 venue route wiring', () => {
   });
 
   // Kills: cancellation confirmation that treats a null body as confirmed, or maps an explicit false to true.
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-A: only a literal true in the request body confirms last-booking cancellation. */
   it.each([
     [{ confirmed: true }, true],
@@ -235,6 +245,7 @@ describe('SPM-50 venue route wiring', () => {
     );
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /**
    * VEN-IMPACT-01-C, VEN-IMPACT-05-A (SPM-125 AC1, AC5): GET /api/venues/:id/unavailability-history and
    * /booking-history pass the venue id and the verified caller to the service and return its result.
@@ -256,6 +267,7 @@ describe('SPM-50 venue route wiring', () => {
 });
 
 describe('Staff venue route delegation', () => {
+  // Traceability: Jira 132 AC9 (matrix 39125047)
   /** VEN-HOLD-DEC-09-A/VEN-HOLD-DEC-10-A: the hold routes forward verified identity and booking ID and preserve the service result. */
   it.each(['convertTentativeHold', 'releaseTentativeHold'] as const)('VEN-HOLD-DEC-09-A forwards %s to the service', (method) => {
     const user = { uid: 'staff-route', roles: ['VENUE_STAFF'] };

@@ -383,6 +383,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
   });
   // VIEW-REG-DET-02-B (AC2, state only; the cancel action is a later story)
   describe('VIEW-REG-DET-02-B (AC2, state only): a cancelled registration is read back as cancelled and takes no place', () => {
+    // Traceability: Jira 62 AC2 (matrix 16678936)
     // Kills: the Cancelled value rejected by the database check (the row cannot be stored), the status not read back,
     // or the capacity count taking Cancelled rows as places taken.
     it('VIEW-REG-DET-02-B: /me reports "cancelled", and the place is free for another attendee (limit 1)', async () => {

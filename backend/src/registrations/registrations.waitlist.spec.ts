@@ -207,6 +207,7 @@ describe('SPM-138 join (unit): refusals happen before anything is written', () =
     expect(firstEntryRead).toBeGreaterThan(0);
   });
 
+  // Traceability: Jira 138 AC1 (matrix 25657376)
   /**
    * Oracle (01-A, unit): a free full-list join writes one Waitlisted row, with the clock's join time and the sequence,
    * and answers 201-shaped data with the position read back and the MSG-WL-01 text.

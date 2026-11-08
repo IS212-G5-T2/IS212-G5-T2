@@ -1,7 +1,7 @@
 {
   "story": "SPM-137",
   "title": "Venue Booking Decision Notification (Coordinator)",
-  "note": "RED authoring pass (2026-11-01, test-first): 50 VENUE-BOOK-NOTIF ids (PRIMARY; all 51 ids approved by story owner chaw678 on 2 Nov 2026; the Confluence SPM-137 matrix and case pages are written from them). Shared files use titleMatch ^VENUE-BOOK-NOTIF- so the SPM-55, SPM-54, SPM-77 and SPM-88 tests in them are not in scope. Spec conflicts SC-SPM137-01, 02 and 04 are confirmed by user chaw678 (1 Nov 2026: read-only dialog; notice wording 'That booking is no longer available to you. Its event may have been reassigned to another Coordinator.'; decision notices cleared on reassignment); SC-SPM137-03 (type names venue_booking_approved / venue_booking_rejected and notifications.related_booking_id) was confirmed by chaw678 on 2 Nov 2026. Stacked on SPM-77 (PR #93): the bell, useNotificationFeed and the Coordinator type filter come from that story. Mutants: backend and frontend spm137.mutants.mjs. Suite-level kills links (no dedicated mutant, accepted by the Orchestrator after Test Review iteration 1): 03-M and 04-E exercise guards that pre-date this story (the staff-only Bookings page path and the recipient-scoped mark-read), migration 029 is not mutated because the shared database already has the column; the unread count and timestamp text are SPM-88 code, unchanged here. Reassignment clearing (06-C) is mutated by SPM137-BE-31. Read state is mutated at the notice insert (SPM137-BE-29) and at the mark-read UPDATE (SPM137-BE-30); the mark-read path itself is unchanged SPM-88 code apart from the type allow-list (BE-22, BE-26). Supporting test VENUE-BOOK-NOTIF-04-I (2026-11-01, not a Confluence matrix row; registered with AC4): opening and closing the bell leaves a booking notice unread; killed by SPM137-FE-23 (the same gap as SPM-77 PR #93 review J-F2 and ASSIGN-NOTIFY-04-G).",
+  "note": "RED authoring pass (2026-11-01, test-first): 50 BOOKING-NOTIFY ids (PRIMARY; all 51 ids approved by story owner chaw678 on 2 Nov 2026; the Confluence SPM-137 matrix and case pages are written from them). Shared files use titleMatch ^BOOKING-NOTIFY- so the SPM-55, SPM-54, SPM-77 and SPM-88 tests in them are not in scope. Spec conflicts SC-SPM137-01, 02 and 04 are confirmed by user chaw678 (1 Nov 2026: read-only dialog; notice wording 'That booking is no longer available to you. Its event may have been reassigned to another Coordinator.'; decision notices cleared on reassignment); SC-SPM137-03 (type names venue_booking_approved / venue_booking_rejected and notifications.related_booking_id) was confirmed by chaw678 on 2 Nov 2026. Stacked on SPM-77 (PR #93): the bell, useNotificationFeed and the Coordinator type filter come from that story. Mutants: backend and frontend spm137.mutants.mjs. Suite-level kills links (no dedicated mutant, accepted by the Orchestrator after Test Review iteration 1): 03-M and 04-E exercise guards that pre-date this story (the staff-only Bookings page path and the recipient-scoped mark-read), migration 029 is not mutated because the shared database already has the column; the unread count and timestamp text are SPM-88 code, unchanged here. Reassignment clearing (06-C) is mutated by SPM137-BE-31. Read state is mutated at the notice insert (SPM137-BE-29) and at the mark-read UPDATE (SPM137-BE-30); the mark-read path itself is unchanged SPM-88 code apart from the type allow-list (BE-22, BE-26). Supporting test BOOKING-NOTIFY-04-I (2026-11-01, not a Confluence matrix row; registered with AC4): opening and closing the bell leaves a booking notice unread; killed by SPM137-FE-23 (the same gap as SPM-77 PR #93 review J-F2 and ASSIGN-NOTIFY-04-G).",
   "tz": [
     "UTC",
     "Asia/Singapore",
@@ -18,11 +18,11 @@
     "backend-unit": [
       {
         "glob": "backend/src/venues/repository/venues.repository.spec.ts",
-        "titleMatch": "^VENUE-BOOK-NOTIF-"
+        "titleMatch": "^BOOKING-NOTIFY-"
       },
       {
         "glob": "backend/src/venues/venues.service.spec.ts",
-        "titleMatch": "^VENUE-BOOK-NOTIF-"
+        "titleMatch": "^BOOKING-NOTIFY-"
       },
       {
         "glob": "backend/src/events/venue-booking-notifications.spec.ts"
@@ -36,11 +36,11 @@
     "frontend": [
       {
         "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
-        "titleMatch": "^VENUE-BOOK-NOTIF-"
+        "titleMatch": "^BOOKING-NOTIFY-"
       },
       {
         "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx",
-        "titleMatch": "^VENUE-BOOK-NOTIF-"
+        "titleMatch": "^BOOKING-NOTIFY-"
       }
     ]
   },

@@ -434,6 +434,7 @@ describe('EquipmentService', () => {
     expect(database.query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 117 AC4 (matrix 19858517)
   // EQUIP-VIEW-04-B (AC4, service layer). Kills: toEquipment() hard-coding
   // maintenanceStatus, swapping it with another field, or dropping a row during
   // mapping. This mocks database.query, so it cannot catch a SQL-level filter
@@ -468,6 +469,7 @@ describe('EquipmentService', () => {
     ]);
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-04-C: explicit opt-in returns unavailable equipment from the inventory query.
    * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/21528785/EQUIP-UNAVAIL-04#C
@@ -488,6 +490,7 @@ describe('EquipmentService', () => {
     })]);
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-ASSUMP-03: repeated same-state requests are rejected with 409 and create no audit entry (PO-confirmed rule).
    */
@@ -514,6 +517,7 @@ describe('EquipmentService', () => {
     ]);
   });
 
+  // Traceability: Jira 119 Cross-cutting (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-07-SEC-06: an unknown equipment UUID returns not found without writing history.
    * Covers the missing-row branch before the availability transition is attempted.
@@ -575,6 +579,7 @@ describe('EquipmentService', () => {
     expect(database.query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-05-E: the audit response maps every stored snapshot field to its API representation.
    */
@@ -623,6 +628,7 @@ describe('EquipmentService', () => {
     }]);
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-07-SEC-03: audit-trail reads reject unauthenticated callers.
    * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/21037609/EQUIP-UNAVAIL-HARDENING#EQUIP-UNAVAIL-07-SEC-03
@@ -635,6 +641,7 @@ describe('EquipmentService', () => {
     expect(database.query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-07-SEC-03: audit-trail reads reject callers without Technical Support access.
    * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/21037609/EQUIP-UNAVAIL-HARDENING#EQUIP-UNAVAIL-07-SEC-03

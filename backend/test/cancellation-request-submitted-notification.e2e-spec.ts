@@ -157,6 +157,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
 
   // ---- AC1 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 171 AC1 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-01-C (SPM-171 AC1): the Organiser submits; the assigned Coordinator's feed holds exactly one
    * notice, typed submitted, for that event, labelled a Coordinator notice and unread; one row is stored for them.
@@ -171,6 +172,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
     expect((await storedFor(eventId, coo.uid)).filter((row) => row.type === SUBMITTED)).toHaveLength(1);
   });
 
+  // Traceability: Jira 171 AC1 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-01-SEC-1 (SPM-171 AC1, security): the submitting Organiser, another Organiser, another Coordinator,
    * the Lead and an attendee never see the notice in their feeds, and only one row is stored.
@@ -187,6 +189,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
 
   // ---- AC2 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 171 AC2 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-02-E (SPM-171 AC2): the notice reads exactly as the Jira wording, with the Organiser's display
    * name, carries the submission time and never the reason.
@@ -205,6 +208,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
 
   // ---- AC3 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 171 AC3 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-03-D (SPM-171 AC3): the event the notice links to shows the Coordinator the pending request with
    * the Organiser's reason.
@@ -222,6 +226,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
 
   // ---- AC4 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 171 AC4 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-04-E (SPM-171 AC4): the notice is unread until the Coordinator marks it read, and once read it
    * stays read when they sign in again with a fresh session.
@@ -244,6 +249,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
 
   // ---- AC5 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 171 AC5 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-05-A (SPM-171 AC5): one request produces one notice; a second request refused while the first is
    * pending adds none.
@@ -258,6 +264,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
     expect(await requestNotices(coo)).toHaveLength(1);
   });
 
+  // Traceability: Jira 171 AC5 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-05-B (SPM-171 AC5): after the Coordinator declines, a new request gives a new notice, so the
    * Coordinator holds two, one per request.
@@ -277,6 +284,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
 
   // ---- AC6 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 171 AC6 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-06-H (SPM-171 AC6): a request filed while no Coordinator is assigned notifies nobody; the Lead's
    * assignment then gives the new Coordinator the notice, worded as the AC and stamped with the submission time, and
@@ -295,6 +303,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
     expect(await requestNotices(otherCoo)).toEqual([]);
   });
 
+  // Traceability: Jira 171 AC6 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-06-I (SPM-171 AC6): reassigning while the request is pending gives the new Coordinator the notice
    * with the AC2 wording stamped with the request's original submission time, and removes the previous Coordinator's unread one from their feed.
@@ -317,6 +326,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
     expect((await storedFor(eventId, coo.uid)).filter((row) => row.type === SUBMITTED && !row.read)).toEqual([]);
   });
 
+  // Traceability: Jira 171 AC6 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-06-J (SPM-171 AC6): a request that was already decided is not handed to a Coordinator assigned
    * or reassigned afterwards.
@@ -334,6 +344,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
 
   // ---- AC7 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 171 AC7 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-07-C (SPM-171 AC7): requests the service refuses (event Completed or Cancelled, a reason over 500
    * characters, a stranger, an unknown event) leave the Coordinator's notice list empty and write no notification row.
@@ -354,6 +365,7 @@ describe.skipIf(!database)('SPM-171 cancellation request submitted notifications
     for (const eventId of [completed, cancelled, live]) expect((await stored(eventId)).filter((row) => row.type === SUBMITTED)).toEqual([]);
   });
 
+  // Traceability: Jira 171 AC7 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-07-D (SPM-171 AC7): if the notice cannot be saved, the request is rolled back with it: the failure
    * is reported, no request row exists and the Organiser can submit again.

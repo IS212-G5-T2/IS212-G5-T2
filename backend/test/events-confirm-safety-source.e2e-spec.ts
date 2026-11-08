@@ -171,6 +171,7 @@ describe.skipIf(!database)('SPM-135 Confirm gate against the real safety source 
     expect(await statusOf(eventId)).toBe('Planning');
   });
 
+  // Traceability: Jira 131 AC3 (matrix 36798544)
   /**
    * SAFETY-OUTCOME-03: a real changes_needed safety check is an unresolved outcome, so the gate refuses Confirmed with
    * 422 CONFIRM_BLOCKED and reports the state "Changes Requested". The event stays in Planning.
@@ -209,6 +210,7 @@ describe.skipIf(!database)('SPM-135 Confirm gate against the real safety source 
     expect(await statusOf(eventId)).toBe('Planning');
   });
 
+  // Traceability: Jira 131 AC3 (matrix 36798544)
   /**
    * SAFETY-OUTCOME-03 positive control: the same ready event with an approved real safety row is confirmed, which shows
    * the refusals above are caused by the safety state and not by the fixture.

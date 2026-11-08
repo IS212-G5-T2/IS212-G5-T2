@@ -41,6 +41,7 @@ function renderReview(history: ChangeHistoryEntry[] = []) {
 afterEach(cleanup);
 
 describe("FlaggedChangeReview", () => {
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: current and proposed values sit side by side with the impacted bookings.
   it("EVENT-FLAG-02-A shows current value, proposed value and the reason for each impact", () => {
     const { card } = renderReview();
@@ -50,6 +51,7 @@ describe("FlaggedChangeReview", () => {
     expect(within(within(card).getByRole("group", { name: /hall b/i })).getByText(/turnaround/i)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 85 AC7 (matrix 19890731)
   // EVENT-FLAG-06-A: with several venue bookings, each has its own entry, including clear ones.
   it("EVENT-FLAG-06-A lists impacted bookings per venue booking", () => {
     const { card } = renderReview();
@@ -57,6 +59,7 @@ describe("FlaggedChangeReview", () => {
     expect(within(within(card).getByRole("group", { name: /hall c/i })).getByText(/no impact/i)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 85 AC4 (matrix 19890731)
   // EVENT-FLAG-03-A: rejecting sends a reject decision for the whole change.
   it("EVENT-FLAG-03-A sends a reject decision when the coordinator rejects the change", async () => {
     const user = userEvent.setup();
@@ -66,6 +69,7 @@ describe("FlaggedChangeReview", () => {
     expect(onResolve).toHaveBeenCalledWith({ changeId: "chg-1", decision: "reject" });
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-A: confirming sends a confirm decision for the whole change.
   it("EVENT-FLAG-04-A sends a confirm decision when the coordinator confirms the change", async () => {
     const user = userEvent.setup();
@@ -75,6 +79,7 @@ describe("FlaggedChangeReview", () => {
     expect(onResolve).toHaveBeenCalledWith({ changeId: "chg-1", decision: "confirm" });
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: per-booking actions are scoped to that booking and leave the others usable.
   // NOTE: scoped-resolution semantics are an interpretation of the AC (assumption 5 in docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md); confirm with the team.
   it("EVENT-FLAG-07-A confirming one booking sends only that booking and leaves the others actionable", async () => {
@@ -113,6 +118,7 @@ function renderChange(change: FlaggedChange, onResolve = vi.fn().mockResolvedVal
 }
 
 describe("FlaggedChangeReview: impact details", () => {
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: equipment arrangements that must be re-checked are listed under the change.
   it("EVENT-FLAG-02-A lists the equipment arrangements to re-check", () => {
     const { card } = renderChange({
@@ -123,12 +129,14 @@ describe("FlaggedChangeReview: impact details", () => {
     expect(within(card).getByText(/Projector \(Qty 2\): Reservation period must move/)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: no equipment section is shown when there is nothing to re-check.
   it("EVENT-FLAG-02-A shows no equipment section when none are affected", () => {
     const { card } = renderChange({ ...CHANGE, equipmentImpacts: [] });
     expect(within(card).queryByText(/equipment arrangements to re-check/i)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: a layout or facility change asks for a manual check, shown as that booking's reason.
   it("EVENT-FLAG-02-A shows the manual requirements check as the reason for a booking", () => {
     const { card } = renderChange({
@@ -149,6 +157,7 @@ describe("FlaggedChangeReview: impact details", () => {
     expect(within(within(card).getByRole("group", { name: /hall a/i })).getByText(/supports the Theatre layout/)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 85 AC7 (matrix 19890731)
   // EVENT-FLAG-06-A: with no impact list at all the card says so instead of an empty section.
   it("EVENT-FLAG-06-A says no venue bookings are affected when there is no impact list", () => {
     const { card } = renderChange({ ...CHANGE, impacts: undefined });
@@ -158,6 +167,7 @@ describe("FlaggedChangeReview: impact details", () => {
 });
 
 describe("FlaggedChangeReview: decisions", () => {
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: a booking that has been decided shows the outcome and who decided; the others stay actionable.
   it("EVENT-FLAG-07-A shows a recorded booking decision and removes only that booking's actions", () => {
     const { card } = renderChange({
@@ -178,6 +188,7 @@ describe("FlaggedChangeReview: decisions", () => {
     expect(within(card).getByRole("button", { name: "Confirm Change" })).toBeEnabled();
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   /**
    * A change stays "Needs Review" until every impacted booking is decided, so the
    * badge says how many are decided; with none decided it shows the status only.
@@ -194,6 +205,7 @@ describe("FlaggedChangeReview: decisions", () => {
     expect(within(fresh).queryByText(/bookings decided/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-A: while a decision is being saved the actions are disabled, so it cannot be sent twice.
   it("EVENT-FLAG-04-A disables every action on the change while a decision is saving", async () => {
     const user = userEvent.setup();
@@ -211,6 +223,7 @@ describe("FlaggedChangeReview: decisions", () => {
     expect(onResolve).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-A: a per-booking decision locks only that booking while it saves.
   it("EVENT-FLAG-04-A locks only the booking being decided while it saves", async () => {
     const user = userEvent.setup();
@@ -230,6 +243,7 @@ describe("FlaggedChangeReview: decisions", () => {
     await waitFor(() => expect(within(hallA).getByRole("button", { name: /confirm for this booking/i })).toBeEnabled());
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-A: a refused decision shows the reason on that change; a retry clears it.
   it("EVENT-FLAG-04-A shows why a decision failed and clears the message on retry", async () => {
     const user = userEvent.setup();
@@ -244,6 +258,7 @@ describe("FlaggedChangeReview: decisions", () => {
     await waitFor(() => expect(within(card).queryByRole("alert")).not.toBeInTheDocument());
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-A: a failure that is not an Error still gets a readable message.
   it("EVENT-FLAG-04-A shows a generic message when the failure has no message", async () => {
     const user = userEvent.setup();

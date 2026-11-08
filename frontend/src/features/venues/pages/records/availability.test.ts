@@ -25,6 +25,7 @@ const venue: VenueRecord = {
 };
 
 describe("checkVenueAvailability (SPM-51)", () => {
+  // Traceability: Jira 51 AC5 (matrix 24117310)
   /** VEN-AVL-05-A: nested and overlapping occupied intervals preserve the outer range and leave no false gap. */
   it("keeps the enclosing occupancy end when later intervals are nested and overlapping", () => {
     const result = getFreeVenueIntervals(
@@ -67,6 +68,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     ]);
   });
 
+  // Traceability: Jira 51 AC2 (matrix 24117310)
   /** VEN-AVL-02-A: free-gap calculation rejects malformed and reversed ranges. */
   it.each([
     ["not-a-date", "2030-01-12T13:00"],
@@ -76,6 +78,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     expect(getFreeVenueIntervals(venue, start, end)).toEqual([]);
   });
 
+  // Traceability: Jira 51 AC1 (matrix 24117310)
   /** VEN-AVL-01-A: datetime-local inputs are interpreted in the specified Singapore timezone. */
   it("parses event form values as Singapore time independent of host timezone", () => {
     expect(new Date(parseRequestTime("2030-01-12T12:00")).toISOString()).toBe(
@@ -83,6 +86,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     );
   });
 
+  // Traceability: Jira 51 AC1 (matrix 24117310)
   /** VEN-AVL-01-B: displayed schedule and hold expiry instants use Singapore time. */
   it("formats availability schedule values in SGT", () => {
     expect(
@@ -96,6 +100,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     );
   });
 
+  // Traceability: Jira 51 AC8 (matrix 24117310)
   /** VEN-AVL-08-B: a candidate after an existing booking conflicts inside the turnaround/setup buffers. */
   it("blocks a candidate after an existing booking when their buffers overlap", () => {
     const result = checkVenueAvailability(
@@ -123,6 +128,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     });
   });
 
+  // Traceability: Jira 51 AC7 (matrix 24117310)
   /** VEN-AVL-07-A: a server-returned active tentative hold blocks and includes its expiry. */
   it("reports an active API hold and its expiry time", () => {
     const result = checkVenueAvailability(
@@ -150,6 +156,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     });
   });
 
+  // Traceability: Jira 51 AC8 (matrix 24117310)
   /** VEN-AVL-08-B: a candidate before an existing booking conflicts inside the turnaround/setup buffers. */
   it("blocks a candidate before an existing booking when their buffers overlap", () => {
     const result = checkVenueAvailability(
@@ -175,6 +182,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     ]);
   });
 
+  // Traceability: Jira 51 AC8 (matrix 24117310)
   /** VEN-AVL-08-BND-1: with zero buffers, an exact half-open end/start touch is available. */
   it("accepts exact touching ranges when both venue buffers are zero", () => {
     const result = checkVenueAvailability(
@@ -200,6 +208,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     expect(result).toEqual([]);
   });
 
+  // Traceability: Jira 51 AC8 (matrix 24117310)
   /** VEN-AVL-08-VAR-1: venues with different configured buffers produce different availability results. */
   it("uses the selected venue's configured setup and turnaround values", () => {
     const scheduled = {
@@ -230,6 +239,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     expect(shortTurnaround).toEqual([]);
   });
 
+  // Traceability: Jira 51 AC8 (matrix 24117310)
   /** VEN-AVL-08-A: a blockout intersecting setup makes the requested time unavailable. */
   it("blocks a candidate whose setup buffer intersects an unavailable period", () => {
     const result = checkVenueAvailability(
@@ -253,6 +263,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     ]);
   });
 
+  // Traceability: Jira 51 AC7 (matrix 24117310)
   /** VEN-AVL-07-B: a requested range overlapping a blockout shows its reason. */
   it("reports an unavailable period reason", () => {
     const result = checkVenueAvailability(

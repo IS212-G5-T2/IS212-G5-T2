@@ -94,6 +94,7 @@ describe.skipIf(!database)('SPM-99 attendee availability (PostgreSQL)', () => {
     return eventId;
   }
 
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   // EVENT-VIEW-02-A: no active registrations leaves the full limit available.
   it('shows every configured spot when no one is registered', async () => {
     const eventId = await createEvent(45);
@@ -101,6 +102,7 @@ describe.skipIf(!database)('SPM-99 attendee availability (PostgreSQL)', () => {
     expect(await availabilityFor(eventId)).toBe(45);
   });
 
+  // Traceability: Jira 99 AC3 (matrix 13893657)
   // EVENT-VIEW-02-B: Withdrawn registrations do not consume capacity.
   it('subtracts only Registered rows from the configured limit', async () => {
     const eventId = await createEvent(45);
@@ -111,6 +113,7 @@ describe.skipIf(!database)('SPM-99 attendee availability (PostgreSQL)', () => {
     expect(await availabilityFor(eventId)).toBe(43);
   });
 
+  // Traceability: Jira 99 AC3 (matrix 13893657)
   // EVENT-VIEW-02-C: one remaining spot must still be available.
   it('shows one spot when two of three places are registered', async () => {
     const eventId = await createEvent(3);
@@ -120,6 +123,7 @@ describe.skipIf(!database)('SPM-99 attendee availability (PostgreSQL)', () => {
     expect(await availabilityFor(eventId)).toBe(1);
   });
 
+  // Traceability: Jira 99 AC3 (matrix 13893657)
   // EVENT-VIEW-02-D: a full event reports zero, including overbooked data.
   it('clamps availability at zero when the limit is consumed', async () => {
     const eventId = await createEvent(3);

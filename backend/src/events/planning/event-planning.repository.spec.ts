@@ -197,6 +197,7 @@ describe('EventPlanningRepository writes', () => {
     expect(row.name).toBe('Renamed');
   });
 
+  // Traceability: Jira 58 AC11 (matrix 33292299)
   /** EQUIP-RESERVE-11-B: a non-reschedule update never touches the event's equipment. */
   it('leaves equipment untouched when the date/time is unchanged', async () => {
     const { repository, poolQuery } = makeDatabase([eventDbRow()]);
@@ -247,6 +248,7 @@ describe('EventPlanningRepository writes', () => {
     return { repository: new EventPlanningRepository(database), calls };
   }
 
+  // Traceability: Jira 58 AC11 (matrix 33292299)
   /** EQUIP-RESERVE-11-A (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): a move outside the held window returns requests to review AND releases the reservations. */
   it('returns equipment to Pending Review and releases reservations when the event moves outside its window', async () => {
     const { repository, calls } = rescheduleDatabase(
@@ -280,6 +282,7 @@ describe('EventPlanningRepository writes', () => {
     expect(resUpdate?.params[0]).toBe(EVENT_ID);
   });
 
+  // Traceability: Jira 58 AC11 (matrix 33292299)
   /** EQUIP-RESERVE-11-BND-1 (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): moving only the end later than the held window also releases reservations. */
   it('releases reservations when only the event end moves later than its window', async () => {
     const { repository, calls } = rescheduleDatabase(
@@ -306,6 +309,7 @@ describe('EventPlanningRepository writes', () => {
     expect(resUpdate?.params[0]).toBe(EVENT_ID);
   });
 
+  // Traceability: Jira 58 AC11 (matrix 33292299)
   /**
    * EQUIP-RESERVE-11-BND-1 (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag):
    * moving only the start by the smallest supported increment (+1 minute) returns the Reserved request to Pending Review and retains the reservation.
@@ -339,6 +343,7 @@ describe('EventPlanningRepository writes', () => {
     ).toBe(false);
   });
 
+  // Traceability: Jira 58 AC11 (matrix 33292299)
   /**
    * EQUIP-RESERVE-11-BND-1 (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag):
    * moving only the end by one minute returns the Reserved request to Pending Review.
@@ -368,6 +373,7 @@ describe('EventPlanningRepository writes', () => {
     expect(reqUpdate?.params[0]).toBe(EVENT_ID);
   });
 
+  // Traceability: Jira 58 AC11 (matrix 33292299)
   /**
    * EQUIP-RESERVE-11-BND-1 (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag):
    * moving only the end one minute earlier (still inside the held window) returns the request to Pending Review and retains the reservation.
@@ -400,6 +406,7 @@ describe('EventPlanningRepository writes', () => {
     ).toBe(false);
   });
 
+  // Traceability: Jira 58 AC11 (matrix 33292299)
   /** EQUIP-RESERVE-11-A (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): a move that stays inside the held window re-opens the request but keeps the reservations. */
   it('returns equipment to Pending Review but keeps reservations when the event stays within its window', async () => {
     const { repository, calls } = rescheduleDatabase(
@@ -428,6 +435,7 @@ describe('EventPlanningRepository writes', () => {
     ).toBe(false);
   });
 
+  // Traceability: Jira 156 DoD2, DoD6, DoD7 (matrix 38010922)
   /**
    * EVENT-UPDATE-07-A (SPM-156): each field applied immediately is inserted as
    * an Applied 'direct_update' history row, proposed and applied by the
@@ -489,6 +497,7 @@ describe('EventPlanningRepository writes', () => {
     expect(sql.match(/'Applied'/g)).toHaveLength(2);
   });
 
+  // Traceability: Jira 156 DoD3, DoD5, DoD6, DoD7 (matrix 38010922)
   /**
    * EVENT-UPDATE-07-E (SPM-156): a change applied by approving a change request
    * is stored as 'change_request', proposed by the organiser and applied by the

@@ -66,6 +66,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     service = module.get(EquipmentService) as AvailabilityService;
   });
 
+  // Traceability: Jira 119 AC1 (matrix 21528751)
   // EQUIP-UNAVAIL-01-A: an active record changes to unavailable after confirmation.
   it('EQUIP-UNAVAIL-01-A marks Light bulbs unavailable', async () => {
     // Arrange: the locked equipment row is active and both write operations succeed.
@@ -99,6 +100,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-A: a valid reason is retained in the Marked unavailable audit event.
   it('EQUIP-UNAVAIL-02-A stores Broken lens, sent for repair in the audit entry', async () => {
     // Arrange: an active projector changes successfully.
@@ -123,6 +125,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-A: a valid reason is stored in normalized form in the audit trail.
   it('EQUIP-UNAVAIL-02-A trims the reason before storing it', async () => {
     // Arrange: an available record can be changed successfully.
@@ -145,6 +148,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     expect(auditParams).not.toContain('  Under repair  ');
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-05-A: a mark-unavailable action captures the equipment snapshot and change type.
   it('EQUIP-UNAVAIL-05-A writes the before-change equipment snapshot to the audit trail', async () => {
     // Arrange: the active Light bulbs record is locked for its availability change.
@@ -177,6 +181,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
+  // Traceability: Jira 119 AC7 (matrix 21528751)
   // EQUIP-UNAVAIL-07-A: the service groups the equipment update and audit insert in DatabaseService.transaction.
   it('EQUIP-UNAVAIL-07-A performs the update and audit insert in one transaction', async () => {
     // Arrange: all transaction-bound queries succeed.
@@ -199,6 +204,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     expect(database.query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 119 AC7 (matrix 21528751)
   // EQUIP-UNAVAIL-07-B: the audit event receives the reason and authenticated email required by AC7.
   it('EQUIP-UNAVAIL-07-B records Screen cracked and the acting user email', async () => {
     // Arrange: an active record can be changed.
@@ -226,6 +232,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
+  // Traceability: Jira 119 AC6 (matrix 21528751)
   // EQUIP-UNAVAIL-06-A: a previously unavailable record becomes available again.
   it('EQUIP-UNAVAIL-06-A reactivates unavailable equipment', async () => {
     // Arrange: the selected record is currently unavailable.
@@ -255,6 +262,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-05-B: reactivation creates a distinct Reactivated audit event.
   it('EQUIP-UNAVAIL-05-B writes a Reactivated audit entry', async () => {
     // Arrange: the selected equipment was previously unavailable.
@@ -280,6 +288,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-ASSUMP-01. Assumption A1: Retired equipment may still have an availability change recorded.
   it('EQUIP-UNAVAIL-ASSUMP-01 records an availability change for Retired equipment', async () => {
     // Arrange: a Retired item remains available but needs an auditably distinct availability state.
@@ -303,6 +312,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-ASSUMP-02. Assumption A1: Under Maintenance uses the same independent availability model.
   it('EQUIP-UNAVAIL-ASSUMP-02 records an availability change for Under Maintenance equipment', async () => {
     // Arrange: an Under Maintenance item remains available but needs an auditably distinct availability state.
@@ -331,6 +341,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-ASSUMP-03: repeated same-state requests are rejected with 409 and create no audit entry (PO-confirmed rule).
   it.each([
     [false, 'Equipment is already unavailable.'],
@@ -359,6 +370,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     },
   );
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-B: both empty forms of the required reason are rejected before an update or audit write can occur.
   it.each(['', '   '])(
     'EQUIP-UNAVAIL-02-B rejects a %j unavailability reason without side effects',
@@ -377,6 +389,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     },
   );
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-VAL-01: omitting a reason from an unavailable request is invalid.
   it('EQUIP-UNAVAIL-02-VAL-01 rejects a missing unavailability reason', async () => {
     // Arrange: an authenticated Technical Support user submits an incomplete request.
@@ -390,6 +403,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-VAL-02: an unavailability reason must be text.
   it('EQUIP-UNAVAIL-02-VAL-02 rejects a non-string unavailability reason', async () => {
     // Arrange: an authenticated Technical Support user submits a numeric reason.
@@ -404,6 +418,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-VAL-03: availability must be an explicit boolean.
   it('EQUIP-UNAVAIL-02-VAL-03 rejects a non-boolean availability flag', async () => {
     // Arrange: an authenticated Technical Support user submits a string flag.
@@ -417,6 +432,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-VAL-04: the request body must be an object.
   it('EQUIP-UNAVAIL-02-VAL-04 rejects a non-object availability payload', async () => {
     // Arrange: an authenticated Technical Support user submits no object body.
@@ -428,6 +444,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-VAL-05: reactivation ignores a reason because the action needs no explanation.
   it('EQUIP-UNAVAIL-02-VAL-05 accepts a reason with reactivation without storing it', async () => {
     // Arrange: the selected equipment is currently unavailable.
@@ -454,6 +471,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
+  // Traceability: Jira 119 Cross-cutting (matrix 21528751)
   // EQUIP-UNAVAIL-07-SEC-06: malformed IDs receive a client error before a database query.
   it('EQUIP-UNAVAIL-07-SEC-06 rejects a malformed equipment ID without a transaction', async () => {
     // Arrange: an otherwise valid Technical Support request targets a malformed ID.
@@ -468,6 +486,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 119 Cross-cutting (matrix 21528751)
   // EQUIP-UNAVAIL-07-SEC-1: no role other than Technical Support may change availability or write audit history.
   it.each(['ATTENDEE', 'ORGANISER'] as const)(
     'EQUIP-UNAVAIL-07-SEC-1 rejects %s without updating equipment or audit history',
@@ -490,6 +509,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     },
   );
 
+  // Traceability: Jira 119 Cross-cutting (matrix 21528751)
   // EQUIP-UNAVAIL-07-SEC-1: an absent session is distinct from a forbidden authenticated role.
   it('EQUIP-UNAVAIL-07-SEC-1 rejects an unauthenticated availability update without side effects', async () => {
     // Act and assert: the unauthenticated request cannot start a transaction.

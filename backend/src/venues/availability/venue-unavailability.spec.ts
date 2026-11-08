@@ -23,6 +23,7 @@ const input = {
 };
 
 describe('SPM-122 venue unavailable periods', () => {
+  // Traceability: Jira 122 AC1 (matrix 21103356)
   // VEN-UNAVAIL-01-A and 02-A: valid times and a free-text reason are retained.
   it('accepts a valid interval and an operational reason outside the Jira examples', () => {
     // Act and assert exact normalized values.
@@ -33,6 +34,7 @@ describe('SPM-122 venue unavailable periods', () => {
     });
   });
 
+  // Traceability: Jira 122 AC1 (matrix 21103356)
   // VEN-UNAVAIL-01-B: reversed and equal intervals cannot be saved.
   it.each(['2030-01-12T10:59:00.000Z', input.start])(
     'rejects an end at or before the start (%s)',
@@ -70,6 +72,7 @@ describe('SPM-122 venue unavailable periods', () => {
     });
   });
 
+  // Traceability: Jira 122 AC1 (matrix 21103356)
   // VEN-UNAVAIL-01-B: a syntactically valid but nonexistent calendar day is invalid.
   it('rejects a nonexistent date instead of silently moving it into March', () => {
     // Act and assert that a normalized February 30 cannot reach persistence.
@@ -83,6 +86,7 @@ describe('SPM-122 venue unavailable periods', () => {
     }
   });
 
+  // Traceability: Jira 122 AC1 (matrix 21103356)
   // VEN-UNAVAIL-01-B: malformed or missing timestamps cannot create an interval.
   it.each([null, [], { ...input, start: 123 }, { ...input, end: '2030-01-12T13:00' }, { ...input, end: '2030-01-12T25:00:00.000Z' }])(
     'rejects a malformed unavailable-period request (%j)', (body) => {
@@ -91,6 +95,7 @@ describe('SPM-122 venue unavailable periods', () => {
     },
   );
 
+  // Traceability: Jira 122 AC2 (matrix 21103356)
   // VEN-UNAVAIL-02-A/B: free text is normalized and bounded without changing valid wording.
   it('trims a valid reason and rejects an overlong one', () => {
     // Act and assert the persisted reason has no incidental surrounding whitespace.
@@ -105,6 +110,7 @@ describe('SPM-122 venue unavailable periods', () => {
     }
   });
 
+  // Traceability: Jira 122 AC2 (matrix 21103356)
   // VEN-UNAVAIL-02-B: empty and whitespace-only reasons are invalid.
   it.each(['', '   '])('rejects a missing reason (%j)', (reason) => {
     // Act and assert the reason field is identified.
@@ -129,6 +135,7 @@ describe('SPM-122 venue unavailable periods', () => {
     { now: () => fixedNow },
   );
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // VEN-UNAVAIL-04-SEC-1: only a verified Venue Staff identity can write.
   it('rejects unauthenticated and non-staff callers before persistence', async () => {
     // Arrange: permissions alone are not a substitute for the staff role.
@@ -146,6 +153,7 @@ describe('SPM-122 venue unavailable periods', () => {
     expect(markUnavailable).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // VEN-UNAVAIL-04-SEC-1: the Venue update permission is required in addition to the role.
   it('rejects staff without Venue update permission', async () => {
     // Arrange a role-bearing user whose current permission check fails.
@@ -157,6 +165,7 @@ describe('SPM-122 venue unavailable periods', () => {
     expect(markUnavailable).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // VEN-UNAVAIL-04-A: an invalid or absent venue cannot receive a period.
   it('rejects invalid and missing venues instead of reporting a saved period', async () => {
     // Arrange a valid staff identity and an absent repository record.
@@ -169,6 +178,7 @@ describe('SPM-122 venue unavailable periods', () => {
     expect(markUnavailable).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 122 AC4 (matrix 21103356)
   // VEN-UNAVAIL-04-A/06-A: the staff action forwards a validated period and affected result.
   it('saves a period even when the repository reports existing affected bookings', async () => {
     // Arrange: an affected booking exists already.
@@ -194,6 +204,7 @@ describe('SPM-122 venue unavailable periods', () => {
     }, staff.uid);
   });
 
+  // Traceability: Jira 122 AC5 (matrix 21103356)
   // VEN-UNAVAIL-05-A/B: early ending targets one period under the selected venue.
   it('ends one active unavailable period without passing a bulk venue update', async () => {
     // Arrange and act through the public service.
@@ -211,6 +222,7 @@ describe('SPM-122 venue unavailable periods', () => {
     expect(endUnavailable).toHaveBeenCalledWith(venueId, periodId, staff.uid);
   });
 
+  // Traceability: Jira 122 AC5 (matrix 21103356)
   // VEN-UNAVAIL-05-A: a missing period cannot be reported as reactivated.
   it('rejects malformed and absent early-end targets', async () => {
     // Arrange a repository that cannot find an active selected period.

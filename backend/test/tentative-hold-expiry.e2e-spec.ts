@@ -153,6 +153,7 @@ describe.skipIf(!databaseUrl)(
 
     // ── AC2: Expired hold does not block a new booking request ───────────────
 
+    // Traceability: Jira 133 AC2 (matrix 39223343)
     /** VEN-HOLD-EXP-02-A: a clearly-past-expired hold does not block a new booking request for the same slot. */
     it('VEN-HOLD-EXP-02-A past-expired hold does not block a new booking request', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -174,6 +175,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body).toMatchObject({ eventId: newEventId, venueId, status: 'pending' });
     });
 
+    // Traceability: Jira 133 AC2 (matrix 39223343)
     /** VEN-HOLD-EXP-02-BND-1: at exact equality (hold_expires_at = now), the hold is non-blocking. */
     it('VEN-HOLD-EXP-02-BND-1 hold at exact equality is non-blocking for a new request', async () => {
       const previousNow = testNow;
@@ -198,6 +200,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 133 AC2 (matrix 39223343)
     /** VEN-HOLD-EXP-02-B: an active hold still blocks a new booking request for the same slot. */
     it('VEN-HOLD-EXP-02-B active hold still blocks a new booking request', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -219,6 +222,7 @@ describe.skipIf(!databaseUrl)(
 
     // ── AC3: Expired hold has no confirmed capacity ──────────────────────────
 
+    // Traceability: Jira 133 AC3 (matrix 39223343)
     /** VEN-HOLD-EXP-03-A: expired hold does not appear in the venue schedule reservations. */
     it('VEN-HOLD-EXP-03-A expired hold has no confirmed capacity in the venue schedule', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -239,6 +243,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    // Traceability: Jira 133 AC3 (matrix 39223343)
     /** VEN-HOLD-EXP-03-B: an unrelated confirmed booking still appears in the venue schedule. */
     it('VEN-HOLD-EXP-03-B unrelated confirmed booking still counted in venue schedule', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -272,6 +277,7 @@ describe.skipIf(!databaseUrl)(
 
     // ── AC4: Expired hold cannot be converted ────────────────────────────────
 
+    // Traceability: Jira 133 AC4 (matrix 39223343)
     /** VEN-HOLD-EXP-04-B: a stored-expired hold (status = 'expired') conversion is refused. */
     it('VEN-HOLD-EXP-04-B stored-expired hold conversion is refused', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -294,6 +300,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body.code).toBe('TENTATIVE_HOLD_EXPIRED');
     });
 
+    // Traceability: Jira 133 AC4 (matrix 39223343)
     /** VEN-HOLD-EXP-04-BND-1: clock at equality (hold_expires_at = now), DB still 'approved' — conversion refused. */
     it('VEN-HOLD-EXP-04-BND-1 clock at equality with approved status conversion refused', async () => {
       const previousNow = testNow;
@@ -323,6 +330,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 133 AC4 (matrix 39223343)
     /** VEN-HOLD-EXP-04-PERF-1: race — clock past expiry but DB still 'approved' → conversion refused. */
     it('VEN-HOLD-EXP-04-PERF-1 race condition: clock-expired but DB approved conversion refused', async () => {
       const previousNow = testNow;
@@ -346,6 +354,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 133 AC4 (matrix 39223343)
     /** VEN-HOLD-EXP-04-PERF-2: a hold converted before expiry remains a confirmed booking after the scheduler runs. */
     it('VEN-HOLD-EXP-04-PERF-2 converted hold remains confirmed after scheduler processes expiry', async () => {
       const previousNow = testNow;
@@ -384,6 +393,7 @@ describe.skipIf(!databaseUrl)(
 
     // ── AC6: Scheduler expires holds ─────────────────────────────────────────
 
+    // Traceability: Jira 133 AC6 (matrix 39223343)
     /** VEN-HOLD-EXP-06-VAR-1: direct processor call expires an approved hold at or past expiry. */
     it('VEN-HOLD-EXP-06-VAR-1 direct processor call expires an approved hold past expiry', async () => {
       const staff = await createUser('VENUE_STAFF');
@@ -403,6 +413,7 @@ describe.skipIf(!databaseUrl)(
       expect(stored.rows[0].status).toBe('expired');
     });
 
+    // Traceability: Jira 133 AC6 (matrix 39223343)
     /** VEN-HOLD-EXP-06-B: processor does not expire a hold before its expiry time. */
     it('VEN-HOLD-EXP-06-B processor does not expire a hold before its expiry time', async () => {
       const previousNow = testNow;
@@ -431,6 +442,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 133 AC6 (matrix 39223343)
     /** VEN-HOLD-EXP-06-PERF-1: idempotent — H-A expires once, H-B (still active) is unaffected by a second run. */
     it('VEN-HOLD-EXP-06-PERF-1 idempotent: expired hold processed once, active hold unaffected', async () => {
       const previousNow = testNow;
@@ -480,6 +492,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 133 AC6 (matrix 39223343)
     /** VEN-HOLD-EXP-06-A: registered scheduler's process() method expires a hold without a direct repository call. */
     it('VEN-HOLD-EXP-06-A registered scheduler process() expires a hold', async () => {
       const staff = await createUser('VENUE_STAFF');

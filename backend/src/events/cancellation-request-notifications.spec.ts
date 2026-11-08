@@ -41,6 +41,7 @@ describe('SPM-162 cancellation request outcome notices in the notification feed'
     service = module.get(EventsService);
   });
 
+  // Traceability: Jira 162 AC1 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-01-F (SPM-162 AC1): the feed asks for the two outcome types only for an Organiser. A Coordinator,
    * the Lead and an Attendee never ask for them.
@@ -63,6 +64,7 @@ describe('SPM-162 cancellation request outcome notices in the notification feed'
     expect(params[1].includes('cancellation_request_declined')).toBe(included);
   });
 
+  // Traceability: Jira 162 AC4 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-04-A (SPM-162 AC4): each outcome notice in the feed carries the id of its event (the bell link
    * target) and is labelled an Organiser notice, with the notice's own timestamp.
@@ -82,6 +84,7 @@ describe('SPM-162 cancellation request outcome notices in the notification feed'
     expect(items[0].createdAt).toBe('2026-11-02T08:30:00.000Z');
   });
 
+  // Traceability: Jira 162 AC5 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-05-C (SPM-162 AC5): an Organiser can mark an outcome notice read, limited to their own notices of
    * the types they may read; a Coordinator's call carries no outcome types and finds nothing.
@@ -118,6 +121,7 @@ describe('SPM-171 cancellation request submitted notices in the notification fee
     service = module.get(EventsService);
   });
 
+  // Traceability: Jira 171 AC1 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-01-D (SPM-171 AC1): the feed asks for the submitted type only for a Coordinator. An Organiser, the
    * Lead and an Attendee never ask for it.
@@ -139,6 +143,7 @@ describe('SPM-171 cancellation request submitted notices in the notification fee
     expect(params[1].includes('cancellation_request_submitted')).toBe(included);
   });
 
+  // Traceability: Jira 171 AC3 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-03-C (SPM-171 AC2, AC3): the notice in the feed carries its event id (the bell link target), is
    * labelled a Coordinator notice and keeps the stored time as the notification's timestamp.
@@ -164,6 +169,7 @@ describe('SPM-171 cancellation request submitted notices in the notification fee
     expect(items[0].createdAt).toBe('2026-11-03T03:15:00.000Z');
   });
 
+  // Traceability: Jira 171 AC4 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-04-D (SPM-171 AC4): a Coordinator can mark the notice read, limited to their own notices of the
    * types they may read; an Organiser's call does not carry the type and finds nothing.

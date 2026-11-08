@@ -10,6 +10,7 @@ import { validateMessage } from './clarification-input.js';
  * but are not named in the SPM-39 document.
  */
 describe('validateMessage', () => {
+  // Traceability: Jira 39 AC2 (matrix 8060934)
   // SPM-39 REQ-CLAR-01-B (AC2)
   // Kills: a blank message accepted when the empty-string check is removed from validateMessage.
   it('rejects a blank message', () => {
@@ -18,6 +19,7 @@ describe('validateMessage', () => {
     );
   });
 
+  // Traceability: Jira 39 AC2 (matrix 8060934)
   // SPM-39 REQ-CLAR-01-C (AC2)
   // Kills: whitespace-only text accepted because the trim is missing before the blank check.
   it('rejects a whitespace-only message', () => {
@@ -90,6 +92,7 @@ describe('validateMessage', () => {
 });
 
 describe('validateMessage: a body that is not an object', () => {
+  // Traceability: Jira 39 AC2 (matrix 8060934)
   // SPM-39 REQ-CLAR-01-B (AC2): a missing or malformed body is treated as a blank message.
   // Kills: the object check removed (null or an array is read as a message), or the fallback changed.
   it.each([null, undefined, ['Please confirm.'], 'Please confirm.'])('rejects the body %j as a blank message', (body) => {

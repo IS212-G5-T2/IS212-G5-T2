@@ -57,6 +57,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
       ]);
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   // EQUIP-UNAVAIL-04-A: the default HTTP list returns only available equipment.
   it('EQUIP-UNAVAIL-04-A excludes unavailable equipment from the default API list', async () => {
     // Arrange: two available records and two unavailable records exist.
@@ -82,6 +83,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(returnedIds).not.toEqual(expect.arrayContaining(unavailableIds));
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   // EQUIP-UNAVAIL-04-B: availability filtering applies before type filtering.
   it('EQUIP-UNAVAIL-04-B excludes an unavailable Visual record from API type search', async () => {
     // Arrange: the matching Visual rows differ only by availability.
@@ -101,6 +103,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(returnedIds).not.toContain(unavailableId);
   });
 
+  // Traceability: Jira 119 AC1 (matrix 21528751)
   // EQUIP-UNAVAIL-01-A: the public PATCH endpoint marks the selected available record unavailable.
   it('EQUIP-UNAVAIL-01-A marks Light bulbs unavailable through the HTTP boundary', async () => {
     // Arrange: seed the exact Confluence-specified record and authenticate a Technical Support user.
@@ -144,6 +147,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     );
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-B: invalid unavailability reasons return HTTP 400 without changing equipment or history.
   it('EQUIP-UNAVAIL-02-B rejects an empty reason without persisting an equipment or audit change', async () => {
     // Arrange: record the persisted state before an invalid Technical Support request.
@@ -173,6 +177,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(audit.rows).toEqual([]);
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   // EQUIP-UNAVAIL-04-C: opting in with includeUnavailable reveals unavailable equipment.
   it('EQUIP-UNAVAIL-04-C reveals unavailable equipment with includeUnavailable', async () => {
     // Arrange: an unavailable record exists alongside an authenticated Technical Support user.
@@ -198,6 +203,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     );
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-05-C: any Technical Support user can read audit history created by another.
   it('EQUIP-UNAVAIL-05-C shares audit history with another Technical Support user', async () => {
     // Arrange: one technician creates history and another technician inspects it.
@@ -226,6 +232,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     );
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-05-A: the mark-unavailable audit row captures the equipment snapshot and a current timestamp.
   it('EQUIP-UNAVAIL-05-A records the complete mark-unavailable audit snapshot with a current timestamp', async () => {
     // Arrange: freeze the observable action window around a known availability change.
@@ -271,6 +278,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     );
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-ASSUMP-03: repeated same-state requests are rejected with 409 and create no audit entry (PO-confirmed rule).
   it('EQUIP-UNAVAIL-ASSUMP-03 returns 409 for repeated availability states without duplicate audit rows', async () => {
     // Arrange: one record starts available and another starts unavailable.
@@ -310,6 +318,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(audit.rows).toEqual([]);
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-05-B: reactivation appends a distinct event after the original mark-unavailable event.
   it('EQUIP-UNAVAIL-05-B appends a Reactivated audit entry after Marked unavailable', async () => {
     // Arrange: create a record and mark it unavailable first.
@@ -341,6 +350,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(changes).toEqual(['Reactivated', 'Marked unavailable']);
   });
 
+  // Traceability: Jira 119 AC7 (matrix 21528751)
   // EQUIP-UNAVAIL-07-A: a failed audit insert rolls the availability update back with it.
   it('EQUIP-UNAVAIL-07-A rolls back the equipment update when the audit insert fails', async () => {
     // Arrange: force every audit insert to fail after the route begins its transaction.
@@ -369,6 +379,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(row.rows).toEqual([{ is_available: true }]);
   });
 
+  // Traceability: Jira 119 AC7 (matrix 21528751)
   // EQUIP-UNAVAIL-07-B: the three AC7 audit fields are present and have the specified values.
   it('EQUIP-UNAVAIL-07-B records timestamp, Screen cracked, and the JWT user email', async () => {
     // Arrange: a known user changes a known equipment record.
@@ -403,6 +414,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     );
   });
 
+  // Traceability: Jira 119 Cross-cutting (matrix 21528751)
   // EQUIP-UNAVAIL-07-SEC-1: the public PATCH route returns HTTP 403 to both forbidden roles and creates no audit record.
   it.each(['ATTENDEE', 'ORGANISER'] as const)(
     'EQUIP-UNAVAIL-07-SEC-1 returns 403 to %s without an audit entry',
@@ -437,6 +449,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     },
   );
 
+  // Traceability: Jira 119 AC6 (matrix 21528751)
   // M1: Reactivation always writes false -> Stored availability after reactivating
   // EQUIP-UNAVAIL-06-A: a reactivated record is persisted as available.
   it('EQUIP-UNAVAIL-06-A stores true when reactivating', async () => {
@@ -454,6 +467,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(state.rows[0].is_available).toBe(true);
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // M2: Audit is_available column always true -> The API doesn't expose the column, and nothing queries it
   // EQUIP-UNAVAIL-05-A: the audit trail stores the before/after availability state.
   it('EQUIP-UNAVAIL-05-A stores the unavailable state in the audit trail', async () => {
@@ -471,6 +485,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(audit.rows[0].is_available).toBe(false);
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-A: a valid reason is stored in normalized form in the audit trail.
   it('EQUIP-UNAVAIL-02-A trims a padded reason before saving', async () => {
     const actor = await createUser('TECH_SUPPORT', 'm6-test');
@@ -487,6 +502,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(audit.rows[0].reason).toBe('Under repair');
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // M9: Reactivation stores a submitted reason -> Reactivation audit has a null reason
   // EQUIP-UNAVAIL-02-VAL-05: reactivation ignores an irrelevant reason.
   it('EQUIP-UNAVAIL-02-VAL-05 stores a null reason when reactivating even if one was submitted', async () => {
@@ -504,6 +520,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(audit.rows[0].reason).toBeNull();
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // M11: Missing reason field accepted -> Missing or non-string reason
   // EQUIP-UNAVAIL-02-VAL-01 / EQUIP-UNAVAIL-02-VAL-02: missing and non-string reasons are rejected.
   it('EQUIP-UNAVAIL-02-VAL-01/02 rejects missing or non-string reasons when marking unavailable', async () => {
@@ -521,6 +538,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
       .expect(400);
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // Retired records can be marked unavailable -> no test pins it
   // EQUIP-UNAVAIL-ASSUMP-01: availability changes are allowed for Retired equipment.
   it('EQUIP-UNAVAIL-ASSUMP-01 allows marking a Retired record as unavailable', async () => {
@@ -535,6 +553,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
       .expect(200);
   });
 
+  // Traceability: Jira 119 Cross-cutting (matrix 21528751)
   // M5: Validate before authorise -> Forbidden user sending an invalid body gets 403, not 400
   // M7: Unknown-ID check removed -> 404 for an unknown ID
   // EQUIP-UNAVAIL-07-SEC-04: authorization is checked before identifier validation.
@@ -547,6 +566,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
       .expect(403);
   });
 
+  // Traceability: Jira 119 Cross-cutting (matrix 21528751)
   // EQUIP-UNAVAIL-07-SEC-02: every non-Technical-Support role is denied before state changes.
   // Extra timeout: about a dozen bcrypt cost-12 hash/verify calls now run sequentially.
   it('EQUIP-UNAVAIL-07-SEC-02 denies every other defined role', async () => {
@@ -609,6 +629,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
       .expect(401);
   }, 15_000);
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   // EQUIP-UNAVAIL-07-SEC-03: audit history requires the same Technical Support authorization as mutation routes.
   it('EQUIP-UNAVAIL-07-SEC-03 rejects unauthenticated and forbidden audit-trail reads', async () => {
     // Arrange: a non-Technical-Support user has a valid session.
@@ -624,6 +645,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
       .expect(403);
   });
 
+  // Traceability: Jira 119 Cross-cutting (matrix 21528751)
   // EQUIP-UNAVAIL-07-SEC-04: authorization is evaluated before malformed input is disclosed.
   it('EQUIP-UNAVAIL-07-SEC-04 returns authorization errors before validation errors', async () => {
     // Arrange: one forbidden session and one unauthenticated request target valid equipment.
@@ -645,6 +667,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
       .expect(401);
   });
 
+  // Traceability: Jira 119 Cross-cutting (matrix 21528751)
   // EQUIP-UNAVAIL-07-SEC-05: client-controlled audit actor fields cannot forge the stored actor.
   it('EQUIP-UNAVAIL-07-SEC-05 ignores a forged changedBy field and records the session user', async () => {
     // Arrange: a valid Technical Support session targets available equipment.
@@ -670,6 +693,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(audit.rows).toEqual([{ changed_by: actor.email }]);
   });
 
+  // Traceability: Jira 119 Cross-cutting (matrix 21528751)
   // EQUIP-UNAVAIL-07-SEC-06: malformed and unknown IDs have deliberate client-facing errors.
   it('EQUIP-UNAVAIL-07-SEC-06 returns 400 for a malformed ID and 404 for an unknown UUID', async () => {
     // Arrange: an authorized actor targets nonexistent identifiers.

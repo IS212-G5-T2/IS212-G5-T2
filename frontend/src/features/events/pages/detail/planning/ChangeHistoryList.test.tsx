@@ -19,6 +19,7 @@ const entry = (overrides: Partial<ChangeHistoryEntry>): ChangeHistoryEntry => ({
 afterEach(cleanup);
 
 describe("ChangeHistoryList", () => {
+  // Traceability: Jira 156 DoD5, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-C: a direct update reads "Updated directly"; reviewed changes keep their outcome.
   it("EVENT-UPDATE-07-C labels direct updates and reviewed changes differently", () => {
     render(
@@ -51,6 +52,7 @@ describe("ChangeHistoryList", () => {
     );
   });
 
+  // Traceability: Jira 156 DoD3, DoD5, DoD6, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-E: an approved change request names the organiser who asked and the coordinator who approved.
   it("EVENT-UPDATE-07-E labels an approved change request with who asked and who approved", () => {
     render(
@@ -79,6 +81,7 @@ describe("ChangeHistoryList", () => {
     expect(items[1]).toHaveTextContent("Change request approved by Coord Nine");
   });
 
+  // Traceability: Jira 156 DoD5, DoD7 (matrix 38010922)
   it("EVENT-UPDATE-07-C says when nothing is recorded yet", () => {
     render(<ChangeHistoryList history={[]} />);
     expect(screen.getByText("No changes recorded yet.")).toBeInTheDocument();

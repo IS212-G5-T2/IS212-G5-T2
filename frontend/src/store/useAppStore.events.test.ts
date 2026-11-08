@@ -52,6 +52,7 @@ beforeEach(() => {
 });
 
 describe("createVenue", () => {
+  // Traceability: Jira 50 AC4 (matrix 14975043)
   // SPM-50 / VEN-CRE-05-A: creation does not update the separate catalogue feature.
   it("persists a venue and leaves catalogue state unchanged", async () => {
     // Arrange the complete Confluence fixture returned by the API.

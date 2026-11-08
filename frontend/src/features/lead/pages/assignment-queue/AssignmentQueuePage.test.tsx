@@ -57,6 +57,7 @@ beforeEach(() => {
 });
 
 describe("AC2: the unassigned queue", () => {
+  // Traceability: Jira 123 AC2 (matrix 21102810)
   // The four basic fields are shown for every request.
   it("LEAD-ASN-02-B shows each unassigned request's name, purpose, date and time, and expected attendance", async () => {
     // Arrange: two queued requests.
@@ -76,6 +77,7 @@ describe("AC2: the unassigned queue", () => {
     expect(within(card("Spring Gala")).getByText("Expected attendance: 200")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 123 AC2 (matrix 21102810)
   // An empty queue says so rather than showing nothing.
   it("LEAD-ASN-02-C shows a message when there are no unassigned requests", async () => {
     // Arrange: nothing is waiting.
@@ -88,6 +90,7 @@ describe("AC2: the unassigned queue", () => {
     expect(await screen.findByText("No unassigned requests.")).toBeInTheDocument();
     expect(screen.queryAllByRole("article")).toHaveLength(0);
   });
+  // Traceability: Jira 123 AC2 (matrix 21102810)
   // If the queue can't be loaded, the Lead is told instead of seeing an empty page.
   it("LEAD-ASN-02-E shows an error when the queue cannot be loaded", async () => {
     // Arrange: loading fails.
@@ -105,6 +108,7 @@ describe("AC2: the unassigned queue", () => {
 });
 
 describe("AC3: coordinator availability and workload", () => {
+  // Traceability: Jira 123 AC3 (matrix 21102810)
   // The coordinators panel shows name, availability and active count.
   it("LEAD-ASN-03-D shows each coordinator's name, availability and active count", async () => {
     // Act: open the page.
@@ -123,6 +127,7 @@ describe("AC3: coordinator availability and workload", () => {
 });
 
 describe("AC5 and AC8: assigning a request", () => {
+  // Traceability: Jira 123 AC5 (matrix 21102810)
   // Choosing a coordinator and assigning sends both ids and removes the request.
   it("LEAD-ASN-05-C assigns the chosen coordinator and removes the request from the queue", async () => {
     // Arrange: the assignment succeeds.
@@ -141,6 +146,7 @@ describe("AC5 and AC8: assigning a request", () => {
     await waitFor(() => expect(screen.queryByRole("article", { name: "Welcome Evening" })).not.toBeInTheDocument());
   });
 
+  // Traceability: Jira 123 AC8 (matrix 21102810)
   // The Lead is told who the request went to.
   it("LEAD-ASN-08-A confirms which coordinator the request was assigned to", async () => {
     // Arrange: the assignment succeeds.
@@ -159,6 +165,7 @@ describe("AC5 and AC8: assigning a request", () => {
     );
   });
 
+  // Traceability: Jira 123 AC8 (matrix 21102810)
   // A failed assignment is reported and the request stays.
   it("LEAD-ASN-08-B shows an error and no confirmation when assigning fails", async () => {
     // Arrange: the assignment fails.
@@ -224,6 +231,7 @@ describe("AC5 and AC8: assigning a request", () => {
     expect(getLeadCoordinators).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 123 AC5 (matrix 21102810)
   // Double-clicking Assign must not send two requests.
   it("LEAD-ASN-05-BND-1 disables Assign while assigning so only one request is sent", async () => {
     // Arrange: an assignment that stays pending.
@@ -248,6 +256,7 @@ describe("AC5 and AC8: assigning a request", () => {
 });
 
 describe("AC6 and AC7: unavailable coordinators", () => {
+  // Traceability: Jira 123 AC6 (matrix 21102810)
   // Unavailable coordinators are visible in the picker but can't be chosen.
   it("LEAD-ASN-06-C lists unavailable coordinators but does not let them be chosen", async () => {
     // Act: open the page.
@@ -260,6 +269,7 @@ describe("AC6 and AC7: unavailable coordinators", () => {
     expect(within(picker).getByRole("option", { name: "Coordinator 1 (2 active)" })).toBeEnabled();
   });
 
+  // Traceability: Jira 123 AC6 (matrix 21102810)
   // If the server refuses (e.g. they went unavailable), the page explains and refreshes.
   it("LEAD-ASN-06-D shows the error, keeps the request and refreshes coordinators when an assignment is refused", async () => {
     // Arrange: the server refuses; afterwards Coordinator 1 shows as unavailable.
@@ -330,6 +340,7 @@ describe("AC6 and AC7: unavailable coordinators", () => {
     expect(screen.getByRole("article", { name: "Welcome Evening" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 123 AC7 (matrix 21102810)
   // With nobody available, the Lead is told and the request stays queued.
   it("LEAD-ASN-07-A tells the Lead no coordinators are available and keeps the request queued", async () => {
     // Arrange: every coordinator is unavailable.
@@ -348,6 +359,7 @@ describe("AC6 and AC7: unavailable coordinators", () => {
 });
 
 describe("SPM-47 AC10: the Lead's notifications on the Assignment Queue page", () => {
+  // Traceability: Jira 47 AC10 (matrix 21496116)
   // The Lead sees coordinator-unavailable notices on the page they land on.
   it("LEAD-REASN-10-H shows the Lead's coordinator-unavailable notifications on the Assignment Queue page", async () => {
     // Arrange: the Lead is signed in and has one unread notice.

@@ -25,6 +25,7 @@ function written(query: ReturnType<typeof recorder>['query']) {
 }
 
 describe('SPM-162 request-outcome notice writer', () => {
+  // Traceability: Jira 162 AC1 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-01-C (SPM-162 AC1): one notice row is written, addressed to the event's Organiser, typed for the
    * outcome and linked to the event.
@@ -48,6 +49,7 @@ describe('SPM-162 request-outcome notice writer', () => {
     expect(params[0]).toEqual(expect.stringMatching(/^[0-9a-f-]{36}$/));
   });
 
+  // Traceability: Jira 162 AC2 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-02-A (SPM-162 AC2): the accepted notice reads exactly as the Jira wording.
    * Kills: changed wording, the event name left out or unquoted.
@@ -60,6 +62,7 @@ describe('SPM-162 request-outcome notice writer', () => {
     expect(written(query).params[3]).toBe('Your cancellation request for "Annual Gala Dinner" was accepted. The event is cancelled.');
   });
 
+  // Traceability: Jira 162 AC2 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-02-B (SPM-162 AC2): the declined notice reads exactly as the Jira wording and gives no reason.
    * Kills: changed wording, a decline reason appended, the accepted text used for a decline.
@@ -72,6 +75,7 @@ describe('SPM-162 request-outcome notice writer', () => {
     expect(written(query).params[3]).toBe('Your cancellation request for "Annual Gala Dinner" was declined. The event keeps its current status.');
   });
 
+  // Traceability: Jira 162 AC2 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-02-C (SPM-162 AC2): the notice is stamped with the decision instant the caller passes, not the
    * database clock.
@@ -87,6 +91,7 @@ describe('SPM-162 request-outcome notice writer', () => {
     expect(sql).not.toMatch(/now\(\)/i);
   });
 
+  // Traceability: Jira 162 AC2 (matrix 39125695)
   /**
    * CANCEL-OUTCOME-02-BND-1 (SPM-162 AC2, boundary): an event name with quotes, an apostrophe and non-ASCII text is
    * carried verbatim and sent as a parameter, never spliced into the SQL.
@@ -112,6 +117,7 @@ describe('SPM-162 request-outcome notice writer', () => {
 describe('SPM-171 request notice writer for the Coordinator', () => {
   const SUBMITTED_AT = new Date('2026-11-03T03:15:00.000Z');
 
+  // Traceability: Jira 171 AC1 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-01-B (SPM-171 AC1): one row, addressed to the Coordinator passed in, typed for a submitted request
    * and linked to the event.
@@ -129,6 +135,7 @@ describe('SPM-171 request notice writer for the Coordinator', () => {
     expect(params[0]).toEqual(expect.stringMatching(/^[0-9a-f-]{36}$/));
   });
 
+  // Traceability: Jira 171 AC2 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-02-B (SPM-171 AC2): the notice reads exactly <organiser name> requested to cancel "<event name>".
    * Kills: changed wording, the event name unquoted, the final full stop dropped, the names swapped.
@@ -141,6 +148,7 @@ describe('SPM-171 request notice writer for the Coordinator', () => {
     expect(written(query).params[3]).toBe('Farid Rahman requested to cancel "Annual Gala Dinner".');
   });
 
+  // Traceability: Jira 171 AC2 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-02-C (SPM-171 AC2): the notice is stamped with the submission instant passed in, not the database clock.
    * Kills: a SQL now() or a new Date() in place of the passed time.
@@ -155,6 +163,7 @@ describe('SPM-171 request notice writer for the Coordinator', () => {
     expect(sql).not.toMatch(/now\(\)/i);
   });
 
+  // Traceability: Jira 171 AC2 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-02-BND-1 (SPM-171 AC2, boundary): names with quotes, an apostrophe and non-ASCII text are carried
    * verbatim and sent as parameters, never spliced into the SQL.
@@ -171,6 +180,7 @@ describe('SPM-171 request notice writer for the Coordinator', () => {
     expect(sql).not.toContain('DROP TABLE');
   });
 
+  // Traceability: Jira 171 AC6 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-06-B (SPM-171 AC6): with a pending request the helper looks it up by event, then writes one notice
    * for the Coordinator using the requester's name and the original submission time, and reports true.
@@ -193,6 +203,7 @@ describe('SPM-171 request notice writer for the Coordinator', () => {
     expect(params.slice(1)).toEqual(['coo-02', 'cancellation_request_submitted', 'Farid Rahman requested to cancel "Annual Gala Dinner".', EVENT, SUBMITTED_AT]);
   });
 
+  // Traceability: Jira 171 AC6 (matrix 40402962)
   /**
    * CANCEL-REQ-NOTIF-06-C (SPM-171 AC6): with no pending request the helper writes nothing and reports false.
    * Kills: a notice for a decided or absent request.

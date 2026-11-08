@@ -233,6 +233,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   // Kills: the retry after a failed save using a new operation id, or the later edit sent with the original operation id.
+  // Traceability: Jira 37 AC6 (matrix 10551297)
   /** EVE-DRF-06-A: a failed save is retried with the same operation before newer edits (EVE-DRF-SUP-48). */
   it("EVE-DRF-SUP-48 retries uncertain operation before saving edits made after failure", async () => {
     mocked
@@ -258,6 +259,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(last.operationId).not.toBe(first.operationId);
   });
   // Kills: the corrected save reusing the rejected operation id, or the old 'Too long' error still shown after correction.
+  // Traceability: Jira 37 AC6 (matrix 10551297)
   /** EVE-DRF-06-B: a field validation error allows a corrected save with a new operation (EVE-DRF-SUP-49). */
   it("EVE-DRF-SUP-49 field validation error allows corrected payload with a new operation", async () => {
     mocked
@@ -281,6 +283,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(screen.queryByText("Too long")).toBeNull();
   });
   // Kills: Save draft enabled while a save is pending, a second request on form submit, or the 'Unable to save draft' fallback missing.
+  // Traceability: Jira 37 AC6 (matrix 10551297)
   /** EVE-DRF-06-A: a failed save keeps input and pending controls prevent duplicate submission (EVE-DRF-SUP-50). */
   it("EVE-DRF-SUP-50 save fallback message retains input and pending controls prevent duplicate submission", async () => {
     const pending = deferred<DraftRecord>();
@@ -420,6 +423,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   // Kills: submitted requests listed under My Drafts, or an untitled draft not linking to its editor.
+  // Traceability: Jira 37 AC3 (matrix 10551297)
   /** EVE-DRF-03: My Drafts lists only drafts; submitted requests are excluded (EVE-DRF-SUP-51). */
   it("EVE-DRF-SUP-51 list shows only drafts; submitted requests are excluded (moved to My Events)", async () => {
     const pending = deferred<DraftRecord[]>();
@@ -444,6 +448,7 @@ describe("SPM-37 Q2 functional cases", () => {
   });
   // A response containing only submitted requests must behave like an empty draft list.
   // Kills: the empty-state message missing when every request is submitted, or a submitted request still shown.
+  // Traceability: Jira 37 AC3 (matrix 10551297)
   /** EVE-DRF-03: My Drafts shows the empty state when every request is submitted (EVE-DRF-SUP-52). */
   it("EVE-DRF-SUP-52 shows the draft empty state when every request is submitted", async () => {
     mocked.mockResolvedValue([

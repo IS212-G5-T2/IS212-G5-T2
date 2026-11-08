@@ -26,6 +26,7 @@ function thrown(work: () => unknown): unknown {
 
 describe('SPM-155 cancellation request body: reason (AC1)', () => {
   // Kills: M5c, M5e
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H subtest A: no reason is allowed (SPEC: "no reason -> HTTP 201"). Stored as null. */
   it.each([
     ['body omitted', undefined],
@@ -41,6 +42,7 @@ describe('SPM-155 cancellation request body: reason (AC1)', () => {
   });
 
   // Kills: M5f
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H subtest B and C: 500 accepted, 501 refused (DERIVED: Gate-1 D-reason, 0 to 500 code points). */
   it('CANCEL-REQUEST-01-H: a reason of exactly 500 characters is accepted unchanged', () => {
     // Arrange: 500 x "a" (limit 500: on the limit)
@@ -50,6 +52,7 @@ describe('SPM-155 cancellation request body: reason (AC1)', () => {
     expect(validateCreateBody({ reason })).toEqual({ reason });
   });
 
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   // Kills: M5a
   it('CANCEL-REQUEST-01-H: a reason of 501 characters is refused with 422 INVALID_REASON', () => {
     // Arrange: 501 x "a" (limit 500: one over)
@@ -64,6 +67,7 @@ describe('SPM-155 cancellation request body: reason (AC1)', () => {
   });
 
   // Kills: M5a, M5b, M5f
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H: the limit counts code points. 500 emoji are 1000 UTF16 units but still 500 characters. */
   it('CANCEL-REQUEST-01-H: 500 astral-plane characters are accepted and 501 are refused', () => {
     // Arrange: U+1F600 is one code point and two UTF16 units
@@ -77,6 +81,7 @@ describe('SPM-155 cancellation request body: reason (AC1)', () => {
   });
 
   // Kills: M5c, M5f
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H (DERIVED): the reason is trimmed; spaces only means no reason; padding does not count toward 500. */
   it('CANCEL-REQUEST-01-H: spaces-only becomes null and padding around a 500-character reason is not counted', () => {
     // Arrange / Act / Assert
@@ -86,6 +91,7 @@ describe('SPM-155 cancellation request body: reason (AC1)', () => {
   });
 
   // Kills: M5d
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H (DERIVED): a reason that is not text is a 400, never coerced. */
   it.each([
     ['number', 5],
@@ -102,6 +108,7 @@ describe('SPM-155 cancellation request body: reason (AC1)', () => {
   });
 
   // Kills: M5g
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H subtest D: script text is stored literally (it is displayed as text only; the UI test shows it). */
   it('CANCEL-REQUEST-01-H: script text is kept exactly as typed', () => {
     // Arrange / Act / Assert: no stripping, no escaping

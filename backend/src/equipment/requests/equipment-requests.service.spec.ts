@@ -20,6 +20,7 @@ const service = new EquipmentRequestsService({ submit, update, reserve, markCann
 beforeEach(() => vi.resetAllMocks());
 
 describe('SPM-57 equipment request service', () => {
+  // Traceability: Jira 58 AC3 (matrix 33292299)
   /** EQUIP-RESERVE-03-A (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): Technical Support can make a pending request consume stock. */
   it('reserves a pending equipment request for availability calculations', async () => {
     reserve.mockResolvedValue({ kind: 'reserved', id: '00000000-0000-4000-8000-000000000099' });
@@ -28,6 +29,7 @@ describe('SPM-57 equipment request service', () => {
     expect(reserve).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000099');
   });
 
+  // Traceability: Jira 58 AC3 (matrix 33292299)
   /** EQUIP-RESERVE-03-SEC-1: a coordinator cannot reserve; a non-pending request is refused. */
   it('refuses coordinators and non-pending request transitions', async () => {
     await expect(service.reserve(coordinator, '00000000-0000-4000-8000-000000000099')).rejects.toBeInstanceOf(ForbiddenException);
@@ -49,6 +51,7 @@ describe('SPM-57 equipment request service', () => {
       .rejects.toThrow('Not enough active equipment is available to reserve Stage lighting.');
   });
 
+  // Traceability: Jira 58 AC9 (matrix 33292299)
   /** EQUIP-RESERVE-09-A: Technical Support marks a request Cannot Provide with a required reason. */
   it('marks a pending request Cannot Provide with a trimmed reason', async () => {
     markCannotProvide.mockResolvedValue({ kind: 'cannot-provided', id: '00000000-0000-4000-8000-000000000099' });
@@ -68,6 +71,7 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.markCannotProvide(support, id, { reason: 'x'.repeat(500) })).resolves.toMatchObject({ requestReference: 'ER-00000000' });
   });
 
+  // Traceability: Jira 58 AC9 (matrix 33292299)
   /** EQUIP-RESERVE-09-BND-1: one visible character is a valid reason and is stored trimmed; whitespace around it is not part of the reason. */
   it('accepts a one-character reason and stores it trimmed', async () => {
     const id = '00000000-0000-4000-8000-000000000099';
@@ -77,6 +81,7 @@ describe('SPM-57 equipment request service', () => {
     expect(markCannotProvide).toHaveBeenCalledWith(id, 'x');
   });
 
+  // Traceability: Jira 58 AC9 (matrix 33292299)
   /** EQUIP-RESERVE-09-B: an empty or missing reason is refused before any persistence. */
   it('requires a non-empty reason to mark Cannot Provide', async () => {
     await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: '   ' }))
@@ -86,6 +91,7 @@ describe('SPM-57 equipment request service', () => {
     expect(markCannotProvide).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 58 AC8 (matrix 33292299)
   /** EQUIP-RESERVE-08-B (wrong-role half only; DECIDED SC-SPM58-02, chaw678 2026-11-06: no API takes a status value, so the invalid-status half of the case is dropped): only Technical Support can mark Cannot Provide, and the event-confirmed/not-pending guards surface as conflicts. */
   it('restricts Cannot Provide to Technical Support and maps repository guards', async () => {
     await expect(service.markCannotProvide(coordinator, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(ForbiddenException);
@@ -98,6 +104,7 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-A: a coordinator can read only their eligible event picker options. */
   it('returns the coordinator-scoped eligible event picker list', async () => {
     listEligibleEvents.mockResolvedValue([{ id: eventId, name: 'Workshop' }]);
@@ -106,6 +113,7 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.listEligibleEvents({ uid: 'tech', roles: ['TECH_SUPPORT'] })).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  // Traceability: Jira 57 AC5 (matrix 28868989)
   /** EQUIP-REQUEST-05-A: a valid submission returns a stable request reference for its persisted request. */
   it('returns a request reference after repository creation', async () => {
     submit.mockResolvedValue({ kind: 'created', id: '00000000-0000-4000-8000-000000000099' });
@@ -113,6 +121,7 @@ describe('SPM-57 equipment request service', () => {
     expect(submit).toHaveBeenCalledWith(coordinator.uid, body);
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: a successful update returns the reference derived from the existing request id. */
   it('returns the original reference after updating the request', async () => {
     update.mockResolvedValue({ kind: 'updated', id: '00000000-0000-4000-8000-000000000099' });
@@ -134,6 +143,7 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.update(coordinator, 'request-1', body)).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-BND-1: an event confirmed after request submission blocks any further edits. */
   it('refuses updates after the event becomes Confirmed', async () => {
     update.mockResolvedValue({ kind: 'event-confirmed' });
@@ -146,18 +156,21 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.update(coordinator, 'request-1', body)).rejects.toBeInstanceOf(ConflictException);
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-N: an event not assigned to the current coordinator cannot be requested. */
   it('hides events that are not assigned to the caller', async () => {
     submit.mockResolvedValue({ kind: 'event-not-assigned' });
     await expect(service.submit(coordinator, body)).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 57 AC8 (matrix 28868989)
   /** EQUIP-REQUEST-08-N: cancelled or rejected events are refused without creating a request. */
   it('rejects events closed to equipment requests', async () => {
     submit.mockResolvedValue({ kind: 'event-not-open', status: 'Cancelled' });
     await expect(service.submit(coordinator, body)).rejects.toBeInstanceOf(ConflictException);
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-N: an already-requested event cannot be submitted again. */
   it('requires updates to use the existing equipment request', async () => {
     submit.mockResolvedValue({ kind: 'already-submitted' });
@@ -167,6 +180,7 @@ describe('SPM-57 equipment request service', () => {
     });
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-A: only authenticated coordinators can create a request. */
   it('requires a coordinator session before repository access', async () => {
     await expect(service.submit(undefined, body)).rejects.toBeInstanceOf(UnauthorizedException);
@@ -175,6 +189,7 @@ describe('SPM-57 equipment request service', () => {
     expect(submit).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 57 AC6 (matrix 28868989)
   /** EQUIP-REQUEST-06-A: a coordinator reads their own request list only. */
   it('returns the current coordinator request list', async () => {
     listMine.mockResolvedValue([{ status: 'Pending Review' }]);
@@ -182,6 +197,7 @@ describe('SPM-57 equipment request service', () => {
     expect(listMine).toHaveBeenCalledWith(coordinator.uid);
   });
 
+  // Traceability: Jira 57 AC7 (matrix 28868989)
   /** EQUIP-REQUEST-07-A: Technical Support can read the Pending Review queue. */
   it('allows Technical Support queue reads and refuses other roles', async () => {
     listQueue.mockResolvedValue([]);
@@ -190,6 +206,7 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.listQueue(undefined)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  // Traceability: Jira 58 AC7 (matrix 33292299)
   /** EQUIP-RESERVE-07-A: Technical Support can read persisted reservations and their owning events. */
   it('returns reservation rows only to Technical Support', async () => {
     listReservations.mockResolvedValue([{ equipmentName: 'Stage lighting', eventName: 'Open Day' }]);
@@ -201,6 +218,7 @@ describe('SPM-57 equipment request service', () => {
     expect(listReservations).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: the coordinator receives a conflict when an equipment revision changes an arrangement not selected by the Safety Officer. */
   it('SAFETY-OUTCOME-06 refuses an update that changes unselected equipment', async () => {
     update.mockResolvedValue({ kind: 'invalid-safety-review-update', id: '00000000-0000-4000-8000-000000000099' });
@@ -214,6 +232,7 @@ describe('SPM-57 equipment request service', () => {
 });
 
 describe('SPM-58 reserve authentication and lookup', () => {
+  // Traceability: Jira 58 AC3 (matrix 33292299)
   /** EQUIP-RESERVE-03-SEC-1: an unauthenticated reserve is refused (401) without reading or writing. */
   it('refuses an unauthenticated reserve without touching the repository', async () => {
     reserve.mockClear();

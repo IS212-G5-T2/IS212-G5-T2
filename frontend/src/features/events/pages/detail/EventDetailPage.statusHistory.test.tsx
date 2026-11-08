@@ -70,6 +70,7 @@ describe("SPM-148 AC4: the history panel is shown to the owning organiser for pl
   });
   afterEach(cleanup);
 
+  // Traceability: Jira 148 AC4 (matrix 26902550)
   // Kills: a gate that hides the history from the owning organiser of a Planning event.
   it("PLAN-STATUS-04-A: the owning organiser of a Planning event sees the Status History panel", async () => {
     stubApi(eventWith("planning"));
@@ -79,6 +80,7 @@ describe("SPM-148 AC4: the history panel is shown to the owning organiser for pl
     expect(await screen.findByText("Approved to Planning, 15 Oct 2026 12:00 SGT, by Marcus Lee")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 148 AC4 (matrix 26902550)
   // Kills: a gate that shows the history for events that never reached planning.
   it("PLAN-STATUS-04-A: a Submitted event does not show the Status History panel", async () => {
     stubApi(eventWith("submitted"));

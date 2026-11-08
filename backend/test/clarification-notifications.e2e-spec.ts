@@ -113,6 +113,7 @@ describe.skipIf(!database)('SPM-177 clarification notifications over HTTP (e2e)'
 
   // ---- DoD1 and DoD3 -----------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 177 DoD1, DoD3 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-06-A (SPM-177 DoD1, DoD3): the Coordinator's request reaches the Organiser's feed as an Organiser
    * notice for the event, and the Coordinator does not see their own request.
@@ -130,6 +131,7 @@ describe.skipIf(!database)('SPM-177 clarification notifications over HTTP (e2e)'
     expect((await clarificationFeed(org, 'clarification'))[0].read).toBe(true);
   });
 
+  // Traceability: Jira 177 DoD1, DoD3 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-06-B (SPM-177 DoD1, DoD3): the Organiser's reply and resolve reach the Coordinator as Coordinator
    * notices, and the Coordinator's reply reaches the Organiser; read state persists.
@@ -155,6 +157,7 @@ describe.skipIf(!database)('SPM-177 clarification notifications over HTTP (e2e)'
     await markRead(org, replied[0].id).expect(404);
   });
 
+  // Traceability: Jira 177 DoD4 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-06-C (SPM-177 DoD4): reassignment marks the previous Coordinator's unread clarification notices for
    * the event read and leaves the Organiser's.

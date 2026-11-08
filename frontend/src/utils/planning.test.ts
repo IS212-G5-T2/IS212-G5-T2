@@ -40,11 +40,13 @@ const validView = {
 beforeEach(() => vi.clearAllMocks());
 
 describe("planning constants", () => {
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // EVENT-VIEW-05-A: AC5 — the view refreshes every 15 seconds.
   it("EVENT-VIEW-05-A refreshes every 15 seconds", () => {
     expect(PLANNING_REFRESH_MS).toBe(15_000);
   });
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // EVENT-VIEW-01-A / 01-C: the statuses that get planning information match the backend.
   it("EVENT-VIEW-01-A loads planning information for approved, planning and confirmed events only", () => {
     expect([...PLANNING_STATUSES].sort()).toEqual(["approved", "confirmed", "planning"]);
@@ -52,6 +54,7 @@ describe("planning constants", () => {
 });
 
 describe("planning API helpers", () => {
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   // EVENT-VIEW-02-A: the organiser/coordinator view is read from /planning.
   it("EVENT-VIEW-02-A reads the planning view from the planning endpoint", async () => {
     apiMock.mockResolvedValue(validView);
@@ -59,6 +62,7 @@ describe("planning API helpers", () => {
     expect(apiMock).toHaveBeenCalledWith("/events/e1/planning");
   });
 
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   // EVENT-VIEW-02-A: anything that is not planning data is an error rather than data.
   it.each([null, undefined, "text", {}, { ...validView, event: undefined }, { ...validView, venueBookings: "x" }, { ...validView, pendingChanges: null }])(
     "EVENT-VIEW-02-A rejects a malformed response %j",
@@ -68,11 +72,13 @@ describe("planning API helpers", () => {
     },
   );
 
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   it("EVENT-VIEW-02-A accepts a well-formed response in the guard", () => {
     expect(isPlanningView(validView)).toBe(true);
     expect(isPlanningView({ ...validView, equipmentArrangements: undefined })).toBe(false);
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: updates are PATCH requests carrying only the changed fields.
   it("EVENT-UPDATE-03-A sends an update as a PATCH with the changed fields", async () => {
     apiMock.mockResolvedValue({ applied: [], flagged: [] });
@@ -83,6 +89,7 @@ describe("planning API helpers", () => {
     });
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-A / 07-A: a decision names the change and, for one booking, that booking.
   it.each([
     [{ changeId: "chg-1", decision: "confirm" as const }, { decision: "confirm" }],
@@ -109,6 +116,7 @@ describe("planning API helpers", () => {
 });
 
 describe("planning labels and values", () => {
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-A: fields have the same names everywhere they appear.
   it("EVENT-UPDATE-02-A names each field and falls back to the raw key", () => {
     expect(fieldLabel("expectedAttendance")).toBe("Expected attendance");
@@ -117,6 +125,7 @@ describe("planning labels and values", () => {
     expect(fieldLabel("somethingNew")).toBe("somethingNew");
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A / 05-A: values read as people write them.
   it.each([
     ["name", null, "None"],
@@ -132,6 +141,7 @@ describe("planning labels and values", () => {
     expect(formatFieldValue(field, value)).toBe(expected);
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   /** Start and end are shown in Singapore time with am/pm, whatever the browser's time zone. */
   it("EVENT-FLAG-02-A formats start and end values as Singapore date-times but leaves other strings alone", () => {
     const iso = "2026-11-10T10:00:00.000Z";
@@ -142,6 +152,7 @@ describe("planning labels and values", () => {
 });
 
 describe("historyOutcome (SPM-156)", () => {
+  // Traceability: Jira 156 DoD5, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-C: direct updates read as such; reviewed changes keep their outcome.
   it("EVENT-UPDATE-07-C names direct updates and review outcomes", () => {
     expect(historyOutcome({ kind: "direct_update", status: "Applied" })).toBe("Updated directly");
@@ -149,6 +160,7 @@ describe("historyOutcome (SPM-156)", () => {
     expect(historyOutcome({ status: "Rejected" })).toBe("Rejected");
   });
 
+  // Traceability: Jira 156 DoD3, DoD5, DoD6, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-E: an approved change request reads as such, in the list and under the field.
   it("EVENT-UPDATE-07-E names an approved change request", () => {
     expect(historyOutcome({ kind: "change_request", status: "Applied" })).toBe("Change request approved");
@@ -160,6 +172,7 @@ describe("historyOutcome (SPM-156)", () => {
     );
   });
 
+  // Traceability: Jira 156 DoD5, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-C: the note under a field for each other kind.
   it("EVENT-UPDATE-07-C words the per-field note for direct and reviewed changes", () => {
     expect(lastChangeLabel({ kind: "direct_update", status: "Applied" })).toBe("Last changed");
@@ -169,6 +182,7 @@ describe("historyOutcome (SPM-156)", () => {
 });
 
 describe("describeCondition (SPM-49 AC2)", () => {
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-B: each conditional rule reads as a plain sentence.
   it("EVENT-UPDATE-02-B describes each kind of condition", () => {
     const start = "2026-11-10T10:00:00.000Z";
@@ -189,6 +203,7 @@ describe("describeCondition (SPM-49 AC2)", () => {
 describe("satisfiesCondition (mirrors the backend compatibility rules)", () => {
   const window = { kind: "within_window" as const, start: "2026-11-10T10:00:00.000Z", end: "2026-11-10T13:00:00.000Z" };
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: the window allows times inside it, edges included.
   it.each([
     ["the same window", "10:00", "13:00", true],
@@ -202,11 +217,13 @@ describe("satisfiesCondition (mirrors the backend compatibility rules)", () => {
     ).toBe(expected);
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: an unreadable time cannot be confirmed as compatible.
   it("EVENT-UPDATE-05-B treats a missing time as needing review", () => {
     expect(satisfiesCondition(window, { startDateTime: window.start })).toBe(false);
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: attendance up to the capacity applies immediately.
   it.each([
     [70, true],
@@ -217,6 +234,7 @@ describe("satisfiesCondition (mirrors the backend compatibility rules)", () => {
     expect(satisfiesCondition({ kind: "max_attendance", max: 200 }, { expectedAttendance: attendance })).toBe(expected);
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: only removals keep every venue suitable.
   it.each([
     [["Catering"], true],

@@ -22,6 +22,7 @@ const EVT_101 = { coordinatorId: COO_01, organiserId: ORG_01 };
 const user = (uid: string, ...roles: AuthenticatedUser['roles']): AuthenticatedUser => ({ uid, roles });
 
 describe('SPM-63 AC1: the assigned coordinator and the owning organiser may view', () => {
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-A
   // Oracle (SPEC 01-A, R1): COO-01 is assigned to EVT-101.
   // Kills: M2 variant in the other direction (the assignment lookup on the wrong column refuses the real coordinator).
@@ -33,6 +34,7 @@ describe('SPM-63 AC1: the assigned coordinator and the owning organiser may view
     expect(allowed).toBe(true);
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-C
   // Oracle (SPEC 01-C, R1): ORG-01 owns EVT-101.
   // Kills: ownership not honoured.
@@ -46,6 +48,7 @@ describe('SPM-63 AC1: the assigned coordinator and the owning organiser may view
 });
 
 describe('SPM-63 AC5: nobody else may view', () => {
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-A
   // Oracle (SPEC 05-A): COO-02 is assigned to a different event, so EVT-101's coordinator is not COO-02.
   // Kills: M2 the assignment check removed (any coordinator allowed); the coordinator role alone grants access.
@@ -57,6 +60,7 @@ describe('SPM-63 AC5: nobody else may view', () => {
     expect(allowed).toBe(false);
   });
 
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-B
   // Oracle (SPEC 05-B): ORG-02 does not own EVT-101.
   // Kills: M3 the ownership check removed (any organiser allowed).
@@ -68,6 +72,7 @@ describe('SPM-63 AC5: nobody else may view', () => {
     expect(allowed).toBe(false);
   });
 
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-D
   // Oracle (SPEC 05-D A): ATT-01 holds a Confirmed registration on EVT-101 yet is neither role.
   // Kills: M7 a registered attendee allowed.
@@ -79,6 +84,7 @@ describe('SPM-63 AC5: nobody else may view', () => {
     expect(allowed).toBe(false);
   });
 
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-A-ROLE
   // Oracle (derived from R1): the id must be compared with the column for the user's own role. A coordinator
   // whose uid happens to equal the event's organiser_id is not a manager.
@@ -94,6 +100,7 @@ describe('SPM-63 AC5: nobody else may view', () => {
     expect(allowed).toBe(false);
   });
 
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-B-ROLE
   // Oracle (derived from R1): the mirror case; an organiser whose uid equals the coordinator column.
   // Kills: assignment compared to the wrong column (organiser matched on coordinator_id).
@@ -108,6 +115,7 @@ describe('SPM-63 AC5: nobody else may view', () => {
     expect(allowed).toBe(false);
   });
 
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-A-NULL
   // Oracle (derived): an event with no coordinator yet (coordinator_id NULL) matches nobody.
   // Kills: null === undefined style matches; a coordinator with an undefined-like id passing.
@@ -122,6 +130,7 @@ describe('SPM-63 AC5: nobody else may view', () => {
     expect(allowed).toBe(false);
   });
 
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-A-ROLE
   // Oracle (derived): the role check is on the verified token roles; no role means no access, even with a matching id.
   // Kills: the id match alone granting access.
@@ -133,6 +142,7 @@ describe('SPM-63 AC5: nobody else may view', () => {
     expect(allowed).toBe(false);
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-C-BOTH
   // Oracle (derived from D3): a user holding BOTH roles is a manager if either test passes (here: as organiser).
   // Kills: an AND between the two rules instead of OR.

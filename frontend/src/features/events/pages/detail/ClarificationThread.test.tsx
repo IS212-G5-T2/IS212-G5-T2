@@ -53,6 +53,7 @@ afterEach(() => {
 });
 
 describe("ClarificationThread: sending a clarification (SPM-39 AC2)", () => {
+  // Traceability: Jira 39 AC2 (matrix 8060934)
   // REQ-CLAR-01-B. Kills: a blank draft sent to the server, or the error text changed.
   it("REQ-CLAR-01-B: a blank draft shows the required-message error and sends nothing", async () => {
     const user = userEvent.setup({ delay: null });
@@ -240,6 +241,7 @@ describe("ClarificationThread: filtering and labels (SPM-39 AC4, AC5)", () => {
 });
 
 describe("ClarificationThread: a Coordinator's reply", () => {
+  // Traceability: Jira 39 AC3 (matrix 8060934)
   // REQ-CLAR-02-A (AC4): a reply is labelled with its author's role. Kills: the Coordinator label replaced by
   // Organiser on a reply, or the reply hidden from the thread.
   // Kills: a Coordinator reply labelled Organiser, or the reply missing from the rendered thread.

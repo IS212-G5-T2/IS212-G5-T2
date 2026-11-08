@@ -181,6 +181,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
 
   // ---- AC1 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 165 AC1 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-01-C (SPM-165 AC1): Venue Staff approve a tentative hold; the assigned Coordinator's feed holds
    * exactly one tentative_hold_approved notice for it, and no other Coordinator receives anything.
@@ -198,6 +199,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
     expect(stored.map((row) => [row.recipient_id, row.type])).toEqual([[w.coordinator.id, 'tentative_hold_approved']]);
   });
 
+  // Traceability: Jira 165 AC1 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-01-D (SPM-165 AC1): a hold rejection gives the assigned Coordinator one tentative_hold_rejected notice.
    * Kills: no notification on the rejection path, the approved or booking decision type.
@@ -211,6 +213,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
     expect(await storedFor(w.holdId)).toHaveLength(1);
   });
 
+  // Traceability: Jira 165 AC1 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-01-H (SPM-165 AC1, out of scope SPM-137): an ordinary venue booking decision on the same event still
    * writes only the booking decision type, and a hold decision never writes one.
@@ -228,6 +231,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
     expect((await storedFor(bookingId)).map((row) => row.type)).toEqual(['venue_booking_approved']);
   });
 
+  // Traceability: Jira 165 AC1 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-01-SEC-1 (SPM-165 AC1, security): the event's Organiser does not receive the notification and
    * cannot mark it read.
@@ -251,6 +255,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
 
   // ---- AC2 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 165 AC2 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-02-D (SPM-165 AC2): through the real API the approved message is exactly `Your tentative hold of
    * <venue name> for "<event name>" has been approved.`, stamped with the decision time (the injected clock).
@@ -266,6 +271,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
     expect(new Date(notice.createdAt).toISOString()).toBe(fixedNow.toISOString());
   });
 
+  // Traceability: Jira 165 AC2 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-02-E (SPM-165 AC2): the rejected message is exactly `... has been rejected.`; the rejection reason is not in it.
    * Kills: the reason appended to the text, the approved wording on a rejection.
@@ -282,6 +288,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
 
   // ---- AC3 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 165 AC3 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-03-H (SPM-165 AC3): each notice carries the id of its hold, and that hold is in the Coordinator's
    * own bookings list as a tentative hold with its decided status, the hold expiry when approved and the rejection
@@ -313,6 +320,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
     expect(mine.find((b) => b.id === rejectedHold)).toMatchObject({ status: 'rejected', requestKind: 'tentative_hold', rejectionReason: 'Clashes with maintenance' });
   });
 
+  // Traceability: Jira 165 AC3 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-03-J (SPM-165 AC3 with SPM-132): after the hold decision, converting, releasing or expiring a hold
    * (SPM-132) writes no further SPM-165 decision notice (SPM-134 adds its own lifecycle notice); the original notice's booking still opens from the Coordinator's list with
@@ -352,6 +360,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
 
   // ---- AC4 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 165 AC4 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-04-A (SPM-165 AC4): a new notice is unread; once the Coordinator marks it read it stays read after
    * signing out and back in (a fresh session).
@@ -371,6 +380,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
     expect((await storedFor(w.holdId))[0].read).toBe(true);
   });
 
+  // Traceability: Jira 165 AC4 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-04-C (SPM-165 AC4, isolation): another Coordinator cannot mark this Coordinator's hold notice read.
    * Kills: the read call not being scoped to the recipient.
@@ -388,6 +398,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
 
   // ---- AC5 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 165 AC5 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-05-B (SPM-165 AC5): an event with three tentative hold requests gets three notifications, one per
    * decision, each linked to its own hold.
@@ -426,6 +437,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
       .expect(201);
   }
 
+  // Traceability: Jira 165 AC6 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-06-B (SPM-165 AC6): the event is reassigned before the decision; the new Coordinator receives the
    * notice and the previous one receives none.
@@ -443,6 +455,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
     expect((await storedFor(w.holdId)).map((row) => row.recipient_id)).toEqual([b.id]);
   });
 
+  // Traceability: Jira 165 AC6 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-06-C (SPM-165 AC6): when the event is reassigned after the decisions, the previous Coordinator's
    * unread hold notices for it are marked read; their notice for another event and another user's notice stay unread;
@@ -480,6 +493,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
 
   // ---- AC7 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 165 AC7 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-07-E (SPM-165 AC7): decisions that are refused never create a notification: a staff member who does
    * not own the venue (404), a Coordinator calling the route (403), a hold already decided (409), a hold approval that
@@ -511,6 +525,7 @@ describe.skipIf(!databaseUrl)('SPM-165 tentative hold decision notifications HTT
     expect(statuses.rows.map((r) => r.status)).toEqual(['pending', 'pending']);
   });
 
+  // Traceability: Jira 165 AC7 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-07-F (SPM-165 AC7, atomicity): if the notification cannot be saved (a trigger forces the insert to
    * fail for this hold only), the decision is not saved either: the request errors, the hold stays pending and no audit

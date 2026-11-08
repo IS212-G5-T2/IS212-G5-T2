@@ -32,10 +32,12 @@ const booking = (overrides: Partial<QueueBookingFact> = {}): QueueBookingFact =>
 });
 
 describe('SPM-48 AC2: the seven queue statuses', () => {
+  // Traceability: Jira 48 AC2 (matrix 23691437)
   /** MONITOR-QUEUE-02-B: the queue knows exactly the seven standard terms; Under Review and Draft are not among them. */
   it('MONITOR-QUEUE-02-B lists exactly the seven standard statuses', () => {
     expect([...QUEUE_STATUSES]).toEqual(['Submitted', 'Approved', 'Planning', 'Confirmed', 'Completed', 'Cancelled', 'Rejected']);
   });
+  // Traceability: Jira 48 AC2 (matrix 23691437)
   /** MONITOR-QUEUE-02-B: a stored or API value maps to its standard term whatever its case; anything else is kept. */
   it('MONITOR-QUEUE-02-B maps a status value to its standard term', () => {
     expect(queueStatusOf('planning')).toBe('Planning');
@@ -45,6 +47,7 @@ describe('SPM-48 AC2: the seven queue statuses', () => {
 });
 
 describe('SPM-48 AC6, AC7: one safety state per event', () => {
+  // Traceability: Jira 48 AC6 (matrix 23691437)
   /**
    * MONITOR-QUEUE-06-A, 06-B, 07-A, 07-C: pending awaits the Safety Officer (Planning only, as SPM-94), changes
    * requested and rejected are flagged, a reset with no new request asks for a re-request, and an approved check
@@ -70,12 +73,14 @@ describe('SPM-48 AC6, AC7: one safety state per event', () => {
 });
 
 describe('SPM-48 AC8: tentative holds', () => {
+  // Traceability: Jira 132 AC6 (matrix 39125047)
   /** VEN-HOLD-DEC-06-B: persisted expiry remains visible without treating the hold as an active affected venue. */
   it('VEN-HOLD-DEC-06-B preserves persisted expired hold state in the coordinator queue', () => {
     const expired = booking({ status: 'expired', requestKind: 'tentative_hold', holdExpiresAt: H1_EXPIRY, venueUnavailable: true });
     expect(deriveHolds([expired], NOW)).toEqual([expect.objectContaining({ state: 'EXPIRED' })]);
     expect(deriveUnavailableVenues([expired], NOW)).toEqual([]);
   });
+  // Traceability: Jira 48 AC8 (matrix 23691437)
   /** MONITOR-QUEUE-08-B subtests A and B: active one second before expiry, expired exactly at it. */
   it('MONITOR-QUEUE-08-B flips a hold to expired exactly at its expiry instant', () => {
     expect(holdIsActive(H1_EXPIRY, new Date('2026-11-10T03:59:59.000Z'))).toBe(true);
@@ -83,6 +88,7 @@ describe('SPM-48 AC8: tentative holds', () => {
     expect(holdIsActive(H1_EXPIRY, new Date('2026-11-10T04:00:01.000Z'))).toBe(false);
   });
 
+  // Traceability: Jira 48 AC8 (matrix 23691437)
   /** MONITOR-QUEUE-08-A, 08-B: only pending bookings with an expiry are holds; each keeps its venue and expiry instant. */
   it('MONITOR-QUEUE-08-A reports each hold with its venue, expiry and state', () => {
     const holds = deriveHolds(
@@ -102,6 +108,7 @@ describe('SPM-48 AC8: tentative holds', () => {
 });
 
 describe('SPM-48 AC9: venue became unavailable', () => {
+  // Traceability: Jira 48 AC9 (matrix 23691437)
   /**
    * MONITOR-QUEUE-09-A, 09-B: an active booking (approved, a plain pending request, or a live hold) at an unavailable
    * venue is flagged; an expired hold is not active and is not flagged. Each venue is named once.
@@ -122,6 +129,7 @@ describe('SPM-48 AC9: venue became unavailable', () => {
     expect(venues).toEqual(['Hall A', 'Hall C', 'Hall D', 'Hall E']);
   });
 
+  // Traceability: Jira 48 AC9 (matrix 23691437)
   /**
    * MONITOR-QUEUE-09-A (review finding, PR #80): venues are told apart by id. Two venues sharing a name are both listed,
    * each with its location; two bookings of one venue are listed once; a unique name keeps its plain label.
@@ -144,6 +152,7 @@ describe('SPM-48 AC9: venue became unavailable', () => {
     expect(venueLabel(east, [east, eastAgain])).toBe('Main Hall');
   });
 
+  // Traceability: Jira 48 AC8 (matrix 23691437)
   /** MONITOR-QUEUE-08-A (review finding, PR #80): a hold names its venue the same way, with the location on a name clash. */
   it('MONITOR-QUEUE-08-A labels a hold with the venue location when two venues share a name', () => {
     const hold = booking({ venueId: 'v-east', venueName: 'Main Hall', venueLocation: 'East Wing', status: 'pending', holdExpiresAt: H1_EXPIRY });
@@ -153,6 +162,7 @@ describe('SPM-48 AC9: venue became unavailable', () => {
     ]);
   });
 
+  // Traceability: Jira 48 AC9 (matrix 23691437)
   /** MONITOR-QUEUE-09-B: an approved replacement does not clear the flag while the affected booking is active. */
   it('MONITOR-QUEUE-09-B keeps the flag while the affected booking is still active', () => {
     const affected = booking({ venueName: 'Hall F', venueUnavailable: true });
@@ -164,6 +174,7 @@ describe('SPM-48 AC9: venue became unavailable', () => {
 });
 
 describe('SPM-48 AC5: what needs the coordinator’s action', () => {
+  // Traceability: Jira 48 AC5 (matrix 23691437)
   /** MONITOR-QUEUE-05-B: each PO-confirmed reason, in a fixed order; awaiting the Safety Officer and an active hold are not actions. */
   it('MONITOR-QUEUE-05-B lists the reasons an event needs action', () => {
     expect(deriveActions('Submitted', null, [], [])).toEqual(['AWAITING_REVIEW']);
@@ -179,6 +190,7 @@ describe('SPM-48 AC5: what needs the coordinator’s action', () => {
     ).toEqual(['SAFETY_REJECTED', 'VENUE_UNAVAILABLE', 'HOLD_EXPIRED']);
   });
 
+  // Traceability: Jira 48 AC5 (matrix 23691437)
   /** MONITOR-QUEUE-05-B: terminal events (EVT-410 Completed, EVT-411 Cancelled) carry no indicators even with stale bookings. */
   it('MONITOR-QUEUE-05-B gives terminal events no follow-up indicators', () => {
     const stale = [
@@ -195,6 +207,7 @@ describe('SPM-48 AC5: what needs the coordinator’s action', () => {
       });
   });
 
+  // Traceability: Jira 48 AC5 (matrix 23691437)
   /** MONITOR-QUEUE-05-B: a Planning event combines its indicators, and needsAction follows the reasons. */
   it('MONITOR-QUEUE-05-B builds the full indicator set for an open event', () => {
     expect(

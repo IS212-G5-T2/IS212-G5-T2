@@ -59,6 +59,7 @@ beforeEach(() => {
 });
 
 describe("SPM-30 AC2: the signed-in user is identified in the top bar", () => {
+  // Traceability: Jira 30 AC2 (matrix 6652076)
   // The avatar shows the first letter of the first and last words of the display name.
   it.each([
     ["Coordinator 1", "C1"],
@@ -75,6 +76,7 @@ describe("SPM-30 AC2: the signed-in user is identified in the top bar", () => {
     expect(screen.queryByText(/signed in as/i)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 30 AC2 (matrix 6652076)
   // The avatar opens a menu with the user's name, Settings and the theme switch.
   it("USER-LOGIN-02-F opens a profile menu with the name, Settings and theme, and closes it", async () => {
     // Arrange: an organiser's top bar.
@@ -103,6 +105,7 @@ describe("SPM-30 AC2: the signed-in user is identified in the top bar", () => {
     expect(screen.queryByRole("region", { name: "Profile menu" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 30 AC2 (matrix 6652076)
   // Light/dark mode now lives in the profile menu.
   it("USER-LOGIN-02-G switches between light and dark mode from the profile menu", async () => {
     // Arrange: light mode, menu open.

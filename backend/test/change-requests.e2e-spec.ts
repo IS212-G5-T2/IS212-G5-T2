@@ -70,6 +70,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
   const submit = (user: DatabaseUser, body: unknown, id = eventId) =>
     request(app.getHttpServer()).post(url(id)).set('Cookie', user.cookie).send(body as object);
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-A, REQ-CHANGE-04-A: the owner submits; the request is stored Pending with original and proposed values. */
   it('REQ-CHANGE-01-A stores a pending request with original and proposed values', async () => {
     const response = await submit(organiser, {
@@ -96,6 +97,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(stored.rows).toEqual([{ status: 'Pending', requested_by_id: organiser.uid }]);
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-G: submitting changes nothing on the live event and does not reset its safety check. */
   it('REQ-CHANGE-01-G leaves the event and its safety check untouched', async () => {
     await pool.query(
@@ -112,6 +114,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(safety.rows).toEqual([{ status: 'approved' }]);
   });
 
+  // Traceability: Jira 64 AC2 (matrix 28016760)
   /** REQ-CHANGE-02-B, REQ-CHANGE-06-A: a request naming the event name is refused whole, with a message per field. */
   it('REQ-CHANGE-02-B refuses a change to the event name and stores nothing', async () => {
     const response = await submit(organiser, {
@@ -127,6 +130,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(await requestCount()).toBe(0);
   });
 
+  // Traceability: Jira 64 AC8, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-H: two parallel submissions settle to exactly one pending request. */
   it('REQ-CHANGE-01-H lets only one of two parallel submissions through', async () => {
     const results = await Promise.all([
@@ -138,6 +142,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(await requestCount()).toBe(1);
   });
 
+  // Traceability: Jira 64 AC7, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-F: a request on a closed event is refused. */
   it('REQ-CHANGE-01-F refuses a request on a cancelled event', async () => {
     const cancelled = await seedEvent(organiser.uid, coordinator.uid, 'Cancelled');
@@ -145,6 +150,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(response.body.code).toBe('change_request_closed');
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-A: the assigned coordinator gets the in-app notification and can read the request. */
   it('REQ-CHANGE-03-A notifies the assigned coordinator, who can read the request', async () => {
     await submit(organiser, { changes: { expectedAttendance: 140 } }).expect(201);
@@ -165,6 +171,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(list.body).toHaveLength(1);
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-B: other coordinators and organisers are neither notified nor able to read it; the assigned coordinator can. */
   it('REQ-CHANGE-03-B keeps the request away from everyone else', async () => {
     await submit(organiser, { changes: { expectedAttendance: 140 } }).expect(201);
@@ -185,6 +192,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(notifications.body).toEqual([]);
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-C: an organiser sees only requests on their own events, on both read routes. */
   it('REQ-CHANGE-05-C shows an organiser only their own events\' requests', async () => {
     const otherEvent = await seedEvent(otherOrganiser.uid, otherCoordinator.uid, 'Planning');
@@ -209,6 +217,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     );
   }
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-C: a request on an unassigned event waits; when the Lead assigns the event, that coordinator is notified. */
   it('REQ-CHANGE-03-C notifies the coordinator the Lead assigns afterwards', async () => {
     const lead = await createDatabaseUser('COORDINATOR_LEAD', 'CR Lead');
@@ -231,6 +240,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(list.body).toHaveLength(1);
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-D: on reassignment the request follows the event, the new coordinator is notified and the old notice is cleared. */
   it('REQ-CHANGE-03-D follows the event when it is reassigned', async () => {
     const lead = await createDatabaseUser('COORDINATOR_LEAD', 'CR Lead');
@@ -255,6 +265,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     ]);
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-D: a withdrawn request is not announced to a newly assigned coordinator. */
   it('REQ-CHANGE-03-D sends no notice for a request that is no longer pending', async () => {
     const lead = await createDatabaseUser('COORDINATOR_LEAD', 'CR Lead');
@@ -271,6 +282,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(await changeNotices(otherCoordinator)).toEqual([]);
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-A, REQ-CHANGE-05-D: the dashboard list shows the pending request from the server, filterable by status. */
   it('REQ-CHANGE-05-A lists the organiser\'s pending request on the dashboard endpoint', async () => {
     const created = await submit(organiser, { changes: { description: 'New' } }).expect(201);
@@ -315,6 +327,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(stored.rows).toEqual([{ requires_safety_check: true }]);
   });
 
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** REQ-CHANGE-09-A: nobody but the owning organiser can withdraw, and the request stays pending. */
   it('REQ-CHANGE-09-A refuses to withdraw for anyone but the owner', async () => {
     const created = await submit(organiser, { changes: { description: 'New' } }).expect(201);
@@ -333,6 +346,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(stored.rows).toEqual([{ status: 'Pending' }]);
   });
 
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** REQ-CHANGE-09-B: a request that is already decided or withdrawn cannot be withdrawn. */
   it('REQ-CHANGE-09-B refuses to withdraw a decided or withdrawn request', async () => {
     const created = await submit(organiser, { changes: { description: 'New' } }).expect(201);
@@ -349,6 +363,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(stored.rows).toEqual([{ status: 'Denied' }]);
   });
 
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** REQ-CHANGE-09-C: the owner withdraws a pending request once; a second withdrawal is refused and a new request is allowed. */
   it('REQ-CHANGE-09-C withdraws a pending request and allows a new one', async () => {
     const created = await submit(organiser, { changes: { description: 'New' } }).expect(201);
@@ -359,6 +374,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     await submit(organiser, { changes: { description: 'Second try' } }).expect(201);
   });
 
+  // Traceability: Jira 64 Cross-cutting (matrix 28016760)
   /** REQ-CHANGE-08-D: prototype keys in the raw JSON body get a 400 naming the key, never a 500, and nothing is stored. */
   it('REQ-CHANGE-08-D answers 400 for __proto__ and constructor keys', async () => {
     for (const raw of [
@@ -379,6 +395,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(await requestCount()).toBe(0);
   });
 
+  // Traceability: Jira 64 Cross-cutting (matrix 28016760)
   /** REQ-CHANGE-08-A: anonymous and non-owner callers are refused on every route. */
   it('REQ-CHANGE-08-A refuses anonymous, non-organiser and non-owner submissions', async () => {
     const server = app.getHttpServer();
@@ -391,6 +408,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(await requestCount()).toBe(0);
   });
 
+  // Traceability: Jira 64 AC8, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-H: The database refuses a second pending row even if the service check were bypassed. */
   it('enforces one pending request per event in the schema', async () => {
     const insert = () =>

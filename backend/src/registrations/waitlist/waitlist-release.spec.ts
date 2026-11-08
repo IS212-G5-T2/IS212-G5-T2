@@ -36,6 +36,7 @@ function recordingClient(script: { capacity?: number; taken?: number; waiting?: 
 const writesOf = (statements: Recorded[], pattern: RegExp) => statements.filter((s) => pattern.test(s.sql));
 
 describe('SPM-138 fillFreeSpots (D8): one promotion per free place, in joining order', () => {
+  // Traceability: Jira 138 AC8 (matrix 25657376)
   /** JOIN-WAITLIST-08-A: two free places and three waiting entries promote exactly the first two, each with one notice. */
   it('promotes the earliest waiting entries up to the free places and writes one notice each', async () => {
     const { client, statements } = recordingClient({

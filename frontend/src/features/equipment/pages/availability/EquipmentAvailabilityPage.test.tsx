@@ -113,6 +113,7 @@ describe("EquipmentAvailabilityPage: inherited SPM-111 coverage", () => {
     expect(screen.getByText("Storage Room A")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 117 AC2 (matrix 19858517)
   // EQUIP-VIEW-02-B: an empty successful inventory is distinct from a load failure.
   it("shows an empty-state message when no equipment exists", async () => {
     // Arrange: the API responds successfully with no persisted records.
@@ -159,6 +160,7 @@ describe("EquipmentAvailabilityPage: inherited SPM-111 coverage", () => {
 });
 
 describe("EquipmentAvailabilityPage: AC3 search by type or location", () => {
+  // Traceability: Jira 117 AC3 (matrix 19858517)
   // EQUIP-VIEW-03-A. Assumption A2. Kills: reading the wrong state variable for
   // the type box (e.g. swapped with locationSearch), an OR instead of per-field
   // AND against the other (empty) box, or losing case-insensitivity.
@@ -197,6 +199,7 @@ describe("EquipmentAvailabilityPage: AC3 search by type or location", () => {
     expect(screen.queryByText("Folding table")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 117 AC3 (matrix 19858517)
   // EQUIP-VIEW-03-B. Assumption A2. Kills: reading the wrong state variable for
   // the location box (e.g. swapped with typeSearch), or losing case-insensitivity
   // specifically on the location path (type and location are separate code paths).
@@ -235,6 +238,7 @@ describe("EquipmentAvailabilityPage: AC3 search by type or location", () => {
     expect(screen.queryByText("Mixing console")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 117 AC3 (matrix 19858517)
   // EQUIP-VIEW-03-C. Assumption A4. Kills: the search-specific empty-state
   // condition always falling back to "No equipment records found.", or firing
   // only when BOTH boxes are non-empty instead of either one. Parametrized over
@@ -265,6 +269,7 @@ describe("EquipmentAvailabilityPage: AC3 search by type or location", () => {
     },
   );
 
+  // Traceability: Jira 117 AC3 (matrix 19858517)
   // EQUIP-VIEW-03-D. Assumption A1. Kills: `||` (OR) instead of `&&` (AND) when
   // combining the two filter predicates. Records are chosen so OR and AND give
   // different answers: Screen shares Visual's type but not its location, and
@@ -297,6 +302,7 @@ describe("EquipmentAvailabilityPage: AC3 search by type or location", () => {
     expect(screen.queryByText("Microphone")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 117 AC3 (matrix 19858517)
   // EQUIP-VIEW-03-E. Assumption A3. Kills: removing `.trim()` from either box's
   // search query before matching. Parametrized over both boxes, since type and
   // location trimming are independent code paths (confirmed by mutation testing:
@@ -321,6 +327,7 @@ describe("EquipmentAvailabilityPage: AC3 search by type or location", () => {
     },
   );
 
+  // Traceability: Jira 117 AC3 (matrix 19858517)
   // EQUIP-VIEW-03-F. Kills: a stale filtered array not recomputed once the search
   // text returns to empty, or an empty string treated as "match nothing" instead
   // of "no constraint". Parametrized over both boxes: each is independent state,
@@ -358,6 +365,7 @@ describe("EquipmentAvailabilityPage: AC3 search by type or location", () => {
     },
   );
 
+  // Traceability: Jira 117 AC3 (matrix 19858517)
   // EQUIP-VIEW-03-G. Assumption A6. Kills: the type box's filter predicate also
   // checking record.name or record.location (e.g. a copy-paste that ORs in an
   // extra field). "Visual Display Case" and "Visual Suite" are decoys whose name
@@ -393,6 +401,7 @@ describe("EquipmentAvailabilityPage: AC3 search by type or location", () => {
     expect(screen.queryByText("Mixer")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 117 AC3 (matrix 19858517)
   // EQUIP-VIEW-03-H. Assumption A6. Kills: the location box's filter predicate
   // also checking record.name or record.type. "Mixer" has TYPE "Visual" (a
   // valid enum value) but a different location; "Visual Suite Case" has a NAME
@@ -445,6 +454,7 @@ describe("EquipmentAvailabilityPage: AC8 quantity breakdown", () => {
     expect(row).toHaveTextContent("Mixed");
   });
 
+  // Traceability: Jira 117 AC4 (matrix 19858517)
   /** EQUIP-VIEW-04-A: the retained Maintenance status column summarizes a single populated bucket or reports Mixed. */
   it("EQUIP-VIEW-04-A derives the maintenance status column from nonzero buckets", async () => {
     const user = userEvent.setup();
@@ -520,6 +530,7 @@ describe("EquipmentAvailabilityPage: AC8 quantity breakdown", () => {
 });
 
 describe("EquipmentAvailabilityPage: AC2 see all record fields", () => {
+  // Traceability: Jira 117 AC2 (matrix 19858517)
   // EQUIP-VIEW-02-A. Kills: a missing or mislabeled column (most importantly
   // Quantity, which previously had no assertion anywhere in this file), or a
   // field rendered under the wrong header (e.g. id shown instead of quantity).
@@ -563,6 +574,7 @@ function availableRecord(
 }
 
 describe("SPM-119 EquipmentAvailabilityPage", () => {
+  // Traceability: Jira 119 AC1 (matrix 21528751)
   // EQUIP-UNAVAIL-01-B: an available row exposes only the unavailable action.
   it("EQUIP-UNAVAIL-01-B renders Mark Unavailable only for an available row", async () => {
     // Arrange: the opt-in availability list contains one row in each state.
@@ -590,6 +602,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     expect(unavailableRow).toBeInTheDocument();
   });
 
+  // Traceability: Jira 119 AC6 (matrix 21528751)
   // EQUIP-UNAVAIL-06-B: an unavailable row exposes only the reactivation action.
   it("EQUIP-UNAVAIL-06-B renders Reactivate only for an unavailable row", async () => {
     // Arrange: the opt-in list contains an unavailable equipment row.
@@ -606,6 +619,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     expect(unavailableRow).not.toHaveTextContent("Mark Unavailable");
   });
 
+  // Traceability: Jira 119 AC1 (matrix 21528751)
   // EQUIP-UNAVAIL-01-A: confirmation changes an available row and removes it from the default list.
   it("EQUIP-UNAVAIL-01-A marks Light bulbs unavailable after confirmation", async () => {
     // Arrange: an available Light bulbs record can be changed successfully.
@@ -650,6 +664,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     );
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-A: the dialog passes the supplied reason through unchanged.
   it("EQUIP-UNAVAIL-02-A submits the specified unavailability reason", async () => {
     // Arrange: an available projector is ready for a valid reason.
@@ -685,6 +700,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     });
   });
 
+  // Traceability: Jira 119 AC2 (matrix 21528751)
   // EQUIP-UNAVAIL-02-B: the client stops empty and whitespace-only reasons before making an API call.
   it.each(["", "   "])(
     "EQUIP-UNAVAIL-02-B shows the exact validation error for a %j reason and does not submit",
@@ -722,6 +738,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     },
   );
 
+  // Traceability: Jira 119 AC3 (matrix 21528751)
   // EQUIP-UNAVAIL-03-A: cancellation is a pure UI operation and discards its draft input.
   it("EQUIP-UNAVAIL-03-A closes Cancel without an API call and reopens with an empty reason", async () => {
     // Arrange: an operator has typed but not confirmed an unavailability reason.
@@ -748,6 +765,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     expect(screen.getByRole("textbox", { name: /reason/i })).toHaveValue("");
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   // EQUIP-UNAVAIL-04-A: default discovery excludes unavailable equipment.
   it("EQUIP-UNAVAIL-04-A hides unavailable equipment from the default list", async () => {
     // Arrange: the inventory contains one record in each availability state.
@@ -764,6 +782,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     expect(screen.queryByText("Broken projector")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   // EQUIP-UNAVAIL-04-B: a matching type filter cannot reveal an unavailable result.
   it("EQUIP-UNAVAIL-04-B excludes unavailable Visual equipment from type-search results", async () => {
     // Arrange: an available record and unavailable decoy share the Visual type.
@@ -782,6 +801,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     expect(screen.queryByText("Broken projector")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   // EQUIP-UNAVAIL-04-C: explicit opt-in reveals unavailable rows with their distinct state affordances.
   it("EQUIP-UNAVAIL-04-C reveals unavailable equipment with Show unavailable", async () => {
     // Arrange: a real Visual match and an unavailable Visual decoy share the same location.
@@ -815,6 +835,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     expect(getEquipment).toHaveBeenLastCalledWith({ includeUnavailable: true });
   });
 
+  // Traceability: Jira 119 AC6 (matrix 21528751)
   // EQUIP-UNAVAIL-06-A: reactivation returns the record to the default list and swaps its action.
   it("EQUIP-UNAVAIL-06-A reactivates Broken projector and restores Mark Unavailable", async () => {
     // Arrange: the unavailable record is visible only through the opt-in toggle.
@@ -859,6 +880,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     );
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-04-D: a failed Show unavailable reload displays an error.
    */
@@ -905,6 +927,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     expect(screen.getByText("Other equipment")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-04-E: clearing Show unavailable reloads the available-only inventory.
    */
@@ -929,6 +952,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     expect(screen.getByText("Light bulbs")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 119 AC6 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-06-C: cancelling Reactivate closes the dialog without an availability update.
    */

@@ -61,6 +61,7 @@ beforeEach(() => {
 });
 
 describe("ChangeRequestReview", () => {
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   it("REVIEW-CHANGE-03-B says when there are no conflicts", async () => {
     renderReview();
     expect(screen.getByRole("status")).toHaveTextContent("Checking for conflicts…");
@@ -69,6 +70,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.getByText("A preview only: nothing changes until you approve.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   it("REVIEW-CHANGE-03-A lists venue, equipment and registration conflicts", async () => {
     previewMock.mockResolvedValue(conflicts);
     renderReview();
@@ -80,6 +82,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.getByText("3 attendees are already registered; the requested attendance is 2")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC3 (matrix 28016830)
   /** REVIEW-CHANGE-03-A: the preview shows only the sections with conflicts. */
   it("hides sections without conflicts", async () => {
     previewMock.mockResolvedValue({ ...conflicts, venueBookings: [], registrations: { registered: 0, waitlisted: 0, details: [] } });
@@ -89,6 +92,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.queryByText("Registrations")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC3, AC4 (matrix 28016830)
   /** REVIEW-CHANGE-03-I: a failed conflict check is explained and approval stays disabled. */
   it("shows why the preview could not load", async () => {
     previewMock.mockRejectedValue(new Error("Change request not found."));
@@ -101,6 +105,7 @@ describe("ChangeRequestReview", () => {
     expect(await screen.findByText(/^Could not check for conflicts\./)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC3, AC4 (matrix 28016830)
   /** REVIEW-CHANGE-03-I (PR #72 review): approval waits for a successful conflict check. */
   it("REVIEW-CHANGE-03-I keeps Approve disabled while the conflict check loads", async () => {
     let resolve!: (value: ChangeRequestConflicts) => void;
@@ -119,6 +124,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.getByRole("button", { name: "Approve Change" })).not.toHaveAttribute("title");
   });
 
+  // Traceability: Jira 65 AC3, AC4 (matrix 28016830)
   it("REVIEW-CHANGE-03-I keeps Approve disabled when the check fails, until a retry succeeds", async () => {
     previewMock.mockRejectedValueOnce(new Error("The service is temporarily unavailable. Please try again."));
     const { user } = renderReview();
@@ -135,6 +141,7 @@ describe("ChangeRequestReview", () => {
     expect(previewMock).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 65 AC4 (matrix 28016830)
   it("REVIEW-CHANGE-04-A approves after confirmation, mentioning the safety check reset", async () => {
     const result = { request: { ...request, status: "Approved" as const }, eventStatus: "planning" as const, safetyCheckReset: true };
     approveMock.mockResolvedValue(result);
@@ -156,6 +163,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.getByRole("button", { name: "Approve Change" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC11 (matrix 28016830)
   it("REVIEW-CHANGE-12-C shows the server's message and reloads when the request was closed meanwhile", async () => {
     approveMock.mockRejectedValue(new ApiError("The organiser has withdrawn this change request.", undefined, "change_request_withdrawn", 409));
     const { user, onStale, onApproved } = renderReview();
@@ -167,6 +175,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.getByRole("button", { name: "Confirm Approval" })).toBeEnabled();
   });
 
+  // Traceability: Jira 65 AC6 (matrix 28016830)
   /** REVIEW-CHANGE-06-B: a refused decision shows the server’s message. */
   it("shows other refusals without reloading", async () => {
     approveMock.mockRejectedValueOnce(new ApiError("A change to this detail is already awaiting review.", undefined, undefined, 409));
@@ -180,6 +189,7 @@ describe("ChangeRequestReview", () => {
     expect(onStale).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 65 AC5 (matrix 28016830)
   it("REVIEW-CHANGE-05-B checks the denial reason before sending", async () => {
     const { user } = renderReview();
     await user.click(screen.getByRole("button", { name: "Deny Change" }));
@@ -193,6 +203,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.getByLabelText(/Reason for denying/)).toHaveAttribute("maxLength", "500");
   });
 
+  // Traceability: Jira 65 AC5 (matrix 28016830)
   it("REVIEW-CHANGE-05-A denies with the trimmed reason", async () => {
     const denied = { ...request, status: "Denied" as const, decisionReason: "The hall is too small." };
     denyMock.mockResolvedValue({ request: denied });
@@ -205,6 +216,7 @@ describe("ChangeRequestReview", () => {
     expect(denyMock).toHaveBeenCalledWith("evt-1", "cr-1", "The hall is too small.");
   });
 
+  // Traceability: Jira 65 AC5 (matrix 28016830)
   /** REVIEW-CHANGE-05-B: the server’s reason error is shown and the denial can be cancelled. */
   it("shows the server's reason error and can cancel the denial", async () => {
     denyMock.mockRejectedValue(new ApiError("Use between 10 and 500 characters.", { reason: "Use between 10 and 500 characters." }, undefined, 400));
@@ -258,6 +270,7 @@ describe("ChangeRequestReview", () => {
     expect(screen.getByRole("button", { name: "Approve Change" })).toBeEnabled();
   });
 
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   it("REVIEW-CHANGE-01-F marks the event's change request notice read when the review opens", async () => {
     const markMock = vi.mocked(markChangeRequestNoticesRead);
     markMock.mockRejectedValueOnce(new Error("offline"));

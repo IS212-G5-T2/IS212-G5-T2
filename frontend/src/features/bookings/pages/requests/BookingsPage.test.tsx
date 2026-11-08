@@ -97,6 +97,7 @@ function pendingRequest(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe("Coordinator venue bookings", () => {
+  // Traceability: Jira 54 AC8 (matrix 22839839)
   /** VEN-BKG-08-A: My Bookings loads persisted requests scoped by the server and shows event, venue, and status. */
   it("VEN-BKG-08-A SPM-54 shows API-backed event, venue, and booking status", async () => {
     apiMock.mockResolvedValue([booking] as never);
@@ -201,6 +202,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByText(/tentative hold/i)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC5 (matrix 22839839)
   /** VEN-BKG-05-A: affected and cancelled history rows offer the assigned event as replacement context. */
   it("VEN-BKG-05-A VEN-BKG-06-A SPM-54 shows replacement context and preserves the affected booking history", async () => {
     apiMock.mockResolvedValue([
@@ -226,6 +228,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Venue: Garden Hall")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC8 (matrix 22839839)
   /** VEN-BKG-08-A: the status filter selects retained cancelled request history. */
   it("VEN-BKG-08-A SPM-54 filters the coordinator booking history by cancelled status", async () => {
     const user = userEvent.setup();
@@ -250,6 +253,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByText("Venue: Main Hall")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC8 (matrix 22839839)
   // VEN-BKG-08-A. Kills: the BookingsPage onDecided mirror that updates coordinatorBookings for the same booking id; without it
   // the coordinator card keeps its pending status after a Venue Staff approval of that booking.
   it("VEN-BKG-08-A SPM-54 shows a Venue Staff decision on the coordinator card for the same booking", async () => {
@@ -287,6 +291,7 @@ describe("Coordinator venue bookings", () => {
     expect(within(otherCard as HTMLElement).getByText("cancelled")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC4 (matrix 22839839)
   /** VEN-BKG-08-A: a failed booking-history request is reported without rendering phantom rows. */
   it("VEN-BKG-04-B VEN-BKG-08-A SPM-54 reports a booking list load failure", async () => {
     apiMock.mockRejectedValueOnce(new Error("Connection failed"));
@@ -300,6 +305,7 @@ describe("Coordinator venue bookings", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC8 (matrix 22839839)
   /** VEN-BKG-08-SEC-1 / SPM-55 AC1: Venue Staff see the API's pending list in its returned order, without the coordinator endpoint. */
   it("VEN-BKG-08-SEC-1 SPM-54 / SPM-55 AC1 loads the pending venue requests for Venue Staff without the coordinator endpoint", async () => {
     const user = userEvent.setup();
@@ -320,6 +326,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-A: each pending card shows event, date and time, coordinator, venue, booking reference, and any special request. */
   it("SPM-55 AC1 shows coordinator, venue, reference, time and special request on each pending card", async () => {
     setVenueStaff();
@@ -338,6 +345,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByText("12 Jan 2030, 17:00 – 12 Jan 2030, 18:00 SGT")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 159 AC13 (matrix 34603557)
   /** VEN-HOLD-13-A: a setup change is visible on the Pending card and its review details for staff reassessment. */
   it("VEN-HOLD-13-A shows the reassessment flag on a Pending card and review dialog", async () => {
     const user = userEvent.setup();
@@ -356,6 +364,7 @@ describe("Coordinator venue bookings", () => {
     );
   });
 
+  // Traceability: Jira 159 AC13 (matrix 34603557)
   /** VEN-HOLD-13-A: staff can distinguish a tentative hold, understand approval activates it temporarily, and see its expiry after approval. */
   it("VEN-HOLD-13-A identifies tentative holds and explains their 14-day approval expiry", async () => {
     const user = userEvent.setup();
@@ -382,6 +391,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Active tentative hold until 24 Jan 2030, 20:00 SGT");
   });
 
+  // Traceability: Jira 132 AC2 (matrix 39125047)
   /** VEN-HOLD-DEC-02-A: staff review details show the venue, requested time, Coordinator and 14-day hold duration. */
   it("VEN-HOLD-DEC-02-A shows hold request details and the fixed 14-day duration", async () => {
     setVenueStaff();
@@ -418,6 +428,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Expired tentative hold until 24 Jan 2030, 20:00 SGT");
   });
 
+  // Traceability: Jira 132 AC6 (matrix 39125047)
   /** VEN-HOLD-DEC-06-B: a persisted expired hold remains visible to its Venue Staff owner after reload. */
   it("VEN-HOLD-DEC-06-B shows a persisted expired hold in the staff queue", async () => {
     setVenueStaff();
@@ -430,6 +441,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByRole("button", { name: "Convert to confirmed booking" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 132 AC12 (matrix 39125047)
   /** VEN-HOLD-DEC-09-A/12-A: staff conversion persists through the API and changes the row to a confirmed booking. */
   it("VEN-HOLD-DEC-12-A converts an active tentative hold and updates its label", async () => {
     const user = userEvent.setup();
@@ -452,6 +464,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("heading", { name: "Other event" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 132 AC9 (matrix 39125047)
   /** VEN-HOLD-DEC-09-B: when conversion is refused without an Error object, staff see a safe fallback and retain the hold details. */
   it("VEN-HOLD-DEC-09-B keeps the active hold details open when conversion returns an untyped failure", async () => {
     const user = userEvent.setup();
@@ -469,6 +482,7 @@ describe("Coordinator venue bookings", () => {
     expect(apiMock).toHaveBeenCalledWith("/venues/bookings/booking-1/convert-hold", { method: "POST" });
   });
 
+  // Traceability: Jira 132 AC9 (matrix 39125047)
   /** VEN-HOLD-DEC-09-B: a server error is shown to staff and does not close the hold details. */
   it("VEN-HOLD-DEC-09-B reports a conversion error while retaining the hold details", async () => {
     const user = userEvent.setup();
@@ -483,6 +497,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Tentative Hold Request — Gala");
   });
 
+  // Traceability: Jira 132 AC13 (matrix 39125047)
   /** VEN-HOLD-DEC-10-A/13-A: staff release calls the API and removes that active hold from the list. */
   it("VEN-HOLD-DEC-13-A releases an active tentative hold from the staff list", async () => {
     const user = userEvent.setup();
@@ -499,6 +514,7 @@ describe("Coordinator venue bookings", () => {
     expect(await screen.findByText("No bookings match this filter.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-B: a Venue Staff member with no pending requests sees the empty state. */
   it("SPM-55 AC1 shows the empty state when no pending requests are assigned", async () => {
     setVenueStaff();
@@ -508,6 +524,7 @@ describe("Coordinator venue bookings", () => {
     expect(await screen.findByText("No bookings match this filter.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-B: a failed pending-list load is reported without rendering stale rows. */
   it("SPM-55 AC1 reports a pending-list load failure for Venue Staff", async () => {
     setVenueStaff();
@@ -517,6 +534,7 @@ describe("Coordinator venue bookings", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load pending booking requests.");
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-A: the review dialog shows the special request when one was submitted. */
   it("SPM-55 AC1 shows the special request in the review dialog", async () => {
     const user = userEvent.setup();
@@ -529,6 +547,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Microphones");
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-B: Venue Staff have Pending / Approved / Rejected filter options so decided bookings remain visible; defaults to Pending. */
   it("SPM-55 AC1 defaults to Pending filter and exposes Pending / Approved / Rejected options for Venue Staff", async () => {
     setVenueStaff();
@@ -546,6 +565,7 @@ describe("Coordinator venue bookings", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 55 AC2 (matrix 34537876)
   /** VEN-REV-02-A: approving calls the approve endpoint, closes the review, and updates the booking status locally without re-fetching. */
   it("SPM-55 AC2 approves a request through the API and keeps it visible as approved without re-fetching", async () => {
     const user = userEvent.setup();
@@ -571,6 +591,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("button", { name: "View Details" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC2 (matrix 34537876)
   /** VEN-REV-02-D: while a decision is in flight the Submit Decision button is disabled, so a second click cannot send a duplicate. */
   it("SPM-55 AC2 disables Submit Decision while the decision request is pending", async () => {
     const user = userEvent.setup();
@@ -592,6 +613,7 @@ describe("Coordinator venue bookings", () => {
     expect(apiMock).toHaveBeenLastCalledWith("/venues/bookings/booking-1/approve", { method: "POST" });
   });
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-03-A: a rejection cannot be submitted until a non-empty reason is entered, then sends the trimmed reason and updates status locally. */
   it("SPM-55 AC3 requires a non-empty rejection reason and keeps the booking visible as rejected without re-fetching", async () => {
     const user = userEvent.setup();
@@ -624,6 +646,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("button", { name: "View Details" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-03-B: Submit Decision stays disabled for a rejection whose reason is missing or whitespace-only. */
   it("SPM-55 AC3 keeps a rejection disabled until the reason is non-blank", async () => {
     const user = userEvent.setup();
@@ -640,6 +663,7 @@ describe("Coordinator venue bookings", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 55 AC6 (matrix 34537876)
   /** VEN-REV-06-A: a decision on a request that was already decided shows the server's error and keeps the review open. */
   it("SPM-55 AC6 shows the already-decided error and keeps the review open", async () => {
     const user = userEvent.setup();
@@ -663,6 +687,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("button", { name: "Submit Decision" })).toBeEnabled();
   });
 
+  // Traceability: Jira 56 AC6 (matrix 34636305)
   /** VEN-CONF-02-A, VEN-CONF-06-A/B/C/D: a conflict keeps approval open and shows each correct full interval and blocker label. */
   it("VEN-CONF-02-A VEN-CONF-06-A VEN-CONF-06-B VEN-CONF-06-C VEN-CONF-06-D SPM-56 shows and dismisses each conflicting occupied interval", async () => {
     const user = userEvent.setup();
@@ -710,6 +735,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 56 AC2 (matrix 34636305)
   /** VEN-CONF-02-A: the approval alert remains visible if a conflict response has no structured blocker list. */
   it("VEN-CONF-02-A SPM-56 shows the approval conflict alert when blocker details are unavailable", async () => {
     const user = userEvent.setup();
@@ -760,6 +786,7 @@ describe("Coordinator venue bookings", () => {
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 
+  // Traceability: Jira 55 AC6 (matrix 34537876)
   /** VEN-REV-06-B: a reason typed and rejected for one request, with its error, does not carry into the next request's dialog. */
   it("SPM-55 AC6 starts a fresh dialog with no reason or error for another request", async () => {
     const user = userEvent.setup();
@@ -790,6 +817,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC6 (matrix 34537876)
   /** VEN-REV-06-A: a non-ApiError failure during a decision falls back to a generic message. */
   it("SPM-55 AC6 shows a generic message when a decision fails unexpectedly", async () => {
     const user = userEvent.setup();
@@ -806,6 +834,7 @@ describe("Coordinator venue bookings", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to submit this decision.");
   });
 
+  // Traceability: Jira 55 AC4 (matrix 34537876)
   /** VEN-REV-04-A: a coordinator sees the stored rejection reason on a rejected request. */
   it("SPM-55 AC4 shows the rejection reason on a rejected coordinator booking", async () => {
     apiMock.mockResolvedValueOnce([
@@ -816,6 +845,7 @@ describe("Coordinator venue bookings", () => {
     expect(await screen.findByText("Rejection reason: Clashes with maintenance")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC4 (matrix 34537876)
   /** VEN-REV-04-A: a rejected booking with no stored reason says so rather than showing a blank reason. */
   it("SPM-55 AC4 notes when a rejected booking has no stored reason", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "rejected" }] as never);
@@ -824,6 +854,7 @@ describe("Coordinator venue bookings", () => {
     expect(await screen.findByText("Rejection reason: Not provided")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC4 (matrix 34537876)
   /** VEN-REV-04-A: the coordinator card names the Venue Staff member who manages the venue, when one is returned. */
   it("SPM-55 AC1 shows the managing Venue Staff name on a coordinator booking", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, venueStaffName: "Venue Staff One" }] as never);
@@ -832,6 +863,7 @@ describe("Coordinator venue bookings", () => {
     expect(await screen.findByText("Managed by Venue Staff One")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC4 (matrix 34537876)
   /** VEN-REV-04-B: an approved coordinator booking shows its status without a rejection reason. */
   it("SPM-55 AC4 omits the rejection reason for an approved coordinator booking", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "approved" }] as never);
@@ -841,6 +873,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByText(/Rejection reason/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC4 (matrix 34537876)
   /** VEN-REV-04-B: a pending coordinator booking never shows a rejection reason, even when a stale reason is stored. */
   it("SPM-55 AC4 hides the rejection reason on a pending coordinator booking", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "pending", rejectionReason: "Stale reason" }] as never);
@@ -850,6 +883,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByText(/Rejection reason/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC4 (matrix 34537876)
   /** VEN-REV-04-B: a cancelled coordinator booking never shows a rejection reason, even when a stale reason is stored. */
   it("SPM-55 AC4 hides the rejection reason on a cancelled coordinator booking", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "cancelled", rejectionReason: "Stale reason" }] as never);
@@ -859,6 +893,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByText(/Rejection reason/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC4 (matrix 22839839)
   /** VEN-BKG-09-A: a non-confirmation cancellation failure leaves the active history row visible with an error. */
   it("VEN-BKG-04-B SPM-54 reports a cancellation failure without changing booking status", async () => {
     const user = userEvent.setup();
@@ -880,6 +915,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Venue: Main Hall")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: canceling one venue booking retains the other active event booking unchanged. */
   it("VEN-BKG-09-A SPM-54 updates only the selected row after cancellation", async () => {
     const user = userEvent.setup();
@@ -911,6 +947,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Venue: Garden Hall")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC4 (matrix 22839839)
   /** VEN-BKG-09-A: an unstructured cancellation failure gets a safe generic message and leaves history unchanged. */
   it("VEN-BKG-04-B SPM-54 reports an unknown cancellation failure without changing status", async () => {
     const user = userEvent.setup();
@@ -932,6 +969,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Venue: Main Hall")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-A: last active booking requires explicit confirmation and a declined confirmation leaves it pending. */
   it("VEN-BKG-10-B VEN-BKG-10-VAR-2 SPM-54 requires confirmation for the last active booking and leaves it unchanged when declined", async () => {
     const user = userEvent.setup();
@@ -962,6 +1000,7 @@ describe("Coordinator venue bookings", () => {
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-B: confirming the explicit last-booking warning sends confirmation and retains a cancelled history row. */
   it("VEN-BKG-10-A VEN-BKG-10-SEC-1 SPM-54 cancels only after the user explicitly confirms", async () => {
     const user = userEvent.setup();
@@ -997,6 +1036,7 @@ describe("Coordinator venue bookings", () => {
     );
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-C: a sole confirmed booking is active and requires the same explicit confirmation as a pending booking. */
   it("VEN-BKG-10-C SPM-54 warns before cancelling the sole confirmed booking", async () => {
     const confirmedBooking = { ...booking, status: "approved" as const };
@@ -1015,6 +1055,7 @@ describe("Coordinator venue bookings", () => {
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 54 AC6 (matrix 22839839)
   /** VEN-BKG-06-B: leaving the replacement search unopened does not issue a new booking request or remove original history. */
   it("VEN-BKG-06-B SPM-54 preserves the affected booking when replacement search is abandoned", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, affected: true }] as never);
@@ -1025,6 +1066,7 @@ describe("Coordinator venue bookings", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-08-A: each status filter shows only the bookings in that status, and All statuses shows pending, approved and rejected together. */
   it("SPM-55 AC1 isolates each status in the Venue Staff filter and All statuses shows every status", async () => {
     const user = userEvent.setup();
@@ -1061,6 +1103,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Rejected Event")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC2 (matrix 34537876)
   /** VEN-REV-08-B: approving one request changes only that row in place to Approved; the other request stays pending. */
   it("SPM-55 AC2 updates only the approved row in place and leaves the other request pending", async () => {
     const user = userEvent.setup();
@@ -1089,6 +1132,7 @@ describe("Coordinator venue bookings", () => {
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-08-C: after a rejection the card shows the entered reason and a Rejected badge. */
   it("SPM-55 AC3 shows the entered rejection reason and a Rejected badge on the card after rejecting", async () => {
     const user = userEvent.setup();
@@ -1110,6 +1154,7 @@ describe("Coordinator venue bookings", () => {
     expect(within(card).getByText("Rejected", { selector: "span" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-08-D: a rejected request stored without a reason shows the Not provided fallback on its card. */
   it("SPM-55 AC3 shows Not provided on a rejected card when no reason is stored", async () => {
     const user = userEvent.setup();
@@ -1121,6 +1166,7 @@ describe("Coordinator venue bookings", () => {
     expect(await screen.findByText("Rejection reason: Not provided")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC6 (matrix 34537876)
   /** VEN-REV-08-E: an approved request opens read-only, with the decision shown and no Approve, Reject or Submit controls. */
   it("SPM-55 AC6 opens an approved request read-only with no decision controls", async () => {
     const user = userEvent.setup();
@@ -1140,6 +1186,7 @@ describe("Coordinator venue bookings", () => {
     expect(within(dialog).queryByText(/Rejection reason/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC6 (matrix 34537876)
   /** VEN-REV-08-F: a rejected request opens read-only, showing its stored reason with no Approve, Reject or Submit controls. */
   it("SPM-55 AC6 opens a rejected request read-only and shows its stored reason", async () => {
     const user = userEvent.setup();
@@ -1160,6 +1207,7 @@ describe("Coordinator venue bookings", () => {
     expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC6 (matrix 34537876)
   /** VEN-REV-08-G: a rejected request with no stored reason shows the Not provided fallback in its read-only dialog. */
   it("SPM-55 AC6 shows Not provided in the read-only dialog for a rejected request without a stored reason", async () => {
     const user = userEvent.setup();
@@ -1175,6 +1223,7 @@ describe("Coordinator venue bookings", () => {
     expect(within(dialog).queryByRole("radio")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-09-C: a user with both Venue Staff and Coordinator roles sees the staff review list and the coordinator bookings together. */
   it("SPM-55 AC1 shows both the staff review list and the coordinator bookings to a user with both roles", async () => {
     useAppStore.setState({
@@ -1207,6 +1256,7 @@ describe("Coordinator venue bookings", () => {
     expect(apiMock).toHaveBeenCalledWith("/venues/bookings/mine");
   });
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-09-D: a failed coordinator load stays visible for a dual-role user when the Venue Staff load succeeds afterwards. */
   it("SPM-55 AC1 keeps the coordinator load error visible when the staff load succeeds afterwards for a user with both roles", async () => {
     useAppStore.setState({
@@ -1252,12 +1302,13 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
   const second = { ...booking, id: "booking-2", eventId: "event-2", eventName: "Dinner", venueName: "Orchid Hall", bookingReference: "VB-BOOKING2" };
   const detailsDialog = () => screen.findByRole("dialog", { name: /Booking details/ });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-D (SPM-137 AC3): /bookings?booking=booking-1 opens that booking's details: event, venue,
+   * BOOKING-NOTIFY-03-D (SPM-137 AC3): /bookings?booking=booking-1 opens that booking's details: event, venue,
    * slot (Singapore time), reference and its current status (approved), with no decision controls.
    * Kills: no dialog for the linked id, the wrong booking opened, decision controls shown to a Coordinator.
    */
-  it("VENUE-BOOK-NOTIF-03-D opens the linked booking's details with its status and no decision controls", async () => {
+  it("BOOKING-NOTIFY-03-D opens the linked booking's details with its status and no decision controls", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "approved", specialRequest: "Two microphones" }, second] as never);
 
     renderPage("/bookings?booking=booking-1");
@@ -1275,11 +1326,12 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
     expect(within(dialog).queryByText("VB-BOOKING2")).toBeNull();
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-G (SPM-137 AC3, SPM-55 AC4): a rejected booking's details show its status and the rejection reason.
+   * BOOKING-NOTIFY-03-G (SPM-137 AC3, SPM-55 AC4): a rejected booking's details show its status and the rejection reason.
    * Kills: dropping the rejection reason from the details.
    */
-  it("VENUE-BOOK-NOTIF-03-G shows the rejection reason in the details of a rejected booking", async () => {
+  it("BOOKING-NOTIFY-03-G shows the rejection reason in the details of a rejected booking", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "rejected", rejectionReason: "Clashes with maintenance" }] as never);
 
     renderPage("/bookings?booking=booking-1");
@@ -1289,12 +1341,13 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
     expect(within(dialog).getByText("Rejection reason: Clashes with maintenance")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-G (SPM-137 AC3, SPM-55 AC4): a rejected booking with no stored reason says "Not provided"
+   * BOOKING-NOTIFY-03-G (SPM-137 AC3, SPM-55 AC4): a rejected booking with no stored reason says "Not provided"
    * rather than leaving the reason blank.
    * Kills: a blank or "undefined" reason in the details.
    */
-  it("VENUE-BOOK-NOTIF-03-G says Not provided when a rejected booking has no stored reason", async () => {
+  it("BOOKING-NOTIFY-03-G says Not provided when a rejected booking has no stored reason", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "rejected" }] as never);
 
     renderPage("/bookings?booking=booking-1");
@@ -1302,14 +1355,15 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
     expect(within(await detailsDialog()).getByText("Rejection reason: Not provided")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-H (SPM-137 AC3, robustness): an id that is not in the Coordinator's bookings (unknown, deleted
+   * BOOKING-NOTIFY-03-H (SPM-137 AC3, robustness): an id that is not in the Coordinator's bookings (unknown, deleted
    * or the event was reassigned away) opens no dialog, shows a clear notice and leaves the bookings list working.
    * The same notice shows when the Coordinator has no bookings at all (an empty list loaded).
    * Kills: a crash, a blank dialog, or a silent page with no explanation for an unknown id; hiding the notice when
    * the loaded list is empty.
    */
-  it("VENUE-BOOK-NOTIF-03-H shows a notice and the normal list when the linked booking is not visible", async () => {
+  it("BOOKING-NOTIFY-03-H shows a notice and the normal list when the linked booking is not visible", async () => {
     apiMock.mockResolvedValueOnce([booking] as never);
 
     renderPage("/bookings?booking=booking-gone");
@@ -1334,12 +1388,13 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-I (SPM-137 AC3, robustness): while the bookings are still loading, nothing is claimed about the
+   * BOOKING-NOTIFY-03-I (SPM-137 AC3, robustness): while the bookings are still loading, nothing is claimed about the
    * linked booking; when the load fails the usual error shows and no "not available" notice is added.
    * Kills: flashing the not-available notice before the list arrives, or saying the booking is gone when it was never loaded.
    */
-  it("VENUE-BOOK-NOTIF-03-I makes no not-available claim while loading or when the load fails", async () => {
+  it("BOOKING-NOTIFY-03-I makes no not-available claim while loading or when the load fails", async () => {
     const pending = deferred<unknown>();
     apiMock.mockReturnValueOnce(pending.promise as never);
 
@@ -1353,13 +1408,14 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-J (SPM-137 AC3): closing the details removes ?booking from the address, so a reload does not
+   * BOOKING-NOTIFY-03-J (SPM-137 AC3): closing the details removes ?booking from the address, so a reload does not
    * reopen it, and the dialog is gone. The address is replaced, not added to the history, so the back button does not
    * step back to the ?booking address either (checked as a REPLACE navigation on a memory router).
    * Kills: the dialog closing but the query string staying, the dialog not closing, or closing adding a history entry.
    */
-  it("VENUE-BOOK-NOTIF-03-J closing the details clears the booking from the address", async () => {
+  it("BOOKING-NOTIFY-03-J closing the details clears the booking from the address", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "approved" }] as never);
     const router = createMemoryRouter([{ path: "/bookings", element: <BookingsPage /> }], {
       initialEntries: ["/bookings?booking=booking-1"],
@@ -1375,12 +1431,13 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
     expect(router.state.historyAction).toBe("REPLACE");
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-K (SPM-137 AC3): with the page already open, following a notification for another booking
+   * BOOKING-NOTIFY-03-K (SPM-137 AC3): with the page already open, following a notification for another booking
    * switches the details to that booking.
    * Kills: reading the address only once on mount, so a second notification click is ignored.
    */
-  it("VENUE-BOOK-NOTIF-03-K switches to another booking when the address changes while the page is open", async () => {
+  it("BOOKING-NOTIFY-03-K switches to another booking when the address changes while the page is open", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "approved" }, { ...second, status: "rejected", rejectionReason: "Too small" }] as never);
     renderPage("/bookings?booking=booking-1");
     expect(await detailsDialog()).toHaveTextContent("VB-BOOKING1");
@@ -1391,12 +1448,13 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Rejection reason: Too small");
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-L (SPM-137 AC3): a booking the Coordinator cancelled since the decision still opens, showing
+   * BOOKING-NOTIFY-03-L (SPM-137 AC3): a booking the Coordinator cancelled since the decision still opens, showing
    * its current status (cancelled) and no rejection reason.
    * Kills: showing the status from the notification time instead of the current status.
    */
-  it("VENUE-BOOK-NOTIF-03-L shows the current status of a booking cancelled after the decision", async () => {
+  it("BOOKING-NOTIFY-03-L shows the current status of a booking cancelled after the decision", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "cancelled", rejectionReason: "Stale reason" }] as never);
 
     renderPage("/bookings?booking=booking-1");
@@ -1406,12 +1464,13 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
     expect(within(dialog).queryByText(/Rejection reason/)).toBeNull();
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-M (SPM-137 AC3, permission): a Venue Staff member who is not a Coordinator never loads the
+   * BOOKING-NOTIFY-03-M (SPM-137 AC3, permission): a Venue Staff member who is not a Coordinator never loads the
    * Coordinator bookings, so a ?booking link opens no details and shows no notice.
    * Kills: opening Coordinator details (or the not-available notice) for a staff-only user.
    */
-  it("VENUE-BOOK-NOTIF-03-M ignores the booking link for a Venue Staff user who is not a Coordinator", async () => {
+  it("BOOKING-NOTIFY-03-M ignores the booking link for a Venue Staff user who is not a Coordinator", async () => {
     setVenueStaff();
     apiMock.mockResolvedValue([] as never);
 
@@ -1430,6 +1489,7 @@ describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
  * with the API stubbed; the Coordinator is a fixture, not a live login.
  */
 describe("SPM-125 affected booking opened from a notification", () => {
+  // Traceability: Jira 125 AC7 (matrix 39125581)
   /**
    * VEN-IMPACT-07-D (AC7): the linked affected booking opens in its details dialog, which says the booking is affected
    * and links "Find a replacement venue" to the venue search for that event.
@@ -1451,6 +1511,7 @@ describe("SPM-125 affected booking opened from a notification", () => {
     );
   });
 
+  // Traceability: Jira 125 AC7 (matrix 39125581)
   /**
    * VEN-IMPACT-07-BND-1 (AC7): a confirmed booking that no venue change affects opens without the warning or the
    * replacement link (the dialog follows the card's rule).
@@ -1475,6 +1536,7 @@ describe("Coordinator tentative hold opened from a notification (SPM-165 AC3)", 
   const hold = { ...booking, id: "hold-1", requestKind: "tentative_hold" as const, holdExpired: false };
   const detailsDialog = () => screen.findByRole("dialog", { name: /Booking details/ });
 
+  // Traceability: Jira 165 AC3 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-03-D (SPM-165 AC3): /bookings?booking=hold-1 opens an approved hold's details with its status and
    * the hold expiry time (Singapore time), and no decision controls.
@@ -1493,6 +1555,7 @@ describe("Coordinator tentative hold opened from a notification (SPM-165 AC3)", 
     expect(within(dialog).queryByRole("button", { name: /Submit Decision|Approve|Reject/ })).toBeNull();
   });
 
+  // Traceability: Jira 165 AC3 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-03-E (SPM-165 AC3): a rejected hold's details show its status and the rejection reason and no hold expiry.
    * Kills: dropping the rejection reason, showing an expiry for a hold that was never active.
@@ -1509,6 +1572,7 @@ describe("Coordinator tentative hold opened from a notification (SPM-165 AC3)", 
     expect(within(dialog).queryByText("Hold expires")).toBeNull();
   });
 
+  // Traceability: Jira 165 AC3 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-03-F (SPM-165 AC3, boundary): an approved hold whose expiry time is no longer in the future (the
    * hold expired since the decision) is shown as expired, and an ordinary booking never shows a hold line.
@@ -1530,6 +1594,7 @@ describe("Coordinator tentative hold opened from a notification (SPM-165 AC3)", 
     expect(within(normal).queryByText(/Tentative hold|Hold expire/)).toBeNull();
   });
 
+  // Traceability: Jira 165 AC3 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-03-I (SPM-165 AC3, SPM-132 integration): a hold the SPM-132 scheduler has persisted as expired
    * (status 'expired') still shows "Hold expired" with its expiry in Singapore time; a released hold shows its expiry
@@ -1564,6 +1629,7 @@ describe("Coordinator tentative hold opened from an expiry, release or conversio
   const hold = { ...booking, id: "hold-1", requestKind: "tentative_hold" as const, holdExpired: false };
   const detailsDialog = () => screen.findByRole("dialog", { name: /Booking details/ });
 
+  // Traceability: Jira 134 AC6 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-06-C (SPM-134 AC6): /bookings?booking=hold-1 from a reminder opens the active hold's details with its
    * status (approved) and its expiry time in Singapore time.
@@ -1581,6 +1647,7 @@ describe("Coordinator tentative hold opened from an expiry, release or conversio
     expect(within(dialog).queryByText("Hold expired")).toBeNull();
   });
 
+  // Traceability: Jira 134 AC6 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-06-D (SPM-134 AC6): opened from an expired notice, the hold shows its status (expired) and the expiry
    * time under "Hold expired".
@@ -1598,6 +1665,7 @@ describe("Coordinator tentative hold opened from an expiry, release or conversio
     expect(within(dialog).queryByText("Hold expires")).toBeNull();
   });
 
+  // Traceability: Jira 134 AC6 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-06-E (SPM-134 AC6, SC-SPM134-03, confirmed by the story owner chaw678 on 4 Nov 2026): opened from a released notice, the hold shows its status
    * (released) and the expiry time it had, labelled "Hold expiry" (it no longer "expires").
@@ -1615,6 +1683,7 @@ describe("Coordinator tentative hold opened from an expiry, release or conversio
     expect(within(dialog).queryByText("Hold expires")).toBeNull();
   });
 
+  // Traceability: Jira 134 AC6 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-06-F (SPM-134 AC6): opened from a converted notice, the hold (now an ordinary booking) shows its status
    * approved and no hold lines, because the conversion clears the hold expiry.

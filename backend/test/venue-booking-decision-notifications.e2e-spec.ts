@@ -2,7 +2,7 @@
  * SPM-137 integration coverage (venue booking decision notification, Coordinator) through the real Nest HTTP pipeline,
  * session middleware and PostgreSQL: Venue Staff approve or reject a booking and the event's Coordinator receives one
  * notification in the bell feed. Every user signs in through the real login route.
- * Test cases: VENUE-BOOK-NOTIF-01-C, 01-D, 01-H, 01-SEC-1, 02-D, 02-E, 03-E, 03-F, 04-D, 04-E, 05-B, 06-B, 06-C, 07-F,
+ * Test cases: BOOKING-NOTIFY-01-C, 01-D, 01-H, 01-SEC-1, 02-D, 02-E, 03-E, 03-F, 04-D, 04-E, 05-B, 06-B, 06-C, 07-F,
  * 07-G, 07-H.
  * Needs DATABASE_URL with database/postgresql/init 001 to 024 (the venue migrations and 029 are applied here).
  */
@@ -175,12 +175,13 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
 
   // ---- AC1 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 137 AC1 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-01-C (SPM-137 AC1): Venue Staff approve a booking; the assigned Coordinator's feed holds exactly
+   * BOOKING-NOTIFY-01-C (SPM-137 AC1): Venue Staff approve a booking; the assigned Coordinator's feed holds exactly
    * one venue_booking_approved notice for it, another Coordinator's feed holds none, and only one row is stored.
    * Kills: no notice, a duplicate, broadcasting to every Coordinator, or addressing the staff member.
    */
-  it('VENUE-BOOK-NOTIF-01-C an approval gives the assigned Coordinator one notification and no other Coordinator any', async () => {
+  it('BOOKING-NOTIFY-01-C an approval gives the assigned Coordinator one notification and no other Coordinator any', async () => {
     // Arrange: a pending booking and a second Coordinator with no connection to the event.
     const w = await world();
     const bystander = await createUser('COORDINATOR');
@@ -194,11 +195,12 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
     expect((await storedFor(w.bookingId)).map((row) => row.recipient_id)).toEqual([w.coordinator.id]);
   });
 
+  // Traceability: Jira 137 AC1 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-01-D (SPM-137 AC1): a rejection gives the assigned Coordinator one venue_booking_rejected notice.
+   * BOOKING-NOTIFY-01-D (SPM-137 AC1): a rejection gives the assigned Coordinator one venue_booking_rejected notice.
    * Kills: the rejection path writing nothing or the approved type.
    */
-  it('VENUE-BOOK-NOTIF-01-D a rejection gives the assigned Coordinator one rejected notification', async () => {
+  it('BOOKING-NOTIFY-01-D a rejection gives the assigned Coordinator one rejected notification', async () => {
     const w = await world();
     const bystander = await createUser('COORDINATOR');
 
@@ -209,13 +211,14 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
     expect((await storedFor(w.bookingId)).map((row) => row.recipient_id)).toEqual([w.coordinator.id]);
   });
 
+  // Traceability: Jira 137 AC1 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-01-H (SPM-137 AC1, hold decisions now SPM-165 AC1): approving and rejecting tentative hold requests
+   * BOOKING-NOTIFY-01-H (SPM-137 AC1, hold decisions now SPM-165 AC1): approving and rejecting tentative hold requests
    * stores a hold notification (tentative_hold_approved / tentative_hold_rejected) and never a venue booking decision
    * one, while the decisions themselves are saved.
    * Kills: a hold decision using the booking decision types.
    */
-  it('VENUE-BOOK-NOTIF-01-H a tentative hold decision creates a hold notification, never a booking decision one', async () => {
+  it('BOOKING-NOTIFY-01-H a tentative hold decision creates a hold notification, never a booking decision one', async () => {
     // Arrange: two pending hold requests (far enough from the event start to be approvable).
     const staff = await createUser('VENUE_STAFF');
     const coordinator = await createUser('COORDINATOR');
@@ -239,12 +242,13 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
     expect((await feed(coordinator)).filter((n) => n.type.startsWith('venue_booking_'))).toEqual([]);
   });
 
+  // Traceability: Jira 137 AC1 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-01-SEC-1 (SPM-137 AC1, security): the event's Organiser does not receive the notification and
+   * BOOKING-NOTIFY-01-SEC-1 (SPM-137 AC1, security): the event's Organiser does not receive the notification and
    * cannot read or mark it read; the Venue Staff member who decided has no notification feed entry for it either.
    * Kills: adding the booking types to the Organiser's allow-list, or addressing the notice to the Organiser.
    */
-  it('VENUE-BOOK-NOTIF-01-SEC-1 the Organiser of the event receives nothing and cannot mark the notice read', async () => {
+  it('BOOKING-NOTIFY-01-SEC-1 the Organiser of the event receives nothing and cannot mark the notice read', async () => {
     // Arrange: an event whose Organiser is a real signed-in account.
     const staff = await createUser('VENUE_STAFF');
     const coordinator = await createUser('COORDINATOR');
@@ -269,12 +273,13 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
 
   // ---- AC2 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 137 AC2 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-02-D (SPM-137 AC2): through the real API the approved message is exactly `Your booking of <venue
+   * BOOKING-NOTIFY-02-D (SPM-137 AC2): through the real API the approved message is exactly `Your booking of <venue
    * name> for "<event name>" has been approved.`, and its timestamp is the decision time (the injected clock).
    * Kills: other wording, the booking reference in the text, the database default time instead of the decision time.
    */
-  it('VENUE-BOOK-NOTIF-02-D the delivered approval text names the venue and the event and is stamped with the decision time', async () => {
+  it('BOOKING-NOTIFY-02-D the delivered approval text names the venue and the event and is stamped with the decision time', async () => {
     const w = await world('Spring "Showcase"');
 
     await approve(w.bookingId, w.staff).expect(201);
@@ -285,12 +290,13 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
     expect(notice.message).not.toMatch(/VB-/);
   });
 
+  // Traceability: Jira 137 AC2 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-02-E (SPM-137 AC2): the rejected message is exactly `... has been rejected.` and the rejection
+   * BOOKING-NOTIFY-02-E (SPM-137 AC2): the rejected message is exactly `... has been rejected.` and the rejection
    * reason is not in it (the reason is on the booking the notice links to).
    * Kills: the reason or reference appended to the message.
    */
-  it('VENUE-BOOK-NOTIF-02-E the delivered rejection text has no reason or reference', async () => {
+  it('BOOKING-NOTIFY-02-E the delivered rejection text has no reason or reference', async () => {
     const w = await world();
 
     await reject(w.bookingId, w.staff, 'Double-booked with the faculty dinner').expect(201);
@@ -303,13 +309,14 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
 
   // ---- AC3 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-E (SPM-137 AC3): the notice carries the id of its booking, and that booking is in the
+   * BOOKING-NOTIFY-03-E (SPM-137 AC3): the notice carries the id of its booking, and that booking is in the
    * Coordinator's own bookings list with its decided status and (for a rejection) the rejection reason, so the link
    * target can be shown.
    * Kills: a missing or wrong relatedBookingId, a booking missing from the Coordinator's list.
    */
-  it('VENUE-BOOK-NOTIF-03-E the notice links to a booking the Coordinator can open, with its status and rejection reason', async () => {
+  it('BOOKING-NOTIFY-03-E the notice links to a booking the Coordinator can open, with its status and rejection reason', async () => {
     // Arrange: two bookings of one event, one approved and one rejected.
     const w = await world();
     const rejectedBooking = await addPending(w.venue.id, w.eventId, '2030-01-13T06:00:00.000Z', '2030-01-13T07:00:00.000Z');
@@ -331,12 +338,13 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
     expect(mine.find((b) => b.id === rejectedBooking)).toMatchObject({ status: 'rejected', rejectionReason: 'Clashes with maintenance' });
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-F (SUPPORTING, AC3): the migration can be applied again without error, the new column is
+   * BOOKING-NOTIFY-03-F (SUPPORTING, AC3): the migration can be applied again without error, the new column is
    * nullable (older notices have no booking), and deleting a booking deletes its notice.
    * Kills: a non-idempotent migration, a NOT NULL column, a missing cascade that would block clean-up.
    */
-  it('VENUE-BOOK-NOTIF-03-F the booking link is optional, the migration is repeatable and a deleted booking removes its notice', async () => {
+  it('BOOKING-NOTIFY-03-F the booking link is optional, the migration is repeatable and a deleted booking removes its notice', async () => {
     // Arrange: a decided booking with its notice.
     const w = await world();
     await approve(w.bookingId, w.staff).expect(201);
@@ -358,12 +366,13 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
 
   // ---- AC4 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 137 AC4 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-04-D (SPM-137 AC4): a new notice is unread; once the Coordinator marks it read it stays read after
+   * BOOKING-NOTIFY-04-D (SPM-137 AC4): a new notice is unread; once the Coordinator marks it read it stays read after
    * signing out and back in (a fresh session).
    * Kills: a notice created read, a read flag held in the session, mark-read not persisted.
    */
-  it('VENUE-BOOK-NOTIF-04-D starts unread and stays read after signing out and back in', async () => {
+  it('BOOKING-NOTIFY-04-D starts unread and stays read after signing out and back in', async () => {
     const w = await world();
     await approve(w.bookingId, w.staff).expect(201);
 
@@ -379,12 +388,13 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
     expect((await storedFor(w.bookingId))[0].read).toBe(true);
   });
 
+  // Traceability: Jira 137 AC4 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-04-E (SPM-137 AC4, isolation): another Coordinator cannot mark this Coordinator's notice read; the
+   * BOOKING-NOTIFY-04-E (SPM-137 AC4, isolation): another Coordinator cannot mark this Coordinator's notice read; the
    * call is a 404 and the notice stays unread.
    * Kills: the read call not being scoped to the recipient.
    */
-  it('VENUE-BOOK-NOTIF-04-E another Coordinator cannot mark the notice read', async () => {
+  it('BOOKING-NOTIFY-04-E another Coordinator cannot mark the notice read', async () => {
     const w = await world();
     const other = await createUser('COORDINATOR');
     await reject(w.bookingId, w.staff).expect(201);
@@ -397,12 +407,13 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
 
   // ---- AC5 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 137 AC5 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-05-B (SPM-137 AC5): an event with three bookings gets three notifications, one per decision, each
+   * BOOKING-NOTIFY-05-B (SPM-137 AC5): an event with three bookings gets three notifications, one per decision, each
    * linked to its own booking (two approved, one rejected).
    * Kills: one notice per event, a notice reused for several bookings, a missing decision.
    */
-  it('VENUE-BOOK-NOTIF-05-B gives an event with several bookings one notification for each decision', async () => {
+  it('BOOKING-NOTIFY-05-B gives an event with several bookings one notification for each decision', async () => {
     // Arrange: three pending bookings of one event at three venues owned by the same staff member.
     const staff = await createUser('VENUE_STAFF');
     const coordinator = await createUser('COORDINATOR');
@@ -439,12 +450,13 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
       .expect(201);
   }
 
+  // Traceability: Jira 137 AC6 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-06-B (SPM-137 AC6): the event is reassigned (through the Lead's API) before the decision; the new
+   * BOOKING-NOTIFY-06-B (SPM-137 AC6): the event is reassigned (through the Lead's API) before the decision; the new
    * Coordinator receives the notice and the previous one receives none.
    * Kills: addressing the notice to the Coordinator who submitted the request or to the first assignee.
    */
-  it('VENUE-BOOK-NOTIF-06-B sends the notification to the Coordinator assigned at decision time, not the previous one', async () => {
+  it('BOOKING-NOTIFY-06-B sends the notification to the Coordinator assigned at decision time, not the previous one', async () => {
     // Arrange: a booking submitted under coordinator A, then the event is reassigned to B.
     const w = await world();
     const b = await createUser('COORDINATOR', 'SPM-137 New Coordinator');
@@ -459,15 +471,16 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
     expect((await storedFor(w.bookingId)).map((row) => row.recipient_id)).toEqual([b.id]);
   });
 
+  // Traceability: Jira 137 AC6 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-06-C (SPM-137 AC6, SC-SPM137-04): when the event is reassigned, the previous Coordinator's unread
+   * BOOKING-NOTIFY-06-C (SPM-137 AC6, SC-SPM137-04): when the event is reassigned, the previous Coordinator's unread
    * decision notices for that event are marked read and leave their unread feed; the new Coordinator gets nothing for
    * the earlier decision. Notices for the previous Coordinator's other events, and another user's notice for the same
    * event, stay unread. The previous Coordinator's bookings list no longer holds the booking.
    * Kills: leaving the old notices unread, clearing every notice of the recipient, clearing another user's notice,
    * moving or copying earlier notices to the new Coordinator.
    */
-  it('VENUE-BOOK-NOTIF-06-C marks the previous Coordinator\'s unread decision notices for the event read after a reassignment', async () => {
+  it('BOOKING-NOTIFY-06-C marks the previous Coordinator\'s unread decision notices for the event read after a reassignment', async () => {
     // Arrange: two decisions on the reassigned event (one approved, one rejected) and one decision on another event of
     // the same Coordinator, plus a decision notice for the reassigned event addressed to a different user.
     const w = await world();
@@ -506,13 +519,14 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
 
   // ---- AC7 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 137 AC7 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-07-F (SPM-137 AC7): decisions that are refused never create a notification: a staff member who
+   * BOOKING-NOTIFY-07-F (SPM-137 AC7): decisions that are refused never create a notification: a staff member who
    * does not own the venue (404), a Coordinator calling the route (403), a booking that is already decided (409), an
    * approval that conflicts with another booking (409), a blank rejection reason (400) and an unknown booking (404).
    * Kills: writing the notification before the checks, or on a refused path.
    */
-  it('VENUE-BOOK-NOTIF-07-F creates no notification for a refused or conflicting decision', async () => {
+  it('BOOKING-NOTIFY-07-F creates no notification for a refused or conflicting decision', async () => {
     // Arrange: a pending booking, a second staff member, and a booking that overlaps an already approved one.
     const w = await world();
     const foreignStaff = await createUser('VENUE_STAFF');
@@ -560,13 +574,14 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
     throw new Error(`expected ${count} requests blocked on the venue row lock`);
   }
 
+  // Traceability: Jira 137 AC7 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-07-G (SPM-137 AC7, concurrency): an approval and a rejection of the same booking race while the
+   * BOOKING-NOTIFY-07-G (SPM-137 AC7, concurrency): an approval and a rejection of the same booking race while the
    * venue row lock is held from another connection. One wins (201), one is refused (409), and exactly one notification
    * exists, matching the decision that was saved.
    * Kills: notifying for the losing decision, a missing venue/booking lock, a notice that disagrees with the status.
    */
-  it('VENUE-BOOK-NOTIF-07-G notifies only for the decision that won when an approval and a rejection race', async () => {
+  it('BOOKING-NOTIFY-07-G notifies only for the decision that won when an approval and a rejection race', async () => {
     // Arrange: one pending booking.
     const w = await world();
 
@@ -600,13 +615,14 @@ describe.skipIf(!databaseUrl)('SPM-137 venue booking decision notifications HTTP
     expect(stored[0].recipient_id).toBe(w.coordinator.id);
   });
 
+  // Traceability: Jira 137 AC7 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-07-H (SPM-137 AC7, atomicity): if the notification cannot be saved (a trigger forces the insert to
+   * BOOKING-NOTIFY-07-H (SPM-137 AC7, atomicity): if the notification cannot be saved (a trigger forces the insert to
    * fail for this booking only), the decision is not saved either: the request returns an error, the booking is still
    * pending and no audit row or notice exists.
    * Kills: writing the notification outside the decision's transaction, or swallowing its failure.
    */
-  it('VENUE-BOOK-NOTIF-07-H does not save the decision when its notification cannot be saved', async () => {
+  it('BOOKING-NOTIFY-07-H does not save the decision when its notification cannot be saved', async () => {
     // Arrange: a pending booking and a trigger that fails any notification insert for this booking.
     const w = await world();
     await pool.query(`CREATE OR REPLACE FUNCTION spm137_test_fail_notice() RETURNS trigger LANGUAGE plpgsql AS $$

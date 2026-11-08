@@ -94,6 +94,7 @@ afterEach(() => cleanup());
 
 describe("SPM-155 EventDetailPage wiring", () => {
   // Kills: FM33
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-A (page): the owning Organiser sees the panel and Request Cancellation on a Confirmed event with no request. */
   it("CANCEL-REQUEST-01-A (page): the submitting organiser sees Request Cancellation on a Confirmed event", async () => {
     // Arrange / Act
@@ -104,6 +105,7 @@ describe("SPM-155 EventDetailPage wiring", () => {
   });
 
   // Kills: FM33, FM6b, FM7
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A (page): the owner reads Pending on the event page. */
   it("CANCEL-REQUEST-02-A (page): the submitting organiser sees Status: Pending", async () => {
     // Arrange / Act
@@ -114,6 +116,7 @@ describe("SPM-155 EventDetailPage wiring", () => {
   });
 
   // Kills: FM13, FM49, FM6, FM6b
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-E and 02-D (UI): ORG-02, COO-02, LEAD-01 and ATT-01 see no cancellation panel and no request is fetched. */
   it.each([
     ["ORG-02", { id: "org-02", role: "organiser", roles: ["organiser"] }],
@@ -130,6 +133,7 @@ describe("SPM-155 EventDetailPage wiring", () => {
   });
 
   // Kills: FM29, FM35, FM38, FM42, FM50, FM6b, FM67
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-A (page): the assigned Coordinator sees the pending request with its reason and the decision controls. */
   it("CANCEL-REQUEST-03-A (page): the assigned coordinator sees the pending request, Accept and Decline", async () => {
     // Arrange / Act
@@ -144,6 +148,7 @@ describe("SPM-155 EventDetailPage wiring", () => {
   });
 
   // Kills: FM27, FM35, FM36, FM9
+  // Traceability: Jira 155 AC4 (matrix 35848252)
   /** CANCEL-REQUEST-04-A (page): after Accept and Confirm cancellation the page shows the cancelled banner and no cancel controls. */
   it("CANCEL-REQUEST-04-A (page): accepting shows the Cancelled banner, sends the decision route and never the status-change route", async () => {
     // Arrange

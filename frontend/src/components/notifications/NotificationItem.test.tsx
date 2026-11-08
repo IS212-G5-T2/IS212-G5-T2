@@ -31,6 +31,7 @@ function renderItem(notification: Notification, onRead = vi.fn()) {
 afterEach(cleanup);
 
 describe("NotificationItem", () => {
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-A: a change request notice links to the event's Change Requests page and marks itself read. */
   it("REQ-CHANGE-03-A links a change request notice to the Change Requests page", async () => {
     const onRead = renderItem(notice());
@@ -48,6 +49,7 @@ describe("NotificationItem", () => {
     expect(screen.queryByLabelText("Unread")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 131 AC1 (matrix 36798544)
   /** SAFETY-OUTCOME-01: the coordinator's safety response notification links directly to the event. */
   it("SAFETY-OUTCOME-01 opens the event from a safety response notification", () => {
     renderItem(notice({ type: "coordinator_safety_response", message: "The Safety Officer responded to the safety check." }));
@@ -62,12 +64,14 @@ describe("NotificationItem", () => {
     expect(onRead).toHaveBeenCalledWith("n-1");
   });
 
+  // Traceability: Jira 65 AC7 (matrix 28016830)
   /** REVIEW-CHANGE-07-D: SPM-65: the organiser's decision notices open the Change Requests page. */
   it.each(["change_request_approved", "change_request_denied"] as const)("opens the Change Requests page for %s", (type) => {
     renderItem(notice({ type, message: "Your change request was decided." }));
     expect(screen.getByRole("link")).toHaveAttribute("href", "/events/event-1/change-requests");
   });
 
+  // Traceability: Jira 177 DoD3 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-08-A (SPM-177 DoD3): each clarification notice opens the event page, has its own icon and marks itself read.
    * Kills: a missing icon entry, a wrong link target, a click that does not mark read.

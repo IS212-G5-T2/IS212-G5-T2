@@ -33,6 +33,7 @@ function setup(queryRows: unknown[] = [], transactionRows: unknown[] = [], snaps
 }
 
 describe('SPM-129 SafetyOfficerService', () => {
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01 and SAFETY-QUEUE-06: only an authenticated Safety Officer may read the eligible, complete-arrangements queue. */
   it('SAFETY-QUEUE-01 requires the Safety Officer role before reading the queue', async () => {
     const { service, query } = setup();
@@ -41,6 +42,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: the pending-check query returns the requested event and its queue summary. */
   it('lists events awaiting a safety decision with their summary requirements', async () => {
     const { service, query } = setup([LIST_ROW]);
@@ -51,12 +53,14 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(query).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: a queue with no eligible pending events is returned as an empty list. */
   it('returns an empty queue when no event is eligible', async () => {
     const { service } = setup([]);
     await expect(service.queue(OFFICER)).resolves.toEqual([]);
   });
 
+  // Traceability: Jira 129 AC6 (matrix 36831243)
   /** SAFETY-QUEUE-06: a pending record is omitted when the shared checklist finds an incomplete venue arrangement. */
   it('SAFETY-QUEUE-06 filters a pending event with incomplete arrangements from the queue', async () => {
     const incomplete = { ...CONFIRMED_SNAPSHOT, venueBookings: [{ ...CONFIRMED_SNAPSHOT.venueBookings[0], status: 'pending' }] };
@@ -64,6 +68,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     await expect(service.queue(OFFICER)).resolves.toEqual([]);
   });
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: candidate arrangement reads run concurrently and retain queue ordering for larger queues. */
   it('SAFETY-QUEUE-01 checks many eligible events concurrently without reordering them', async () => {
     let releaseReads!: (snapshot: typeof CONFIRMED_SNAPSHOT) => void;
@@ -84,6 +89,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     await expect(queue).resolves.toMatchObject([{ id: 'event-1' }, { id: 'event-2' }, { id: 'event-3' }]);
   });
 
+  // Traceability: Jira 129 AC2 (matrix 36831243)
   /** SAFETY-QUEUE-02: detail shows expected attendance, venue capacity, layout, and accessibility requirements. */
   it('SAFETY-QUEUE-02 shows attendance and venue requirements', async () => {
     const details = { ...LIST_ROW, equipment_needs: 'Wireless microphone', venues: [{ name: 'Main Hall', capacity: 120, restrictions: 'No open flames' }], equipment: [{ name: 'Microphone', quantity: 1 }] };
@@ -93,36 +99,42 @@ describe('SPM-129 SafetyOfficerService', () => {
     });
   });
 
+  // Traceability: Jira 129 AC3 (matrix 36831243)
   /** SAFETY-QUEUE-03: detail exposes requested and reserved equipment and technical arrangements. */
   it('SAFETY-QUEUE-03 shows equipment and technical arrangements', async () => {
     const { service } = setup([{ ...LIST_ROW, equipment_needs: 'Wireless microphone', venues: [], equipment: [{ name: 'Microphone', quantity: 1 }] }]);
     await expect(service.details(OFFICER, 'event-1')).resolves.toMatchObject({ equipmentNeeds: 'Wireless microphone', equipment: [{ name: 'Microphone', quantity: 1 }] });
   });
 
+  // Traceability: Jira 129 AC4 (matrix 36831243)
   /** SAFETY-QUEUE-04: venue details include configured restrictions and accessibility information. */
   it('SAFETY-QUEUE-04 shows venue restrictions', async () => {
     const { service } = setup([{ ...LIST_ROW, equipment_needs: '', venues: [{ name: 'Main Hall', capacity: 120, restrictions: 'No open flames', accessibility: ['Wheelchair access'] }], equipment: [] }]);
     await expect(service.details(OFFICER, 'event-1')).resolves.toMatchObject({ venues: [{ restrictions: 'No open flames', accessibility: ['Wheelchair access'] }] });
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: details cannot be reopened after a response removes the pending queue record. */
   it('hides an event whose check is no longer pending', async () => {
     const { service } = setup([]);
     await expect(service.details(OFFICER, 'event-1')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: details are refused when the event has no pending safety-check row. */
   it('SAFETY-QUEUE-05 hides details when no pending event candidate exists', async () => {
     const { service } = setup([]);
     await expect(service.details(OFFICER, 'event-1')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: details fail closed if the pending row disappears between candidate validation and projection. */
   it('SAFETY-QUEUE-05 hides details when the detail projection is no longer present', async () => {
     const { service } = setup([LIST_ROW], [], CONFIRMED_SNAPSHOT, true, []);
     await expect(service.details(OFFICER, 'event-1')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 130 AC1 (matrix 36798526)
   /** SAFETY-DECISION-01: an authenticated Safety Officer can approve the pending arrangement. */
   it('SAFETY-DECISION-01 records an approval against the still-pending event', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -131,6 +143,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(clientQuery).toHaveBeenCalledTimes(3);
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: response transactions lock the event before arrangement rows and the safety-check row, matching status mutations. */
   it('uses the shared event, arrangements, safety-check lock order', async () => {
     const { service, clientQuery, arrangements } = setup([], [{ event_id: 'event-1' }]);
@@ -144,6 +157,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(arrangements.read.mock.invocationCallOrder[0]).toBeLessThan(clientQuery.mock.invocationCallOrder[1]);
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: a response is still attributable when the session has no display name. */
   it('uses the verified email when the session name is blank', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -151,6 +165,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE event_safety_checks'), ['event-1', 'approved', 'safety@example.test', null]);
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: an unavailable display name and email use the role label as the response attribution. */
   it('uses the Safety Officer label when the session has no name or email', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -158,6 +173,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE event_safety_checks'), ['event-1', 'approved', 'Safety Officer', null]);
   });
 
+  // Traceability: Jira 130 AC2 (matrix 36798526)
   /** SAFETY-DECISION-02: a rejection retains the submitted explanation as coordinator feedback. */
   it('SAFETY-DECISION-02 records rejection and its feedback reason', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -166,6 +182,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Please add an accessible route.', JSON.stringify({ venueIds: ['booking-1'], equipmentIds: ['equipment-1'] })]);
   });
 
+  // Traceability: Jira 131 AC5 (matrix 36798544)
   /** SAFETY-OUTCOME-05: rejection routes selected active arrangements to staff review without releasing their rows. */
   it('SAFETY-OUTCOME-05 returns selected venue and equipment rows to review', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -180,6 +197,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     ]));
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: legacy reason-only requests cannot persist feedback without an arrangement review marker. */
   it('SAFETY-OUTCOME-04 refuses legacy reason-only change requests before a transaction', async () => {
     const { service, transaction } = setup();
@@ -188,6 +206,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: legacy string arrays cannot persist feedback without arrangement review markers. */
   it('SAFETY-OUTCOME-04 refuses legacy string change rows before a transaction', async () => {
     const { service, transaction } = setup();
@@ -196,6 +215,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: each selected change row is persisted separately and keeps its own text. */
   it('SAFETY-DECISION-03 persists each selected change row independently', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -215,6 +235,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     ]);
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: request-changes stores only explicitly selected safety-review arrangement IDs. */
   it('SAFETY-OUTCOME-04 stores the selected venue and equipment review markers', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -224,6 +245,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     ]);
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: a change row that selects one arrangement kind defaults its omitted peer ID list to empty. */
   it('SAFETY-OUTCOME-04 defaults omitted arrangement ID lists to empty arrays', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -240,6 +262,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     ]);
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: unknown arrangement IDs cannot be recorded as pending review for another event. */
   it('SAFETY-OUTCOME-04 rejects stale arrangement selections without writing outcome data', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -248,6 +271,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO safety_check_feedback_items'))).toBe(false);
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: malformed arrangement identifiers and empty affected-arrangement selections are refused before writing. */
   it.each([
     ['a missing description', { venueIds: ['booking-1'], equipmentIds: [] }],
@@ -261,6 +285,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: equipment IDs are validated against this event before any outcome is written. */
   it('SAFETY-OUTCOME-04 rejects equipment selections that belong to another event', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -271,6 +296,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO safety_check_feedback_items'))).toBe(false);
   });
 
+  // Traceability: Jira 130 AC4 (matrix 36798526)
   /** SAFETY-DECISION-04: malformed change-row payloads are refused before starting a response transaction. */
   it.each([
     ['string instead of an array', { changes: 'Add a fire exit plan.' }],
@@ -284,6 +310,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 130 AC4 (matrix 36798526)
   /** SAFETY-DECISION-04: non-object and unsupported decision bodies are refused before opening a transaction. */
   it('SAFETY-DECISION-04 refuses a malformed or unsupported decision body', async () => {
     const { service, transaction } = setup();
@@ -293,6 +320,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 130 AC4 (matrix 36798526)
   /** SAFETY-DECISION-04: reject and request-changes require nonblank text and write nothing when it is absent or whitespace. */
   it.each(['rejected', 'changes_needed'] as const)('refuses %s without a nonblank reason before starting a response transaction', async (decision) => {
     const { service, transaction } = setup();
@@ -301,6 +329,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: only a check still pending can receive a response; a repeated response changes no row. */
   it('refuses a response after the event has left the pending queue', async () => {
     const { service, clientQuery } = setup([], []);
@@ -308,6 +337,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(clientQuery).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: a deleted or non-Planning event is refused before arrangements or safety-row locks. */
   it('SAFETY-QUEUE-05 refuses a response when the Planning event row is gone', async () => {
     const { service, clientQuery, arrangements } = setup([], [], CONFIRMED_SNAPSHOT, false);
@@ -316,6 +346,7 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(arrangements.read).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: response is refused without a state change if shared checklist prerequisites are no longer met. */
   it('SAFETY-QUEUE-05 refuses a response after the venue becomes pending', async () => {
     const incomplete = { ...CONFIRMED_SNAPSHOT, venueBookings: [{ ...CONFIRMED_SNAPSHOT.venueBookings[0], status: 'pending' }] };
@@ -327,6 +358,7 @@ describe('SPM-129 SafetyOfficerService', () => {
 });
 
 describe('SPM-131 AC1 safety response notification', () => {
+  // Traceability: Jira 131 AC1 (matrix 36798544)
   /** SAFETY-OUTCOME-01: a response creates a notification for the event's assigned coordinator in the same transaction. */
   it('notifies the assigned coordinator when the Safety Officer responds', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }], CONFIRMED_SNAPSHOT, true, [], 'coordinator-1');
@@ -339,6 +371,7 @@ describe('SPM-131 AC1 safety response notification', () => {
     );
   });
 
+  // Traceability: Jira 131 AC1 (matrix 36798544)
   /** SAFETY-OUTCOME-01: events without an assigned coordinator do not create an orphaned notification. */
   it('does not write a coordinator notification when no coordinator is assigned', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
@@ -350,6 +383,7 @@ describe('SPM-131 AC1 safety response notification', () => {
 });
 
 describe('SPM-129 SafetyOfficerController', () => {
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: protected endpoints receive the verified session user and the queue is never cached. */
   it('passes the session identity to queue, detail, and decision operations', async () => {
     const queue = vi.fn().mockResolvedValue([]);

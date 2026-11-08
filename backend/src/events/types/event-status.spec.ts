@@ -12,6 +12,7 @@ import {
 const ALL_STATUSES = ['Submitted', 'Approved', 'Rejected', 'Planning', 'Confirmed', 'Completed', 'Cancelled'];
 
 describe('SPM-148 AC1: which status moves to Planning', () => {
+  // Traceability: Jira 148 AC1 (matrix 26902550)
   // Kills: M1 (every status transitions), M2 (Confirmed or Submitted also transition).
   it.each(ALL_STATUSES)('PLAN-STATUS-01-B: shouldTransitionToPlanning(%s) is true only for Approved', (status) => {
     expect(shouldTransitionToPlanning(status)).toBe(status === 'Approved');
@@ -19,11 +20,13 @@ describe('SPM-148 AC1: which status moves to Planning', () => {
 });
 
 describe('SPM-148 AC6/AC7: one constant per list of statuses', () => {
+  // Traceability: Jira 148 AC6 (matrix 26902550)
   // Kills: M14 Planning missing from the workload list.
   it('PLAN-STATUS-06-A: the active workload list is Submitted, Approved, Planning, Confirmed', () => {
     expect([...ACTIVE_WORKLOAD_STATUSES]).toEqual(['Submitted', 'Approved', 'Planning', 'Confirmed']);
   });
 
+  // Traceability: Jira 148 AC1 (matrix 26902550)
   // Kills: closed statuses accepting bookings.
   it('PLAN-STATUS-01-B: booking requests are open for Approved, Planning and Confirmed only', () => {
     expect([...BOOKING_OPEN_STATUSES]).toEqual(['Approved', 'Planning', 'Confirmed']);

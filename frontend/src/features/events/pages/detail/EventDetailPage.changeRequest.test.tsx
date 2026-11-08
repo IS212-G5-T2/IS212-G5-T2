@@ -84,6 +84,7 @@ describe("SPM-64 on the event page", () => {
   });
   afterEach(cleanup);
 
+  // Traceability: Jira 64 AC7, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-F: the owner of a Submitted to Confirmed event that has not started sees Request Change. */
   it.each(["submitted", "approved", "planning", "confirmed"] as const)(
     "REQ-CHANGE-01-F offers Request Change on a %s event",
@@ -95,6 +96,7 @@ describe("SPM-64 on the event page", () => {
     },
   );
 
+  // Traceability: Jira 64 AC7, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-F: closed, draft or started events, and coordinators, get no Request Change button. */
   it.each([
     ["a cancelled event", eventWith("cancelled"), "organiser"],
@@ -107,6 +109,7 @@ describe("SPM-64 on the event page", () => {
     expect(screen.queryByRole("button", { name: "Request Change" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-A: the owner sees the pending request's status with a link to the details. */
   it("REQ-CHANGE-05-A shows the pending change request's status", async () => {
     stubApi(eventWith("submitted"), [PENDING]);
@@ -116,6 +119,7 @@ describe("SPM-64 on the event page", () => {
     expect(status).toHaveTextContent("Expected attendance");
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-A: the assigned coordinator sees the pending request on the event page with a link to the proposed changes. */
   it("REQ-CHANGE-03-A shows the assigned coordinator the pending request and a link to review it", async () => {
     stubApi(eventWith("planning"), [PENDING]);
@@ -132,6 +136,7 @@ describe("SPM-64 on the event page", () => {
     );
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-B: a coordinator who is not assigned sees no change request block and nothing is fetched. */
   it("REQ-CHANGE-03-B shows another coordinator no change request block", async () => {
     const event = { ...eventWith("planning"), coordinatorId: "coordinator-2" };
@@ -142,6 +147,7 @@ describe("SPM-64 on the event page", () => {
     expect(apiMock).not.toHaveBeenCalledWith("/events/event-1/change-requests");
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-E: no status block before the first request. */
   it("REQ-CHANGE-05-E shows no status before any request", async () => {
     stubApi(eventWith("submitted"));
@@ -150,6 +156,7 @@ describe("SPM-64 on the event page", () => {
     expect(screen.queryByRole("region", { name: "Change request status" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC7 (matrix 28016830)
   /** REVIEW-CHANGE-07-A: approving on the event page confirms it and reloads the event. */
   it.each(["planning", "submitted"] as const)("REVIEW-CHANGE-07-A approves from the %s event page and reloads the event", async (status) => {
     const event = eventWith(status);

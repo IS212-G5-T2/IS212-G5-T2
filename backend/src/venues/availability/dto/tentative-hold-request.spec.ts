@@ -5,6 +5,7 @@ import { validateTentativeHoldRequest } from './tentative-hold-request.js';
 const eventId = '00000000-0000-4000-8000-000000000159';
 
 describe('SPM-159 tentative hold request input', () => {
+  // Traceability: Jira 159 AC2 (matrix 34603557)
   /** VEN-HOLD-02-A: only the selected event identity is accepted; scheduling values stay server-owned. */
   it('VEN-HOLD-02-A accepts an event id without client-supplied timing', () => {
     expect(validateTentativeHoldRequest({ eventId })).toEqual({ eventId });

@@ -30,6 +30,7 @@ afterEach(() => cleanup());
 
 describe("SPM-155 useCancellationRequests (AC2)", () => {
   // Kills: FM45
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-F: when two loads overlap, the later one wins even if the earlier reply arrives last. */
   it("CANCEL-REQUEST-02-F: a slow earlier load that succeeds after a newer load does not replace it", async () => {
     // Arrange: the first load is held back; the second (a reload) answers at once with Declined
@@ -53,6 +54,7 @@ describe("SPM-155 useCancellationRequests (AC2)", () => {
   });
 
   // Kills: FM46
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-F: an earlier load that fails after a newer one succeeded shows no error. */
   it("CANCEL-REQUEST-02-F: a slow earlier load that fails after a newer success shows no error", async () => {
     // Arrange
@@ -76,6 +78,7 @@ describe("SPM-155 useCancellationRequests (AC2)", () => {
   });
 
   // Kills: FM49
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-E: a disabled loader never asks the server. */
   it("CANCEL-REQUEST-01-E: a disabled loader makes no request and stays not loaded", () => {
     // Act
@@ -87,6 +90,7 @@ describe("SPM-155 useCancellationRequests (AC2)", () => {
   });
 
   // Kills: FM55
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: a reply that is not a list is read as no requests, not stored. */
   it("CANCEL-REQUEST-02-A: a reply that is not an array reads as no requests", async () => {
     // Arrange: the server (or a proxy) answers with an object

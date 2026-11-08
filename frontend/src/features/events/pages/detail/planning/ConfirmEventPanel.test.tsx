@@ -65,6 +65,7 @@ describe("SPM-135 AC1: the assigned coordinator can confirm a fully arranged Pla
   });
   afterEach(cleanup);
 
+  // Traceability: Jira 135 AC1 (matrix 22905205)
   it("CONFIRM-EVENT-01-A (FE): the button is shown, nothing is outstanding, and a click shows MSG-CF-01 and changes the status", async () => {
     // Arrange: EVT-201 "Product Launch Mixer" is ready
     const calls = route({
@@ -93,6 +94,7 @@ describe("SPM-135 AC1 (F9): nothing is offered to anyone but the assigned coordi
   });
   afterEach(cleanup);
 
+  // Traceability: Jira 135 AC1 (matrix 22905205)
   it("CONFIRM-EVENT-01-C (FE): a coordinator who is not assigned sees no Confirm Event action and makes no request", () => {
     // Arrange
     const calls = route({});
@@ -112,6 +114,7 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
   });
   afterEach(cleanup);
 
+  // Traceability: Jira 135 AC2 (matrix 22905205)
   it("CONFIRM-EVENT-02-A (FE): EVT-202 with the venue Pending shows the pending venue and safety bullets, with Confirm greyed out", async () => {
     // Arrange: EVT-202 (venue Pending)
     const calls = route({ arrangements: { ready: false, outstanding: [outstandingVenue("Main Hall")] } });
@@ -132,6 +135,7 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
     expect(screen.queryByText(/has been confirmed/)).not.toBeInTheDocument();
     expect(onConfirmed).not.toHaveBeenCalled();
   });
+  // Traceability: Jira 135 AC2 (matrix 22905205)
   it("CONFIRM-EVENT-02-C (FE): EVT-206 shows only the pending venue bullet; no venue name or other detail is shown", async () => {
     // Arrange: Breakout Room 1 Pending (Main Hall Approved)
     route({ arrangements: { ready: false, outstanding: [outstandingVenue("Breakout Room 1")] } });
@@ -145,6 +149,7 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
     expect(screen.queryByText(/Breakout Room 1|Main Hall/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Confirm Event" })).toBeDisabled();
   });
+  // Traceability: Jira 135 AC2 (matrix 22905205)
   it("CONFIRM-EVENT-02-D (FE): the page loaded with nothing pending; the server then refuses and the pending bullet appears without a refresh", async () => {
     // Arrange: nothing pending at page load; Main Hall is flagged unavailable before the click
     const calls = route({ arrangements: { ready: true, outstanding: [] } });
@@ -171,6 +176,7 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
     // Assert: the pending venue bullet now shows
     expect(await screen.findByRole("list", { name: "Pending" })).toHaveTextContent("Pending venue booking");
   });
+  // Traceability: Jira 135 AC2, AC3 (matrix 22905205)
   it("CONFIRM-EVENT-03-A (FE): EVT-205 shows one pending bullet per category, in venue, equipment, safety order", async () => {
     // Arrange: EVT-205 (venue Pending, equipment Requested, safety Awaiting Check)
     const outstanding = [
@@ -235,6 +241,7 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
     expect(screen.getByRole("button", { name: "Confirm Event" })).toBeDisabled();
   });
 
+  // Traceability: Jira 135 AC3 (matrix 22905205)
   it("CONFIRM-EVENT-03-B (FE): only the pending venue shows; after it is approved a fresh load enables Confirm and it succeeds", async () => {
     // Arrange: EVT-202 with the venue Pending; one pending bullet and Confirm greyed out
     let approved = false;
@@ -264,6 +271,7 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
     // Assert
     expect(await screen.findByRole("status")).toHaveTextContent("Event has been confirmed.");
   });
+  // Traceability: Jira 135 AC3 (matrix 22905205)
   it("CONFIRM-EVENT-03-C (FE): the pending bullets name the category only, for EVT-206 and EVT-210", async () => {
     // Arrange: EVT-206 with the Breakout Room 1 booking Pending
     route({ arrangements: { ready: false, outstanding: [outstandingVenue("Breakout Room 1")] } });
@@ -294,6 +302,7 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
     // Assert
     expect(await screen.findByText("Pending safety check")).toBeInTheDocument();
   });
+  // Traceability: Jira 135 AC4 (matrix 22905205)
   it("CONFIRM-EVENT-04-B (C, FE): a double click sends one request, disables the button while pending and shows one message", async () => {
     // Arrange: the confirm is in flight until released
     const gate = deferred<unknown>();
@@ -475,6 +484,7 @@ describe("SPM-135 AC6: a rejected or cancelled event offers no confirm action (D
   });
   afterEach(cleanup);
 
+  // Traceability: Jira 135 AC6 (matrix 22905205)
   // CONFIRM-EVENT-06-A (rejected) and CONFIRM-EVENT-06-B (cancelled): no action is offered. The confirmed row is a guard beyond those cases.
   it.each(["rejected", "cancelled", "confirmed"])("CONFIRM-EVENT-06-A/06-B (FE): no Confirm Event button on a %s event, and no request", (status) => {
     // Arrange

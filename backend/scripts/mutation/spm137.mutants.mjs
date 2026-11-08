@@ -1,7 +1,7 @@
 // SPM-137 backend mutants: the venue booking decision notification written when Venue Staff approve or reject a booking
 // (message wording, recipient, type, event and booking links, decision time, one notice per decision, tentative holds
 // excluded, written in the decision transaction, refused or conflicting decisions write nothing, the Coordinator's feed
-// allow-list). Each mutant maps to its VENUE-BOOK-NOTIF tests by ID prefix; the runner matches the prefix by name.
+// allow-list). Each mutant maps to its BOOKING-NOTIFY tests by ID prefix; the runner matches the prefix by name.
 const REPO_SPEC = 'src/venues/repository/venues.repository.spec.ts';
 const SERVICE_SPEC = 'src/venues/venues.service.spec.ts';
 const FEED_SPEC = 'src/events/venue-booking-notifications.spec.ts';
@@ -11,7 +11,7 @@ const NOTICE = 'src/venues/review/booking-decision-notice.ts';
 const MESSAGES = 'src/registrations/helpers/messages.ts';
 const EVENTS = 'src/events/events.service.ts';
 const VENUES_SERVICE = 'src/venues/venues.service.ts';
-const map = (suite, file, ...ids) => ids.map((id) => ({ suite, file, title: `VENUE-BOOK-NOTIF-${id} ` }));
+const map = (suite, file, ...ids) => ids.map((id) => ({ suite, file, title: `BOOKING-NOTIFY-${id} ` }));
 const repo = (...ids) => map('backendUnit', REPO_SPEC, ...ids);
 const service = (...ids) => map('backendUnit', SERVICE_SPEC, ...ids);
 const feed = (...ids) => map('backendUnit', FEED_SPEC, ...ids);

@@ -367,6 +367,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
 
   // JOIN-WAITLIST-01: AC1 (join when the event is full)
   describe('AC1: an attendee can join the waitlist when the event is full (JOIN-WAITLIST-01)', () => {
+    // Traceability: Jira 138 AC1 (matrix 25657376)
     /**
      * Oracle (01-A): 201, status waitlisted, position 1; one row with joined_at = T0; Confirmed count stays 3.
      * Kills M4: the join stores the wrong status (for example Registered).
@@ -440,6 +441,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(allowed.body).toMatchObject({ status: 'waitlisted', position: 1 });
     });
 
+    // Traceability: Jira 138 AC1 (matrix 25657376)
     /**
      * Oracle (01-D A): EVT-704 full and closed at T0 - 1 day 23:59; join refused with MSG-01; no row.
      * Oracle (01-D B): EVT-705 full and opening at T0 + 3 days 09:00; join refused with MSG-02; no row.
@@ -494,6 +496,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(rows.rows[0].count).toBe(1);
     });
 
+    // Traceability: Jira 138 AC1 (matrix 25657376)
     /**
      * Oracle (01-F, 401): no token, and an expired session, answer 401; no row.
      * Kills M8: the auth check is dropped from the join route (an anonymous join would be accepted).
@@ -517,6 +520,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(await rowOf(eventId, who.uid)).toBeUndefined();
     });
 
+    // Traceability: Jira 138 AC1 (matrix 25657376)
     /**
      * Oracle (01-F, 403): COO-01 and ORG-01 hold no Attendee role; both get 403 with the existing permission message; no row.
      * Kills M8: the role guard is removed from the join route.
@@ -538,6 +542,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
     /**
      * Oracle (01-F, dual role): a user holding both Attendee and another role may join.
      */
+    // Traceability: Jira 138 AC1 (matrix 25657376)
     // Kills: K-01F (a user holding another role besides Attendee is refused the join)
     it('JOIN-WAITLIST-01-F: a user who holds both the Attendee and another role may join', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
@@ -552,6 +557,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
 
   // JOIN-WAITLIST-02: AC2 (the event page shows full and the waitlist)
   describe('AC2: the event shows that it is full and that the waitlist is open (JOIN-WAITLIST-02)', () => {
+    // Traceability: Jira 138 AC2 (matrix 25657376)
     /**
      * Oracle (02-A): EVT-701 full and open. isFull, waitlistAvailable and registrationOpen are true; no spots left.
      * Kills a waitlistAvailable that ignores the window or fullness.
@@ -664,6 +670,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
 
   // JOIN-WAITLIST-04: AC4 (the confirmation message states the position)
   describe('AC4: the confirmation message states the position (JOIN-WAITLIST-04)', () => {
+    // Traceability: Jira 138 AC4 (matrix 25657376)
     /**
      * Oracle (04-B): ATT-04, ATT-05 and ATT-06 join an empty list in order; the messages say 1, 2, 3; each equals the later read.
      * Kills non-increasing positions.
@@ -715,6 +722,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
     /**
      * Oracle (05-A): ATT-04 (1), ATT-05 (2), ATT-06 (3) read their own position; the API value matches.
      */
+    // Traceability: Jira 138 AC5 (matrix 25657376)
     // Kills: K-05A (positions run newest first)
     it('JOIN-WAITLIST-05-A: each waitlisted attendee reads their own position', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
@@ -749,6 +757,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(await positionOf(eventId, att04)).toBe(1);
     });
 
+    // Traceability: Jira 138 AC5 (matrix 25657376)
     /**
      * Oracle (05-C): ATT-04 asks for ATT-05's registration by id: 404 MSG-07, with no name and no position in the body.
      * The router inventory lists no GET route that returns other attendees' entries (A-05C).
@@ -860,6 +869,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
 
   // JOIN-WAITLIST-07: AC7 (order by join time)
   describe('AC7: the waitlist is ordered by join time (JOIN-WAITLIST-07)', () => {
+    // Traceability: Jira 138 AC7 (matrix 25657376)
     /**
      * Oracle (07-A): joins stated at 10:00:00 (ATT-06), 10:00:05 (ATT-04), 10:00:10 (ATT-05) on the injected clock (A-07A-CALLS).
      * Positions: ATT-06 1, ATT-04 2, ATT-05 3. ATT-01 withdraws: ATT-06 is promoted; ATT-04 is 1 and ATT-05 is 2.
@@ -1162,6 +1172,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(promotions.every((n) => n.message === MSG_WL_05)).toBe(true);
     });
 
+    // Traceability: Jira 138 AC9 (matrix 25657376)
     /**
      * Oracle (09-B): ATT-04 and ATT-05 each get exactly one promotion notification; ATT-06, ATT-01 and ATT-02 get none.
      * The backend has no mail transport (A-MAIL), so only the notification rows are checked.
@@ -1233,6 +1244,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect((await mine(late, b4).expect(200)).body.registration.status).toBe('waitlisted');
     });
 
+    // Traceability: Jira 138 AC10 (matrix 25657376)
     /**
      * Oracle (10-D): ATT-05 withdraws from the list: Confirmed stays 3; availableSpots 0; ATT-01 to 03 Confirmed; ATT-04 still
      * waitlisted at 1; no promotion and no notification.
@@ -1373,6 +1385,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect((await event(eventId, a6).expect(200)).body.registrationOpen).toBe(false);
     });
 
+    // Traceability: Jira 138 AC11 (matrix 25657376)
     /**
      * Oracle (11-D): EVT-703 is closed with its entries removed. ATT-01 withdraws: availableSpots 1; registration stays
      * closed; ATT-04 and ATT-05 are not promoted; no notification. The same withdrawal made after the close instant, while
@@ -1403,6 +1416,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
   });
 
   describe('AC11: reopen keeps removed entries removed (JOIN-WAITLIST-11-E, Blocked)', () => {
+    // Traceability: Jira 138 AC11 (matrix 25657376)
     /**
      * Blocked (registration-setup story): the real reopen flow belongs to the registration-setup story. The hook that
      * settles before a window change is tested in this file as JOIN-WAITLIST-11-E-HOOK (against rows).
@@ -1627,6 +1641,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
      * the same rows and the Waitlisted label. After ATT-01 withdraws and ATT-04 is promoted: ATT-04 reads as registered, ATT-05
      * and ATT-06 stay waitlisted, and ATT-01 is listed as withdrawn (the rest of the list, after the waitlist).
      */
+    // Traceability: Jira 138 Cross-cutting (matrix 25657376)
     // Kills: W14-TOTAL (the report totals count Waitlisted rows as confirmed)
     it('JOIN-WAITLIST-14-A: the report, CSV and PDF list every status; totals count Confirmed only', async () => {
       const coordinator = await namedUser(['COORDINATOR'], 'Coordinator COO', 3);
@@ -1841,6 +1856,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(read.body).toEqual({ success: true });
     });
 
+    // Traceability: Jira 138 AC10 (matrix 25657376)
     /**
      * JOIN-WAITLIST-10-H: the list is read as Registered before the lock, the entry becomes Waitlisted and the
      * list closes before the lock is taken (the state change is made by a fixture, since no normal flow turns a Registered
@@ -1877,6 +1893,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
 
   // Attendee notices and the status re-read under the lock.
   describe('Attendee notices and the status re-read under the lock (09-C, 10-G)', () => {
+    // Traceability: Jira 138 AC9 (matrix 25657376)
     /**
      * JOIN-WAITLIST-09-C: an attendee reads only their own waitlist notices. The promoted attendee sees the
      * WaitlistPromoted notice (MSG-WL-05, linked to the event, as an attendee audience). A waiting attendee sees none. An
@@ -1908,6 +1925,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(organiserView.body.some((n: { type: string }) => n.type === 'WaitlistPromoted')).toBe(false);
     });
 
+    // Traceability: Jira 138 AC8 (matrix 25657376)
     /**
      * JOIN-WAITLIST-10-G: a waiting entry that a concurrent withdrawal promotes before this request
      * takes the event lock gets the Registered-path result (200, Withdrawn, and the freed place goes to the next entry),
@@ -1987,6 +2005,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(await statusOf(eventId, waiting.uid)).toBe('Removed');
     });
 
+    // Traceability: Jira 138 AC11 (matrix 25657376)
     /**
      * JOIN-WAITLIST-11-G: the job's boundary is the closing instant itself. One millisecond before the close
      * the job removes nothing; at the instant it removes both entries. Kills P-B: the job's due test is strict (<) and
@@ -2032,6 +2051,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
 
   // JOIN-WAITLIST-07-D and 02-A-LIST.
   describe('Rejoin of a removed entry and the attendee list fields (07-D, 02-A-LIST)', () => {
+    // Traceability: Jira 138 AC7 (matrix 25657376)
     /**
      * JOIN-WAITLIST-07-D: a removed entry joins again while the event is full and open. It takes a new
      * join time and sequence, so it goes behind the entry that was already waiting. Kills P-K: the join no longer
@@ -2108,6 +2128,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(refused.body).toMatchObject({ code: 'registration_closed', message: MSG_01 });
     });
 
+    // Traceability: Jira 138 AC10 (matrix 25657376)
     /**
      * JOIN-WAITLIST-10-F: a Cancelled row answers 409 registration_not_withdrawable with its
      * copy, and stays Cancelled. Kills P-I: Cancelled is dropped from the refusal that answers 409.
@@ -2124,6 +2145,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(await statusOf(eventId, cancelled.uid)).toBe('Cancelled');
     });
 
+    // Traceability: Jira 138 AC11 (matrix 25657376)
     /**
      * JOIN-WAITLIST-11-F: a Removed row registers directly once the window allows it. The reopen is simulated by
      * the fixture (the registration-setup story is Blocked); the row keeps its id and is Registered with the removal

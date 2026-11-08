@@ -38,6 +38,7 @@ beforeEach(() => {
 });
 
 describe("SPM-47 AC10: the Lead's coordinator-availability notifications", () => {
+  // Traceability: Jira 47 AC10 (matrix 21496116)
   // The Lead sees the notice, can go to the reassignment page, and can mark it read.
   it("LEAD-REASN-10-E shows the notice with a link to Reassign Events and lets the Lead mark it read", async () => {
     // Arrange: one unread notice; marking read succeeds.
@@ -59,6 +60,7 @@ describe("SPM-47 AC10: the Lead's coordinator-availability notifications", () =>
     await waitFor(() => expect(screen.queryByText(notice.message)).not.toBeInTheDocument());
   });
 
+  // Traceability: Jira 47 AC10 (matrix 21496116)
   // Notices already read stay hidden, and other notification types are ignored.
   it("LEAD-REASN-10-I lists only unread coordinator-unavailable notices", async () => {
     // Arrange: one read notice, one unrelated type, one unread notice.
@@ -78,6 +80,7 @@ describe("SPM-47 AC10: the Lead's coordinator-availability notifications", () =>
     expect(screen.getAllByRole("button", { name: "Mark As Read" })).toHaveLength(1);
   });
 
+  // Traceability: Jira 47 AC10 (matrix 21496116)
   // Anyone who isn't the Lead gets no panel and no request.
   it("LEAD-REASN-10-J shows nothing and loads nothing for a user who is not the Lead", () => {
     // Arrange: a coordinator is signed in.

@@ -119,6 +119,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("SPM-50 venue creation", () => {
+  // Traceability: Jira 50 AC1 (matrix 14975043)
   // SPM-50 / VEN-CRE-01-A: staff can open venue creation without entering a generated identifier.
   it("opens location details without an identifier field", () => {
     renderRoutes();
@@ -162,6 +163,7 @@ describe("SPM-50 venue creation", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 50 AC2 (matrix 14975043)
   // SPM-50 / VEN-CRE-02-A, VEN-CRE-02-B: first-page data survives moving forward and back.
   it("retains location and accessibility details across pages", async () => {
     const user = userEvent.setup();
@@ -178,6 +180,7 @@ describe("SPM-50 venue creation", () => {
     expect(screen.getByLabelText("Wheelchair access")).toHaveProperty("checked", true);
   });
 
+  // Traceability: Jira 50 AC3 (matrix 14975043)
   // SPM-50 / VEN-CRE-03-A: missing required venue fields block the next page.
   it("reports every missing first-page value", async () => {
     const user = userEvent.setup();
@@ -189,6 +192,7 @@ describe("SPM-50 venue creation", () => {
     expect(screen.queryByRole("heading", { name: /facilities & room layouts/i })).toBeNull();
   });
 
+  // Traceability: Jira 50 AC3 (matrix 14975043)
   // SPM-50 / VEN-CRE-03-A: every required venue field independently prevents progression.
   it.each(Object.entries(locationValues))("rejects a missing %s", async (label) => {
     const user = userEvent.setup();
@@ -255,6 +259,7 @@ describe("SPM-50 venue creation", () => {
     expect(screen.getByText(/whole number from 1 to 1000000/i)).toBeTruthy();
   });
 
+  // Traceability: Jira 50 AC3 (matrix 14975043)
   // SPM-50 / VEN-CRE-03-A: each normalized relationship requires at least one selection.
   it("requires facilities and room layouts on the second page", async () => {
     const user = userEvent.setup();
@@ -283,6 +288,7 @@ describe("SPM-50 venue creation", () => {
     expect(screen.queryByText("Choose at least one room layout.")).toBeNull();
   });
 
+  // Traceability: Jira 50 AC6 (matrix 14975043)
   // SPM-50 / VEN-CRE-07-A: successful creation redirects Venue Staff to the catalogue with confirmation.
   it("creates a venue then redirects to the catalogue", async () => {
     const user = userEvent.setup();
@@ -479,6 +485,7 @@ describe("SPM-50 venue creation", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to create");
   });
 
+  // Traceability: Jira 50 AC6 (matrix 14975043)
   // SPM-50 / VEN-CRE-07-B: a failed creation remains in the form instead of redirecting.
   it("keeps the user in the form after a failed creation", async () => {
     const user = userEvent.setup();

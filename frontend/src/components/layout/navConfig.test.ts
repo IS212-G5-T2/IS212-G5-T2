@@ -62,6 +62,7 @@ describe("technical support navigation", () => {
     ]));
   });
 
+  // Traceability: Jira 117 AC1 (matrix 19858517)
   // EQUIP-VIEW-01-C (AC1). Kills: the nav config entry for tech_support being
   // removed, relabeled, or pointed at the wrong route. This checks the config
   // data only; no test anywhere renders Sidebar to prove it turns this entry
@@ -78,6 +79,7 @@ describe("technical support navigation", () => {
 });
 
 describe("safety officer navigation", () => {
+  // Traceability: Jira 128 AC2 (matrix 36896780)
   /** SAFETY-LOGIN-02-C: Navigation sidebar exposes exactly Safety Review -> /safety/events for Safety Officer. */
   it("SAFETY-LOGIN-02-C navigation sidebar shows exactly Safety Review -> /safety/events", () => {
     const items = navByRole.safety_officer;

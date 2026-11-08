@@ -87,6 +87,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     return false;
   }
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-N: the real event picker returns the event name for open assigned events and excludes Confirmed events. */
   it('EQUIP-REQUEST-01-N returns only open assigned event names from the eligible-events HTTP endpoint', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -103,6 +104,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(response.body.some((row: { status: string }) => row.status === 'confirmed')).toBe(false);
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-N: a Confirmed event cannot receive a new equipment request through HTTP. */
   it('EQUIP-REQUEST-01-N refuses a Confirmed event without request, reservation, or history writes', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -114,6 +116,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await pool.query('SELECT id FROM event_status_history WHERE event_id = $1', [eventId])).rows).toEqual([]);
   });
 
+  // Traceability: Jira 58 AC8 (matrix 33292299)
   /** EQUIP-RESERVE-08-A (Reserved half only; DECIDED SC-SPM58-03, chaw678 2026-11-06: reserve and Cannot Provide are accepted only from a Pending Review request): approval creates missing reservation rows and reuses existing placeholders without duplication. */
   it('persists exactly one Reserved row per request item whether placeholders were missing or already present', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -165,6 +168,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(existingRows.rows).toEqual([{ status: 'Reserved' }]);
   });
 
+  // Traceability: Jira 58 AC9 (matrix 33292299)
   /** EQUIP-RESERVE-09-A (DECIDED SC-SPM58-03 and SC-SPM58-01, chaw678 2026-11-06: Pending Review only, one request-level status): Technical Support marks a request Cannot Provide with a required reason; it persists, retires placeholders, and the coordinator reads it. */
   it('records a Cannot Provide decision with its reason, retires placeholders, and shows it to the coordinator', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -238,6 +242,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
   const reserveRequest = (cookie: string, requestId: string) =>
     request(app.getHttpServer()).patch(`/api/equipment/requests/${requestId}/reserve`).set('Cookie', cookie);
 
+  // Traceability: Jira 58 AC6 (matrix 33292299)
   /** EQUIP-RESERVE-06-A (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): reserving N units reduces the availability shown for an overlapping event by exactly N (T = 6, N = 2). */
   it('EQUIP-RESERVE-06-A reduces the available quantity of an overlapping event by exactly the reserved amount', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -252,6 +257,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await itemFor(coordinator.cookie, overlapping)).items[0]).toMatchObject({ availableQuantity: 4, sufficient: true });
   });
 
+  // Traceability: Jira 58 AC6 (matrix 33292299)
   /** EQUIP-RESERVE-06-B: a reservation does not reduce availability for a disjoint event (T = 6, N = 2). */
   it('EQUIP-RESERVE-06-B leaves the available quantity of a disjoint event unchanged', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -266,6 +272,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await itemFor(coordinator.cookie, disjoint)).items[0]).toMatchObject({ availableQuantity: 6, sufficient: true });
   });
 
+  // Traceability: Jira 58 AC6 (matrix 33292299)
   /** EQUIP-RESERVE-06-BND-1 (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): reserving all T units leaves exactly 0 (not negative) and refuses a further reserve (T = 3). */
   it('EQUIP-RESERVE-06-BND-1 reserving the whole stock leaves an overlapping event at exactly zero and refuses another reserve', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -281,6 +288,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await itemFor(coordinator.cookie, overlapping)).status).toBe('Pending Review');
   });
 
+  // Traceability: Jira 58 AC2 (matrix 33292299)
   /** EQUIP-RESERVE-02-BND-1: available equal to requested is sufficient; one overlapping unit reserved elsewhere makes it insufficient (T = 3, request 3). */
   it('EQUIP-RESERVE-02-BND-1 flips from sufficient to insufficient when one overlapping unit is reserved', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -295,6 +303,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await itemFor(coordinator.cookie, subject)).items[0]).toMatchObject({ availableQuantity: 2, sufficient: false });
   });
 
+  // Traceability: Jira 58 AC4 (matrix 33292299)
   /** EQUIP-RESERVE-04-A: reserving more than the units free for the event window (4 requested, 3 in stock) is refused and nothing is created. */
   it('EQUIP-RESERVE-04-A refuses a reserve for more units than are available and persists nothing', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -312,6 +321,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(rows.rows).toEqual([{ status: 'Requested' }]);
   });
 
+  // Traceability: Jira 58 AC5 (matrix 33292299)
   /** EQUIP-RESERVE-05-B: stock that is only Under Maintenance or Retired (no Active units) cannot be reserved and nothing is persisted. */
   it.each([
     ['Under Maintenance', 0, 2, 0],
@@ -342,6 +352,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
        FROM equipment_requests r JOIN equipment_request_items i ON i.request_id = r.id
        JOIN equipment_reservations res ON res.equipment_request_item_id = i.id WHERE r.id = $1::uuid`, [requestId]);
 
+  // Traceability: Jira 58 AC1 (matrix 33292299)
   /** EQUIP-RESERVE-01-A: the Technical Support queue shows the event name, date and time and each item's type, name and quantity. */
   it('EQUIP-RESERVE-01-A lists a Pending Review request with its event name, window and item details in the queue', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -358,6 +369,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     });
   });
 
+  // Traceability: Jira 58 AC1 (matrix 33292299)
   /** EQUIP-RESERVE-01-B: requests that are Reserved or Cannot Provide are absent from the queue while a Pending Review request is present. */
   it('EQUIP-RESERVE-01-B leaves resolved requests out of the queue and keeps the Pending Review one', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -377,6 +389,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(ids).not.toContain(refused);
   });
 
+  // Traceability: Jira 58 AC3 (matrix 33292299)
   /** EQUIP-RESERVE-03-B: when an overlapping event already holds every unit, reserving 1 unit is refused and nothing is created (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request). */
   it('EQUIP-RESERVE-03-B refuses a reserve when an overlapping event holds every unit and creates nothing', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -391,6 +404,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await rowsFor(subject)).rows).toEqual([{ request_status: 'Pending Review', reservation_status: 'Requested' }]);
   });
 
+  // Traceability: Jira 58 AC3 (matrix 33292299)
   /** EQUIP-RESERVE-03-BND-1: reserving the entire available quantity (4 of 4) succeeds, available becomes 0 and a further reserve is refused (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request). */
   it('EQUIP-RESERVE-03-BND-1 reserves the entire available quantity, leaves zero and refuses a further reserve', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -406,6 +420,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     await reserveRequest(support.cookie, further).expect(409);
   });
 
+  // Traceability: Jira 58 AC4 (matrix 33292299)
   /** EQUIP-RESERVE-04-BND-1: reserving exactly the free quantity (F = 2 of 3, one held elsewhere) succeeds and one more unit is refused (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request). */
   it('EQUIP-RESERVE-04-BND-1 reserves exactly the free quantity and refuses one more', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -422,6 +437,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await rowsFor(oneMore)).rows).toEqual([{ request_status: 'Pending Review', reservation_status: 'Requested' }]);
   });
 
+  // Traceability: Jira 58 AC5 (matrix 33292299)
   /** EQUIP-RESERVE-05-C: stock held for an overlapping event is refused (more than the remaining free quantity); the same units for a disjoint event succeed. */
   it('EQUIP-RESERVE-05-C refuses the overlapping request and accepts the disjoint one', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -438,6 +454,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await itemFor(coordinator.cookie, disjoint)).status).toBe('Reserved');
   });
 
+  // Traceability: Jira 58 AC12 (matrix 33292299)
   /** EQUIP-RESERVE-12-BND-1: an update is accepted in the last pre-Confirmed state and refused (naming the confirmed event) immediately after the event becomes Confirmed. */
   it('EQUIP-RESERVE-12-BND-1 accepts the last pre-Confirmed update and refuses the next one once Confirmed', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -454,6 +471,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(items.rows).toEqual([{ equipment_name: 'Boundary last allowed', quantity: 2 }]);
   });
 
+  // Traceability: Jira 58 AC5 (matrix 33292299)
   /** EQUIP-RESERVE-05-BND-1 (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): an overlapping reserve is refused; windows that only touch (end == start) do not consume stock (T = 2). */
   it('EQUIP-RESERVE-05-BND-1 refuses an overlapping reserve but allows windows that only touch the held window', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -480,6 +498,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     await reserveRequest(support.cookie, touchingBefore).expect(200);
   });
 
+  // Traceability: Jira 58 AC8 (matrix 33292299)
   /**
    * EQUIP-RESERVE-08-BND-1 (DECIDED SC-SPM58-01, chaw678 2026-11-06: status is per equipment request; the test only shows that
    * deciding one request never changes another request).
@@ -503,6 +522,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(statusOf(untouched)).toBe('Pending Review');
   });
 
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-A, EQUIP-RESERVE-01-A: a multi-item Approved-event submission is persisted and moves the event to Planning. */
   it('EQUIP-REQUEST-03-A creates a Pending Review request, exposes it to both lists, and records Approved to Planning', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -551,6 +571,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     ]));
   });
 
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-A: upgrading a legacy request preserves its association, backfills its equipment name, and removes the obsolete column. */
   it('EQUIP-REQUEST-03-A upgrades legacy technical-requirements rows without losing requests', async () => {
     const client = await pool.connect();
@@ -592,6 +613,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     }
   });
 
+  // Traceability: Jira 57 AC5 (matrix 28868989)
   /** EQUIP-REQUEST-05-A: confirmation identifies the same request returned by both persisted read views. */
   it('EQUIP-REQUEST-05-A returns the persisted request id and reference in confirmation and lists', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -609,6 +631,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(response.body.requestReference).toBe(queued.reference);
   });
 
+  // Traceability: Jira 57 AC2 (matrix 28868989)
   /** EQUIP-REQUEST-02-N: an unknown or inaccessible event cannot be submitted and creates no request data. */
   it('EQUIP-REQUEST-02-N refuses an unknown event id without persistence', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -619,6 +642,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(saved.rows).toEqual([]);
   });
 
+  // Traceability: Jira 57 AC2 (matrix 28868989)
   /** EQUIP-REQUEST-02-N: a coordinator cannot submit for another coordinator’s existing eligible event. */
   it('EQUIP-REQUEST-02-N refuses a foreign coordinator event without request or status side effects', async () => {
     const owner = await createUser('COORDINATOR');
@@ -640,6 +664,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(history.rows).toEqual([]);
   });
 
+  // Traceability: Jira 57 AC4 (matrix 28868989)
   /** EQUIP-REQUEST-04-A and EQUIP-REQUEST-04-N: missing or invalid fields return validation errors and do not persist partial requests. */
   it.each([
     [{ equipmentName: 'Microphone', equipmentType: 'Audio' }, 'quantity'],
@@ -656,6 +681,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(count.rows[0].n).toBe(0);
   });
 
+  // Traceability: Jira 57 AC4 (matrix 28868989)
   /** EQUIP-REQUEST-04-N: a non-numeric quantity sent over HTTP is rejected without writing request data or changing event state. */
   it('EQUIP-REQUEST-04-N rejects a non-numeric quantity through HTTP without side effects', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -677,6 +703,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(history.rows).toEqual([]);
   });
 
+  // Traceability: Jira 57 AC4 (matrix 28868989)
   /** EQUIP-REQUEST-04-N: an invalid later item rejects the complete multi-item HTTP submission without partial persistence. */
   it('EQUIP-REQUEST-04-N rejects a valid-first invalid-second submission without partial writes', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -701,6 +728,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(history.rows).toEqual([]);
   });
 
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-N: missing or blank equipment names are refused before any request, item, or reservation is persisted. */
   it.each([undefined, '', '   '])('EQUIP-REQUEST-03-N refuses an absent or blank equipment name %j', async (equipmentName) => {
     const coordinator = await createUser('COORDINATOR');
@@ -713,6 +741,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(reservations.rows).toEqual([]);
   });
 
+  // Traceability: Jira 57 AC8 (matrix 28868989)
   /** EQUIP-REQUEST-08-N: Cancelled and Rejected events cannot receive a new equipment request. */
   it('EQUIP-REQUEST-08-N refuses a Cancelled event request without side effects', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -729,6 +758,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(history.rows).toEqual([]);
   });
 
+  // Traceability: Jira 57 AC8 (matrix 28868989)
   /** EQUIP-REQUEST-08-N: a Rejected event cannot receive a new equipment request. */
   it('EQUIP-REQUEST-08-N refuses a Rejected event request without side effects', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -763,6 +793,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(retained.rows).toEqual([{ id: created.body.id, status: 'Pending Review', equipment_name: 'Microphone' }]);
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-N: direct duplicate submission is refused and leaves the original request, reference, items, reservations, event, and history unchanged. */
   it('refuses a duplicate request while preserving the original request and Approved-to-Planning history', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -792,6 +823,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(history.rows).toEqual(priorHistory.rows);
   });
 
+  // Traceability: Jira 57 AC9 (matrix 28868989)
   /** EQUIP-REQUEST-09-A: failed Approved-to-Planning persistence rolls back request, items, reservations, and history. */
   it('EQUIP-REQUEST-09-A rolls back request data when the Approved-to-Planning status write fails', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -819,6 +851,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(history.rows).toEqual([]);
   });
 
+  // Traceability: Jira 57 AC6 (matrix 28868989)
   /** EQUIP-REQUEST-06-A: a coordinator sees their own requests and not another coordinator’s rows. */
   it('EQUIP-REQUEST-06-A isolates coordinator request lists', async () => {
     const first = await createUser('COORDINATOR');
@@ -836,6 +869,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(secondMine.body.map((row: { id: string }) => row.id)).not.toContain(firstCreated.body.id);
   });
 
+  // Traceability: Jira 58 AC10 (matrix 33292299)
   /** EQUIP-RESERVE-10-B: after Technical Support reserves one request and marks another Cannot Provide on event E, a non-owning coordinator does not see either status; the owner does. */
   it('EQUIP-RESERVE-10-B hides Technical Support status updates from a coordinator who does not own the event', async () => {
     const owner = await createUser('COORDINATOR');
@@ -859,6 +893,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(otherIds).not.toContain(refusedId);
   });
 
+  // Traceability: Jira 57 AC7 (matrix 28868989)
   /** EQUIP-REQUEST-07-A, EQUIP-RESERVE-01-B: Technical Support sees Pending Review rows but excludes requests already Reserved. */
   it('EQUIP-REQUEST-07-A excludes non-Pending Review requests from the support queue', async () => {
     const first = await createUser('COORDINATOR');
@@ -876,6 +911,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(queue.body.every((row: { status: string }) => row.status === 'Pending Review')).toBe(true);
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-BND-1: a second simultaneous first submission waits on the event lock, then gets the duplicate conflict with one coherent persisted request. */
   it('EQUIP-REQUEST-10-BND-1 serializes concurrent submits to one request and side-effect set', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -913,6 +949,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(history.rows).toEqual([{ from_status: 'Approved', to_status: 'Planning' }]);
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: editing a coordinator-owned request updates the same ID/reference and both request read views. */
   it('EQUIP-REQUEST-10-A updates the existing request and its planning reservations in place', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -1043,6 +1080,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(requests.rows).toEqual([{ id: created.body.id }]);
   });
 
+  // Traceability: Jira 58 AC12 (matrix 33292299)
   /** EQUIP-RESERVE-12-A: an edit is accepted and persisted while the event is Approved (the other pre-Confirmed state). */
   it('EQUIP-RESERVE-12-A accepts and persists an edit while the event is Approved', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -1056,6 +1094,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(items.rows).toEqual([{ equipment_name: 'Edited while Approved', quantity: 2 }]);
   });
 
+  // Traceability: Jira 58 AC12 (matrix 33292299)
   /** EQUIP-RESERVE-12-B: once the event is Confirmed, Technical Support can neither reserve nor mark Cannot Provide; the refusal says the event is confirmed and the request is unchanged. */
   it('EQUIP-RESERVE-12-B refuses Technical Support reserve and Cannot Provide on a Confirmed event and leaves the request unchanged', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -1078,12 +1117,14 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(stored.rows).toEqual([{ request_status: 'Pending Review', decision_reason: null, reservation_status: 'Requested' }]);
   });
 
+  // Traceability: Jira 57 AC7 (matrix 28868989)
   /** EQUIP-REQUEST-07-A: only Technical Support can see the review queue. */
   it('refuses the review queue to a coordinator', async () => {
     const coordinator = await createUser('COORDINATOR');
     await request(app.getHttpServer()).get('/api/equipment/requests/review-queue').set('Cookie', coordinator.cookie).expect(403);
   });
 
+  // Traceability: Jira 58 AC3 (matrix 33292299)
   /** EQUIP-RESERVE-03-SEC-1: an unauthenticated caller gets 401 and a coordinator gets 403 on both the review queue and reserve, and no reservation is created. */
   it('EQUIP-RESERVE-03-SEC-1 refuses the review queue and reserve to unauthenticated and non-Technical-Support callers and creates nothing', async () => {
     const coordinator = await createUser('COORDINATOR');

@@ -33,6 +33,7 @@ describe("App venue creation route", () => {
     });
   });
 
+  // Traceability: Jira 50 AC1 (matrix 14975043)
   // SPM-50 / VEN-CRE-01-A: the protected app route exposes the venue creation form to Venue Staff.
   it("renders the venue creation route for Venue Staff", () => {
     // Arrange the app at its protected venue creation URL.
@@ -125,6 +126,7 @@ describe("SPM-54 venue availability workflow routing", () => {
 // see RouteAccess.test.tsx for the faster, non-authoritative isolated-table check,
 // and navConfig.test.ts for EQUIP-VIEW-01-C (sidebar link discoverability).
 describe("App equipment availability route", () => {
+  // Traceability: Jira 117 AC1 (matrix 19858517)
   // EQUIP-VIEW-01-A. Kills: a RequireRole allowedRoles list missing "tech_support",
   // or a wrong path/element wiring for /equipment/availability in App.tsx.
   it("EQUIP-AVAIL-01 renders the equipment availability checker for Technical Support", () => {
@@ -169,6 +171,7 @@ describe("App equipment availability route", () => {
     expect(screen.getByRole("heading", { name: "Equipment Inventory" })).toBeTruthy();
   });
 
+  // Traceability: Jira 117 AC1 (matrix 19858517)
   // EQUIP-AVAIL-07. Kills: App.tsx's RequireRole allowedRoles list for
   // /equipment/availability gaining any role beyond "tech_support" (e.g. a copy-paste
   // that adds "coordinator", as found by review mutation testing on this branch).
@@ -214,6 +217,7 @@ describe("App equipment availability route", () => {
     },
   );
 
+  // Traceability: Jira 117 AC1 (matrix 19858517)
   // EQUIP-VIEW-01-D. Kills: RequireRole's fallback Navigate target changing away
   // from "/events" for a role that can actually reach it.
   it("EQUIP-VIEW-01-D redirects a blocked Attendee specifically to Browse Events", () => {
@@ -240,6 +244,7 @@ describe("App equipment availability route", () => {
 });
 
 describe("SPM-129 Safety Officer application route", () => {
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: a Safety Officer reaches the real App queue route and sees its navigation link. */
   it("SAFETY-QUEUE-01 renders the safety queue for a signed-in Safety Officer", async () => {
     useAppStore.setState({
@@ -269,6 +274,7 @@ describe("App equipment request editor routes", () => {
     vi.mocked(getEquipmentRequestQueue).mockResolvedValue([]);
   });
 
+  // Traceability: Jira 57 AC5 (matrix 28868989)
   /** EQUIP-REQUEST-05-A: after starting a request, the coordinator reaches the dedicated editor. */
   it("routes coordinators to a dedicated create form page", async () => {
     render(<MemoryRouter initialEntries={["/equipment/requests/create"]}><App /></MemoryRouter>);
@@ -276,6 +282,7 @@ describe("App equipment request editor routes", () => {
     expect(screen.queryByRole("heading", { name: "My Equipment Requests" })).toBeNull();
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: the request-specific route renders the separate update editor. */
   it("routes coordinators to a request-specific update form page", async () => {
     vi.mocked(getMyEquipmentRequests).mockResolvedValue([{
@@ -367,18 +374,21 @@ describe("SPM-128 Safety Officer login routing", () => {
     vi.unstubAllGlobals();
   });
 
+  // Traceability: Jira 128 AC2 (matrix 36896780)
   /** SAFETY-LOGIN-02-A: An authenticated Safety Officer visiting root is automatically redirected to the safety review page. */
   it("SAFETY-LOGIN-02-A redirects a Safety Officer from root to the safety review page", () => {
     render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
   });
 
+  // Traceability: Jira 128 AC2 (matrix 36896780)
   /** SAFETY-LOGIN-02-B: An authenticated Safety Officer visiting login is automatically redirected to the safety review page. */
   it("SAFETY-LOGIN-02-B redirects an authenticated Safety Officer from login to the safety review page", () => {
     render(<MemoryRouter initialEntries={["/login"]}><App /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
   });
 
+  // Traceability: Jira 128 AC3 (matrix 36896780)
   /** SAFETY-LOGIN-03-A: Wrong password surfaces the server's exact error message on the login screen. */
   it("SAFETY-LOGIN-03-A wrong password displays the server error message on the login screen", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
@@ -406,6 +416,7 @@ describe("SPM-128 Safety Officer login routing", () => {
     expect(screen.getByRole("button", { name: /log in/i })).toBeTruthy();
   });
 
+  // Traceability: Jira 128 AC3 (matrix 36896780)
   /** SAFETY-LOGIN-03-B: Non-JSON error body shows generic fallback message on the login screen. */
   it("SAFETY-LOGIN-03-B non-JSON error body displays generic fallback message on the login screen", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
@@ -433,12 +444,14 @@ describe("SPM-128 Safety Officer login routing", () => {
     expect(screen.getByRole("button", { name: /log in/i })).toBeTruthy();
   });
 
+  // Traceability: Jira 128 AC4 (matrix 36896780)
   /** SAFETY-LOGIN-04-A: Positive baseline confirming a Safety Officer can access /safety/events before negative cases. */
   it("SAFETY-LOGIN-04-A Safety Officer at own route renders the safety review page", () => {
     render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
   });
 
+  // Traceability: Jira 128 AC4 (matrix 36896780)
   /** SAFETY-LOGIN-04-B: A Safety Officer navigating to /events is redirected away to their own safety review page. */
   it("SAFETY-LOGIN-04-B Safety Officer at /events is redirected to own page", () => {
     render(<MemoryRouter initialEntries={["/events"]}><App /></MemoryRouter>);
@@ -446,6 +459,7 @@ describe("SPM-128 Safety Officer login routing", () => {
     expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
   });
 
+  // Traceability: Jira 128 AC4 (matrix 36896780)
   /** SAFETY-LOGIN-04-C: An authenticated Coordinator navigating to /safety/events is blocked and redirected to their home page. */
   it("SAFETY-LOGIN-04-C blocks coordinator from the safety events route", () => {
     useAppStore.setState({
@@ -456,6 +470,7 @@ describe("SPM-128 Safety Officer login routing", () => {
     expect(screen.getByRole("heading", { name: "All Events" })).toBeTruthy();
   });
 
+  // Traceability: Jira 128 AC4 (matrix 36896780)
   /** SAFETY-LOGIN-04-D: An authenticated Organiser navigating to /safety/events is blocked and redirected to their home page. */
   it("SAFETY-LOGIN-04-D blocks organiser from the safety events route", () => {
     useAppStore.setState({
@@ -466,6 +481,7 @@ describe("SPM-128 Safety Officer login routing", () => {
     expect(screen.getByRole("heading", { name: "My Events" })).toBeTruthy();
   });
 
+  // Traceability: Jira 128 AC4 (matrix 36896780)
   /** SAFETY-LOGIN-04-E: An authenticated Attendee navigating to /safety/events is blocked and redirected to their home page. */
   it("SAFETY-LOGIN-04-E blocks attendee from the safety events route", () => {
     useAppStore.setState({

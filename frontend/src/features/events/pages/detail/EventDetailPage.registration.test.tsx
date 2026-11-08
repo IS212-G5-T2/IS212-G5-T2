@@ -139,6 +139,7 @@ describe("EventDetailPage attendee registration", () => {
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // SPM-99 EVENT-VIEW-01-A: the attendee detail view presents every agreed
   // core field from the seeded event fixture.
   it("shows an attendee every core event-information field", async () => {
@@ -313,6 +314,7 @@ describe("EventDetailPage attendee registration", () => {
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // SPM-99 EVENT-VIEW-03-A (updated for the SPM-61 design): before registration
   // opens the opening time is the heading and the closing time is listed; once
   // open, the closing time is listed with the days remaining. All in SGT.
@@ -340,6 +342,7 @@ describe("EventDetailPage attendee registration", () => {
     expect(within(screen.getByText("Closes").parentElement!).getByText("12 Mar 2027, 23:59")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC4 (matrix 19890855)
   // SPM-99 EVENT-VIEW-04-A (updated for the SPM-61 design): after the closing
   // time the heading reads Registration closed, "Closed on" replaces "Closes",
   // and Available is dropped.
@@ -365,6 +368,7 @@ describe("EventDetailPage attendee registration", () => {
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // SPM-99 EVENT-VIEW-05-A and supplementary lifecycle checks: a pre-opening or
   // cancelled/completed event must never expose a Register button.
   it.each([

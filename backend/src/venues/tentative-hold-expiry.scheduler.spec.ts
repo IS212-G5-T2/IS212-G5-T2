@@ -10,6 +10,7 @@ describe('TentativeHoldExpiryScheduler', () => {
     vi.restoreAllMocks();
   });
 
+  // Traceability: Jira 132 AC6 (matrix 39125047)
   /** VEN-HOLD-DEC-06-B: a configured interval triggers expiry processing and module shutdown stops the timer. */
   it('VEN-HOLD-DEC-06-B invokes expiry processing on the configured schedule and clears its timer', async () => {
     vi.useFakeTimers();
@@ -30,6 +31,7 @@ describe('TentativeHoldExpiryScheduler', () => {
     expect(repository.processExpiredTentativeHolds).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 132 AC6 (matrix 39125047)
   /** VEN-HOLD-DEC-06-B: overlapping scheduled work does not run the expiry processor twice. */
   it('VEN-HOLD-DEC-06-B coalesces overlapping expiry processor calls', async () => {
     let finish!: () => void;
@@ -44,6 +46,7 @@ describe('TentativeHoldExpiryScheduler', () => {
     await first;
   });
 
+  // Traceability: Jira 132 AC6 (matrix 39125047)
   /** VEN-HOLD-DEC-06-B: invalid scheduler configuration uses the safe one-minute default interval. */
   it('VEN-HOLD-DEC-06-B falls back to the default interval when configuration is invalid', async () => {
     vi.useFakeTimers();
@@ -59,6 +62,7 @@ describe('TentativeHoldExpiryScheduler', () => {
     scheduler.onModuleDestroy();
   });
 
+  // Traceability: Jira 132 AC6 (matrix 39125047)
   /** VEN-HOLD-DEC-06-B: processor failures are logged and do not prevent the next scheduled attempt. */
   it('VEN-HOLD-DEC-06-B logs processor errors and allows a later scheduled attempt', async () => {
     const repository = {
@@ -80,6 +84,7 @@ describe('TentativeHoldExpiryScheduler', () => {
   });
   // SPM-134: the 48-hour reminder runs on the same tick as the expiry processor.
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-I (SPM-134 AC1): one tick runs the expiry processor first and then the reminder processor, each
    * once, so the reminders go out on the existing scheduler cadence.
@@ -97,6 +102,7 @@ describe('TentativeHoldExpiryScheduler', () => {
     expect(order).toEqual(['expiry', 'reminder']);
   });
 
+  // Traceability: Jira 134 AC2 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-02-F (SPM-134 AC2): a failure in one processor is logged and does not stop the other on the same tick.
    * Kills: one try block around both calls.

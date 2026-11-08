@@ -47,6 +47,7 @@ describe("SPM-155 CancelEventDialog with a confirm action (AC4)", () => {
   });
 
   // Kills: FM52, FM9
+  // Traceability: Jira 155 AC4 (matrix 35848252)
   /** CANCEL-REQUEST-04-C (UI): a failing action shows the error and keeps the dialog open for a retry. */
   it("CANCEL-REQUEST-04-C: a failing action shows its message in an alert and offers the confirm button again", async () => {
     // Arrange
@@ -63,6 +64,7 @@ describe("SPM-155 CancelEventDialog with a confirm action (AC4)", () => {
   });
 
   // Kills: FM53
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-A (F7): Keep event closes with no action. */
   it("CANCEL-REQUEST-03-A: Keep event closes the dialog without running the action", async () => {
     // Arrange

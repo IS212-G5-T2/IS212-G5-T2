@@ -9,6 +9,7 @@ describe('COMPLETE-EVENT-05-A: the completion record route', () => {
   const identity = { uid: 'coord-a', roles: ['COORDINATOR'] };
   const request = { [CURRENT_USER_REQUEST_KEY]: identity } as never;
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-A: GET reads the record of the path event for the session user', async () => {
     const records = { read: vi.fn(async () => ({ attendanceCount: 3 })), save: vi.fn() };
     const controller = new CompletionRecordController(records as never);
@@ -17,6 +18,7 @@ describe('COMPLETE-EVENT-05-A: the completion record route', () => {
     expect(records.read).toHaveBeenCalledWith(identity, 'event-1');
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-A: PUT saves the body for the path event and the session user', async () => {
     const records = { read: vi.fn(), save: vi.fn(async () => ({ message: 'Completion details saved.' })) };
     const controller = new CompletionRecordController(records as never);

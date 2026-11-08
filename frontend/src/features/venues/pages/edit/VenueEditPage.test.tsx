@@ -55,6 +55,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("SPM-121 VenueEditPage", () => {
+  // Traceability: Jira 121 AC1 (matrix 28770883)
   /** VEN-UPD-01-A VEN-UPD-01-UI-A: AC1 — opening the edit form pre-fills every editable field (details, operating info, durations, accessibility, facilities, layouts, image) and sends no save request. */
   it("VEN-UPD-01-UI-A pre-fills the form with current venue values after load", async () => {
     const storedImage = { name: "hall.png", type: "image/png", size: 12, dataUrl: IMAGE_A_URL };
@@ -90,6 +91,7 @@ describe("SPM-121 VenueEditPage", () => {
     expect(apiMock.mock.calls.some(([, init]) => (init as { method?: string } | undefined)?.method === "PATCH")).toBe(false);
   });
 
+  // Traceability: Jira 121 AC1 (matrix 28770883)
   /** VEN-UPD-01-B VEN-UPD-01-UI-B: load failure shows an error message. */
   it("VEN-UPD-01-UI-B shows an error when venue load fails", async () => {
     apiMock.mockRejectedValueOnce(new Error("network"));
@@ -99,6 +101,7 @@ describe("SPM-121 VenueEditPage", () => {
     );
   });
 
+  // Traceability: Jira 121 AC5 (matrix 28770883)
   /** VEN-UPD-05-A VEN-UPD-05-UI-A: AC5 — submitting the form calls the PATCH endpoint and shows the success message. */
   it("VEN-UPD-05-UI-A calls PATCH and shows success message after submission", async () => {
     apiMock
@@ -187,6 +190,7 @@ describe("SPM-121 VenueEditPage", () => {
     await waitFor(() => expect(screen.getByText("Tech Conference")).toBeInTheDocument());
   });
 
+  // Traceability: Jira 121 AC7 (matrix 28770883)
   /** VEN-UPD-07-B VEN-UPD-07-UI-B: AC7 — navigating directly to another staff member's edit URL shows a forbidden message instead of the form. */
   it("VEN-UPD-07-UI-B blocks non-owner from accessing the edit form by URL", async () => {
     const otherVenue = { ...venue, ownerId: "other-staff-99" };
@@ -222,6 +226,7 @@ describe("SPM-121 VenueEditPage", () => {
     );
   });
 
+  // Traceability: Jira 121 AC5 (matrix 28770883)
   /** VEN-UPD-05-B VEN-UPD-05-UI-B: AC5 — a failed save shows an error, not a success message. */
   it("VEN-UPD-05-UI-B shows an error message when the save fails", async () => {
     apiMock
@@ -240,6 +245,7 @@ describe("SPM-121 VenueEditPage", () => {
     expect(screen.queryByText(/Venue updated successfully/i)).toBeNull();
   });
 
+  // Traceability: Jira 121 AC2 (matrix 28770883)
   /** VEN-UPD-02-C VEN-UPD-02-C-UI: AC2 — the image field is present on the edit form's second step. */
   it("VEN-UPD-02-C-UI renders a file input for replacing the venue image", async () => {
     const user = userEvent.setup();
@@ -249,6 +255,7 @@ describe("SPM-121 VenueEditPage", () => {
     expect(screen.getByLabelText(/Venue image/i)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 121 AC2 (matrix 28770883)
   /** VEN-UPD-02-C VEN-UPD-02-C-UI: AC2 — uploading image A, replacing it with distinct image B and saving sends only image B with every other field unchanged; reopening the form shows image B. */
   it("VEN-UPD-02-C-UI replaces image A with image B, saves it and shows B after reopening", async () => {
     const fileA = new File(["image-a-bytes"], "a.png", { type: "image/png" });
@@ -310,6 +317,7 @@ describe("SPM-121 VenueEditPage", () => {
     expect(screen.getByAltText("Venue preview")).toHaveAttribute("src", urlB);
   });
 
+  // Traceability: Jira 121 AC2 (matrix 28770883)
   /** VEN-UPD-02-C VEN-UPD-02-C-UI: AC2 — a non-image file and an oversize image are rejected with a message and do not replace the stored image. */
   it("VEN-UPD-02-C-UI rejects a non-image file and an oversize image without changing the current image", async () => {
     const storedImage = { name: "hall.png", type: "image/png", size: 12, dataUrl: IMAGE_A_URL };
@@ -359,6 +367,7 @@ describe("SPM-121 VenueEditPage", () => {
     expect(screen.getByText(/affected by the changed setup or turnaround/i)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 121 AC3 (matrix 28770883)
   /** VEN-UPD-03-C VEN-UPD-03-D VEN-UPD-03-UI-C: AC3 — an out-of-range capacity or an invalid setup/turnaround duration is refused on step 1 with that field's message, and nothing is saved. */
   it.each([
     ["Capacity", "0", "Enter a whole number from 1 to 1000000."],
@@ -383,6 +392,7 @@ describe("SPM-121 VenueEditPage", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 121 AC5 (matrix 28770883)
   /** VEN-UPD-05-A VEN-UPD-05-UI-C: AC2/AC5 — every edited field, accessibility, facility and layout selection is sent in the PATCH body. */
   it("VEN-UPD-05-UI-C sends every edited field in the PATCH request", async () => {
     apiMock
@@ -433,6 +443,7 @@ describe("SPM-121 VenueEditPage", () => {
     });
   });
 
+  // Traceability: Jira 121 AC5 (matrix 28770883)
   /** VEN-UPD-05-A VEN-UPD-05-UI-D: AC5 — Cancel and Back to venues return to the venue list, Continue editing reopens the form and Back keeps the entries. */
   it("VEN-UPD-05-UI-D offers Cancel, Back, Back to venues and Continue editing controls", async () => {
     apiMock
@@ -466,6 +477,7 @@ describe("SPM-121 VenueEditPage", () => {
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 121 AC5 (matrix 28770883)
   /** VEN-UPD-05-A VEN-UPD-05-UI-D: AC5 — Back to venues on the success message returns to the venue list. */
   it("VEN-UPD-05-UI-D leaves for the venue list from the success message", async () => {
     apiMock
@@ -586,6 +598,7 @@ describe("SPM-121 VenueEditPage", () => {
     expect(screen.getByRole("button", { name: /Save Changes/i })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 121 AC2 (matrix 28770883)
   /** VEN-UPD-02-C VEN-UPD-02-C-UI: AC2 — removing the image sends no image, and an unreadable file shows a message without changing the image. */
   it("VEN-UPD-02-C-UI removes the stored image and reports an unreadable file", async () => {
     const storedImage = { name: "hall.png", type: "image/png", size: 12, dataUrl: IMAGE_A_URL };
@@ -647,6 +660,7 @@ describe("SPM-125 notified Coordinators after a venue edit", () => {
     await screen.findByText("Venue updated successfully.");
   }
 
+  // Traceability: Jira 125 AC8 (matrix 39125581)
   /**
    * VEN-IMPACT-08-E (AC8): a booking made to conflict by the setup or turnaround change is marked "Coordinator
    * notified", and the list says how many Coordinators were notified.
@@ -659,6 +673,7 @@ describe("SPM-125 notified Coordinators after a venue edit", () => {
     expect(screen.getByText("The Event Coordinators of 2 bookings have been notified in-app.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 125 AC9 (matrix 39125581)
   /**
    * VEN-IMPACT-09-E (AC9): after a capacity change, a notified booking is marked and the count is singular for one;
    * a booking that was not notified (ended, or no Coordinator) is not marked.
@@ -672,6 +687,7 @@ describe("SPM-125 notified Coordinators after a venue edit", () => {
     expect(screen.getByText("The Event Coordinator of 1 booking has been notified in-app.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 125 AC9 (matrix 39125581)
   /** VEN-IMPACT-09-BND-2 (AC9): when no listed booking was notified, the result says why. */
   it("VEN-IMPACT-09-BND-2 says no Coordinator was notified when no listed booking could be", async () => {
     await saveWith([], [listed("bk-2", "Past Seminar")]);

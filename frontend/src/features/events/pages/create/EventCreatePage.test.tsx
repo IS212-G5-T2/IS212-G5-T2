@@ -287,6 +287,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: the facility label sent instead of its backend value (submits 'Catering service' rather than 'catering').
+  // Traceability: Jira 144 AC6 (matrix 23692099)
   /** EVE-FAC-06-A: the facility chosen by its label is submitted as its backend value, and the submission confirmation is shown. */
   it("EVE-FAC-06-A submits the backend value of the selected facility and shows the submission confirmation", async () => {
     const user = userEvent.setup();
@@ -338,6 +339,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: options hard-coded to a local catalogue instead of the backend list, or the options endpoint called more than once.
+  // Traceability: Jira 144 AC1 (matrix 23692099)
   /** EVE-FAC-01-A and EVE-ACC-02-ALIGN-01: both catalogues, labels, and submitted values come from venue schemas. */
   it("EVE-FAC-01-A fetches facility and accessibility options from the backend", async () => {
     const user = userEvent.setup();
@@ -359,6 +361,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: only one selected facility submitted, or the labels submitted instead of the backend values.
+  // Traceability: Jira 144 AC3 (matrix 23692099)
   /** EVE-FAC-03-A: selecting two backend values submits both values while rendering their distinct labels. */
   it("EVE-FAC-03-A submits two backend facility values selected by their labels", async () => {
     const user = userEvent.setup();
@@ -394,6 +397,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: the facility error not shown after rejection, the selection cleared, or the corrected resubmission dropping the facility.
+  // Traceability: Jira 144 AC4 (matrix 23692099)
   /** EVE-FAC-04-B: a server rejection keeps the selected value and renders the facility field error for correction. */
   it("EVE-FAC-04-B retains valid fields after backend facility rejection and permits corrected submission", async () => {
     const user = userEvent.setup();
@@ -432,6 +436,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: the accessibility error not shown on its field, the choice dropped, or the resubmission still carrying the rejected value.
+  // Traceability: Jira 144 AC4 (matrix 23692099)
   /** EVE-FAC-04-B: an accessibility rejection returns to that field, preserves the request, and permits correction. */
   it("EVE-FAC-04-B retains valid fields after backend accessibility rejection", async () => {
     const user = userEvent.setup();
@@ -469,6 +474,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: a combined-invalid form submitted before attendance and end time are fixed, or supported facilities lost after correction.
+  // Traceability: Jira 144 AC4 (matrix 23692099)
   /** EVE-FAC-04-B: combined invalid event fields remain blocked with supported facility and accessibility choices selected, then submit after correction. */
   it("EVE-FAC-04-B corrects combined invalid fields before submitting supported venue choices", async () => {
     const user = userEvent.setup();
@@ -517,6 +523,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: Continue or submit allowed while options are pending, or no loading status announced.
+  // Traceability: Jira 144 AC5 (matrix 23692099)
   /** EVE-FAC-05-A: unresolved options announce loading and prevent progressing or submitting until loaded. */
   it("EVE-FAC-05-A blocks progression and submission while facility options are pending", async () => {
     const user = userEvent.setup();
@@ -539,6 +546,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: a non-array option list rendered as an empty or partial list instead of the 'response is invalid' error.
+  // Traceability: Jira 144 AC1 (matrix 23692099)
   /** EVE-FAC-01-B and EVE-FAC-05-B: a malformed backend set is an error, never an empty or local fallback. */
   it("EVE-FAC-01-B EVE-FAC-05-B rejects malformed facility and accessibility option arrays", async () => {
     for (const field of ["facilities", "accessibility"] as const) {
@@ -573,6 +581,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: a failed fetch showing a fallback catalogue, retrying without the Retry action (attempts above 1 before click), or not reloading on Retry.
+  // Traceability: Jira 144 AC1 (matrix 23692099)
   /** EVE-FAC-01-B and EVE-FAC-05-B: a failed request has no fallback, then retry loads the current catalogue. */
   it("EVE-FAC-01-B EVE-FAC-05-B has no fallback after a failed fetch and recovers on retry", async () => {
     const user = userEvent.setup();
@@ -649,6 +658,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: an empty catalogue not announced, stale saved choices not reported as unsupported, or submission allowed with them.
+  // Traceability: Jira 144 AC5 (matrix 23692099)
   /** EVE-FAC-05-C: an empty catalogue identifies stale restored values and blocks submission. */
   it("EVE-FAC-05-C shows empty states and blocks submission with stale restored choices", async () => {
     const user = userEvent.setup();
@@ -685,6 +695,7 @@ describe("EventCreatePage", () => {
   });
 
   // Kills: a stale saved facility pre-checked against the new catalogue, a removed value kept, or a POST sent while stale values remain.
+  // Traceability: Jira 144 AC2 (matrix 23692099)
   /** EVE-FAC-02-B and EVE-FAC-05-D: reopening a draft reflects the changed catalogue and allows correcting a stale saved choice. */
   it("EVE-FAC-02-B EVE-FAC-05-D refreshes a stale draft selection against the changed catalogue", async () => {
     const user = userEvent.setup();
@@ -1157,6 +1168,7 @@ describe("SPM-37 drafts in the current event form", () => {
 
   // AC1/2/6: saving is separate from submission and accepts incomplete fields.
   // Kills: Save draft requiring complete fields, sending the request to /events, or no 'Draft Saved' dialog.
+  // Traceability: Jira 37 AC1/AC2 (matrix 10551297)
   /** EVE-DRF-01-A: a draft saves with incomplete fields and confirms without submitting. */
   it("saves an incomplete request and confirms without submitting", async () => {
     apiMock.mockResolvedValue(draft);
@@ -1171,6 +1183,7 @@ describe("SPM-37 drafts in the current event form", () => {
   });
   // AC3/4: reopens the saved form and updates the same ID/version.
   // Kills: a later save sent to a new request instead of /requests/<id>, or the version not sent for the update.
+  // Traceability: Jira 37 AC3/AC5 (matrix 10551297)
   /** EVE-DRF-02-A (update path): a saved draft reopens and a later save updates the same request. */
   it("prefills an existing draft and saves updates to the same request", async () => {
     apiMock.mockResolvedValue(draft);
@@ -1191,6 +1204,7 @@ describe("SPM-37 drafts in the current event form", () => {
     });
   });
   // Kills: a saved value dropped on reopen, or the saved wizard step ignored (schedule step shown instead of formStep 2).
+  // Traceability: Jira 37 AC3/AC5 (matrix 10551297)
   /**
    * EVE-DRF-02-A: reopening a saved draft pre-fills every saved value and resumes on the saved wizard step
    * (formStep 2, Equipment & Review). The values are the Workshop draft from the Confluence case; the test walks
@@ -1269,6 +1283,7 @@ describe("SPM-37 drafts in the current event form", () => {
   });
   // AC8: direct draft URLs cannot expose editable controls after submission.
   // Kills: the editor shown for a submitted draft (Save draft button or text inputs rendered).
+  // Traceability: Jira 37 AC7 (matrix 10551297)
   /** EVE-DRF-07-A: the editor is locked when the server reports Submitted. */
   it("blocks the editor when the server returns Submitted", async () => {
     apiMock.mockResolvedValue({ ...draft, status: "Submitted" });
@@ -1279,6 +1294,7 @@ describe("SPM-37 drafts in the current event form", () => {
   });
   // AC3: the list shows the persisted Draft status and links back to the editor.
   // Kills: My Drafts not showing the Draft status, or the reopen link pointing at the wrong request.
+  // Traceability: Jira 37 AC3 (matrix 10551297)
   /** EVE-DRF-03: My Drafts lists drafts with status and a reopen link. */
   it("lists drafts in My Drafts with their status and reopen link", async () => {
     apiMock.mockResolvedValue([draft]);
@@ -1289,6 +1305,7 @@ describe("SPM-37 drafts in the current event form", () => {
   });
   // Continuity: saving persists the current wizard step alongside the fields.
   // Kills: the saved formStep not 1 for the schedule step (step not sent with the fields).
+  // Traceability: Jira 37 AC4 (matrix 10551297)
   /** EVE-DRF-04-A: saving the current step sends the draft fields to the same request. */
   it("saves the current step with the draft fields", async () => {
     const user = userEvent.setup();

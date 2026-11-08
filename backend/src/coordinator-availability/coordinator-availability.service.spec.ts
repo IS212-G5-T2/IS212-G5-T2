@@ -56,6 +56,7 @@ beforeEach(async () => {
 });
 
 describe('AC1: only coordinators use the availability settings', () => {
+  // Traceability: Jira 80 AC1 (matrix 19891526)
   // Every other role is refused before the database is touched.
   it.each(['ORGANISER', 'VENUE_STAFF', 'TECH_SUPPORT', 'ATTENDEE'] as const)(
     'COOR-AVAIL-01-SEC-1 refuses the %s role for both reading and saving, without querying',
@@ -74,6 +75,7 @@ describe('AC1: only coordinators use the availability settings', () => {
     },
   );
 
+  // Traceability: Jira 80 AC1 (matrix 19891526)
   // Without a session there is no account to read or change.
   it('COOR-AVAIL-01-SEC-2 refuses a caller who is not signed in, without querying', async () => {
     // Act + Assert: both reading and saving need a signed-in user.
@@ -88,6 +90,7 @@ describe('AC1: only coordinators use the availability settings', () => {
 });
 
 describe('AC2: mark unavailable without affecting current assignments', () => {
+  // Traceability: Jira 80 AC2 (matrix 19891526)
   // The coordinator's own users row is the only thing that changes.
   it('COOR-AVAIL-02-A saves the coordinator as unavailable on their own account', async () => {
     // Arrange: the update reports the saved value.
@@ -105,6 +108,7 @@ describe('AC2: mark unavailable without affecting current assignments', () => {
     expect(sent[0].params).toEqual([false, 'coord-1']);
   });
 
+  // Traceability: Jira 80 AC2 (matrix 19891526)
   // Current assignments live on events.coordinator_id; saving must not touch them.
   it("COOR-AVAIL-02-B leaves the coordinator's assigned events untouched", async () => {
     // Arrange: the update succeeds.
@@ -122,6 +126,7 @@ describe('AC2: mark unavailable without affecting current assignments', () => {
     expect(sent[0].sql).not.toMatch(/coordinator_(id|name)/i);
   });
 
+  // Traceability: Jira 80 AC2 (matrix 19891526)
   // The account always comes from the session, never from the request body.
   it('COOR-AVAIL-02-SEC-1 rejects a body that names another user and saves nothing', async () => {
     // Act + Assert: an extra userId field is refused outright.
@@ -133,6 +138,7 @@ describe('AC2: mark unavailable without affecting current assignments', () => {
 });
 
 describe('AC3: view and modify availability at any time', () => {
+  // Traceability: Jira 80 AC3 (matrix 19891526)
   // Reading returns whatever is stored, not a default.
   it.each([true, false])(
     "COOR-AVAIL-03-A returns the coordinator's own saved availability (%s)",
@@ -152,6 +158,7 @@ describe('AC3: view and modify availability at any time', () => {
     },
   );
 
+  // Traceability: Jira 80 AC3 (matrix 19891526)
   // Availability can be switched back on, not only off.
   it('COOR-AVAIL-03-B lets an unavailable coordinator switch back to available', async () => {
     // Arrange: the update reports available again.
@@ -165,6 +172,7 @@ describe('AC3: view and modify availability at any time', () => {
     expect(statements()[0].params).toEqual([true, 'coord-1']);
   });
 
+  // Traceability: Jira 80 AC3 (matrix 19891526)
   // Only a real boolean is accepted; "false" as text must not be saved as available.
   it.each([
     ['the string "false"', { available: 'false' }],
@@ -181,6 +189,7 @@ describe('AC3: view and modify availability at any time', () => {
     expect(database.query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 80 AC3 (matrix 19891526)
   // A deleted account has no availability to read or save.
   it('COOR-AVAIL-03-G reports a missing coordinator account instead of guessing', async () => {
     // Arrange: neither the read nor the update finds the user.
@@ -195,6 +204,7 @@ describe('AC3: view and modify availability at any time', () => {
     );
   });
 
+  // Traceability: Jira 80 AC3 (matrix 19891526)
   // Saving the current value again is a normal save, not an error.
   it('COOR-AVAIL-03-BND-1 accepts saving the value the coordinator already has', async () => {
     // Arrange: already available; the update reports available.
@@ -241,6 +251,7 @@ describe('SPM-47 AC10: the Lead is told when a coordinator with active events be
     return statements().filter((s) => s.sql.startsWith('INSERT INTO notifications'));
   }
 
+  // Traceability: Jira 47 AC10 (matrix 21496116)
   // Going unavailable with active events notifies the Lead with the coordinator's name and count.
   it('LEAD-REASN-10-A notifies the Lead with the name and number of active events when a coordinator goes unavailable', async () => {
     // Arrange: available before, three active events.
@@ -267,6 +278,7 @@ describe('SPM-47 AC10: the Lead is told when a coordinator with active events be
     );
   });
 
+  // Traceability: Jira 47 AC10 (matrix 21496116)
   // Exactly one active event is enough, and the wording is singular.
   it('LEAD-REASN-10-BND-1 notifies the Lead when the coordinator has exactly one active event', async () => {
     // Arrange: available before, one active event.
@@ -282,6 +294,7 @@ describe('SPM-47 AC10: the Lead is told when a coordinator with active events be
     );
   });
 
+  // Traceability: Jira 47 AC10 (matrix 21496116)
   // With nothing to reassign, the Lead is not bothered.
   it('LEAD-REASN-10-B sends no notification when the coordinator has no active events', async () => {
     // Arrange: available before, no active events.
@@ -294,6 +307,7 @@ describe('SPM-47 AC10: the Lead is told when a coordinator with active events be
     expect(inserts()).toEqual([]);
   });
 
+  // Traceability: Jira 47 AC10 (matrix 21496116)
   // Saving "unavailable" again doesn't send a duplicate.
   it('LEAD-REASN-10-C sends no duplicate when the coordinator was already unavailable', async () => {
     // Arrange: already unavailable, with active events.
@@ -306,6 +320,7 @@ describe('SPM-47 AC10: the Lead is told when a coordinator with active events be
     expect(inserts()).toEqual([]);
   });
 
+  // Traceability: Jira 47 AC10 (matrix 21496116)
   // Becoming available again clears the Lead's notification about this coordinator.
   it("LEAD-REASN-10-D marks the Lead's notification about this coordinator as read when they become available again", async () => {
     // Arrange: unavailable before, available now.

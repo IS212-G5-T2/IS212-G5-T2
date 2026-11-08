@@ -199,6 +199,7 @@ describe('validateEvent', () => {
   );
 
   // Kills: a facility allow-list that drops or renames one of the venue-schema facilities.
+  // Traceability: Jira 144 AC1 (matrix 23692099)
   /** EVE-FAC-01-A: event validation accepts every current venue-schema facility. */
   it('EVE-FAC-01-A accepts all facility values from the venue schema', () => {
     const event = validateEvent({
@@ -291,6 +292,7 @@ describe('validateEvent', () => {
   );
 
   // Kills: the facilities check accepting a value absent from the venue schema (Fireworks).
+  // Traceability: Jira 144 AC4 (matrix 23692099)
   /** EVE-FAC-04-A: event validation rejects a facility absent from the venue schema. */
   it('EVE-FAC-04-A rejects an unsupported facility value', () => {
     expectFieldError(
@@ -300,6 +302,7 @@ describe('validateEvent', () => {
   });
 
   // Kills: the accessibility check accepting a value outside the venue schema (Wheelchair ramps).
+  // Traceability: Jira 144 AC4 (matrix 23692099)
   /** EVE-FAC-04-A: event validation rejects accessibility values outside the venue-owned schema. */
   it('EVE-FAC-04-A rejects unsupported accessibility values', () => {
     expectFieldError(

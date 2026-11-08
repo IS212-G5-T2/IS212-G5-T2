@@ -76,6 +76,7 @@ function createScheduleConflictRepository(
 }
 
 describe('VenuesRepository', () => {
+  // Traceability: Jira 54 AC2 (matrix 22839839)
   /** VEN-BKG-02-B: suitability mismatches are advisory; schedule conflicts remain blockers. */
   it.each([
     {
@@ -175,6 +176,7 @@ describe('VenuesRepository', () => {
     },
   );
 
+  // Traceability: Jira 54 AC1, AC2 (matrix 22839839)
   /** VEN-BKG-02-B: a venue below expected attendance remains requestable. */
   it('VEN-BKG-02-B SPM-54 allows a request when attendance exceeds venue capacity', async () => {
     const query = vi
@@ -238,6 +240,7 @@ describe('VenuesRepository', () => {
     ).toBe(true);
   });
 
+  // Traceability: Jira 54 AC1, AC2 (matrix 22839839)
   /** VEN-BKG-02-C: occupied setup/turnaround time blocks an otherwise non-overlapping event request. */
   it('VEN-BKG-02-C SPM-54 blocks a request when setup or turnaround overlaps another booking', async () => {
     const { repository, query } = createScheduleConflictRepository('Workshop');
@@ -273,6 +276,7 @@ describe('VenuesRepository', () => {
     ).toBe(false);
   });
 
+  // Traceability: Jira 54 AC2 (matrix 22839839)
   /** VEN-BKG-02-D: operational unavailability blocks the requested event period and is explained without a write. */
   it('VEN-BKG-02-D SPM-54 reports an operational unavailability blocker', async () => {
     const { repository, query } =
@@ -291,6 +295,7 @@ describe('VenuesRepository', () => {
     ).toBe(false);
   });
 
+  // Traceability: Jira 54 AC2 (matrix 22839839)
   /** VEN-BKG-02-BND-1: a one-minute setup overlap is a conflict, not an adjacent free interval. */
   it('VEN-BKG-02-BND-1 SPM-54 refuses a one-minute overlap at setup start', async () => {
     const { repository, query } =
@@ -310,6 +315,7 @@ describe('VenuesRepository', () => {
     );
   });
 
+  // Traceability: Jira 54 AC2 (matrix 22839839)
   /** VEN-BKG-02-BND-2: a one-minute overlap at the end of turnaround remains blocked. */
   it('VEN-BKG-02-BND-2 SPM-54 refuses a one-minute overlap at turnaround end', async () => {
     const { repository, query } =
@@ -330,6 +336,7 @@ describe('VenuesRepository', () => {
     expect(query.mock.calls[3][1][4]).toBe(45);
   });
 
+  // Traceability: Jira 54 AC2 (matrix 22839839)
   /** VEN-BKG-02-VAR-1: active holds block, while holds expired at the injected clock stop blocking. */
   it('VEN-BKG-02-VAR-1 SPM-54 uses the current time to distinguish active and expired holds', async () => {
     const { repository, query, now } =
@@ -351,6 +358,7 @@ describe('VenuesRepository', () => {
       ),
     ).toBe(false);
   });
+  // Traceability: Jira 54 AC4, AC8 (matrix 22839839)
   /** VEN-BKG-08-A: My Bookings records retain separate event/venue identity, lifecycle status, and optional request text. */
   it('SPM-54 lists coordinator venue bookings as independent records', async () => {
     const query = vi.fn().mockResolvedValue({
@@ -409,6 +417,7 @@ describe('VenuesRepository', () => {
     expect(query.mock.calls[0][0]).toContain('e.coordinator_id = $1::text');
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-A: cancelling the final active booking returns a confirmation requirement without writing a status change. */
   it('SPM-54 does not cancel the last active venue booking without confirmation', async () => {
     const query = vi
@@ -433,6 +442,7 @@ describe('VenuesRepository', () => {
     );
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-A/SEC-1: after the explicit confirmation boolean is true, cancelling the sole active booking updates only that row. */
   it('VEN-BKG-10-A VEN-BKG-10-SEC-1 SPM-54 cancels the sole active booking after explicit confirmation', async () => {
     const query = vi
@@ -455,6 +465,7 @@ describe('VenuesRepository', () => {
     expect(query.mock.calls[2][1]).toEqual(['booking-1']);
   });
 
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: explicit cancellation changes only the owned active booking row and preserves its history. */
   it('SPM-54 cancels one owned active venue booking after confirmation', async () => {
     const query = vi
@@ -478,6 +489,7 @@ describe('VenuesRepository', () => {
     expect(query.mock.calls[2][1]).toEqual(['booking-1']);
   });
 
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: only pending or approved rows can be cancelled; a retained cancelled row is unchanged. */
   it('SPM-54 returns not-active for an already cancelled booking without querying or changing other rows', async () => {
     const query = vi.fn().mockResolvedValueOnce({
@@ -494,6 +506,7 @@ describe('VenuesRepository', () => {
     expect(query).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-SEC-1: an unowned or missing identifier cannot cancel any booking. */
   it('SPM-54 returns not-found for an unknown booking and does not query further', async () => {
     const query = vi.fn().mockResolvedValueOnce({ rows: [] });
@@ -508,6 +521,7 @@ describe('VenuesRepository', () => {
     expect(query).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-VAR-1: another active booking suppresses the final-booking warning and remains unchanged. */
   it('VEN-BKG-10-VAR-1 SPM-54 cancels one booking while another pending venue booking remains', async () => {
     const query = vi
@@ -529,6 +543,7 @@ describe('VenuesRepository', () => {
     expect(query.mock.calls[2][1]).toEqual(['booking-1']);
   });
 
+  // Traceability: Jira 54 AC10 (matrix 22839839)
   /** VEN-BKG-10-VAR-2: inactive retained booking history does not suppress the final-active-booking warning. */
   it('VEN-BKG-10-VAR-2 SPM-54 warns when all other booking history is inactive', async () => {
     const query = vi
@@ -598,6 +613,7 @@ describe('VenuesRepository', () => {
     expect(query).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 54 AC7 (matrix 22839839)
   /** VEN-BKG-07-B: a distinct second venue is independently requestable despite suitability warnings. */
   it('VEN-BKG-07-B SPM-54 permits a second distinct venue with advisory mismatches', async () => {
     const query = vi
@@ -659,6 +675,7 @@ describe('VenuesRepository', () => {
     ).toBe(true);
   });
 
+  // Traceability: Jira 54 AC7 (matrix 22839839)
   /** VEN-BKG-07-A: one active event/venue pair is independently retained and blocks only its own duplicate. */
   it('VEN-BKG-07-A SPM-54 returns the existing active request without inserting another booking', async () => {
     const query = vi
@@ -718,6 +735,7 @@ describe('VenuesRepository', () => {
     expect(query).toHaveBeenCalledTimes(3);
   });
 
+  // Traceability: Jira 54 AC7 (matrix 22839839)
   /** VEN-BKG-07-A: cancelled and rejected history is retained but does not block a new request for that venue. */
   it.each(['cancelled', 'rejected'] as const)(
     'VEN-BKG-07-A allows a new request when the only prior row is %s',
@@ -799,6 +817,7 @@ describe('VenuesRepository', () => {
     },
   );
 
+  // Traceability: Jira 51 AC7 (matrix 24117310)
   /** VEN-AVL-07-SEC-1: submission rechecks conflicts under the venue lock and does not insert on conflict. */
   it('does not record a request when a fresh booking conflict appears after the availability read', async () => {
     const queries: string[] = [];
@@ -878,6 +897,7 @@ describe('VenuesRepository', () => {
     ).toBe(false);
   });
 
+  // Traceability: Jira 54 AC2 (matrix 22839839)
   /** VEN-BKG-02-A and VEN-BKG-03-A: a clear request is persisted using the selected event and optional request data. */
   it('VEN-BKG-02-A VEN-BKG-03-A SPM-54 records a request after a clear fresh schedule check', async () => {
     const client = {
@@ -961,6 +981,7 @@ describe('VenuesRepository', () => {
     ]);
   });
 
+  // Traceability: Jira 54 AC3 (matrix 22839839)
   /** VEN-BKG-03-SEC-1: client-tampered start and end values do not change the persisted event's authoritative period. */
   it('VEN-BKG-03-SEC-1 SPM-54 derives the booking period from the assigned event', async () => {
     const query = vi
@@ -1036,6 +1057,7 @@ describe('VenuesRepository', () => {
     ]);
   });
 
+  // Traceability: Jira 50 AC4 (matrix 14975043)
   // SPM-50 / VEN-CRE-05-A, VEN-CRE-05-B: the venue and all normalized selections are stored together.
   it('inserts a venue and its relationships in one transaction', async () => {
     const query = vi
@@ -1460,6 +1482,7 @@ describe('SPM-124 venue reads', () => {
     );
   });
 
+  // Traceability: Jira 51 AC10 (matrix 24117310)
   /** VEN-AVL-10-A: expired and exact-expiry pending holds are excluded at the injected current time. The exact-expiry instant is the boundary case of the same rule. */
   it('keeps only pending holds that expire after now', async () => {
     const now = new Date('2030-10-08T00:30:00.000Z');
@@ -1522,6 +1545,7 @@ describe('SPM-124 venue reads', () => {
     );
   });
 
+  // Traceability: Jira 159 AC4 (matrix 34603557)
   /** VEN-HOLD-04-A: approved tentative holds stay tentative while their approval-time expiry is future; expired holds disappear. */
   it('maps an approved active hold as tentative and filters expired approved holds', async () => {
     const now = new Date('2030-10-08T00:30:00.000Z');
@@ -1661,6 +1685,7 @@ describe('SPM-124 venue reads', () => {
     expect(query.mock.calls[0][0]).toContain('FOR UPDATE');
   });
 
+  // Traceability: Jira 51 AC9 (matrix 24117310)
   /** VEN-AVL-09-A: blockouts persist while affected confirmed bookings and active holds remain visible. The venue-staff fixture authority that creates the blockout is the second AC9 case. */
   it('returns each affected booking without changing its stored booking status', async () => {
     const query = vi
@@ -1938,6 +1963,7 @@ describe('SPM-124 venue reads', () => {
       return { repository, parameters, queries, find };
     }
 
+    // Traceability: Jira 148 AC1 (matrix 26902550)
     // Kills: M1 (no status guard), M7 (history written on every request), M10 (DB clock instead of injected clock).
     it('PLAN-STATUS-01-A: an Approved event moves to Planning and gets one history row stamped with the injected clock', async () => {
       const { repository, parameters, find } = clientFor('Approved', 1);
@@ -1958,6 +1984,7 @@ describe('SPM-124 venue reads', () => {
       expect(history).toEqual([expect.any(String), eventId, ownerUserId, now]);
     });
 
+    // Traceability: Jira 148 AC1 (matrix 26902550)
     // Kills: M2 (transition also fires from Confirmed).
     it('PLAN-STATUS-01-B: a Confirmed event keeps its status, with no UPDATE and no history row', async () => {
       const { repository, find } = clientFor('Confirmed', 0);
@@ -1977,6 +2004,7 @@ describe('SPM-124 venue reads', () => {
       expect(find('INSERT INTO event_status_history')).toBe(-1);
     });
 
+    // Traceability: Jira 148 AC2 (matrix 26902550)
     // Kills: M6 (no compare-and-set: a lost race still writes history).
     it('PLAN-STATUS-02-E: a lost compare-and-set reports no transition and writes no history row', async () => {
       const { repository, find } = clientFor('Approved', 0);
@@ -1995,6 +2023,7 @@ describe('SPM-124 venue reads', () => {
       expect(find('INSERT INTO event_status_history')).toBe(-1);
     });
 
+    // Traceability: Jira 148 AC1 (matrix 26902550)
     // Kills: M22/M1 variants that let a Submitted event book or transition.
     it('PLAN-STATUS-01-B: a Submitted event is refused with no booking, UPDATE or history row', async () => {
       const { repository, find } = clientFor('Submitted', 0);
@@ -2108,6 +2137,7 @@ describe('SPM-55 venue booking review repository', () => {
     };
   }
 
+  // Traceability: Jira 55 AC1 (matrix 34537876)
   /** VEN-REV-01-A: the staff list covers pending, approved, and rejected requests for owned venues, soonest booking slot first, and maps request kind and expiry. */
   it('SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by booking start', async () => {
     const { repository, query } = createReviewRepository({
@@ -2195,6 +2225,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(params).toEqual([staffId]);
   });
 
+  // Traceability: Jira 55 AC2 (matrix 34537876)
   /** VEN-REV-02-A SPM-55 AC2 AC5: approval confirms a pending booking, checks blockouts and approved overlaps, and records the audit row. */
   it('SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor', async () => {
     const { repository, clientQuery, poolQuery } = createSplitReviewRepository(
@@ -2224,7 +2255,7 @@ describe('SPM-55 venue booking review repository', () => {
     // Every statement of the approval runs on the transaction client; the pool spy must see none of them.
     expect(poolQuery).not.toHaveBeenCalled();
     const calls = clientQuery.mock.calls as Array<[string, unknown[]]>;
-    // Six statements of the SPM-55 approval, then the SPM-137 notification lookup (no row in this fixture, so no insert; VENUE-BOOK-NOTIF-01-A has the insert).
+    // Six statements of the SPM-55 approval, then the SPM-137 notification lookup (no row in this fixture, so no insert; BOOKING-NOTIFY-01-A has the insert).
     expect(calls).toHaveLength(7);
     // Ownership lookup: the booking id comes first, then the staff id, and the lookup is scoped to the owner.
     expect(calls[0][0]).toContain('v.owner_user_id::text = $2::text');
@@ -2266,6 +2297,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(calls[5][1]).toEqual([bookingId, staffId]);
   });
 
+  // Traceability: Jira 159 AC4 (matrix 34603557)
   /** VEN-HOLD-04-A: a tentative hold's expiry is exactly 14 days after the injected approval time. */
   it('VEN-HOLD-04-A computes expiry from the approval clock for a tentative hold', async () => {
     const holdRow = {
@@ -2297,6 +2329,7 @@ describe('SPM-55 venue booking review repository', () => {
     ]);
   });
 
+  // Traceability: Jira 55 AC5 (matrix 34537876)
   /** VEN-REV-05-A: an approval writes exactly one audit row that names the approving staff member and the approved action. */
   it('SPM-55 AC5 records one approval audit row naming the actor', async () => {
     const { repository, query } = createReviewRepository(
@@ -2318,6 +2351,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(audits[0][1]).toEqual([bookingId, staffId]);
   });
 
+  // Traceability: Jira 56 AC1, AC3, AC6 (matrix 34636305)
   /** VEN-CONF-01-A, VEN-CONF-03-A, VEN-CONF-06-A/C: approval reports every confirmed booking overlap with its complete setup/event/turnaround interval. */
   it('VEN-CONF-01-A VEN-CONF-03-A VEN-CONF-06-A VEN-CONF-06-C SPM-56 returns all overlapping occupied booking intervals', async () => {
     const { repository, query } = createReviewRepository(
@@ -2397,6 +2431,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(params).toEqual([venue.id, pendingRow.start_at, pendingRow.end_at, 30, 45, bookingId, new Date('2030-01-10T12:00:00.000Z')]);
   });
 
+  // Traceability: Jira 159 AC13 (matrix 34603557)
   /** VEN-HOLD-13-B: a reassessed hold whose setup-adjusted start is inside 336 hours remains Pending. */
   it('VEN-HOLD-13-B refuses approval after setup reassessment makes the 336-hour lead too short', async () => {
     const query = vi.fn()
@@ -2506,6 +2541,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(query).toHaveBeenCalledTimes(7);
   });
 
+  // Traceability: Jira 159 AC13 (matrix 34603557)
   /** VEN-HOLD-13-B: a reassessed hold with no persisted event start fails closed and stays Pending. */
   it('VEN-HOLD-13-B refuses reassessed approval when the event start is missing', async () => {
     const query = vi.fn()
@@ -2527,6 +2563,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(query.mock.calls.some(([sql]) => String(sql).includes("SET status = 'approved'"))).toBe(false);
   });
 
+  // Traceability: Jira 159 AC13 (matrix 34603557)
   /** VEN-HOLD-13-B: a reassessed hold still at the 336-hour threshold remains eligible for staff approval. */
   it('VEN-HOLD-13-B permits approval when reassessment preserves the exact minimum lead', async () => {
     const query = vi.fn()
@@ -2552,6 +2589,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(query).toHaveBeenCalledTimes(7);
   });
 
+  // Traceability: Jira 55 AC6 (matrix 34537876)
   /** VEN-REV-06-A: a cancelled, approved or rejected request is reported as already decided, with no write. */
   it.each(['cancelled', 'approved', 'rejected', 'released'])('SPM-55 AC6 reports a %s request as already decided without writing', async (status) => {
       const { repository, query } = createReviewRepository(
@@ -2568,6 +2606,7 @@ describe('SPM-55 venue booking review repository', () => {
     },
   );
 
+  // Traceability: Jira 55 AC2 (matrix 34537876)
   /** VEN-REV-02-C: a booking not owned by the caller, or one whose venue or booking row is missing, is not found. */
   it.each([
     ['not owned or absent', [{ rows: [] }]],
@@ -2582,6 +2621,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO booking_review_log'))).toBe(false);
   });
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-03-A: rejection stores the reason on the booking and records the rejection with its reason. */
   it('SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row', async () => {
     const rejectedRow = { ...pendingRow, status: 'rejected', rejection_reason: 'Clashes with maintenance' };
@@ -2639,6 +2679,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(calls[4][1]).toEqual([bookingId, staffId, 'Clashes with maintenance']);
   });
 
+  // Traceability: Jira 132 AC9 (matrix 39125047)
   /** VEN-HOLD-DEC-09-A: an active approved hold converts to an ordinary approved booking. */
   it('VEN-HOLD-DEC-09-A converts an active approved tentative hold', async () => {
     const active = { ...pendingRow, status: 'approved', request_kind: 'tentative_hold', hold_expires_at: new Date('2030-01-24T12:00:00.000Z') };
@@ -2653,6 +2694,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(poolQuery).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 132 AC9 (matrix 39125047)
   /** VEN-HOLD-DEC-09-B: an approved hold at its expiry cannot be converted. */
   it('VEN-HOLD-DEC-09-B refuses conversion at exact expiry without writing', async () => {
     const expired = { ...pendingRow, status: 'approved', request_kind: 'tentative_hold', hold_expires_at: new Date('2030-01-10T12:00:00.000Z') };
@@ -2662,6 +2704,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(clientQuery).toHaveBeenCalledTimes(3);
   });
 
+  // Traceability: Jira 132 AC10 (matrix 39125047)
   /** VEN-HOLD-DEC-10-A/13-A: release records the instant and marks only the hold released. */
   it('VEN-HOLD-DEC-10-A releases an active hold and records released_at', async () => {
     const active = { ...pendingRow, status: 'approved', request_kind: 'tentative_hold', hold_expires_at: new Date('2030-01-24T12:00:00.000Z') };
@@ -2676,6 +2719,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(clientQuery.mock.calls[3][1]).toEqual([bookingId, new Date('2030-01-10T12:00:00.000Z')]);
   });
 
+  // Traceability: Jira 132 AC9 (matrix 39125047)
   /** Rows outside an owned, active tentative hold cannot be converted or released. */
   it('VEN-HOLD-DEC-09-A refuses conversion when the booking is not owned', async () => {
     const { repository, clientQuery } = createSplitReviewRepository({ rows: [] });
@@ -2683,6 +2727,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(clientQuery).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 56 AC6 (matrix 34636305)
   /** VEN-CONF-06-A: a conflicting row that carries no status, request kind or hold expiry reports only its interval fields. */
   it('VEN-CONF-06-A omits status, requestKind and holdExpiresAt from a conflict row that has none', async () => {
     const { repository } = createReviewRepository(
@@ -2710,6 +2755,7 @@ describe('SPM-55 venue booking review repository', () => {
     });
   });
 
+  // Traceability: Jira 132 AC9 (matrix 39125047)
   /** VEN-HOLD-DEC-09-B and 10-B: a hold action is refused, with no write, unless the booking is an active approved hold. */
   it.each([
     ['its event is Completed', { event_status: 'Completed', status: 'approved', request_kind: 'tentative_hold' }, 'event-completed'],
@@ -2727,6 +2773,7 @@ describe('SPM-55 venue booking review repository', () => {
     }
   });
 
+  // Traceability: Jira 132 AC9 (matrix 39125047)
   /** VEN-HOLD-DEC-09-B: an approved hold with no expiry recorded is treated as expired, not as active. */
   it('VEN-HOLD-DEC-09-B treats an approved hold without an expiry as expired', async () => {
     const row = { ...pendingRow, status: 'approved', request_kind: 'tentative_hold', hold_expires_at: null };
@@ -2764,6 +2811,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(query.mock.calls[0][1]).toEqual([new Date('2030-01-10T12:00:00.000Z')]);
   });
 
+  // Traceability: Jira 55 AC5 (matrix 34537876)
   /** VEN-REV-05-A: a rejection writes exactly one audit row that keeps the stored reason and the rejecting staff member. */
   it('SPM-55 AC5 records one rejection audit row carrying the reason', async () => {
     const { repository, query } = createReviewRepository(
@@ -2784,6 +2832,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(audits[0][1]).toEqual([bookingId, staffId, 'Clashes with maintenance']);
   });
 
+  // Traceability: Jira 55 AC5 (matrix 34537876)
   /** VEN-REV-09-A: when the approval audit insert fails, the status UPDATE is rolled back with it and the approval rejects instead of reporting a decision. */
   it('SPM-55 AC5 rolls back and rejects the approval when the audit insert fails', async () => {
     const { repository, clientQuery, poolQuery } = createRollbackReviewRepository(
@@ -2810,6 +2859,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(sqls).not.toContain('COMMIT');
   });
 
+  // Traceability: Jira 55 AC5 (matrix 34537876)
   /** VEN-REV-09-B: when the rejection audit insert fails, the rejection UPDATE is rolled back with it and the rejection rejects instead of reporting a decision. */
   it('SPM-55 AC5 rolls back and rejects the rejection when the audit insert fails', async () => {
     const { repository, clientQuery, poolQuery } = createRollbackReviewRepository(
@@ -2835,6 +2885,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(sqls).not.toContain('COMMIT');
   });
 
+  // Traceability: Jira 55 AC6 (matrix 34537876)
   /** VEN-REV-06-A: rejecting a request in any terminal state is refused with its status, and runs neither the status UPDATE nor the audit insert. */
   it.each(['approved', 'rejected', 'cancelled', 'released'])('SPM-55 AC6 refuses to reject a %s request without updating it or writing an audit row', async (status) => {
       const { repository, query } = createReviewRepository(
@@ -2853,6 +2904,7 @@ describe('SPM-55 venue booking review repository', () => {
     },
   );
 
+  // Traceability: Jira 55 AC3 (matrix 34537876)
   /** VEN-REV-03-C: rejecting a booking outside the caller's venues is not found. */
   it('SPM-55 AC3 reports a foreign booking as not found on rejection', async () => {
     const { repository } = createReviewRepository({ rows: [] });
@@ -2904,6 +2956,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(coordinatorList.map((row) => [row.requestKind, row.holdExpired])).toEqual([['tentative_hold', expired], ['booking', false]]);
   });
 
+  // Traceability: Jira 55 AC4 (matrix 34537876)
   /** VEN-REV-04-A: the coordinator list returns the stored rejection reason and omits it when absent. */
   it('SPM-55 AC4 returns the rejection reason for coordinator bookings', async () => {
     const base = {
@@ -2942,7 +2995,7 @@ describe('SPM-55 venue booking review repository', () => {
   });
 
   // ---------------------------------------------------------------------------------------------------------------
-  // SPM-137 (venue booking decision notification, Coordinator): VENUE-BOOK-NOTIF-01-A, 01-B, 01-E, 02-A, 02-B, 02-C,
+  // SPM-137 (venue booking decision notification, Coordinator): BOOKING-NOTIFY-01-A, 01-B, 01-E, 02-A, 02-B, 02-C,
   // 02-BND-1, 05-A, 06-A, 06-D, 07-A, 07-B, 07-C, 07-D. The repository is tested in isolation: the transaction client
   // answers from a fixed sequence of fixture rows, so these cases show which statements run, in what order and with
   // which values. They do not exercise PostgreSQL (the e2e suite does).
@@ -2978,12 +3031,13 @@ describe('SPM-55 venue booking review repository', () => {
     { rows: [] },
   ];
 
+  // Traceability: Jira 137 AC1 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-01-A (SPM-137 AC1): approving a booking writes exactly one notification, addressed to the
+   * BOOKING-NOTIFY-01-A (SPM-137 AC1): approving a booking writes exactly one notification, addressed to the
    * Coordinator the event has now, typed venue_booking_approved and linked to the event and to that booking.
    * Kills: no notification, a second notification, wrong recipient column, wrong type, a missing booking link.
    */
-  it('VENUE-BOOK-NOTIF-01-A approving a booking writes one approved notification for the assigned Coordinator', async () => {
+  it('BOOKING-NOTIFY-01-A approving a booking writes one approved notification for the assigned Coordinator', async () => {
     // Arrange: an approval that will save, for an event assigned to coord-assigned.
     const { repository, clientQuery } = createSplitReviewRepository(...approveSequence());
 
@@ -2998,12 +3052,13 @@ describe('SPM-55 venue booking review repository', () => {
     expect([recipient, type, eventId, relatedBooking]).toEqual(['coord-assigned', 'venue_booking_approved', 'event-1', bookingId]);
   });
 
+  // Traceability: Jira 137 AC1 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-01-B (SPM-137 AC1): rejecting a booking writes exactly one venue_booking_rejected notification
+   * BOOKING-NOTIFY-01-B (SPM-137 AC1): rejecting a booking writes exactly one venue_booking_rejected notification
    * for the event's Coordinator.
    * Kills: the rejection path writing nothing, using the approved type, or notifying someone else.
    */
-  it('VENUE-BOOK-NOTIF-01-B rejecting a booking writes one rejected notification for the assigned Coordinator', async () => {
+  it('BOOKING-NOTIFY-01-B rejecting a booking writes one rejected notification for the assigned Coordinator', async () => {
     // Arrange: a rejection that will save.
     const { repository, clientQuery } = createSplitReviewRepository(...rejectSequence());
 
@@ -3017,8 +3072,9 @@ describe('SPM-55 venue booking review repository', () => {
     expect([recipient, type, eventId, relatedBooking]).toEqual(['coord-assigned', 'venue_booking_rejected', 'event-1', bookingId]);
   });
 
+  // Traceability: Jira 137 AC1 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-01-E (SPM-137 AC1, hold decisions now SPM-165 AC1): deciding a tentative hold request writes the
+   * BOOKING-NOTIFY-01-E (SPM-137 AC1, hold decisions now SPM-165 AC1): deciding a tentative hold request writes the
    * hold-specific notification (tentative_hold_approved / tentative_hold_rejected) and never a booking decision one
    * (venue_booking_approved / venue_booking_rejected).
    * Kills: a hold decision using the booking decision types, or a hold decision that is still skipped.
@@ -3026,7 +3082,7 @@ describe('SPM-55 venue booking review repository', () => {
   it.each([
     ['approving', (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), approveSequence(noticeContext(), 'tentative_hold'), 'tentative_hold_approved'],
     ['rejecting', (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), rejectSequence(noticeContext(), 'tentative_hold'), 'tentative_hold_rejected'],
-  ])('VENUE-BOOK-NOTIF-01-E %s a tentative hold request writes a hold notification, never a booking decision one', async (_label, decide, sequence, holdType) => {
+  ])('BOOKING-NOTIFY-01-E %s a tentative hold request writes a hold notification, never a booking decision one', async (_label, decide, sequence, holdType) => {
     // Arrange: a hold request (the approval is far enough from the event start to save).
     const { repository, clientQuery } = createSplitReviewRepository(...sequence);
 
@@ -3037,12 +3093,13 @@ describe('SPM-55 venue booking review repository', () => {
     expect(inserts.some(([, params]) => String(params[2]).startsWith('venue_booking_'))).toBe(false);
   });
 
+  // Traceability: Jira 137 AC2 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-02-A (SPM-137 AC2): the approved text is exactly `Your booking of <venue name> for "<event name>"
+   * BOOKING-NOTIFY-02-A (SPM-137 AC2): the approved text is exactly `Your booking of <venue name> for "<event name>"
    * has been approved.`, with no reference and no reason.
    * Kills: any wording change, a swapped venue and event name, the booking reference or a reason added.
    */
-  it('VENUE-BOOK-NOTIF-02-A the approved message is exactly the agreed sentence', async () => {
+  it('BOOKING-NOTIFY-02-A the approved message is exactly the agreed sentence', async () => {
     const { repository, clientQuery } = createSplitReviewRepository(...approveSequence());
 
     await repository.approveVenueBooking(staffId, bookingId);
@@ -3051,12 +3108,13 @@ describe('SPM-55 venue booking review repository', () => {
     expect(insert[1][3]).toBe('Your booking of Orchid Hall for "Gala Night" has been approved.');
   });
 
+  // Traceability: Jira 137 AC2 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-02-B (SPM-137 AC2): the rejected text is exactly `... has been rejected.`; the rejection reason
+   * BOOKING-NOTIFY-02-B (SPM-137 AC2): the rejected text is exactly `... has been rejected.`; the rejection reason
    * the staff member typed and the booking reference are not in it.
    * Kills: the reason appended to the message, the approved wording on a rejection, the reference in the text.
    */
-  it('VENUE-BOOK-NOTIF-02-B the rejected message is exactly the agreed sentence and carries no reason or reference', async () => {
+  it('BOOKING-NOTIFY-02-B the rejected message is exactly the agreed sentence and carries no reason or reference', async () => {
     const { repository, clientQuery } = createSplitReviewRepository(...rejectSequence());
 
     await repository.rejectVenueBooking(staffId, bookingId, 'Clashes with maintenance');
@@ -3066,12 +3124,13 @@ describe('SPM-55 venue booking review repository', () => {
     expect(String(insert[1][3])).not.toMatch(/maintenance|VB-/);
   });
 
+  // Traceability: Jira 137 AC2 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-02-C (SPM-137 AC2): the notification's timestamp is the decision time taken from the injected
+   * BOOKING-NOTIFY-02-C (SPM-137 AC2): the notification's timestamp is the decision time taken from the injected
    * clock (2030-01-10T12:00Z), not the transaction start or the database default.
    * Kills: omitting created_at (database now()), or using a different time source.
    */
-  it('VENUE-BOOK-NOTIF-02-C stamps the notification with the decision time from the clock', async () => {
+  it('BOOKING-NOTIFY-02-C stamps the notification with the decision time from the clock', async () => {
     const { repository, clientQuery } = createSplitReviewRepository(...rejectSequence());
 
     await repository.rejectVenueBooking(staffId, bookingId, 'Clash');
@@ -3081,12 +3140,13 @@ describe('SPM-55 venue booking review repository', () => {
     expect(insert[1][6]).toEqual(decidedAt);
   });
 
+  // Traceability: Jira 137 AC2 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-02-BND-1 (SPM-137 AC2, boundary): venue and event names containing quotes and punctuation appear
+   * BOOKING-NOTIFY-02-BND-1 (SPM-137 AC2, boundary): venue and event names containing quotes and punctuation appear
    * in the message unchanged (no escaping, trimming or truncation).
    * Kills: escaping or stripping quotes, truncating long names.
    */
-  it('VENUE-BOOK-NOTIF-02-BND-1 keeps quotes and punctuation in the venue and event names', async () => {
+  it('BOOKING-NOTIFY-02-BND-1 keeps quotes and punctuation in the venue and event names', async () => {
     const venueName = 'Hall "A" & B (Level 2)';
     const eventName = `"Annual" Gala: ${'x'.repeat(200)}`;
     const { repository, clientQuery } = createSplitReviewRepository(...approveSequence(noticeContext({ venue_name: venueName, event_name: eventName })));
@@ -3097,12 +3157,13 @@ describe('SPM-55 venue booking review repository', () => {
     expect(insert[1][3]).toBe(`Your booking of ${venueName} for "${eventName}" has been approved.`);
   });
 
+  // Traceability: Jira 137 AC5 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-05-A (SPM-137 AC5): each decision writes its own notification linked to its own booking, with a
+   * BOOKING-NOTIFY-05-A (SPM-137 AC5): each decision writes its own notification linked to its own booking, with a
    * new id every time, so an event with several bookings gets one notice per decision.
    * Kills: a fixed or reused notification id, deduplicating per event, linking every notice to the first booking.
    */
-  it('VENUE-BOOK-NOTIF-05-A writes a separate notification, with its own id and booking link, for each decision', async () => {
+  it('BOOKING-NOTIFY-05-A writes a separate notification, with its own id and booking link, for each decision', async () => {
     // Arrange: two bookings of one event decided one after the other.
     const otherBooking = '0b7d2a5e-1c3f-4e8a-9a6b-2f4c8d1e7a90';
     const first = createSplitReviewRepository(...approveSequence());
@@ -3122,12 +3183,13 @@ describe('SPM-55 venue booking review repository', () => {
     expect(lookup[1]).toEqual([otherBooking]);
   });
 
+  // Traceability: Jira 137 AC6 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-06-A (SPM-137 AC6): the recipient is the event's Coordinator as read inside the decision's own
+   * BOOKING-NOTIFY-06-A (SPM-137 AC6): the recipient is the event's Coordinator as read inside the decision's own
    * transaction, after the status change, so a reassignment before the decision sends it to the new Coordinator.
    * Kills: a Coordinator remembered from an earlier read, a lookup outside the transaction, a lookup before the save.
    */
-  it('VENUE-BOOK-NOTIF-06-A addresses the Coordinator read inside the decision transaction', async () => {
+  it('BOOKING-NOTIFY-06-A addresses the Coordinator read inside the decision transaction', async () => {
     // Arrange: the event now belongs to coord-new.
     const { repository, clientQuery, poolQuery } = createSplitReviewRepository(...rejectSequence(noticeContext({ coordinator_id: 'coord-new' })));
 
@@ -3144,23 +3206,25 @@ describe('SPM-55 venue booking review repository', () => {
     expect(insert[1][1]).toBe('coord-new');
   });
 
+  // Traceability: Jira 137 AC6 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-06-D (SPM-137 AC6, defensive): if the event has no Coordinator or no event row is found, the
+   * BOOKING-NOTIFY-06-D (SPM-137 AC6, defensive): if the event has no Coordinator or no event row is found, the
    * decision still saves and no notification is written.
    * Kills: inserting a notification with a null recipient, or failing the decision because there is no recipient.
    */
   it.each([
     ['no row', { rows: [] }],
     ['an unassigned event', noticeContext({ coordinator_id: null })],
-  ])('VENUE-BOOK-NOTIF-06-D saves the decision and writes no notification for %s', async (_label, context) => {
+  ])('BOOKING-NOTIFY-06-D saves the decision and writes no notification for %s', async (_label, context) => {
     const { repository, clientQuery } = createSplitReviewRepository(...approveSequence(context as ReturnType<typeof noticeContext>));
 
     await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'decided' });
     expect((clientQuery.mock.calls as Array<[string]>).some(([sql]) => isNoticeInsert(sql))).toBe(false);
   });
 
+  // Traceability: Jira 137 AC7 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-07-A (SPM-137 AC7): a booking the staff member cannot act on (not theirs or not found) or that is
+   * BOOKING-NOTIFY-07-A (SPM-137 AC7): a booking the staff member cannot act on (not theirs or not found) or that is
    * no longer pending is refused with no notification statement at all.
    * Kills: notifying before the ownership and pending checks.
    */
@@ -3172,7 +3236,7 @@ describe('SPM-55 venue booking review repository', () => {
       [`reject a ${status} booking`, (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), [ownedRow, venueLockRow, { rows: [{ ...pendingRow, status }] }], { kind: 'already-decided', status }],
     ]),
   ] as Array<[string, (r: VenuesRepository) => Promise<unknown>, Array<{ rows: unknown[] }>, object]>)(
-    'VENUE-BOOK-NOTIF-07-A refuses to %s without any notification statement',
+    'BOOKING-NOTIFY-07-A refuses to %s without any notification statement',
     async (_label, decide, sequence, expected) => {
       const { repository, clientQuery } = createSplitReviewRepository(...sequence);
 
@@ -3182,12 +3246,13 @@ describe('SPM-55 venue booking review repository', () => {
     },
   );
 
+  // Traceability: Jira 137 AC7 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-07-B (SPM-137 AC7): an approval refused for a slot conflict writes no notification and no status
+   * BOOKING-NOTIFY-07-B (SPM-137 AC7): an approval refused for a slot conflict writes no notification and no status
    * change.
    * Kills: notifying after the conflict check returns, or before it.
    */
-  it('VENUE-BOOK-NOTIF-07-B writes no notification when the approval conflicts with another booking', async () => {
+  it('BOOKING-NOTIFY-07-B writes no notification when the approval conflicts with another booking', async () => {
     const { repository, clientQuery } = createSplitReviewRepository(
       ownedRow,
       venueLockRow,
@@ -3208,15 +3273,16 @@ describe('SPM-55 venue booking review repository', () => {
     expect(sqls.some((sql) => normalizeSql(sql).includes("SET status = 'approved'"))).toBe(false);
   });
 
+  // Traceability: Jira 137 AC7 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-07-C (SPM-137 AC7): if saving the notification fails, the whole decision rolls back (ROLLBACK, no
+   * BOOKING-NOTIFY-07-C (SPM-137 AC7): if saving the notification fails, the whole decision rolls back (ROLLBACK, no
    * COMMIT) and the call rejects, so a decision is never saved without its notification.
    * Kills: swallowing the notification error, or writing the notification outside the decision transaction.
    */
   it.each([
     ['approval', (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), approveSequence()],
     ['rejection', (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), rejectSequence()],
-  ])('VENUE-BOOK-NOTIF-07-C rolls the %s back when the notification insert fails', async (_label, decide, sequence) => {
+  ])('BOOKING-NOTIFY-07-C rolls the %s back when the notification insert fails', async (_label, decide, sequence) => {
     // Arrange: the last fixture (the notification insert) throws.
     const steps = [...sequence.slice(0, -1), new Error('notification insert failed')];
     const { repository, clientQuery, poolQuery } = createRollbackReviewRepository(...steps);
@@ -3229,11 +3295,12 @@ describe('SPM-55 venue booking review repository', () => {
     expect(sqls).not.toContain('COMMIT');
   });
 
+  // Traceability: Jira 137 AC7 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-07-D (SPM-137 AC7): when the notification lookup itself fails the decision also rolls back.
+   * BOOKING-NOTIFY-07-D (SPM-137 AC7): when the notification lookup itself fails the decision also rolls back.
    * Kills: a try/catch around the lookup that lets the decision commit without its notification.
    */
-  it('VENUE-BOOK-NOTIF-07-D rolls the decision back when the notification lookup fails', async () => {
+  it('BOOKING-NOTIFY-07-D rolls the decision back when the notification lookup fails', async () => {
     const steps = [...approveSequence().slice(0, -2), new Error('lookup failed')];
     const { repository, clientQuery } = createRollbackReviewRepository(...steps);
 
@@ -3254,6 +3321,7 @@ describe('SPM-55 venue booking review repository', () => {
   const noticeInserts = (clientQuery: { mock: { calls: unknown[][] } }) =>
     (clientQuery.mock.calls as Array<[string, unknown[]]>).filter(([sql]) => isNoticeInsert(sql));
 
+  // Traceability: Jira 165 AC1 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-01-A (SPM-165 AC1): approving a tentative hold writes exactly one notification for the Coordinator
    * the event has now, typed tentative_hold_approved and linked to the event and to that hold.
@@ -3271,6 +3339,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect([recipient, type, eventId, relatedBooking]).toEqual(['coord-assigned', 'tentative_hold_approved', 'event-1', bookingId]);
   });
 
+  // Traceability: Jira 165 AC1 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-01-B (SPM-165 AC1): rejecting a tentative hold writes exactly one tentative_hold_rejected
    * notification for the event's Coordinator.
@@ -3287,6 +3356,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect([recipient, type, eventId, relatedBooking]).toEqual(['coord-assigned', 'tentative_hold_rejected', 'event-1', bookingId]);
   });
 
+  // Traceability: Jira 165 AC1 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-01-E (SPM-165 AC1, out of scope SPM-137): deciding an ordinary venue booking request still writes
    * only the booking decision type, never a tentative hold one.
@@ -3303,6 +3373,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(noticeInserts(clientQuery).map(([, params]) => params[2])).toEqual([bookingType]);
   });
 
+  // Traceability: Jira 165 AC2 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-02-A (SPM-165 AC2): the approved text is exactly `Your tentative hold of <venue name> for "<event
    * name>" has been approved.`, with no expiry, reference or reason.
@@ -3316,6 +3387,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(noticeInserts(clientQuery)[0][1][3]).toBe('Your tentative hold of Orchid Hall for "Gala Night" has been approved.');
   });
 
+  // Traceability: Jira 165 AC2 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-02-B (SPM-165 AC2): the rejected text is exactly `... has been rejected.`; the typed rejection
    * reason and the booking reference are not in it.
@@ -3331,6 +3403,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(message).not.toMatch(/maintenance|VB-/);
   });
 
+  // Traceability: Jira 165 AC2 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-02-C (SPM-165 AC2): the notification's timestamp is the decision time from the injected clock
    * (2030-01-10T12:00Z), not the transaction start or the database default.
@@ -3346,6 +3419,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(insert[1][6]).toEqual(decidedAt);
   });
 
+  // Traceability: Jira 165 AC2 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-02-BND-1 (SPM-165 AC2, boundary): names containing quotes, punctuation and 200+ characters appear
    * in the message unchanged.
@@ -3361,6 +3435,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(noticeInserts(clientQuery)[0][1][3]).toBe(`Your tentative hold of ${venueName} for "${eventName}" has been approved.`);
   });
 
+  // Traceability: Jira 165 AC5 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-05-A (SPM-165 AC5): each hold decision writes its own notification, with its own id, linked to its
    * own hold, and the context lookup is for the hold that was decided.
@@ -3382,6 +3457,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(lookup[1]).toEqual([otherHold]);
   });
 
+  // Traceability: Jira 165 AC6 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-06-A (SPM-165 AC6): the recipient is the event's Coordinator as read inside the decision's own
    * transaction, after the audit insert, so a reassignment before the decision sends the notice to the new Coordinator.
@@ -3400,6 +3476,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(noticeInserts(clientQuery)[0][1][1]).toBe('coord-new');
   });
 
+  // Traceability: Jira 165 AC6 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-06-D (SPM-165 AC6, defensive): if the event has no Coordinator or no event row is found, the hold
    * decision still saves and no notification is written.
@@ -3415,6 +3492,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(noticeInserts(clientQuery)).toEqual([]);
   });
 
+  // Traceability: Jira 165 AC7 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-07-A (SPM-165 AC7): a hold the staff member cannot act on (not theirs or not found) or that is no
    * longer pending is refused with no notification statement at all.
@@ -3438,6 +3516,7 @@ describe('SPM-55 venue booking review repository', () => {
     },
   );
 
+  // Traceability: Jira 165 AC7 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-07-B (SPM-165 AC7): a hold approval refused for a slot conflict, or for the 336-hour lead-time
    * rule (SPM-159), writes no notification and no status change.
@@ -3464,6 +3543,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(sqls.some((sql) => normalizeSql(sql).includes("SET status = 'approved'"))).toBe(false);
   });
 
+  // Traceability: Jira 165 AC7 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-07-C (SPM-165 AC7): if saving the hold notification fails, the whole decision rolls back (ROLLBACK,
    * no COMMIT) and the call rejects.
@@ -3483,6 +3563,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(sqls).not.toContain('COMMIT');
   });
 
+  // Traceability: Jira 165 AC7 (matrix 40140804)
   /**
    * VENUE-HOLD-NOTIF-07-D (SPM-165 AC7, supporting): when the notification lookup itself fails the hold decision also
    * rolls back.
@@ -3638,6 +3719,7 @@ describe('SPM-121 repository.update', () => {
     }
   });
 
+  // Traceability: Jira 121 AC8 (matrix 28770883)
   /** VEN-UPD-08-A: timing change populates affectedBookings from the conflict query. */
   it('VEN-UPD-08-A returns affectedBookings when setup/turnaround causes an overlap', async () => {
     const conflictRow = {
@@ -3999,6 +4081,7 @@ describe('SPM-125 venue unavailability history and notifications', () => {
     return { result, query, notices };
   }
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /**
    * VEN-IMPACT-01-A (AC1): the period and its 'created' history entry, naming the Venue Staff member, are written by
    * one statement, so a saved period always has its history entry.
@@ -4013,6 +4096,7 @@ describe('SPM-125 venue unavailability history and notifications', () => {
     expect(params).toEqual([venue.id, period.start, period.end, period.reason, actorId]);
   });
 
+  // Traceability: Jira 125 AC6 (matrix 39125581)
   /**
    * VEN-IMPACT-06-B (AC6): the Coordinators of exactly the bookings SPM-122 AC7 lists (a confirmed booking and an
    * active hold) are notified; a pending booking request without a hold is neither listed nor notified; each listed
@@ -4048,6 +4132,7 @@ describe('SPM-125 venue unavailability history and notifications', () => {
     ]);
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /**
    * VEN-IMPACT-01-B (AC1): ending a period early updates it and writes its 'ended_early' entry (new end, the end it
    * replaced and the Venue Staff member) in one statement at the server time.
@@ -4071,6 +4156,7 @@ describe('SPM-125 venue unavailability history and notifications', () => {
     expect(query.mock.calls[0][1]).toEqual([venue.id, 'period-1', endedAt, actorId]);
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /**
    * VEN-IMPACT-01-C (AC1): the history lists each entry newest first with its period, reason, who made the change
    * and when; an early end also gives the end it replaced; a backfilled entry has no person ("Not recorded").
@@ -4111,6 +4197,7 @@ describe('SPM-125 venue unavailability history and notifications', () => {
     expect(query.mock.calls[1][1]).toEqual([venue.id]);
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /** VEN-IMPACT-01-BND-1, VEN-IMPACT-05-BND-1 (AC1, AC5): an unknown venue has no history and nothing more is read. */
   it('VEN-IMPACT-01-BND-1 VEN-IMPACT-05-BND-1 returns undefined for an unknown venue without reading history', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
@@ -4121,6 +4208,7 @@ describe('SPM-125 venue unavailability history and notifications', () => {
     expect(query).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 125 AC5 (matrix 39125581)
   /**
    * VEN-IMPACT-05-A (AC5): the booking history lists every booking and hold at the venue whatever its status or
    * time (only unavailable periods are left out), latest slot first, with its reference, Coordinator, hold expiry and
@@ -4216,6 +4304,7 @@ describe('SPM-125 venue update notifications', () => {
     return { result, notices, capacityQuery };
   }
 
+  // Traceability: Jira 125 AC8 (matrix 39125581)
   /**
    * VEN-IMPACT-08-B (AC8): after a setup change, the Coordinator of each booking SPM-121 AC8 lists that has not ended
    * gets a `venue_timing_impact` notice for that booking, and nobody else; the listing marks it notified.
@@ -4231,6 +4320,7 @@ describe('SPM-125 venue update notifications', () => {
     ]);
   });
 
+  // Traceability: Jira 125 AC9 (matrix 39125581)
   /**
    * VEN-IMPACT-09-BND-3 (AC9): a listed row that no longer holds the venue (here an approved tentative hold that has
    * expired) is still listed but its Coordinator is not notified; the capacity query decides this with the AC8
@@ -4256,6 +4346,7 @@ describe('SPM-125 venue update notifications', () => {
     expect(capacityQuery![1]).toEqual([venueId, now]);
   });
 
+  // Traceability: Jira 125 AC8 (matrix 39125581)
   /**
    * VEN-IMPACT-08-BND-1, VEN-IMPACT-09-BND-1 (AC8, AC9): a listed booking that has already ended (end equals now) is
    * still listed but its Coordinator is not notified.
@@ -4270,6 +4361,7 @@ describe('SPM-125 venue update notifications', () => {
     expect(result.capacityBookings[0]).not.toHaveProperty('coordinatorNotified');
   });
 
+  // Traceability: Jira 125 AC9 (matrix 39125581)
   /**
    * VEN-IMPACT-09-B (AC9): after a capacity change, the Coordinator of each upcoming pending or approved booking gets
    * a `venue_capacity_impact` notice giving the old and new capacity, and nobody else is notified.
@@ -4352,6 +4444,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
   const noticeInserts = (clientQuery: { mock: { calls: unknown[][] } }) =>
     (clientQuery.mock.calls as Array<[string, unknown[]]>).filter(([sql]) => sql.includes('INSERT INTO notifications'));
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-C (SPM-134 AC1, AC5): the reminder run marks, in one conditional UPDATE, only approved tentative
    * holds that are not yet processed, not yet reminded, not yet expired and expire within 48 hours, on a non-cancelled
@@ -4386,6 +4479,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(sqlsOf(clientQuery).at(-1)).toBe('COMMIT');
   });
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-D (SPM-134 AC1, AC5): when no hold is due the run writes nothing and returns no ids.
    * Kills: inserting without a marked hold.
@@ -4398,6 +4492,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(noticeInserts(clientQuery)).toHaveLength(0);
   });
 
+  // Traceability: Jira 134 AC1 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-01-E (SPM-134 AC1): a failed reminder insert rolls the marker back too (ROLLBACK, no COMMIT), so the
    * next run sends the reminder instead of losing it.
@@ -4415,6 +4510,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(sqls).not.toContain('COMMIT');
   });
 
+  // Traceability: Jira 134 AC2 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-02-A (SPM-134 AC2, AC4): the expiry run changes each elapsed approved hold to expired and writes one expired
    * notice for it, all inside one transaction (not on the pool), stamped with the hold's own expiry time (AC4: the notice's
@@ -4442,6 +4538,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(sqlsOf(clientQuery).at(-1)).toBe('COMMIT');
   });
 
+  // Traceability: Jira 134 AC2 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-02-B (SPM-134 AC2): with nothing to expire the run writes no notification.
    * Kills: a notice written without an expired hold.
@@ -4454,6 +4551,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(noticeInserts(clientQuery)).toHaveLength(0);
   });
 
+  // Traceability: Jira 134 AC2 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-02-C (SPM-134 AC2): a failed expired-notice insert rolls the status change back (ROLLBACK, no COMMIT):
    * a hold is never expired without its notice.
@@ -4471,6 +4569,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(sqls).not.toContain('COMMIT');
   });
 
+  // Traceability: Jira 134 AC3 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-03-A (SPM-134 AC3): releasing an active hold writes one released notice in the release transaction,
    * after the status change, stamped with the release time.
@@ -4490,6 +4589,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(poolQuery).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 134 AC3 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-03-B (SPM-134 AC3): converting an active hold writes one converted notice in the conversion transaction.
    * Kills: no notice, the released type for a conversion.
@@ -4505,6 +4605,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(inserts[0][1][3]).toBe('Your tentative hold of Orchid Hall for "Gala Night" has been confirmed as a booking.');
   });
 
+  // Traceability: Jira 134 AC3 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-03-C (SPM-134 AC3): a release or conversion that is refused (not the staff member's hold, an expired
    * hold, a hold that is not active, a completed event) writes no notification.
@@ -4525,6 +4626,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     }
   });
 
+  // Traceability: Jira 134 AC3 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-03-D (SPM-134 AC3): if the notice cannot be saved the release or conversion rolls back (ROLLBACK, no
    * COMMIT) and the call rejects, so the change is never saved without its notice.
@@ -4547,6 +4649,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
   const markReadStatements = (clientQuery: { mock: { calls: unknown[][] } }) =>
     sqlsOf(clientQuery).filter((sql) => sql.startsWith('UPDATE notifications'));
 
+  // Traceability: Jira 134 AC11 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-11-A (SPM-134 AC11): converting an active hold marks the Coordinator's unread reminders for that hold
    * read in the conversion transaction, after the status change and before the converted notice. The statement filters on
@@ -4575,6 +4678,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(poolQuery).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 134 AC11 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-11-B (SPM-134 AC11): releasing an active hold marks its unread reminders read in the release
    * transaction, with the same filter.
@@ -4597,6 +4701,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     expect(poolQuery).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 134 AC11 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-11-C (SPM-134 AC11): a refused release or conversion (not found, expired by status or time, already
    * released, already converted, completed event) marks nothing read.
@@ -4617,6 +4722,7 @@ describe('SPM-134 hold lifecycle notifications in the venue repository', () => {
     }
   });
 
+  // Traceability: Jira 134 AC11 (matrix 41582744)
   /**
    * HOLD-EXP-NOTIF-11-D (SPM-134 AC11): if marking the reminders read fails, the release or conversion rolls back and the
    * call rejects, so a change is never saved with its reminder left unread.

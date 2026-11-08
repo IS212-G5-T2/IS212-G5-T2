@@ -106,6 +106,7 @@ describe('WITHDRAW-EVENT-REG-04-STATE-1 (AC4): a started event is refused before
   // Oracle (SPEC 04-B/04-C: 422 "Event has already occurred"; A7: the start instant is exclusive, so at the
   // start it is already refused): the exception is the 422, and no UPDATE statement was ever issued.
   // Kills: M34 the UPDATE issued before the event-start check (the transaction rollback hides it from the database).
+  // ID: WITHDRAW-EVENT-REG-04-STATE-1
   it.each([
     ['5 days after the start', new Date(T0.getTime() - 5 * 24 * HOUR)],
     ['exactly at the start instant', T0],
@@ -138,6 +139,7 @@ describe('WITHDRAW-EVENT-REG-04-STATE-1 (AC4): a started event is refused before
 describe('WITHDRAW-EVENT-REG-05-STATE-1 (AC5): an already-withdrawn registration is refused before anything is written', () => {
   // Oracle (SPEC 05-D: 422 "This registration has already been withdrawn."): the 422 and no UPDATE.
   // Kills: the UPDATE issued before the state check (hidden by the rollback in the integration suite).
+  // ID: WITHDRAW-EVENT-REG-05-STATE-1
   it('a Withdrawn row on a future event -> 422 and no UPDATE issued', async () => {
     // Arrange
     const { database, statements } = recordingDatabase(
@@ -162,6 +164,7 @@ describe('WITHDRAW-EVENT-REG-05-STATE-1 (AC5): an already-withdrawn registration
   // Oracle (D14, one compare-and-set): the request passed its read but lost the race, so its UPDATE matched no row.
   // The loser gets the same 422, and exactly one UPDATE was attempted (the guarded one), never a second write.
   // Kills: a retry or fallback write after the compare-and-set fails.
+  // ID: WITHDRAW-EVENT-REG-05-STATE-1
   it('a request that loses the compare-and-set -> 422 after exactly one guarded UPDATE', async () => {
     // Arrange: the lookup still sees Registered, but the UPDATE returns no row.
     const { database, statements } = recordingDatabase(
@@ -187,6 +190,7 @@ describe('WITHDRAW-EVENT-REG-05-STATE-1 (AC5): an already-withdrawn registration
 describe('WITHDRAW-EVENT-REG-05-STATE-2 (AC5): a bad body is refused before the database is touched', () => {
   // Oracle (D15, "no body or {} only"): a 400 and the database is never entered, so not even a lookup runs.
   // Kills: the body validated inside the transaction after the lookup or the write (rollback hides the write).
+  // ID: WITHDRAW-EVENT-REG-05-STATE-2
   it.each([
     ['an object with keys', { status: 'registered' }],
     ['an array', []],
@@ -215,6 +219,7 @@ describe("WITHDRAW-EVENT-REG-07-STATE-1 (cross-cutting): another attendee's or a
   // Oracle (D16: 404 "Registration not found."): the lookup is scoped to the caller (the SQL filters on attendee_id
   // and receives the caller's uid as its second parameter), finds nothing, and no UPDATE is issued.
   // Kills: M2 the ownership filter dropped from the lookup; a write issued before the ownership check.
+  // ID: WITHDRAW-EVENT-REG-07-STATE-1
   it('a lookup that finds no row for this caller -> 404, scoped to the caller, no UPDATE issued', async () => {
     // Arrange: the (scoped) lookup returns nothing.
     const { database, statements } = recordingDatabase([], [withdrawnRow()]);
@@ -241,6 +246,7 @@ describe('WITHDRAW-EVENT-REG-07-STATE-2 (cross-cutting): a malformed id or no se
   // Oracle (D16 + the service's own rule: "a malformed id cannot belong to anyone"; authentication first):
   // 404 for a malformed id, 401 with no identity, and no transaction is opened in either case.
   // Kills: the id or identity checked only after the database was entered (a write could precede the refusal).
+  // ID: WITHDRAW-EVENT-REG-07-STATE-2
   it.each([
     ['a malformed id (REG-NOTEXIST)', OWNER, 'REG-NOTEXIST', NotFoundException],
     ['no authenticated identity', undefined, REG_ID, UnauthorizedException],
@@ -271,6 +277,7 @@ describe('WITHDRAW-EVENT-REG-03-STATE-1 (AC3/AC5): a successful withdrawal write
   // Oracle (SPEC 03-A: withdrawnAt is the injected clock, status Withdrawn; D14: a single compare-and-set UPDATE;
   // M10: never SQL now()): one SELECT, one UPDATE whose parameters are [id, caller, clock], guarded on 'Registered'.
   // Kills: M3 the status guard removed from the UPDATE; M10 withdrawn_at taken from SQL now(); a second write.
+  // ID: WITHDRAW-EVENT-REG-03-STATE-1
   it('issues one UPDATE with [id, caller uid, clock instant], guarded on Registered, and answers 200 data', async () => {
     // Arrange
     const { database, statements } = recordingDatabase(
@@ -316,6 +323,7 @@ describe('WITHDRAW-EVENT-REG-03-STATE-1 (AC3/AC5): a successful withdrawal write
  */
 
 describe('SPM-136 08-B (cross-cutting): a cancelled registration or event is refused 409 before anything is written', () => {
+  // Traceability: Jira 136 AC8 (matrix 23691421)
   // Oracle (SPM-136 D11, CANCEL-EVENT-08-B): withdrawing a cancelled registration is 409, not 422, and nothing changes.
   // Kills: S9 (a cancelled registration falls through to a non-EVENT_CANCELLED refusal)
   it('a Cancelled registration -> 409 EVENT_CANCELLED and no UPDATE issued', async () => {

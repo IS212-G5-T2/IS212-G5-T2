@@ -13,6 +13,7 @@ import {
 const NOW = new Date('2030-01-01T00:00:00.000Z');
 
 describe('changeRequestReleaser', () => {
+  // Traceability: Jira 65 AC11 (matrix 28016830)
   it('REVIEW-CHANGE-12-B closes each pending request and records a Closed audit entry', async () => {
     const query = vi.fn(async (sql: string, _params?: unknown[]) =>
       sql.startsWith('SELECT')
@@ -49,6 +50,7 @@ describe('changeRequestReleaser', () => {
     );
   });
 
+  // Traceability: Jira 65 AC11 (matrix 28016830)
   /** REVIEW-CHANGE-12-B: cancelling an event with no pending request closes nothing. */
   it('does nothing when no request is pending', async () => {
     const query = vi.fn(async () => ({ rows: [] }));

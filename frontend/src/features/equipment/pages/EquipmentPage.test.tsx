@@ -11,6 +11,7 @@ describe("EquipmentPage", () => {
   // surfaces the rejected-mock case below as an unhandled rejection.
   beforeEach(() => { getEquipmentReservations.mockReset(); });
 
+  // Traceability: Jira 58 AC7 (matrix 33292299)
   /** EQUIP-RESERVE-07-A: Technical Support sees each persisted reservation with its event. */
   it("renders persisted reservations rather than browser-local equipment state", async () => {
     getEquipmentReservations.mockResolvedValue([{
@@ -47,6 +48,7 @@ describe("EquipmentPage", () => {
     expect(rows[1]).toHaveTextContent("Wireless microphonesType: Audio · Qty: 6");
   });
 
+  // Traceability: Jira 58 AC7 (matrix 33292299)
   /** EQUIP-RESERVE-07-B: event identity, rather than a repeated event name, determines reservation grouping. */
   it("keeps records with identical event names separate when their event IDs differ", async () => {
     getEquipmentReservations.mockResolvedValue([

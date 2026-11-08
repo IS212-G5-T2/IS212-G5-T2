@@ -119,6 +119,7 @@ describe("SPM-148 AC1/AC3: the booking form reports the move to Planning", () =>
     useAppStore.setState({ currentUser: originalUser });
   });
 
+  // Traceability: Jira 54 AC8 (matrix 22839839)
   /** VEN-BKG-08-A: a refreshed event-linked venue page shows the active request summary and suppresses duplicate submission. */
   it("SPM-54 shows an existing active request after refresh instead of another submit form", async () => {
     seedEvent("planning");
@@ -183,6 +184,7 @@ describe("SPM-148 AC1/AC3: the booking form reports the move to Planning", () =>
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 148 AC1 (matrix 26902550)
   // Kills: badge from stale state, MSG-PL-01 missing when the server says statusChanged.
   it("PLAN-STATUS-01-A: the first request shows MSG-PL-01 and the event becomes Planning without a reload", async () => {
     // Arrange: Approved event, server reports the transition.
@@ -226,6 +228,7 @@ describe("SPM-148 AC1/AC3: the booking form reports the move to Planning", () =>
     ).toBe("approved");
   });
 
+  // Traceability: Jira 148 AC3 (matrix 26902550)
   // Kills: "now in Planning" shown for a later request, status overwritten.
   it("PLAN-STATUS-03-A: a later request shows no Planning message and leaves the status alone", async () => {
     // Arrange: already Planning, server reports no change.
@@ -253,6 +256,7 @@ describe("SPM-148 AC1/AC3: the booking form reports the move to Planning", () =>
     expect(useAppStore.getState().events[0].status).toBe("planning");
   });
 
+  // Traceability: Jira 148 AC3 (matrix 26902550)
   // Kills: Submit left enabled while the request is in flight.
   it("PLAN-STATUS-03-D: a double click sends one request and disables Submit while it is in flight", async () => {
     // Arrange: hold the booking request open.

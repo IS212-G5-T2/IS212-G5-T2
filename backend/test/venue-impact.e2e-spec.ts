@@ -312,6 +312,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    // Traceability: Jira 125 AC6 (matrix 39125581)
     /**
      * VEN-IMPACT-06-STATE-1 (AC6): a period that fails validation is not saved, writes no history entry and notifies
      * nobody.
@@ -334,6 +335,7 @@ describe.skipIf(!databaseUrl)(
       expect(notices.rowCount).toBe(0);
     });
 
+    // Traceability: Jira 125 AC6 (matrix 39125581)
     /**
      * VEN-IMPACT-06-D (AC6, AC7): saving the period notifies, once each, the Coordinators of the confirmed booking and
      * the active hold it affects; the pending request's Coordinator and a bystander get nothing; the save result marks
@@ -378,6 +380,7 @@ describe.skipIf(!databaseUrl)(
       expect(await bookingSnapshot()).toEqual(before);
     });
 
+    // Traceability: Jira 125 AC7 (matrix 39125581)
     /**
      * VEN-IMPACT-07-G (AC7): the Coordinator's notice names the event, the venue, the period and the reason, links to
      * the event and the booking, and once marked read stays read after signing in again.
@@ -402,6 +405,7 @@ describe.skipIf(!databaseUrl)(
       expect(again).toMatchObject({ id: notice.id, read: true });
     });
 
+    // Traceability: Jira 125 AC1 (matrix 39125581)
     /**
      * VEN-IMPACT-01-J (AC1): the history shows the period saved by Venue Staff 1; ending a current period early (by
      * the owner, Venue Staff 1; Venue Staff 2 is refused with 403 under SPM-121 AC7) adds an 'ended_early' entry with the new end, the end it replaced, the person and the time;
@@ -474,6 +478,7 @@ describe.skipIf(!databaseUrl)(
       expect(created).not.toHaveProperty('previousEnd');
     });
 
+    // Traceability: Jira 125 AC1 (matrix 39125581)
     /** VEN-IMPACT-01-SEC-3, VEN-IMPACT-05-SEC-3 (AC1, AC5): a Coordinator or no session cannot read either history. */
     it('VEN-IMPACT-01-SEC-3 VEN-IMPACT-05-SEC-3 refuses the histories to a Coordinator and to no session', async () => {
       await agents.coordinator1
@@ -490,6 +495,7 @@ describe.skipIf(!databaseUrl)(
         .expect(401);
     });
 
+    // Traceability: Jira 125 AC1 (matrix 39125581)
     /**
      * VEN-IMPACT-01-STATE-1 (AC1): history entries cannot be edited or deleted through the API, and a second early end
      * of the same period is refused without a new entry.
@@ -518,6 +524,7 @@ describe.skipIf(!databaseUrl)(
       expect(after.body).toEqual(before.body);
     });
 
+    // Traceability: Jira 125 AC5 (matrix 39125581)
     /**
      * VEN-IMPACT-05-B (AC5): after the venue is marked unavailable and a period is ended early, Venue Staff still see
      * every booking at the venue (past, cancelled, pending, held and confirmed) with its stored status, and which ones
@@ -563,6 +570,7 @@ describe.skipIf(!databaseUrl)(
       expect(starts).toEqual([...starts].sort().reverse());
     });
 
+    // Traceability: Jira 125 AC3 (matrix 39125581)
     /**
      * VEN-IMPACT-03-A (AC3): during the period the venue is still listed with its unavailable period and reason, but a
      * booking request overlapping the period is refused and creates no booking.
@@ -603,6 +611,7 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rowCount).toBe(0);
     });
 
+    // Traceability: Jira 125 AC4 (matrix 39125581)
     /**
      * VEN-IMPACT-04-A (AC4): a booking whose occupied period (start minus 30 minutes' setup) starts exactly when the
      * period ends is accepted; one starting a minute earlier is refused.
@@ -647,6 +656,7 @@ describe.skipIf(!databaseUrl)(
       bookings.touching = accepted.body.id;
     });
 
+    // Traceability: Jira 125 AC8 (matrix 39125581)
     /**
      * VEN-IMPACT-08-C (AC8): raising the setup time makes the evening booking (and the touching request) conflict with
      * the period; the edit result marks them notified, and their Coordinator gets one `venue_timing_impact` notice
@@ -693,6 +703,7 @@ describe.skipIf(!databaseUrl)(
       expect(await storedNoticeCount('staff')).toBe(staffNoticesBefore);
     });
 
+    // Traceability: Jira 125 AC9 (matrix 39125581)
     /**
      * VEN-IMPACT-09-C (AC9): lowering the capacity notifies the Coordinators of the upcoming pending and approved
      * bookings with the old and new capacity; the past booking is still listed but not notified.

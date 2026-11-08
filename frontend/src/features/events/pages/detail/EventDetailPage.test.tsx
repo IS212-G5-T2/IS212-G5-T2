@@ -80,6 +80,7 @@ beforeEach(() => {
 });
 
 describe("EventDetailPage", () => {
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: an unsaved registration edit in the real event-detail flow disables safety request until the draft is reverted. */
   it("SAFETY-OUTCOME-06 connects registration drafts to the event safety request gate", async () => {
     const event = { ...assignedEvent(), status: 'planning' as const };
@@ -133,6 +134,7 @@ describe("EventDetailPage", () => {
     await screen.findByRole('button', { name: 'Request For Safety Check' }).then((button) => expect(button).toBeEnabled());
   });
 
+  // Traceability: Jira 38 AC3 (matrix 12353538)
   // SPM-38 Test Case EVE-REV-03-A
   // Kills: the attachment list missing its View button, or the Download link lacking the file name or the data URL as href.
   it("shows attached files with view and download actions", async () => {
@@ -163,6 +165,7 @@ describe("EventDetailPage", () => {
     );
   });
 
+  // Traceability: Jira 38 AC3 (matrix 12353538)
   // SPM-38 Test Case EVE-REV-03-B: Chrome/Firefox block top-level navigation
   // of a link to a data: URL, so "View" previously opened nothing in a real
   // browser (only jsdom's laxer <a href> checks made the old test pass). The
@@ -193,6 +196,7 @@ describe("EventDetailPage", () => {
     expect(openSpy).toHaveBeenCalledWith("blob:mock-url", "_blank", "noopener,noreferrer");
   });
 
+  // Traceability: Jira 38 AC3 (matrix 12353538)
   // SPM-38 Test Case EVE-REV-03-C: an event with no attachments shows a plain
   // fallback and never renders View/Download controls.
   // Kills: an event with no attachments showing View or Download controls, or not showing 'None specified'.
@@ -218,6 +222,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("link", { name: "Download" })).toBeNull();
   });
 
+  // Traceability: Jira 38 AC3 (matrix 12353538)
   // SPM-38 Test Case EVE-REV-03-D: openAttachmentPreview falls back to the
   // attachment's own `type` field when the data: URL header doesn't carry a
   // recognizable `;base64` marker to extract a MIME type from.
@@ -549,6 +554,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
   });
 
+  // Traceability: Jira 38 AC5 (matrix 12353538)
   // SPM-38 AC5 / SPM-123: coordinators are assigned by the Event Coordinator
   // Lead from the Assignment Queue, so there is no manual "claim this request"
   // control for coordinators to see or use on the event page.
@@ -613,6 +619,7 @@ describe("EventDetailPage", () => {
     });
   });
 
+  // Traceability: Jira 38 AC4 (matrix 12353538)
   // SPM-38 Test Case EVE-REV-04-E: the backend now returns a real 404 for a
   // coordinator the event isn't assigned to (see events.service.spec.ts for
   // the server-side enforcement), so the page must surface that as an error

@@ -175,7 +175,9 @@ describe.skipIf(!database)('SPM-136 cancelled events refuse every arrangement ch
       { label: 'clarification resolve', actor: () => organiser, method: 'post', path: (id) => `/api/events/${id}/clarifications/${unknownId}/resolve` },
     ];
 
+    // Traceability: Jira 136 AC7 (matrix 23691421)
   // Kills: S6, S23 (planning PATCH, flagged change); S1, S23 (confirm no equipment); S2, S23 (safety check request); S5, S23 (safety feedback resolve and unresolve); S3, S23 (equipment request removal); S4, S23 (venue request removal); S7, S23 (clarification create); M20, S23 (clarification reply); S8, S23 (clarification resolve)
+    // ID: CANCEL-EVENT-07-A
     it.each(cases)('$label answers 409 EVENT_CANCELLED and leaves every table unchanged', async ({ actor, method, path, body }) => {
       // Arrange: EVT-301 Cancelled with a released booking and a released Projector line
       const { eventId } = await seedCancelledEvent();

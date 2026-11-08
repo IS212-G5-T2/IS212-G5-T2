@@ -57,6 +57,7 @@ function repositoryFor(options: {
 describe('SPM-159 tentative hold persistence rules', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  // Traceability: Jira 159 AC1 (matrix 34603557)
   /** VEN-HOLD-01-A: a missing venue cannot be used for a new hold request. */
   it('VEN-HOLD-01-A returns not found when the venue has been removed', async () => {
     const { repository } = repositoryFor({ venue: null });
@@ -64,6 +65,7 @@ describe('SPM-159 tentative hold persistence rules', () => {
       .resolves.toEqual({ kind: 'venue-not-found' });
   });
 
+  // Traceability: Jira 159 AC2 (matrix 34603557)
   /** VEN-HOLD-02-B: missing timing configuration is rejected before reading or saving an event request. */
   it('VEN-HOLD-02-B fails closed when venue timing configuration is unavailable', async () => {
     const { repository, query } = repositoryFor({ venue: { id: venueId, setup_time_minutes: null, turnaround_time_minutes: 30 } });
@@ -72,6 +74,7 @@ describe('SPM-159 tentative hold persistence rules', () => {
     expect(query).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 159 AC1 (matrix 34603557)
   /** VEN-HOLD-01-SEC-1: the request cannot be created for an event not assigned to the session Coordinator. */
   it('VEN-HOLD-01-SEC-1 returns not found when the event is not assigned to the Coordinator', async () => {
     const { repository } = repositoryFor({ event: null });
@@ -79,6 +82,7 @@ describe('SPM-159 tentative hold persistence rules', () => {
       .resolves.toEqual({ kind: 'event-not-assigned' });
   });
 
+  // Traceability: Jira 159 AC1 (matrix 34603557)
   /** VEN-HOLD-01-A: an event state outside booking workflow does not create a Pending hold. */
   it('VEN-HOLD-01-A refuses an event that is not open for venue requests', async () => {
     const { repository } = repositoryFor({ event: { id: eventId, status: 'Cancelled', start_date_time: start, end_date_time: end } });
@@ -86,6 +90,7 @@ describe('SPM-159 tentative hold persistence rules', () => {
       .resolves.toEqual({ kind: 'event-not-open', status: 'Cancelled' });
   });
 
+  // Traceability: Jira 159 AC3 (matrix 34603557)
   /** VEN-HOLD-03-BND-1/2: the setup-adjusted occupied start passes at 336 hours and fails one millisecond before it. */
   it('VEN-HOLD-03-BND-1 accepts exactly 336 hours and refuses a shorter lead', async () => {
     const exact = repositoryFor({ event: {
@@ -107,6 +112,7 @@ describe('SPM-159 tentative hold persistence rules', () => {
       .resolves.toEqual({ kind: 'lead-time' });
   });
 
+  // Traceability: Jira 159 AC9 (matrix 34603557)
   /** VEN-HOLD-09-B: a Pending ordinary booking request for the same event and venue prevents a duplicate hold. */
   it('VEN-HOLD-09-B treats an ordinary Pending booking as an existing request', async () => {
     const { repository, query } = repositoryFor({ active: { status: 'pending', request_kind: 'booking' } });
@@ -118,6 +124,7 @@ describe('SPM-159 tentative hold persistence rules', () => {
     expect(query).toHaveBeenCalledTimes(3);
   });
 
+  // Traceability: Jira 159 AC7 (matrix 34603557)
   /** VEN-HOLD-07-B/C: an existing confirmed booking or active hold blocks the buffered occupied period. */
   it('VEN-HOLD-07-B returns the conflict reason without inserting a request', async () => {
     const { repository, query } = repositoryFor({ conflict: { reason: 'Annual meeting' } });
@@ -126,6 +133,7 @@ describe('SPM-159 tentative hold persistence rules', () => {
     expect(query).toHaveBeenCalledTimes(4);
   });
 
+  // Traceability: Jira 159 AC5 (matrix 34603557)
   /** VEN-HOLD-05-A/10-A: a valid request stores the venue and event times, then transitions an Approved event atomically. */
   it('VEN-HOLD-05-A stores a Pending hold and moves an Approved event to Planning', async () => {
     const { repository, query } = repositoryFor({

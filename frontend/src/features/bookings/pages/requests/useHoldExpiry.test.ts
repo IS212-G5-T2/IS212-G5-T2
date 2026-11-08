@@ -16,6 +16,7 @@ describe("useHoldExpiry", () => {
     vi.useRealTimers();
   });
 
+  // Traceability: Jira 133 AC1 (matrix 39223343)
   /**
    * VEN-HOLD-EXP-01-B: hook returns false when the hold has not yet expired.
    * initialExpired is false; holdExpiresAt is a short time in the future.
@@ -26,6 +27,7 @@ describe("useHoldExpiry", () => {
     expect(result.current).toBe(false);
   });
 
+  // Traceability: Jira 133 AC1 (matrix 39223343)
   /**
    * VEN-HOLD-EXP-01-BND-1: hook returns true at the exact equality boundary (now >= holdExpiresAt).
    * Equality counts as expired per the AC and test matrix.
@@ -37,6 +39,7 @@ describe("useHoldExpiry", () => {
     expect(result.current).toBe(true);
   });
 
+  // Traceability: Jira 133 AC1 (matrix 39223343)
   /**
    * VEN-HOLD-EXP-01-A: hook auto-updates to true via setTimeout when the hold reaches its expiry.
    * Uses a short delay (5 s) to stay safely within the 32-bit signed integer limit.
@@ -53,6 +56,7 @@ describe("useHoldExpiry", () => {
     expect(result.current).toBe(true);
   });
 
+  // Traceability: Jira 133 AC5 (matrix 39223343)
   /**
    * VEN-HOLD-EXP-05-A: hook returns true immediately on mount when holdExpiresAt is at or
    * before now — covers the AC5 case where the user opens or reloads the page after expiry.
@@ -63,6 +67,7 @@ describe("useHoldExpiry", () => {
     expect(result.current).toBe(true);
   });
 
+  // Traceability: Jira 133 AC5 (matrix 39223343)
   /**
    * VEN-HOLD-EXP-05-B: when the server marks the hold expired (initialExpired=true) but no
    * holdExpiresAt date is present (e.g. manually cancelled then expired), the hook still

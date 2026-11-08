@@ -80,6 +80,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     await app?.close();
   });
   // Kills: a save that writes a submitted events row, or a status other than Draft, or a version other than 1.
+  // Traceability: Jira 37 AC1/AC2 (matrix 10551297)
   /** EVE-DRF-01-B · AC1/2: incomplete drafts persist without creating submitted events. */
   it('saves an incomplete Draft without submitting', async () => {
     const id = newId();
@@ -90,6 +91,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ).toBe(0);
   });
   // Kills: a field dropped or altered in the PostgreSQL round trip (attachments, facilities, formStep or equipmentNeeds lost on GET or in the list).
+  // Traceability: Jira 37 AC3/AC5 (matrix 10551297)
   /** EVE-DRF-02-A · AC3/5: fresh API reads retrieve every field from PostgreSQL, including files. */
   it('lists and reopens all saved values', async () => {
     const id = newId();
@@ -133,6 +135,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
   });
   // Parent AC (SUPPORTING): SPM-37 AC4
   // Kills: a retry that saves again and reports version 2, or a retry treated as a new save rather than the same operation.
+  // Traceability: Jira 37 AC4 (matrix 10551297)
   /** EVE-DRF-04-A, EVE-DRF-04-B · AC4/6: an identical retry with the same save identifier returns the stored draft at version 1. */
   it('EVE-DRF-SUP-54 identical retry with the same operationId returns version 1', async () => {
     const id = newId(),
@@ -146,6 +149,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
 
   // Parent AC (SUPPORTING): SPM-37 AC4
   // Kills: a reused operationId accepted with the altered values (name overwritten), or refused with another status or message.
+  // Traceability: Jira 37 AC4 (matrix 10551297)
   /** EVE-DRF-05-C · AC4: a reused save identifier with different values is refused with its own message and changes nothing. */
   it('EVE-DRF-SUP-55 reuse of an operationId with different values returns 409 with its message and changes nothing', async () => {
     const id = newId(),
@@ -161,6 +165,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
 
   // Parent AC (SUPPORTING): SPM-37 AC4
   // Kills: both stale saves accepted, a 409 without the documented message, or the stored fields holding the loser's values.
+  // Traceability: Jira 37 AC4 (matrix 10551297)
   /** EVE-DRF-05-A, EVE-DRF-05-B · AC4/6: two concurrent saves from the same stale version give one 200 and one 409 with the changed-in-another-window message, and the stored row holds the winner's values. */
   it('EVE-DRF-SUP-56 two concurrent stale saves give one 200 and one 409 and the stored row is the winner\'s', async () => {
     const id = newId();
@@ -196,6 +201,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ).toBe('Safe value');
   });
   // Kills: a second submit that creates a duplicate event or errors, or a draft that stays editable after submission (no 409 lock).
+  // Traceability: Jira 37 AC7 (matrix 10551297)
   /** EVE-DRF-07-A, EVE-DRF-07-B · AC8: submission is idempotent and permanently closes draft editing. */
   it('EVE-DRF-SUP-23 submits once and blocks later draft saves', async () => {
     const id = newId();
@@ -233,6 +239,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ).toBe(1);
   });
   // Kills: an invalid submit that inserts an events row before validation fails, or that locks the draft after a 400.
+  // Traceability: Jira 37 AC7 (matrix 10551297)
   /** EVE-DRF-07-C · AC2/8: submission requires complete details even though saving does not. */
   it('rolls back an invalid submission and leaves the draft editable', async () => {
     const id = newId();
@@ -281,6 +288,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ).toBe(0);
   });
   // Kills: draft data held only in process memory, so the record is lost or altered after the app restarts.
+  // Traceability: Jira 37 AC3/AC5 (matrix 10551297)
   /** EVE-DRF-02-B · Q1-040: saved draft data remains accessible after the app restarts. */
   it('Q1-040 data survives a backend restart and a new database connection', async () => {
     const id = newId();
@@ -309,6 +317,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     });
   });
   // Kills: two concurrent submits that create two events, or a draft that stays editable after the concurrent submit.
+  // Traceability: Jira 37 AC7 (matrix 10551297)
   /** EVE-DRF-07-B · Q1-041: concurrent submissions create one event and close the draft. */
   it('Q1-041 simultaneous submissions create one event and close the draft', async () => {
     const id = newId();

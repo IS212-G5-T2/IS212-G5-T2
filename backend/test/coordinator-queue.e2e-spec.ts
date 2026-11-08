@@ -302,6 +302,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
   ];
 
   describe('AC1: events assigned to me only', () => {
+    // Traceability: Jira 48 AC1 (matrix 23691437)
     /** MONITOR-QUEUE-01-A: COO-01's queue holds exactly their 11 assigned events; unassigned EVT-401 and EVT-402 are absent. */
     it('MONITOR-QUEUE-01-A lists all and only the coordinator’s assigned events', async () => {
       await seedStandardFixtures();
@@ -313,6 +314,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(response.headers['cache-control']).toBe('no-store');
     });
 
+    // Traceability: Jira 48 AC1 (matrix 23691437)
     /** MONITOR-QUEUE-01-B: another coordinator’s event and a draft are not in the queue, and opening EVT-413 directly returns no data. */
     it('MONITOR-QUEUE-01-B excludes another coordinator’s event and refuses a direct open', async () => {
       const { events } = await seedStandardFixtures();
@@ -326,6 +328,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(direct.body).not.toHaveProperty('name');
     });
 
+    // Traceability: Jira 48 AC1 (matrix 23691437)
     /** MONITOR-QUEUE-01-C: nothing assigned gives an empty list (HTTP 200), even while unassigned Submitted requests exist. */
     it('MONITOR-QUEUE-01-C returns an empty queue when nothing is assigned', async () => {
       await seedStandardFixtures();
@@ -333,6 +336,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(response.body).toEqual([]);
     });
 
+    // Traceability: Jira 48 AC1 (matrix 23691437)
     /** MONITOR-QUEUE-01-D: organisers and attendees get 403, a request with no session gets 401. */
     it('MONITOR-QUEUE-01-D lets only coordinators read the queue', async () => {
       await queue(att1).expect(403);
@@ -342,6 +346,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       await request(http()).get('/api/coordinator/queue').expect(401);
     });
 
+    // Traceability: Jira 48 AC1 (matrix 23691437)
     /** MONITOR-QUEUE-01-E: a Submitted request joins the queue once LEAD-01 assigns it to COO-01. */
     it('MONITOR-QUEUE-01-E shows a request after the Lead assigns it', async () => {
       const event = await seedEvent({ name: 'EVT-401 clone', status: 'Submitted' });
@@ -355,6 +360,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(row).toMatchObject({ status: 'submitted', coordinatorId: coo1.uid });
     });
 
+    // Traceability: Jira 48 AC1 (matrix 23691437)
     /** MONITOR-QUEUE-01-F: after LEAD-01 reassigns EVT-409 to COO-02, it leaves COO-01’s queue and shows as Reassigned for COO-02. */
     it('MONITOR-QUEUE-01-F moves a reassigned event between queues', async () => {
       const event = await seedEvent({ name: 'EVT-409 clone', status: 'Approved', coordinator: coo1 });
@@ -370,6 +376,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
   });
 
   describe('AC2: standard status terms', () => {
+    // Traceability: Jira 48 AC2 (matrix 23691437)
     /** MONITOR-QUEUE-02-A: each fixture's status reads as its standard term. */
     it('MONITOR-QUEUE-02-A reports each event’s status by its standard term', async () => {
       await seedStandardFixtures();
@@ -386,6 +393,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       for (const [name, status] of Object.entries(expected)) expect(byName(rows, name)?.status).toBe(status);
     });
 
+    // Traceability: Jira 48 AC2 (matrix 23691437)
     /** MONITOR-QUEUE-02-B: every status value is one of the seven terms; Under Review, Pending and Draft never appear. */
     it('MONITOR-QUEUE-02-B never returns a status outside the seven terms', async () => {
       await seedStandardFixtures();
@@ -410,6 +418,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
   });
 
   describe('AC3: drafts are not in the queue', () => {
+    // Traceability: Jira 48 AC3 (matrix 23691437)
     /** MONITOR-QUEUE-03-A: ORG-01's draft is in no queue response, and the event route has no event with its id. */
     it('MONITOR-QUEUE-03-A hides a draft from the coordinator in every route', async () => {
       const { draft } = await seedStandardFixtures();
@@ -421,6 +430,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(direct.body).not.toHaveProperty('name');
     });
 
+    // Traceability: Jira 48 AC3 (matrix 23691437)
     /** MONITOR-QUEUE-03-B: a submitted draft stays out of the queue until LEAD-01 assigns it, then shows as Submitted. */
     it('MONITOR-QUEUE-03-B shows a draft only once it is submitted and assigned', async () => {
       const id = randomUUID();
@@ -453,6 +463,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
   });
 
   describe('AC4: latest status on refresh or revisit', () => {
+    // Traceability: Jira 48 AC4 (matrix 23691437)
     /** MONITOR-QUEUE-04-A: a status change made elsewhere shows on the next read, which is never cacheable. */
     it('MONITOR-QUEUE-04-A shows a status change on refresh', async () => {
       const event = await seedEvent({ name: 'EVT-404 clone', status: 'Planning', coordinator: coo1 });
@@ -464,6 +475,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(refreshed.headers['cache-control']).toBe('no-store');
     });
 
+    // Traceability: Jira 48 AC4 (matrix 23691437)
     /** MONITOR-QUEUE-04-B: on revisit the queue has the newly assigned request and the new status of EVT-403. */
     it('MONITOR-QUEUE-04-B shows new requests and status changes on revisit', async () => {
       const evt403 = await seedEvent({ name: 'EVT-403 clone', status: 'Submitted', coordinator: coo1 });
@@ -482,6 +494,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
   });
 
   describe('AC5: what needs action', () => {
+    // Traceability: Jira 48 AC5 (matrix 23691437)
     /** MONITOR-QUEUE-05-B (data): the four action-needed fixtures carry action reasons; EVT-406, EVT-410 and EVT-411 carry none. */
     it('MONITOR-QUEUE-05-B marks exactly the action-needed events', async () => {
       await seedStandardFixtures();
@@ -497,6 +510,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
   });
 
   describe('AC6 and AC7: safety check', () => {
+    // Traceability: Jira 48 AC6 (matrix 23691437)
     /** MONITOR-QUEUE-06-A: EVT-404 awaits the Safety Officer; EVT-406 and EVT-405 do not. */
     it('MONITOR-QUEUE-06-A identifies events awaiting a Safety Officer check', async () => {
       await seedStandardFixtures();
@@ -507,6 +521,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(byName(rows, 'EVT-405')?.queue.safety).toBe('CHANGES_REQUESTED');
     });
 
+    // Traceability: Jira 48 AC6 (matrix 23691437)
     /**
      * MONITOR-QUEUE-06-B: approving ORG-01's change resets the safety check, so the queue shows it must be
      * re-requested (status Planning); once COO-01 re-requests it, the event awaits the Safety Officer.
@@ -536,6 +551,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(awaiting?.queue).toMatchObject({ safety: 'AWAITING_CHECK', actions: [], needsAction: false });
     });
 
+    // Traceability: Jira 48 AC7 (matrix 23691437)
     /** MONITOR-QUEUE-07-A: EVT-405 shows safety changes requested; EVT-404 does not. */
     it('MONITOR-QUEUE-07-A identifies events with safety changes requested', async () => {
       await seedStandardFixtures();
@@ -544,6 +560,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(byName(rows, 'EVT-404')?.queue.safety).toBe('AWAITING_CHECK');
     });
 
+    // Traceability: Jira 48 AC7 (matrix 23691437)
     /** MONITOR-QUEUE-07-B: resubmitting removes the changes-requested flag (awaiting shows); approval removes both. */
     it('MONITOR-QUEUE-07-B clears the flags on resubmission and approval', async () => {
       const venue = await seedVenue('SPM48 Hall D');
@@ -558,6 +575,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(approved?.queue).toMatchObject({ safety: 'CLEARED', actions: [], needsAction: false });
     });
 
+    // Traceability: Jira 48 AC7 (matrix 23691437)
     /** MONITOR-QUEUE-07-C: a rejected arrangement is flagged, no longer awaiting, and distinct from changes requested. */
     it('MONITOR-QUEUE-07-C identifies events whose safety arrangement was rejected', async () => {
       const { events } = await seedStandardFixtures();
@@ -573,6 +591,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
   });
 
   describe('AC8: tentative venue holds', () => {
+    // Traceability: Jira 48 AC8 (matrix 23691437)
     /** MONITOR-QUEUE-08-A: EVT-407's hold is active with its expiry instant, and is not reported as an approved booking. */
     it('MONITOR-QUEUE-08-A shows an active hold with its expiry', async () => {
       await seedStandardFixtures();
@@ -585,6 +604,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(row).toMatchObject({ venueRequestStatus: 'pending', venueName: 'SPM48 Hall A (pending)' });
     });
 
+    // Traceability: Jira 48 AC8 (matrix 23691437)
     /** MONITOR-QUEUE-08-B: H1 is active at 11:59:59 SGT and expired at 12:00:00 SGT; EVT-415's past hold is expired. */
     it('MONITOR-QUEUE-08-B flips a hold to expired exactly at its expiry', async () => {
       const venue = await seedVenue('SPM48 Hall E');
@@ -610,6 +630,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
   });
 
   describe('AC9: venue became unavailable', () => {
+    // Traceability: Jira 48 AC9 (matrix 23691437)
     /** MONITOR-QUEUE-09-A: EVT-408 is flagged, not cancelled, with its booking kept; EVT-406 is not flagged. */
     it('MONITOR-QUEUE-09-A flags events whose venue was marked unavailable', async () => {
       const { events } = await seedStandardFixtures();
@@ -624,6 +645,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(booking.rows).toEqual([{ status: 'approved' }]);
     });
 
+    // Traceability: Jira 48 AC9 (matrix 23691437)
     /**
      * MONITOR-QUEUE-09-A boundary: overlap is exclusive at both ends (venue-unavailable.ts). With no setup or
      * turnaround time, a period that ends exactly when the booking starts, or starts exactly when it ends, does not
@@ -650,6 +672,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       expect(byName(await queueRows(coo1), 'Overlapping period')?.queue.unavailableVenues).toEqual(['SPM48 Hall L']);
     });
 
+    // Traceability: Jira 48 AC9 (matrix 23691437)
     /**
      * MONITOR-QUEUE-09-A buffers (owner decision, 23 Oct 2026; SPM-122 AC7, SPM-54 AC2): the booking's window is
      * widened by the venue's setup time before it and turnaround time after it. A period inside the setup or
@@ -707,6 +730,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       ).toBe(4);
     });
 
+    // Traceability: Jira 48 AC9 (matrix 23691437)
     /**
      * MONITOR-QUEUE-09-A (review finding, PR #80): two venues with the same name in different locations are different
      * venues. Each unavailable one is listed once, named with its location; an available namesake is not flagged.
@@ -727,6 +751,7 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
       });
     });
 
+    // Traceability: Jira 48 AC9 (matrix 23691437)
     /**
      * MONITOR-QUEUE-09-B: an approved replacement alone keeps the flag; it clears once COO-01 cancels the affected
      * booking (decided 23 Oct 2026). A multi-venue event names only the affected venue, and ending the period early clears it.

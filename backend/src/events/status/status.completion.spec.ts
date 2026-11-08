@@ -40,6 +40,7 @@ function service(opts: { status?: string; coordinator?: string; endDate?: Date; 
 }
 
 describe('COMPLETE-EVENT-01-A: a Confirmed event whose end has passed is completed once, with one history row', () => {
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   it('COMPLETE-EVENT-01-A: returns the Completed status and the MSG-CP-01 text, and writes one Confirmed to Completed row', async () => {
     const { svc, history } = service();
 
@@ -53,6 +54,7 @@ describe('COMPLETE-EVENT-01-A: a Confirmed event whose end has passed is complet
 });
 
 describe('COMPLETE-EVENT-01-B and 01-D: the date and the assignment are checked', () => {
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   it('COMPLETE-EVENT-01-B: an event whose end has not passed is refused with 422 EVENT_NOT_ENDED and no history row', async () => {
     const { svc, history } = service({ endDate: FUTURE });
 
@@ -63,6 +65,7 @@ describe('COMPLETE-EVENT-01-B and 01-D: the date and the assignment are checked'
     expect(history).toEqual([]);
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   it('COMPLETE-EVENT-01-D: a coordinator who is not assigned is refused with 403 before anything is read under the lock', async () => {
     const { svc, history } = service({ coordinator: 'coord-z' });
     const database = (svc as unknown as { database: { transaction: unknown } }).database;
@@ -72,6 +75,7 @@ describe('COMPLETE-EVENT-01-B and 01-D: the date and the assignment are checked'
     expect(history).toEqual([]);
   });
 
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   it('COMPLETE-EVENT-01-D: a row reassigned between the pre-check and the lock is refused with 403', async () => {
     const { svc, history } = service();
     const database = (svc as unknown as { database: { transaction: (work: (c: unknown) => unknown) => unknown } }).database;
@@ -87,6 +91,7 @@ describe('COMPLETE-EVENT-01-B and 01-D: the date and the assignment are checked'
 });
 
 describe('COMPLETE-EVENT-02-C and 02-E: only a Confirmed event completes, and only once', () => {
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   it('COMPLETE-EVENT-02-C: a Planning event whose end has not passed is refused with 409 (the status is checked before the date)', async () => {
     const { svc, history } = service({ status: 'Planning', endDate: FUTURE });
 
@@ -97,6 +102,7 @@ describe('COMPLETE-EVENT-02-C and 02-E: only a Confirmed event completes, and on
     expect(history).toEqual([]);
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   it.each(['Planning', 'Approved', 'Completed'])('COMPLETE-EVENT-02-C: a %s event is refused with 409 EVENT_NOT_COMPLETABLE', async (status) => {
     const { svc, history } = service({ status });
 
@@ -107,6 +113,7 @@ describe('COMPLETE-EVENT-02-C and 02-E: only a Confirmed event completes, and on
     expect(history).toEqual([]);
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   it('COMPLETE-EVENT-02-E: when the compare-and-set finds no Confirmed row, the second request is refused with 409', async () => {
     const { svc, history } = service({ casRows: 0 });
 
@@ -114,6 +121,7 @@ describe('COMPLETE-EVENT-02-C and 02-E: only a Confirmed event completes, and on
     expect(history).toEqual([]);
   });
 
+  // Traceability: Jira 153 AC2 (matrix 35979372)
   it('COMPLETE-EVENT-02-C: a locked row that has disappeared is refused with 404', async () => {
     const { svc } = service({ missingLock: true });
 
@@ -122,6 +130,7 @@ describe('COMPLETE-EVENT-02-C and 02-E: only a Confirmed event completes, and on
 });
 
 describe('COMPLETE-EVENT-03-A: the history row names the coordinator and the marking time', () => {
+  // Traceability: Jira 153 AC3 (matrix 35979372)
   it('COMPLETE-EVENT-03-A: the history row carries the session user and the injected clock', async () => {
     const { svc, history } = service();
 

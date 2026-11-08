@@ -210,6 +210,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
   // ---- AC1: only Approved moves ------------------------------------------
 
   describe('SPM-148 AC1: the first venue booking request moves an Approved event to Planning', () => {
+    // Traceability: Jira 148 AC1 (matrix 26902550)
     // Kills: booking saved without the transition (M1-style omission), transition not reflected in the response/GET.
     // Oracle: SPEC (prompt 2.6 01-A); MSG-PL-01 wording ASSUMED in FE
     it('PLAN-STATUS-01-A: an assigned Coordinator books an Approved event and it becomes Planning', async () => {
@@ -240,6 +241,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(read.body.status).toBe('planning'); // the events API lowercases statuses (repo convention)
     });
 
+    // Traceability: Jira 148 AC1 (matrix 26902550)
     // Kills: M1 unconditional transition, M2 transition from other statuses, closed statuses accepting bookings.
     it.each([
       ['Submitted', 409, false, 'Submitted'],
@@ -268,6 +270,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       },
     );
 
+    // Traceability: Jira 148 AC1 (matrix 26902550)
     // Boundary (-BND): a request starting exactly when the existing booking ends does not conflict.
     // Kills: `<` vs `<=` in the overlap check; a transition that fires on a rejected request.
     // Oracle: DERIVED (adjacent slot, buffer 0; overlap rule VERIFIED in repository)
@@ -298,6 +301,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(await status(eventId)).toBe('Planning');
     });
 
+    // Traceability: Jira 148 AC1 (matrix 26902550)
     // Kills: M3 status changed before the request is validated.
     // Oracle: SPEC for transition; conflict text VERIFIED (existing repo response)
     it('PLAN-STATUS-01-C: a request that conflicts changes nothing, and a valid request afterwards transitions', async () => {
@@ -333,6 +337,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(await planningRows(eventId)).toHaveLength(1);
     });
 
+    // Traceability: Jira 148 AC1 (matrix 26902550)
     // Kills: M22 Lead or Organiser allowed, authorization skipped.
     it.each([
       ['another Coordinator', 'COORDINATOR', 404, 'Assigned event not found.'],
@@ -357,6 +362,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(await planningRows(eventId)).toEqual([]);
     });
 
+    // Traceability: Jira 148 AC1 (matrix 26902550)
     // Kills: M22 (no session accepted).
     // Oracle: SPEC (prompt 2.6 01-D)
     it('PLAN-STATUS-01-D-401: no session gets 401 and nothing changes', async () => {
@@ -375,6 +381,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
   // ---- AC2: atomicity -----------------------------------------------------
 
   describe('SPM-148 AC2: booking, status change and history commit together', () => {
+    // Traceability: Jira 148 AC2 (matrix 26902550)
     // Kills: M4 not one transaction, M5 history missing.
     // Oracle: SPEC (prompt 2.6 02-A, injected clock)
     it('PLAN-STATUS-02-A: after the first request the booking, the status and the history row are all present, with the injected time', async () => {
@@ -429,6 +436,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       },
     );
 
+    // Traceability: Jira 148 AC2 (matrix 26902550)
     // Kills: M6 no compare-and-set (two transitions / two history rows under parallel requests).
     // Oracle: SPEC (prompt 2.6 02-B/C/D; fault placement DERIVED, Guide 5G)
     it('PLAN-STATUS-02-E: two parallel first requests for different venues give two bookings and one transition', async () => {
@@ -476,6 +484,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
   // ---- AC3: later requests -----------------------------------------------
 
   describe('SPM-148 AC3: later booking requests leave a Planning event unchanged', () => {
+    // Traceability: Jira 148 AC3 (matrix 26902550)
     // Kills: M7 later request adds history.
     // Oracle: SPEC (prompt 2.6 03-x); 03-D adapted, see results doc
     it('PLAN-STATUS-03-A: a second request on a Planning event is saved without a status change or history row', async () => {
@@ -493,6 +502,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(await planningRows(eventId)).toHaveLength(1);
     });
 
+    // Traceability: Jira 148 AC3 (matrix 26902550)
     // Kills: M7.
     // Oracle: SPEC (prompt 2.6 03-x); 03-D adapted, see results doc
     it('PLAN-STATUS-03-B: requests for five venues give five bookings and exactly one Approved to Planning row', async () => {
@@ -514,6 +524,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(await planningRows(eventId)).toHaveLength(1);
     });
 
+    // Traceability: Jira 148 AC3 (matrix 26902550)
     // Kills: M8 automatic revert when the first booking is rejected.
     // Oracle: SPEC (prompt 2.6 03-x); 03-D adapted, see results doc
     it('PLAN-STATUS-03-C: rejecting the first booking does not revert Planning, and a new request is saved', async () => {
@@ -531,6 +542,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(await planningRows(eventId)).toHaveLength(1);
     });
 
+    // Traceability: Jira 148 AC3 (matrix 26902550)
     // Kills: M6 no compare-and-set.
     // SPM-54 AC7: parallel duplicate submissions to one venue serialize; one
     // active request is created and the remaining attempts are rejected.
@@ -566,6 +578,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       );
     }
 
+    // Traceability: Jira 148 AC4 (matrix 26902550)
     // Kills: M5 row missing, M10 time from SQL NOW().
     // Oracle: SPEC (prompt 2.6 04-A; name from user fixture, DERIVED)
     it('PLAN-STATUS-04-A: the history read shows the Approved to Planning entry with the actor and the injected time', async () => {
@@ -589,6 +602,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       });
     });
 
+    // Traceability: Jira 148 AC4 (matrix 26902550)
     // Kills: M11 editable history.
     // Oracle: SPEC (prompt 2.6 04-B, 405 per D7)
     it('PLAN-STATUS-04-B: earlier rows are unchanged and PUT and DELETE on the history answer 405', async () => {
@@ -618,6 +632,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(after.rows[1].to_status).toBe('Planning');
     });
 
+    // Traceability: Jira 148 AC4 (matrix 26902550)
     // Oracle: SPEC (prompt 2.6 04-B, 405 per D7), on the history collection itself (no entry id).
     // Kills: the collection-level PUT or DELETE accepted (history rewritten or emptied).
     it('PLAN-STATUS-04-B: PUT and DELETE on the history collection answer 405 for the Coordinator and the Organiser', async () => {
@@ -645,6 +660,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(Number(rows.rows[0].count)).toBe(1);
     });
 
+    // Traceability: Jira 148 AC4 (matrix 26902550)
     // Kills: M9 actor or time taken from the body.
     // Oracle: SPEC for rejection; error code ASSUMED (D5)
     it('PLAN-STATUS-04-C: a body carrying changedBy and changedAt is rejected, and a clean request records the session user and clock', async () => {
@@ -671,6 +687,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(row.created_at.toISOString()).toBe(T0);
     });
 
+    // Traceability: Jira 148 AC4 (matrix 26902550)
     // Kills: M10 UTC date or local-time storage; instant stored as UTC.
     // Oracle: SPEC (prompt 2.6 04-D; time literal arithmetic: 00:30 SGT = 16:30Z previous day)
     it('PLAN-STATUS-04-D: a request just after SGT midnight is stored and returned as the UTC instant of the previous day', async () => {
@@ -687,6 +704,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(history.body[0].changedAt).toBe('2026-11-10T16:30:00.000Z');
     });
 
+    // Traceability: Jira 148 AC4 (matrix 26902550)
     // Kills: history readable by anyone.
     // Oracle: ASSUMED (prompt F24: history readable by Coordinator and Organiser only)
     it('PLAN-STATUS-04-A-SEC: only the assigned Coordinator and the owning Organiser may read the history', async () => {
@@ -714,6 +732,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
   // ---- AC5 / AC6 ----------------------------------------------------------
 
   describe('SPM-148 AC5: Planning events appear in the Coordinator events list', () => {
+    // Traceability: Jira 148 AC5 (matrix 26902550)
     // Kills: M13 other Coordinators' events leak; Planning missing from the list.
     // Oracle: SPEC (prompt 2.6 05-A); events list used, no queue endpoint exists
     it('PLAN-STATUS-05-A: the events list shows the event as Planning after the first request, only for its Coordinator', async () => {
@@ -735,6 +754,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
   });
 
   describe('SPM-148 AC5 (empty queue): a Coordinator with no events sees an empty list', () => {
+    // Traceability: Jira 148 AC5 (matrix 26902550)
     // Oracle: SPEC (prompt 2.6 05-C, COO-03 with no events -> 200 []).
     // Kills: a list that returns every event (or an error) for a Coordinator who owns nothing.
     it('PLAN-STATUS-05-C: a Coordinator with no assigned events gets 200 and an empty array, not other Coordinators events', async () => {
@@ -749,6 +769,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
   });
 
   describe('SPM-148 AC6: Planning counts toward the active workload and availability notice', () => {
+    // Traceability: Jira 148 AC6 (matrix 26902550)
     // Kills: M14 Planning excluded, M15 double count / stale after the move.
     // Oracle: SPEC (prompt 2.6 06-A); Lead list is the only count exposed
     it('PLAN-STATUS-06-A: the Lead list counts Planning, and the move from Approved keeps the active count', async () => {
@@ -772,6 +793,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(await active()).toBe(4);
     });
 
+    // Traceability: Jira 148 AC6 (matrix 26902550)
     // Kills: M16 availability notice uses its own status list.
     // Oracle: SPEC (prompt 2.6 06-C) for notice; limit-5 function not present
     it('PLAN-STATUS-06-C: a Coordinator whose only event is in Planning leaves the Lead a notice naming 1 active event', async () => {
@@ -827,6 +849,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       ]);
     });
 
+    // Traceability: Jira 148 AC7 (matrix 26902550)
     // Kills: the transition disturbing an existing thread.
     // Oracle: SPEC (prompt 2.6 07-C)
     it('PLAN-STATUS-07-C: a thread opened while Approved survives the transition intact and accepts a new reply', async () => {
@@ -866,6 +889,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(thread.body).toHaveLength(1);
     });
 
+    // Traceability: Jira 148 AC7 (matrix 26902550)
     // Kills: M19 role check removed.
     // Oracle: SPEC (prompt 2.6 07-E); 403 text VERIFIED
     it('PLAN-STATUS-07-E: other Organisers, Coordinators and Attendees get 403 and no token gets 401', async () => {
@@ -892,6 +916,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
   // ---- cross-cutting ------------------------------------------------------
 
   describe('SPM-148 cross-cutting rules', () => {
+    // Traceability: Jira 148 Cross-cutting (matrix 26902550)
     // Kills: M20 status forced from the body, M21 public endpoint accepts Planning.
     // Oracle: SPEC (prompt 2.6 08-A); code UNSUPPORTED_TARGET_STATUS VERIFIED
     it('PLAN-STATUS-08-A: status fields in the body are rejected, and the public status-change endpoint refuses Planning', async () => {
@@ -922,6 +947,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       });
     });
 
+    // Traceability: Jira 148 Cross-cutting (matrix 26902550)
     // Kills: Organiser view stale or history hidden.
     // Oracle: SPEC (prompt 2.6 09-A)
     it('PLAN-STATUS-09-A: the owning Organiser sees Planning in their list and the history entry', async () => {
@@ -938,6 +964,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(history.body.map((h: { toStatus: string }) => h.toStatus)).toEqual(['Planning']);
     });
 
+    // Traceability: Jira 148 Cross-cutting (matrix 26902550)
     // Oracle: SPEC (prompt 2.6 10-A, second half: after the first request and complete arrangements,
     // Confirm returns 200 and the event is Confirmed). Arrangements are the venue booking approved,
     // no equipment, and an approved safety check (the SPM-135 readiness rules).
@@ -973,6 +1000,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       ]);
     });
 
+    // Traceability: Jira 148 Cross-cutting (matrix 26902550)
     // Kills: M24 Confirm accepts Approved.
     // Oracle: SPEC (prompt 2.6 10-A); refusal text VERIFIED; readiness-blocked, not a full confirm
     it('PLAN-STATUS-10-A: Confirm is refused from Approved, and after the first request it is judged on readiness instead', async () => {

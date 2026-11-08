@@ -157,6 +157,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
 
   // ---- AC1 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 172 AC1 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-01-E (SPM-172 AC1): Technical Support reserve a request; the assigned Coordinator's feed holds
    * exactly one equipment_request_reserved notice for it, another Coordinator's and the Technical Support user's feeds
@@ -176,6 +177,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
     expect((await storedFor(w.requestId)).map((row) => row.recipient_id)).toEqual([w.coordinator.id]);
   });
 
+  // Traceability: Jira 172 AC1 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-01-F (SPM-172 AC1): a cannot-provide decision gives the assigned Coordinator one
    * equipment_request_cannot_provide notice and nobody else any.
@@ -194,6 +196,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
 
   // ---- AC2 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 172 AC2 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-02-E (SPM-172 AC2): the stored and returned text is exactly the specified sentence for each
    * decision (the cannot-provide reason is not in it), and the timestamp is the decision time.
@@ -216,6 +219,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
 
   // ---- AC3 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-03-B (SPM-172 AC3): the feed's notice identifies the request it is about, and that request is the
    * one the Coordinator's "My Equipment Requests" list returns with the matching status (and, for cannot-provide, the
@@ -234,6 +238,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
 
   // ---- AC4 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 172 AC4 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-04-B (SPM-172 AC4): a new notice is unread; the Coordinator marks it read through the read route;
    * another user cannot mark it read.
@@ -255,6 +260,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
 
   // ---- AC5 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 172 AC5 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-05-A (SPM-172 AC5, atomic): if the notice cannot be saved, the decision is rolled back with it, for
    * both decisions: the failure is reported (5xx), the request is still Pending Review with no decision reason, no
@@ -284,6 +290,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
     expect(await storedFor(w.requestId)).toHaveLength(1);
   });
 
+  // Traceability: Jira 172 AC5 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-05-B (SPM-172 AC5): a second reserve attempt on an already Reserved request is refused (409) and
    * adds no notice; a cannot-provide attempt on it is refused too.
@@ -299,6 +306,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
     expect(await storedFor(w.requestId)).toHaveLength(1);
   });
 
+  // Traceability: Jira 172 AC5 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-05-C (SPM-172 AC5): after a decision the Coordinator edits the request (back to Pending Review) and
    * Technical Support decide again; the Coordinator then holds one notice per decision (a cannot-provide, then a
@@ -329,6 +337,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
       .expect(201);
   }
 
+  // Traceability: Jira 172 AC6 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-06-B (SPM-172 AC6): the event is reassigned before the decision; the new Coordinator receives the
    * notice and the previous one receives none.
@@ -346,6 +355,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
     expect((await storedFor(w.requestId)).map((row) => row.recipient_id)).toEqual([b.id]);
   });
 
+  // Traceability: Jira 172 AC6 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-06-C (SPM-172 AC6): when the event is reassigned, the previous Coordinator's unread equipment
    * decision notices for that event are marked read and the new Coordinator gets none of them. A notice of the previous
@@ -378,6 +388,7 @@ describe.skipIf(!databaseUrl)('SPM-172 equipment request decision notifications 
 
   // ---- AC7 ---------------------------------------------------------------------------------------------------------
 
+  // Traceability: Jira 172 AC7 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-07-C (SPM-172 AC7): refused decisions write nothing: an unknown request (404), an event that is
    * Confirmed (409), a reservation without enough active stock (409; the units are under maintenance), a cannot-provide with no reason (400), and a

@@ -497,7 +497,7 @@ nothing, and a failing notification rolls the decision back).
   `database/postgresql/init/029_spm137_booking_decision_notification.sql` for fresh volumes). Deleting a booking removes
   its notification.
 - Tests: `src/venues/repository/venues.repository.spec.ts`, `src/venues/venues.service.spec.ts` and
-  `src/events/venue-booking-notifications.spec.ts` (`VENUE-BOOK-NOTIF-*`), and `test/venue-booking-decision-notifications.e2e-spec.ts`
+  `src/events/venue-booking-notifications.spec.ts` (`BOOKING-NOTIFY-*`), and `test/venue-booking-decision-notifications.e2e-spec.ts`
   (needs `DATABASE_URL`; it applies the venue migrations and 029 itself, signs in through the real login route and holds the
   venue row lock from a second connection for the race case). Fault-injection check:
   `node scripts/mutation/run.mjs --mutants spm137.mutants.mjs` (scratch copy; needs `DATABASE_URL`).

@@ -30,6 +30,7 @@ describe('SPM-159 tentative hold requests', () => {
 
   beforeEach(() => vi.resetAllMocks());
 
+  // Traceability: Jira 159 AC5 (matrix 34603557)
   /** VEN-HOLD-05-A/06-A: an eligible hold request returns Pending and explicitly says the hold is not active. */
   it('VEN-HOLD-05-A returns approval-pending confirmation after the repository saves the request', async () => {
     submitTentativeHoldRequest.mockResolvedValue({
@@ -106,6 +107,7 @@ describe('SPM-159 tentative hold requests', () => {
     expect(submitTentativeHoldRequest).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 159 AC1 (matrix 34603557)
   /** VEN-HOLD-01-SEC-1: only the authenticated assigned Coordinator can request a tentative hold. */
   it('VEN-HOLD-01-SEC-1 rejects missing and non-Coordinator identities', async () => {
     await expect(
@@ -135,6 +137,7 @@ describe('SPM-159 tentative hold requests', () => {
     expect(submitTentativeHoldRequest).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 159 AC9 (matrix 34603557)
   /** VEN-HOLD-09-B/09-C: same-pair Pending requests and Active holds return a stable duplicate refusal. */
   it('VEN-HOLD-09-B returns a conflict when a same-pair request already exists', async () => {
     submitTentativeHoldRequest.mockResolvedValue({
@@ -148,6 +151,7 @@ describe('SPM-159 tentative hold requests', () => {
     });
   });
 
+  // Traceability: Jira 159 AC3 (matrix 34603557)
   /** VEN-HOLD-03-A: the server refuses a request when the buffered occupied start is too close. */
   it('VEN-HOLD-03-A maps insufficient lead time to a reason the Coordinator can fix', async () => {
     submitTentativeHoldRequest.mockResolvedValue({ kind: 'lead-time' });
@@ -158,6 +162,7 @@ describe('SPM-159 tentative hold requests', () => {
     });
   });
 
+  // Traceability: Jira 159 AC2 (matrix 34603557)
   /** VEN-HOLD-02-B: unavailable venue setup/turnaround configuration creates no request and explains the refusal. */
   it('VEN-HOLD-02-B reports unavailable timing configuration', async () => {
     submitTentativeHoldRequest.mockResolvedValue({
@@ -170,6 +175,7 @@ describe('SPM-159 tentative hold requests', () => {
     });
   });
 
+  // Traceability: Jira 159 AC7 (matrix 34603557)
   /** VEN-HOLD-07-B/C and VEN-HOLD-12-B: conflicts return a retryable reason without success confirmation. */
   it('VEN-HOLD-07-B maps a current occupied-period conflict to an actionable error', async () => {
     submitTentativeHoldRequest.mockResolvedValue({
@@ -183,6 +189,7 @@ describe('SPM-159 tentative hold requests', () => {
     });
   });
 
+  // Traceability: Jira 159 AC1 (matrix 34603557)
   /** VEN-HOLD-01-A: unknown venues, unassigned events, and closed event states leave the request path unavailable. */
   it.each([
     [{ kind: 'venue-not-found' }, NotFoundException],

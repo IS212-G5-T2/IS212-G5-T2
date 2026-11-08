@@ -22,17 +22,20 @@ const background = (element: HTMLElement) =>
   element.className.split(/\s+/).find((token) => token.startsWith("bg-"));
 
 describe("SPM-48 event status badges", () => {
+  // Traceability: Jira 48 AC2 (matrix 23691437)
   /** MONITOR-QUEUE-02-A: each event status reads exactly as its standard term (case and spelling). */
   it.each(Object.entries(STANDARD_TERMS))("MONITOR-QUEUE-02-A labels %s as %s", (status, term) => {
     render(<StatusBadge status={status as keyof typeof STANDARD_TERMS} />);
     expect(screen.getByText(term).textContent).toBe(term);
   });
 
+  // Traceability: Jira 48 AC2 (matrix 23691437)
   /** MONITOR-QUEUE-02-B: the event statuses are exactly the seven terms; Under Review is not one of them. */
   it("MONITOR-QUEUE-02-B styles exactly the seven event statuses", () => {
     expect(Object.keys(EVENT_STATUS_STYLES).sort()).toEqual(Object.keys(STANDARD_TERMS).sort());
   });
 
+  // Traceability: Jira 48 AC5 (matrix 23691437)
   /**
    * MONITOR-QUEUE-05-A: compared pairwise, the seven badges all have different colours and different labels, so a
    * status can be told apart by colour and, without colour, by its text.

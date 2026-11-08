@@ -25,6 +25,7 @@ describe("SPM-94 AC4 / 04-B C: logout leaves no previous organiser's data in the
     useAppStore.setState({ events: [orgOneEvent], isAuthenticated: true });
   });
 
+  // Traceability: Jira 94 AC4 (matrix 22839633)
   // Kills: M12 (store not cleared on logout)
   it("TRACK-EVENT-STATUS-04-B: after logout the events list is empty", async () => {
     await useAppStore.getState().logout();
@@ -35,6 +36,7 @@ describe("SPM-94 AC4 / 04-B C: logout leaves no previous organiser's data in the
 });
 
 describe("SPM-94 AC4 / 04-B C: logout clears the store even when the request fails", () => {
+  // Traceability: Jira 94 AC4 (matrix 22839633)
   // Kills: the clear moved after a successful logout request (a failed request would leave the previous organiser's events).
   it("TRACK-EVENT-STATUS-04-B: the events list is empty after a failed logout request", async () => {
     useAppStore.setState({ events: [orgOneEvent], isAuthenticated: true });
@@ -50,6 +52,7 @@ describe("SPM-48 review (PR #80): event list filters never outlive a session", (
   const chosen = { attendee: "past", status: "planning" };
   const defaults = { attendee: "upcoming", status: null };
 
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   // Kills: filters left in place on logout.
   it("MONITOR-QUEUE-01-A: logout restores the default event list filters", async () => {
     useAppStore.setState({ isAuthenticated: true, eventListFilters: chosen });
@@ -57,6 +60,7 @@ describe("SPM-48 review (PR #80): event list filters never outlive a session", (
     expect(useAppStore.getState().eventListFilters).toEqual(defaults);
   });
 
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   // Kills: filters left in place when a new user signs in without a logout (for example after the session expired).
   it("MONITOR-QUEUE-01-A: a new login starts from the default event list filters", async () => {
     useAppStore.setState({ isAuthenticated: false, eventListFilters: chosen });

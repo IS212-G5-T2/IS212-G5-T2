@@ -42,6 +42,7 @@ function inserts(query: ReturnType<typeof vi.fn>) {
 }
 
 describe('SPM-125 venue impact notifications', () => {
+  // Traceability: Jira 125 AC7 (matrix 39125581)
   /**
    * VEN-IMPACT-07-A (AC7): the Coordinator's unavailability notice names the event, the venue, the unavailable
    * period in Singapore time and its reason, and says alternative arrangements are required.
@@ -53,6 +54,7 @@ describe('SPM-125 venue impact notifications', () => {
     );
   });
 
+  // Traceability: Jira 125 AC8 (matrix 39125581)
   /** VEN-IMPACT-08-A (AC8): the timing notice names the venue and the booking and says it now conflicts. */
   it('VEN-IMPACT-08-A builds the setup or turnaround message with the venue and the conflicting booking', () => {
     expect(
@@ -64,6 +66,7 @@ describe('SPM-125 venue impact notifications', () => {
     );
   });
 
+  // Traceability: Jira 125 AC9 (matrix 39125581)
   /** VEN-IMPACT-09-A (AC9): the capacity notice gives the old and new capacity and the booking. */
   it('VEN-IMPACT-09-A builds the capacity message with the old and new capacity and the booking', () => {
     expect(
@@ -78,6 +81,7 @@ describe('SPM-125 venue impact notifications', () => {
     );
   });
 
+  // Traceability: Jira 125 AC6 (matrix 39125581)
   /**
    * VEN-IMPACT-06-A (AC6): one notice per affected booking goes to that event's assigned Coordinator, linked to the
    * event and the booking; a booking listed twice is notified once; nothing else is written, so the Venue Staff
@@ -121,6 +125,7 @@ describe('SPM-125 venue impact notifications', () => {
     expect(new Set(sent.map((s) => s.params[0])).size).toBe(2);
   });
 
+  // Traceability: Jira 125 AC6 (matrix 39125581)
   /** VEN-IMPACT-06-BND-1 (AC6): a booking whose event has no assigned Coordinator is not notified. */
   it('VEN-IMPACT-06-BND-1 skips a booking with no assigned Coordinator', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
@@ -138,6 +143,7 @@ describe('SPM-125 venue impact notifications', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 125 AC8 (matrix 39125581)
   /** VEN-IMPACT-08-A, VEN-IMPACT-09-A (AC8, AC9): each venue change has its own Coordinator notice type. */
   it.each([
     ['venue_timing_impact', { kind: 'timing' as const }],

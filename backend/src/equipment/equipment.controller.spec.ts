@@ -35,6 +35,7 @@ describe('EquipmentController route delegation', () => {
     expect(service.create).toHaveBeenCalledWith(identity, body);
   });
 
+  // Traceability: Jira 119 AC4 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-04-F: only the literal true query opts into unavailable records.
    */
@@ -49,6 +50,7 @@ describe('EquipmentController route delegation', () => {
     expect(service.list).toHaveBeenCalledWith(identity, { includeUnavailable: expected });
   });
 
+  // Traceability: Jira 117 AC2 (matrix 19858517)
   /**
    * EQUIP-VIEW-02-C: the locations route forwards the verified caller to the lookup service.
    */
@@ -59,6 +61,7 @@ describe('EquipmentController route delegation', () => {
     expect(service.listLocations).toHaveBeenCalledWith(identity);
   });
 
+  // Traceability: Jira 119 AC1 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-01-C: the update route forwards the equipment and requested state unchanged.
    */
@@ -70,6 +73,7 @@ describe('EquipmentController route delegation', () => {
     expect(service.updateAvailability).toHaveBeenCalledWith(identity, 'equipment-1', body);
   });
 
+  // Traceability: Jira 119 AC5 (matrix 21528751)
   /**
    * EQUIP-UNAVAIL-05-F: the audit route forwards the verified caller to the shared audit lookup.
    */

@@ -409,6 +409,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-01-A (SPEC): ORG-01 requests cancellation of the Approved EVT-1103; one pending row; nothing else changes. */
   describe('CANCEL-REQUEST-01-A: the Organiser requests cancellation of an Approved event', () => {
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M1, M12a, M14c, M33, M38
     it('CANCEL-REQUEST-01-A: returns 201 pending with MSG-CR-01, stores one row by ORG-01 at T0, and the event stays Approved', async () => {
       // Arrange: EVT-1103 Hack Night, Approved, submitted by ORG-01, assigned to COO-01, no requests
@@ -450,6 +451,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-01-B (SPEC with deviation, DERIVED D5): each eligible status accepts a request and nothing else changes. */
   describe('CANCEL-REQUEST-01-B: a request can be made for each eligible status', () => {
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M1, M12a, M2b, M38
     it.each([
       ['Submitted (clone assigned to COO-01, replaces EVT-1102)', 'Submitted'],
@@ -478,6 +480,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-01-C (SPEC): a Completed or Cancelled event refuses a request. */
   describe('CANCEL-REQUEST-01-C: a Completed or Cancelled event cannot be the subject of a request', () => {
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M2d, M38, M4c
     it.each([
       ['EVT-1106 Completed', 'Completed'],
@@ -497,6 +500,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-01-D (SPEC with deviation, DERIVED D5): Rejected and Draft are refused 409 MSG-CR-02. */
   describe('CANCEL-REQUEST-01-D: the status boundaries around the AC wording', () => {
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M2a, M2d, M38, M4c
     it('CANCEL-REQUEST-01-D: a Rejected event (EVT-1108) is refused 409 EVENT_NOT_CANCELLABLE and no row is created', async () => {
       // Arrange: Rejected needs a reason of 10 to 500 characters (events_rejection_reason_check)
@@ -510,6 +514,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(await requestCount(eventId)).toBe(0);
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M25a, M25b, M38, M4c
     it('CANCEL-REQUEST-01-D: an unsubmitted Draft (EVT-1109) is refused 409 EVENT_NOT_CANCELLABLE and no row is created', async () => {
       // Arrange: a Draft lives in event_drafts, not in events
@@ -528,6 +533,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect((await pool.query('SELECT count(*)::int AS n FROM event_cancellation_requests WHERE event_id = $1', [draftId])).rows[0].n).toBe(0);
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M25c, M38, M4c
     it('CANCEL-REQUEST-01-D: a Draft id of another Organiser is 404 EVENT_NOT_FOUND, not a hint that the draft exists', async () => {
       // Arrange: ORG-01's draft, requested by ORG-02
@@ -545,6 +551,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-01-E (SPEC): only the Organiser who submitted the event can request its cancellation. */
   describe('CANCEL-REQUEST-01-E: only the submitting Organiser can request', () => {
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M3a, M38, M4c
     it.each([
       ['ORG-02, another organiser', () => org2],
@@ -563,6 +570,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(await requestCount(eventId)).toBe(0);
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M38
     it('CANCEL-REQUEST-01-E: no token is refused 401 and no row is created', async () => {
       // Arrange
@@ -576,6 +584,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(await requestCount(eventId)).toBe(0);
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M3a, M38, M4c
     it('CANCEL-REQUEST-01-E: ORG-02 on a Completed event is 403, not 409, so the event\'s status is not disclosed', async () => {
       // Arrange
@@ -591,6 +600,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-01-F (SPEC): one pending request per event, including simultaneous submissions. */
   describe('CANCEL-REQUEST-01-F: a second request cannot be created while one is pending', () => {
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M1, M38, M4e
     it('CANCEL-REQUEST-01-F: a second request is refused 409 CANCELLATION_REQUEST_PENDING (MSG-CR-03) and one row remains', async () => {
       // Arrange: a fresh EVT-1103 clone
@@ -605,6 +615,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(await requestCount(eventId)).toBe(1);
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M1, M38, M4e, M4h
     it('CANCEL-REQUEST-01-F: five parallel identical requests give one 201, four 409 CANCELLATION_REQUEST_PENDING and one pending row', async () => {
       // Arrange: a fresh clone with no requests
@@ -622,6 +633,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(rows[0].status).toBe('pending');
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M4d, M4e
     it('CANCEL-REQUEST-01-F: the database itself refuses a second pending row for one event', async () => {
       // Arrange: one pending row
@@ -638,6 +650,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-01-G (SPEC, DERIVED D3): a request on an unassigned Submitted event waits for the assigned Coordinator. */
   describe('CANCEL-REQUEST-01-G: the request for a Submitted event with no Coordinator yet', () => {
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M1, M14c, M18d, M20, M21, M35, M38, M6a, M6c
     it('CANCEL-REQUEST-01-G: stays pending, LEAD-01 and COO-01 cannot decide it (403), and COO-01 can after assignment', async () => {
       // Arrange: EVT-1101 Student Mixer, Submitted, unassigned
@@ -669,6 +682,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-01-H (SPEC, DERIVED reason limit 0 to 500): the optional reason. */
   describe('CANCEL-REQUEST-01-H: the optional reason', () => {
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M1, M27, M38, M5e
     it('CANCEL-REQUEST-01-H: subtest A, no reason is accepted and stored as null', async () => {
       // Arrange
@@ -682,6 +696,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect((await requestRows(eventId))[0].reason).toBeNull();
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M1, M38, M5f
     it('CANCEL-REQUEST-01-H: subtest B, a reason of 500 characters is accepted unchanged', async () => {
       // Arrange: 500 x "r" (limit 500, on the limit)
@@ -695,6 +710,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect((await requestRows(eventId))[0].reason).toBe(reason);
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M38, M4c, M5a
     it('CANCEL-REQUEST-01-H: subtest C, a reason of 501 characters is refused 422 INVALID_REASON and nothing is saved', async () => {
       // Arrange: 501 x "r" (limit 500, one over)
@@ -708,6 +724,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(await requestCount(eventId)).toBe(0);
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M1, M38, M5g
     it('CANCEL-REQUEST-01-H: subtest D, script text is stored and returned exactly as typed', async () => {
       // Arrange
@@ -723,6 +740,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(read.body[0].reason).toBe(reason);
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M1, M27, M38, M5c
     it('CANCEL-REQUEST-01-H: spaces only is stored as null', async () => {
       // Arrange
@@ -735,6 +753,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect((await requestRows(eventId))[0].reason).toBeNull();
     });
 
+    // Traceability: Jira 155 AC1 (matrix 35848252)
     // Kills: M38, M4c, M5d
     it('CANCEL-REQUEST-01-H: a reason that is not text is refused 400 INVALID_REQUEST and nothing is saved', async () => {
       // Arrange
@@ -773,6 +792,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-02-A (SPEC): the Organiser sees a pending request, in the event's list and in the dashboard list. */
   describe('CANCEL-REQUEST-02-A: a pending request is shown', () => {
+    // Traceability: Jira 155 AC2 (matrix 35848252)
     // Kills: M1, M14c, M33, M38
     it('CANCEL-REQUEST-02-A: the event list and the dashboard list show pending with the request date, and the event stays Approved', async () => {
       // Arrange: a pending request on EVT-1103 created at T0
@@ -793,6 +813,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-02-B (SPEC): Accepted after the Coordinator accepts. */
   describe('CANCEL-REQUEST-02-B: the Organiser sees Accepted', () => {
+    // Traceability: Jira 155 AC2 (matrix 35848252)
     // Kills: M1, M10a, M12c, M17a, M33, M35, M38, M9
     it('CANCEL-REQUEST-02-B: after accept the request reads accepted with the decision date and the event reads cancelled', async () => {
       // Arrange: pending request on a Confirmed EVT-1105 clone
@@ -814,6 +835,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-02-C (SPEC): Declined after the Coordinator declines. */
   describe('CANCEL-REQUEST-02-C: the Organiser sees Declined', () => {
+    // Traceability: Jira 155 AC2 (matrix 35848252)
     // Kills: M1, M18d, M33, M35, M38
     it('CANCEL-REQUEST-02-C: after decline the request reads declined with the decision date and the event keeps its status', async () => {
       // Arrange
@@ -833,6 +855,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-02-D (SPEC): no one but the owner and the assigned Coordinator can read a request. */
   describe('CANCEL-REQUEST-02-D: request data is not exposed to others', () => {
+    // Traceability: Jira 155 AC2 (matrix 35848252)
     // Kills: M1, M16a, M38
     it.each([
       ['ORG-02, another organiser', () => org2],
@@ -852,6 +875,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(JSON.stringify(response.body)).not.toContain('No longer needed');
     });
 
+    // Traceability: Jira 155 AC2 (matrix 35848252)
     // Kills: M38
     it('CANCEL-REQUEST-02-D: no token is refused 401', async () => {
       // Arrange
@@ -862,6 +886,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(response.body.message).toBe('Missing session');
     });
 
+    // Traceability: Jira 155 AC2 (matrix 35848252)
     // Kills: M1, M16c, M38
     it('CANCEL-REQUEST-02-D: the dashboard list of ORG-02 does not contain ORG-01\'s request, and ATT-01 is refused', async () => {
       // Arrange
@@ -877,6 +902,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect([attendee.body.code, attendee.body.message]).toEqual(['FORBIDDEN', MSG_FORBIDDEN]);
     });
 
+    // Traceability: Jira 155 AC2 (matrix 35848252)
     // Kills: M32, M38
     it('CANCEL-REQUEST-02-D: an unknown event is 404 EVENT_NOT_FOUND for the read', async () => {
       // Act
@@ -889,6 +915,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-02-E (SPEC, S2): after a decline the Organiser can request again; earlier requests stay listed. */
   describe('CANCEL-REQUEST-02-E: a new request after a declined one', () => {
+    // Traceability: Jira 155 AC2 (matrix 35848252)
     // Kills: M1, M10a, M12c, M19, M38
     it('CANCEL-REQUEST-02-E: the newest request is current, the declined one stays listed, and accepting the new one shows Accepted', async () => {
       // Arrange: EVT-1105 clone with one Declined request (decided before T0)
@@ -916,6 +943,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-02-F (SPEC): the latest status on every reload and new session; never cached. */
   describe('CANCEL-REQUEST-02-F: the latest status is shown after a reload or a new session', () => {
+    // Traceability: Jira 155 AC2 (matrix 35848252)
     // Kills: M1, M17b, M17c, M18d, M38
     it('CANCEL-REQUEST-02-F: after a decline every read, including a fresh login, says declined and the GETs are no-store', async () => {
       // Arrange: ORG-01 has read Pending
@@ -967,6 +995,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-03-A (SPEC): the assigned Coordinator sees and accepts a pending request. */
   describe('CANCEL-REQUEST-03-A: the assigned Coordinator accepts', () => {
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M1, M10a, M10b, M12c, M33, M35, M38, M9
     it('CANCEL-REQUEST-03-A: COO-01 sees the pending request with its reason, accepts it, and the request records COO-01 and T0', async () => {
       // Arrange: pending request on a Confirmed EVT-1105 clone
@@ -995,6 +1024,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-03-B (SPEC): the assigned Coordinator declines. */
   describe('CANCEL-REQUEST-03-B: the assigned Coordinator declines', () => {
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M1, M10b, M11, M12b, M18d, M35, M38
     it('CANCEL-REQUEST-03-B: decline returns 200 with MSG-CR-05 and records COO-01 and T0; the event is unchanged', async () => {
       // Arrange
@@ -1017,6 +1047,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-03-C (SPEC, DERIVED D3): only the assigned Coordinator can decide. */
   describe('CANCEL-REQUEST-03-C: only the assigned Coordinator decides', () => {
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M21, M38, M6a, M6c
     it.each([
       ['COO-02, not assigned', () => coo2],
@@ -1038,6 +1069,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(await snapshot(eventId)).toEqual(before);
     });
 
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M38
     it('CANCEL-REQUEST-03-C: no token is refused 401 and the request stays pending', async () => {
       // Arrange
@@ -1052,6 +1084,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect((await requestRows(eventId))[0].status).toBe('pending');
     });
 
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M10b, M18d, M21, M35, M38, M6a, M6c
     it('CANCEL-REQUEST-03-C: after reassignment COO-01 is refused and the new Coordinator COO-02 can decide', async () => {
       // Arrange: a pending request; the event is then reassigned to COO-02
@@ -1069,6 +1102,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect((await requestRows(eventId))[0].decided_by_id).toBe(coo2.uid);
     });
 
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M20, M21, M38, M6a, M6c
     it('CANCEL-REQUEST-03-C: on an unassigned event the Lead and a Coordinator are both refused 403', async () => {
       // Arrange: an unassigned Submitted event with a pending request
@@ -1084,6 +1118,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
       expect(await statusOf(eventId)).toBe('Submitted');
     });
 
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M21, M30a, M38, M6a, M6c
     it('CANCEL-REQUEST-03-C: an unknown request id is refused 403 FORBIDDEN, exactly like a real request of another coordinator', async () => {
       // Arrange: a real pending request that COO-02 does not own, and an id that exists nowhere
@@ -1102,6 +1137,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-03-D (SPEC): a decided request cannot be decided again. */
   describe('CANCEL-REQUEST-03-D: a decided request is final', () => {
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M38
     it.each([
       ['an Accepted request refuses decline', 'accepted', 'decline'],
@@ -1124,6 +1160,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-03-E (SPEC): simultaneous accept and decline give exactly one decision. */
   describe('CANCEL-REQUEST-03-E: simultaneous decisions', () => {
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M10a, M12b, M12c, M15, M31, M38, M7d, M9
     it('CANCEL-REQUEST-03-E: 3 accepts and 3 declines give one 200 and five 409, one final status, and no duplicates', async () => {
       // Arrange: pending request on a Confirmed EVT-1105 clone
@@ -1156,6 +1193,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-03-F (SPEC, DERIVED D4): the event is Completed while the request is pending. */
   describe('CANCEL-REQUEST-03-F: the event is Completed while the request is pending', () => {
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M1, M13, M14a, M38
     it.each([
       ['accept', 'accept'],
@@ -1181,6 +1219,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-03-G (SPEC, DERIVED D4): the Coordinator cancels the event directly while a request is pending. */
   describe('CANCEL-REQUEST-03-G: the Coordinator cancels directly while a request is pending', () => {
+    // Traceability: Jira 155 AC3 (matrix 35848252)
     // Kills: M1, M14b, M38
     it('CANCEL-REQUEST-03-G: the event is cancelled once, the request shows Closed, and a later accept is refused 409 EVENT_NOT_CANCELLABLE', async () => {
       // Arrange: pending request on a Confirmed EVT-1105 clone
@@ -1232,6 +1271,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-04-A (SPEC): accepting changes the event status to Cancelled everywhere it is shown. */
   describe('CANCEL-REQUEST-04-A: acceptance cancels the event in every view', () => {
+    // Traceability: Jira 155 AC4 (matrix 35848252)
     // Kills: M1, M10a, M12c, M38, M9
     it('CANCEL-REQUEST-04-A: the organiser list, the coordinator queue and the event read all say cancelled, and the DB says Cancelled', async () => {
       // Arrange: pending request on a Confirmed EVT-1105 clone
@@ -1256,6 +1296,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-04-B (SPEC, S6): acceptance has the same effects as SPM-136. */
   describe('CANCEL-REQUEST-04-B: acceptance triggers the SPM-136 effects', () => {
+    // Traceability: Jira 155 AC4 (matrix 35848252)
     // Kills: M1, M10a, M12a, M12c, M38, M9
     it('CANCEL-REQUEST-04-B: bookings and equipment are released, registrations and the waiting list are Cancelled, six recipients are notified once', async () => {
       // Arrange: EVT-1105 clone with two Approved bookings, Projector x2 Reserved, ATT-01 to 03 Registered, ATT-04 Waitlisted
@@ -1299,6 +1340,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-04-C (SPEC, DERIVED D2): a failure during cancellation leaves the request pending and the event unchanged. */
   describe('CANCEL-REQUEST-04-C: a failure during cancellation rolls everything back', () => {
+    // Traceability: Jira 155 AC4 (matrix 35848252)
     // Kills: M10a, M12c, M38, M8, M8b, M9
     it('CANCEL-REQUEST-04-C: a failing release gives a generic 500, the request stays pending and nothing changed; the retry succeeds', async () => {
       // Arrange: EVT-1105 clone with a pending request; the last releaser throws (fault injection)
@@ -1329,6 +1371,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-04-D (SPEC with deviation): acceptance cancels from each eligible status. */
   describe('CANCEL-REQUEST-04-D: acceptance cancels from each eligible status', () => {
+    // Traceability: Jira 155 AC4 (matrix 35848252)
     // Kills: M1, M10a, M12c, M2b, M38, M9
     it.each([
       ['Submitted (clone assigned to COO-01, replaces EVT-1102)', 'Submitted'],
@@ -1359,6 +1402,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-04-E (SPEC): a cancelled event accepts no further requests, decisions or arrangement changes. */
   describe('CANCEL-REQUEST-04-E: a cancelled event is closed to requests, decisions and arrangement changes', () => {
+    // Traceability: Jira 155 AC4 (matrix 35848252)
     // Kills: M1, M10a, M12c, M15, M2d, M31, M38, M4c, M9
     it('CANCEL-REQUEST-04-E: a new request is 409 MSG-CR-02, the old request is 409 MSG-CR-06, and a booking change is 409 MSG-CN-04', async () => {
       // Arrange: EVT-1105 clone cancelled through an accepted request
@@ -1387,6 +1431,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-05-A (SPEC): a decline leaves the event's status and arrangements unchanged. */
   describe('CANCEL-REQUEST-05-A: a decline leaves the event unchanged', () => {
+    // Traceability: Jira 155 AC5 (matrix 35848252)
     // Kills: M1, M11, M12b, M18d, M38
     it('CANCEL-REQUEST-05-A: status Confirmed, bookings Approved, equipment Reserved, registrations and the waiting entry equal the snapshot', async () => {
       // Arrange: EVT-1105 clone with a pending request; snapshot of every related table
@@ -1410,6 +1455,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-05-B (SPEC): a decline does not disturb a Planning event with an active tentative hold. */
   describe('CANCEL-REQUEST-05-B: a decline keeps the tentative hold', () => {
+    // Traceability: Jira 155 AC5 (matrix 35848252)
     // Kills: M1, M11, M12b, M18d, M2b, M38
     it('CANCEL-REQUEST-05-B: status Planning, the pending booking and its hold expiry are unchanged and the queue shows the hold active', async () => {
       // Arrange: EVT-1104 clone, Planning, VB-1104 Pending with a hold until T+2d 12:00 SGT, pending request
@@ -1446,6 +1492,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
    * for anyone else.
    */
   describe('CANCEL-REQUEST-05-C: a decline sends only the Organiser outcome notice', () => {
+    // Traceability: Jira 155 AC5 (matrix 35848252)
     // Kills: M1, M12a, M12b, M18d, M38
     it('CANCEL-REQUEST-05-C: only the Organiser outcome notice exists for the event and no status history row is written', async () => {
       // Arrange: EVT-1105 clone, attendees with zero notifications
@@ -1471,6 +1518,7 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
 
   /** CANCEL-REQUEST-05-D (SPEC): the event continues its normal lifecycle after a declined request. */
   describe('CANCEL-REQUEST-05-D: the lifecycle continues after a decline', () => {
+    // Traceability: Jira 155 AC5 (matrix 35848252)
     // Kills: M1, M12a, M18d, M19, M2b, M38
     it('CANCEL-REQUEST-05-D: the event is confirmed (SPM-135) and a new request is then accepted as pending', async () => {
       // Arrange: EVT-1104 clone, Planning with complete arrangements (Approved venue, equipment reserved, safety Approved), declined request

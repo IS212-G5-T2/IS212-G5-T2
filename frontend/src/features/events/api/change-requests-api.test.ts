@@ -23,6 +23,7 @@ describe("change requests API client", () => {
     apiMock.mockClear();
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-A: submitting posts the changes and reason as JSON. */
   it("posts a submission", async () => {
     await submitChangeRequest("evt-1", { changes: { expectedAttendance: 140 }, reason: "More." });
@@ -32,6 +33,7 @@ describe("change requests API client", () => {
     });
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-A: reads an event's requests and the caller's requests, optionally by status. */
   it("reads an event's requests and the dashboard list", async () => {
     await fetchEventChangeRequests("evt-1");
@@ -42,12 +44,14 @@ describe("change requests API client", () => {
     expect(apiMock).toHaveBeenLastCalledWith("/change-requests");
   });
 
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** REQ-CHANGE-09-A: Withdrawing posts to the request's withdraw route. */
   it("withdraws a request", async () => {
     await withdrawChangeRequest("evt-1", "cr-1");
     expect(apiMock).toHaveBeenCalledWith("/events/evt-1/change-requests/cr-1/withdraw", { method: "POST" });
   });
 
+  // Traceability: Jira 65 Cross-cutting (matrix 28016830)
   /** REVIEW-CHANGE-11-SUP-CLIENT: SPM-65: the review routes (REVIEW-CHANGE-03-A, REVIEW-CHANGE-04-A, REVIEW-CHANGE-05-A, REVIEW-CHANGE-09-B, REVIEW-CHANGE-10-B). */
   it("REVIEW-CHANGE-11-SUP-CLIENT calls the SPM-65 review routes", async () => {
     await previewChangeRequestConflicts("evt-1", "cr-1");
@@ -65,6 +69,7 @@ describe("change requests API client", () => {
     expect(apiMock).toHaveBeenLastCalledWith("/events/evt-1/change-requests/audit");
   });
 
+  // Traceability: Jira 65 AC1 (matrix 28016830)
   /** REVIEW-CHANGE-01-F: REQ-CHANGE-03-A / REVIEW-CHANGE-01-A: unread change request notices tag requests New; opening marks them read. */
   it("REVIEW-CHANGE-01-F finds events with an unread change request notice and marks them read", async () => {
     const notices = [

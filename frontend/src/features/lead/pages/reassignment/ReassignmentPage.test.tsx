@@ -53,6 +53,7 @@ beforeEach(() => {
 });
 
 describe("AC1 and AC11: the assigned events", () => {
+  // Traceability: Jira 47 AC1 (matrix 21496116)
   // Each event shows its name, status, exact dates and times, and current coordinator.
   it("LEAD-REASN-01-C shows each event's name, status, date and time, and current coordinator in the server's order", async () => {
     // Arrange: two assigned events, soonest first.
@@ -72,6 +73,7 @@ describe("AC1 and AC11: the assigned events", () => {
     expect(card("Spring Gala").getByText("Coordinator: Coordinator 3")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 47 AC1 (matrix 21496116)
   // An empty list says so.
   it("LEAD-REASN-01-D shows a message when there are no assigned events", async () => {
     // Arrange: nothing is assigned.
@@ -85,6 +87,7 @@ describe("AC1 and AC11: the assigned events", () => {
     expect(screen.queryAllByRole("article")).toHaveLength(0);
   });
 
+  // Traceability: Jira 47 AC1 (matrix 21496116)
   // If the list can't be loaded, the Lead is told instead of seeing an empty page.
   it("LEAD-REASN-01-E shows an error when the list cannot be loaded", async () => {
     // Arrange: loading fails.
@@ -98,6 +101,7 @@ describe("AC1 and AC11: the assigned events", () => {
     expect(screen.queryByText("No assigned events to reassign.")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 47 AC11 (matrix 21496116)
   // Events whose coordinator is unavailable stand out.
   it('LEAD-REASN-11-B labels events whose coordinator is unavailable "Coordinator unavailable"', async () => {
     // Arrange: one event with an unavailable coordinator, one without.
@@ -114,6 +118,7 @@ describe("AC1 and AC11: the assigned events", () => {
 });
 
 describe("AC2, AC3 and AC4: choosing the new coordinator", () => {
+  // Traceability: Jira 47 AC2 (matrix 21496116)
   // The picker keeps the server's fewest-first order and shows availability and workload.
   it("LEAD-REASN-02-A lists coordinators fewest active first with their availability and active count", async () => {
     // Act: open the page.
@@ -130,6 +135,7 @@ describe("AC2, AC3 and AC4: choosing the new coordinator", () => {
     ]);
   });
 
+  // Traceability: Jira 47 AC3 (matrix 21496116)
   // The coordinator the event already has can't be picked.
   it("LEAD-REASN-03-D does not let the Lead choose the event's current coordinator", async () => {
     // Act: open the page.
@@ -141,6 +147,7 @@ describe("AC2, AC3 and AC4: choosing the new coordinator", () => {
     expect(card("Welcome Evening").getByRole("button", { name: "Reassign" })).toBeDisabled();
   });
 
+  // Traceability: Jira 47 AC4 (matrix 21496116)
   // Unavailable coordinators are listed but can't be chosen.
   it("LEAD-REASN-04-C lists unavailable coordinators but does not let them be chosen", async () => {
     // Act: open the page.
@@ -152,6 +159,7 @@ describe("AC2, AC3 and AC4: choosing the new coordinator", () => {
     expect(within(picker).getByRole("option", { name: "Coordinator 2 (0 active)" })).toBeEnabled();
   });
 
+  // Traceability: Jira 47 AC3 (matrix 21496116)
   // Reassigning sends the chosen and the shown coordinator, and the card shows the new one.
   it("LEAD-REASN-03-H reassigns to the chosen coordinator and shows them on the event", async () => {
     // Arrange: the server accepts; the reloaded list shows the new coordinator.
@@ -172,6 +180,7 @@ describe("AC2, AC3 and AC4: choosing the new coordinator", () => {
     expect(await card("Welcome Evening").findByText("Coordinator: Coordinator 2")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 47 AC3 (matrix 21496116)
   // A double click sends one request.
   it("LEAD-REASN-03-BND-1 disables Reassign while reassigning so only one request is sent", async () => {
     // Arrange: the reassignment is held pending.
@@ -195,6 +204,7 @@ describe("AC2, AC3 and AC4: choosing the new coordinator", () => {
 });
 
 describe("AC7: confirmation and refusals", () => {
+  // Traceability: Jira 47 AC7 (matrix 21496116)
   // A successful reassignment is confirmed with the server's message.
   it("LEAD-REASN-07-A confirms which coordinator the event was reassigned to", async () => {
     // Arrange: the server accepts.
@@ -210,6 +220,7 @@ describe("AC7: confirmation and refusals", () => {
     expect(await screen.findByRole("status")).toHaveTextContent('Event "Welcome Evening" reassigned to Coordinator 2.');
   });
 
+  // Traceability: Jira 47 AC7 (matrix 21496116)
   // When the server refuses (e.g. the page was stale), the reason is shown and the page refreshes.
   it("LEAD-REASN-07-D shows the reason and reloads the events and coordinators when a reassignment is refused", async () => {
     // Arrange: the server refuses as stale; the reloaded list shows who really has the event now.

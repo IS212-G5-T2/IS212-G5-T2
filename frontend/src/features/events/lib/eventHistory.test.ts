@@ -4,6 +4,7 @@ import { changeLines, formatHistoryValue, groupByDay, visibleSections } from "@/
 import type { EventHistory } from "@/features/events/types/eventHistory";
 
 describe("SPM-157 event history display rules", () => {
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-E: instants in Singapore time, lists joined, nothing as "None". */
   it("AUDIT-HISTORY-05-E formats each kind of value", () => {
     expect(formatHistoryValue("2027-02-05T10:30:00.000Z")).toBe("5 Feb 2027, 6:30 pm SGT");
@@ -20,6 +21,7 @@ describe("SPM-157 event history display rules", () => {
     expect(formatHistoryValue({ a: 1 })).toBe('{"a":1}');
   });
 
+  // Traceability: Jira 157 AC8 (matrix 39813204)
   /** AUDIT-HISTORY-08-B: only the sections the server returned, in the AC1 to AC4 order. */
   it("AUDIT-HISTORY-08-B lists only the returned sections in order", () => {
     const history = (sections: EventHistory["sections"]): EventHistory =>
@@ -29,6 +31,7 @@ describe("SPM-157 event history display rules", () => {
     expect(visibleSections(history({ registrations: [], event: [] }))).toEqual(["event", "registrations"]);
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-E: each change becomes one readable line. */
   it("AUDIT-HISTORY-05-E turns changes into readable lines", () => {
     expect(changeLines([
@@ -49,6 +52,7 @@ describe("SPM-157 event history display rules", () => {
     ]);
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-E: a new start and end become one time range; a changed one stays two lines. */
   it("AUDIT-HISTORY-05-E merges a new slot into one time range only when both ends are new", () => {
     const start = { field: "start", label: "Start", from: null, to: "2026-11-05T23:01:00.000Z" };
@@ -58,6 +62,7 @@ describe("SPM-157 event history display rules", () => {
     expect(changeLines([start]).map((line) => line.kind)).toEqual(["set"]);
   });
 
+  // Traceability: Jira 157 AC6 (matrix 39813204)
   /** AUDIT-HISTORY-06-C: entries grouped by Singapore day, order kept. */
   it("AUDIT-HISTORY-06-C groups entries by Singapore day in order", () => {
     const at = (occurredAt: string, id: string) => ({ id, occurredAt });

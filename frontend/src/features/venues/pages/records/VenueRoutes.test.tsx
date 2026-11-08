@@ -55,6 +55,7 @@ function renderRoute(role: UserRole, path: string) {
 }
 
 describe("venue routes (SPM-124)", () => {
+  // Traceability: Jira 124 AC1 (matrix 19858622)
   // AC1: Venue Staff reach the persistent catalogue on its operational route.
   it("VEN-VIEW-01-A: opens the persisted catalogue for Venue Staff", () => {
     // Arrange and act: enter the protected catalogue as a signed-in staff member.
@@ -64,6 +65,7 @@ describe("venue routes (SPM-124)", () => {
     expect(screen.getByText("Persistent staff catalogue")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 124 AC1 (matrix 19858622)
   // VEN-VIEW-01-B (AC1): signed-out visitors cannot view catalogue records.
   it("VEN-VIEW-01-B: redirects an anonymous visitor to sign in", () => {
     // Arrange: no authenticated session exists.

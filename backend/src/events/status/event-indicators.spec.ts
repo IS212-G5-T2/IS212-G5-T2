@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { deriveAssignmentIndicator, deriveSafetyIndicator } from './event-indicators.js';
 
 describe('SPM-94 AC2: awaiting Coordinator assignment iff Submitted and unassigned', () => {
+  // Traceability: Jira 94 AC2 (matrix 22839633)
   // Kills: M6 (indicator for any unassigned event), M7 (indicator persists after assignment)
   it.each([
     // status,      coordinatorId, expected
@@ -19,6 +20,7 @@ describe('SPM-94 AC2: awaiting Coordinator assignment iff Submitted and unassign
 });
 
 describe('SPM-94 AC3: at most one safety indicator, from the safety state', () => {
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // Kills: M8 (changes requested and cleared swapped)
   it.each([
     // state,             status,       expected
@@ -40,6 +42,7 @@ describe('SPM-94 AC3: at most one safety indicator, from the safety state', () =
 // A2: Rejected safety outcome, missing record and terminal statuses show no indicator (D5) -> 03-B rows 4 to 9
 
 describe('SPM-94 boundaries and interactions for the indicator rules', () => {
+  // Traceability: Jira 94 AC2 (matrix 22839633)
   // BND: the assignment rule changes exactly at Submitted and at an unset coordinator.
   // Kills: M6 (indicator for any unassigned event), M7 (indicator ignores status), empty id treated as assigned.
   it.each([
@@ -50,6 +53,7 @@ describe('SPM-94 boundaries and interactions for the indicator rules', () => {
     expect(deriveAssignmentIndicator(status, coordinatorId)).toBe(expected);
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // BND: the terminal suppression set is exactly Completed, Cancelled and Rejected; Confirmed is not terminal.
   // Kills: suppression set missing a member, or Confirmed added to it.
   it.each([
@@ -62,6 +66,7 @@ describe('SPM-94 boundaries and interactions for the indicator rules', () => {
     expect(deriveSafetyIndicator(state, status)).toBe(expected);
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // INT: the terminal check runs before the state lookup, so a terminal event shows none whatever its state.
   // Kills: state lookup moved before the terminal check (ordering fault; not one of the spec mutants).
   it.each([

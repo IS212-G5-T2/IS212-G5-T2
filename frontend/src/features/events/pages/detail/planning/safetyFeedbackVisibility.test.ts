@@ -7,6 +7,7 @@ const feedback: SafetyCheckFeedback[] = [
 ];
 
 describe("safety feedback visibility", () => {
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SPM-129 supplementary case: SAFETY-QUEUE-05 rejection feedback stays visible while unresolved. */
   it("SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION shows rejected feedback until coordinator resolution", () => {
     expect(shouldShowSafetyFeedback("rejected", feedback)).toBe(true);

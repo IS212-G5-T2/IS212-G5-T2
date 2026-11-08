@@ -228,6 +228,7 @@ describe("restricted organiser routes", () => {
     expect(screen.getByText("Events dashboard")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 117 AC1 (matrix 19858517)
   // EQUIP-VIEW-01-E (AC1, supplementary). Kills: RequireRole wiring for
   // /equipment/availability in this file's isolated route table. Fast, but NOT
   // authoritative for App.tsx itself, since this table is hand-maintained rather
@@ -385,6 +386,7 @@ describe("restricted organiser routes", () => {
 });
 
 describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
+  // Traceability: Jira 123 AC11 (matrix 21102810)
   // Only the Lead reaches the queue or sees it in the nav; a Lead sent away lands on it.
   it("LEAD-ASN-11-SEC-4 shows the Assignment Queue only to the Lead", () => {
     // Arrange + Act: the Lead opens the queue.
@@ -434,6 +436,7 @@ describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
     expect(navByRole.attendee.map((item) => item.to)).toEqual(["/events"]);
   });
 
+  // Traceability: Jira 47 AC9 (matrix 21496116)
   // SPM-47 AC9: only the Lead can open the reassignment page or see it in the navigation.
   it("LEAD-REASN-09-SEC-4 shows Reassign Events only to the Lead", () => {
     // Arrange + Act: the Lead opens the reassignment page.
@@ -481,6 +484,7 @@ describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
 });
 
 describe("SPM-129 Safety Officer route authorization", () => {
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: Safety Officers can enter the queue route and other signed-in roles are redirected home. */
   it("SAFETY-QUEUE-01 restricts the queue route to the Safety Officer role", () => {
     const safetyOfficer = { ...organiser, id: "safety-1", role: "safety_officer" as const, roles: ["safety_officer" as const] };

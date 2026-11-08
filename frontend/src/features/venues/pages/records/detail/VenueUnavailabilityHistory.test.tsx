@@ -45,6 +45,7 @@ async function openHistory(refreshKey = 0) {
 }
 
 describe("SPM-125 venue unavailability history", () => {
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /**
    * VEN-IMPACT-01-E (AC1): each entry shows what happened (marked unavailable or ended early), the period in
    * Singapore time, the reason, who made the change and when, newest first as the API returns them; an early end
@@ -69,6 +70,7 @@ describe("SPM-125 venue unavailability history", () => {
     expect(items[1]).not.toHaveTextContent("Was due to end");
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /** VEN-IMPACT-01-BND-2 (AC1): a period saved before the history recorded people shows "Not recorded". */
   it("VEN-IMPACT-01-BND-2 shows Not recorded for an entry without a person", async () => {
     apiMock.mockResolvedValue([{ ...created, changedBy: null }] as never);
@@ -78,6 +80,7 @@ describe("SPM-125 venue unavailability history", () => {
     expect(await screen.findByText(/By Not recorded/)).toBeTruthy();
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /** VEN-IMPACT-01-F (AC1): the history is read only when opened, can be hidden, and says when it is empty. */
   it("VEN-IMPACT-01-F loads only when opened and says when there is no history", async () => {
     const pending = deferred<never>();
@@ -95,6 +98,7 @@ describe("SPM-125 venue unavailability history", () => {
     expect(screen.queryByText("No unavailable periods have been recorded for this venue.")).toBeNull();
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /** VEN-IMPACT-01-G (AC1): a failed read says so and Retry reads again. */
   it("VEN-IMPACT-01-G shows a load error and retries", async () => {
     apiMock.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce([created] as never);
@@ -106,6 +110,7 @@ describe("SPM-125 venue unavailability history", () => {
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /** VEN-IMPACT-01-H (AC1): saving or ending a period on the page (a new refreshKey) reads the history again. */
   it("VEN-IMPACT-01-H reads the history again after a change on the page", async () => {
     apiMock.mockResolvedValueOnce([created] as never).mockResolvedValueOnce([endedEarly, created] as never);
@@ -117,6 +122,7 @@ describe("SPM-125 venue unavailability history", () => {
     expect(await screen.findByText("Ended early")).toBeTruthy();
   });
 
+  // Traceability: Jira 125 AC1 (matrix 39125581)
   /** VEN-IMPACT-01-I (AC1): a response arriving after the card closed or the venue changed is ignored. */
   it("VEN-IMPACT-01-I ignores a late response or late failure after the card closed", async () => {
     const late = deferred<never>();

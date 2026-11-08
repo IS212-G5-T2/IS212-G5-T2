@@ -943,6 +943,7 @@ describe.skipIf(!databaseUrl)(
       ).toEqual(originalEvents.rows);
     });
 
+    // Traceability: Jira 122 AC7 (matrix 21103356)
     /** SPM-122 / VEN-UNAVAIL-07-C: exact boundary touches are not conflicts. */
     it('lists one-minute setup and turnaround overlaps but excludes exact boundary touches', async () => {
       // Arrange four bookings around both ends of the proposed unavailable period.
@@ -973,6 +974,7 @@ describe.skipIf(!databaseUrl)(
       expect(saved.body.affectedBookings.map((booking: { eventId: string }) => booking.eventId)).toEqual([events[1], events[3]]);
     });
 
+    // Traceability: Jira 122 AC4 (matrix 21103356)
     /** SPM-122 / VEN-UNAVAIL-04-A/07-C: only live bookings on an existing venue are affected. */
     it('rejects a missing venue and excludes expired tentative holds from the affected list', async () => {
       // Arrange an active hold and an expired hold with the same effective overlap.
@@ -1031,6 +1033,7 @@ describe.skipIf(!databaseUrl)(
       expect(blockouts.rows).toHaveLength(1);
     });
 
+    // Traceability: Jira 122 AC5 (matrix 21103356)
     /** SPM-122 / VEN-UNAVAIL-05-A/B: ending one period preserves another. */
     it('restores one active period early while leaving a second period intact', async () => {
       // Arrange a venue with two blockouts.
@@ -1094,6 +1097,7 @@ describe.skipIf(!databaseUrl)(
       ).toMatchObject({ end_at: new Date(at(12, 13)), reason: 'Renovation' });
     });
 
+    // Traceability: Jira 122 AC5 (matrix 21103356)
     /** SPM-122 / VEN-UNAVAIL-05-A/B: another active period keeps the venue unavailable. */
     it('keeps the venue unavailable while a second overlapping period remains active', async () => {
       // Arrange two independently persisted blockouts that both contain the fixed clock.
@@ -1126,6 +1130,7 @@ describe.skipIf(!databaseUrl)(
       expect(persisted.rows.find((row) => row.id === second.body.period.id)?.end_at).toEqual(new Date(at(15)));
     });
 
+    // Traceability: Jira 121 AC9 (matrix 28770883)
     /**
      * SPM-121 AC9 VEN-UPD-09-A: changing venue capacity returns exactly the pending and approved bookings in
      * capacityBookings (by booking id); every booking stays recorded and unchanged.
@@ -1158,6 +1163,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([pending, approved, rejected]);
     });
 
+    // Traceability: Jira 121 AC9 (matrix 28770883)
     /** SPM-121 AC9 VEN-UPD-09-D: an update that leaves capacity unchanged returns no capacity booking list. */
     it('VEN-UPD-09-E2E-B: capacityBookings is empty when capacity is unchanged', async () => {
       // Arrange: one venue with a booking.
@@ -1181,6 +1187,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([booking]);
     });
 
+    // Traceability: Jira 121 AC7 (matrix 28770883)
     /** SPM-121 AC7 VEN-UPD-07-SEC-1: a non-owner Venue Staff member cannot edit another staff member's venue. */
     it('VEN-UPD-07-E2E-A: returns 403 when a second Venue Staff tries to PATCH a venue they do not own', async () => {
       const owner = await authenticate(staffEmail);
@@ -1198,6 +1205,7 @@ describe.skipIf(!databaseUrl)(
         .expect(403);
     });
 
+    // Traceability: Jira 121 AC4 (matrix 28770883)
     /** SPM-121 AC4 VEN-UPD-04-A: updating a venue to a duplicate name+location returns 409. */
     it('VEN-UPD-04-E2E-A: returns 409 when PATCH would create a duplicate name+location', async () => {
       const staff = await authenticate(staffEmail);
@@ -1220,6 +1228,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body.message).toMatch(/already exists/i);
     });
 
+    // Traceability: Jira 121 AC6 (matrix 28770883)
     /** SPM-121 AC6 VEN-UPD-06-A: a GET after PATCH reflects the updated venue values. */
     it('VEN-UPD-06-E2E-A: GET after PATCH returns the updated venue fields', async () => {
       const staff = await authenticate(staffEmail);
@@ -1241,6 +1250,7 @@ describe.skipIf(!databaseUrl)(
       expect(get.body.capacity).toBe(55);
     });
 
+    // Traceability: Jira 121 AC6 (matrix 28770883)
     /** SPM-121 AC6 VEN-UPD-06-B: after a location update, the venue list returns the new location. */
     it('VEN-UPD-06-E2E-B: venue list reflects updated location and not the old one', async () => {
       const staff = await authenticate(staffEmail);
@@ -1258,6 +1268,7 @@ describe.skipIf(!databaseUrl)(
       expect(found.location).toBe(newLocation);
     });
 
+    // Traceability: Jira 121 AC6 (matrix 28770883)
     /** SPM-121 AC6 VEN-UPD-06-C: a Coordinator reading the venue after a timing update sees the new setup/turnaround. */
     it('VEN-UPD-06-E2E-C: Coordinator sees updated setup and turnaround times after Staff edits', async () => {
       const staff = await authenticate(staffEmail);
@@ -1274,6 +1285,7 @@ describe.skipIf(!databaseUrl)(
       expect(get.body.turnaroundTimeMinutes).toBe(60);
     });
 
+    // Traceability: Jira 121 AC6 (matrix 28770883)
     /**
      * SPM-121 AC6 VEN-UPD-06-C: after Venue Staff raise setup to 45 and turnaround to 60, a 10:00-12:00 booking
      * (Asia/Singapore) occupies exactly 09:15-13:00, not the original 09:30-12:45, for availability and conflict
@@ -1334,6 +1346,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([booked, challenger]);
     });
 
+    // Traceability: Jira 121 AC6 (matrix 28770883)
     /** SPM-121 AC6 VEN-UPD-06-D: a Coordinator does not see obsolete venue details after a successful update. */
     it('VEN-UPD-06-E2E-D: Coordinator does not see stale location or timing after update', async () => {
       const staff = await authenticate(staffEmail);
@@ -1352,6 +1365,7 @@ describe.skipIf(!databaseUrl)(
       expect(get.body.setupTimeMinutes).toBe(40);
     });
 
+    // Traceability: Jira 121 AC8 (matrix 28770883)
     /** SPM-121 AC8 VEN-UPD-08-A: changing setup/turnaround time returns affected bookings in affectedBookings. */
     it('VEN-UPD-08-E2E-A: returns affected bookings in affectedBookings when setup/turnaround time changes', async () => {
       const staff = await authenticate(staffEmail);
@@ -1382,6 +1396,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([first, second]);
     });
 
+    // Traceability: Jira 121 AC8 (matrix 28770883)
     /** SPM-121 AC8 VEN-UPD-08-B: increasing turnaround time displays newly affected bookings without removing them. */
     it('VEN-UPD-08-B-E2E: turnaround increase shows newly affected bookings and preserves them', async () => {
       const staff = await authenticate(staffEmail);
@@ -1410,6 +1425,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([bookingA, bookingB]);
     });
 
+    // Traceability: Jira 121 AC8 (matrix 28770883)
     /** SPM-121 AC8 VEN-UPD-08-C: changing timing without creating new conflicts does not falsely list bookings. */
     it('VEN-UPD-08-C-E2E: no bookings listed as affected when timing change causes no new overlap', async () => {
       const staff = await authenticate(staffEmail);
@@ -1438,6 +1454,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([bookingA, bookingB]);
     });
 
+    // Traceability: Jira 121 AC4 (matrix 28770883)
     /** SPM-121 AC4 VEN-UPD-04-B: same name at a different location is NOT a duplicate. */
     it('VEN-UPD-04-E2E-B: allows a name that exists at a different location', async () => {
       const staff = await authenticate(staffEmail);
@@ -1455,6 +1472,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body.venue.name).toBe(nameA);
     });
 
+    // Traceability: Jira 121 AC4 (matrix 28770883)
     /** SPM-121 AC4 VEN-UPD-04-C: case-insensitive and whitespace-padded duplicates are still rejected. */
     it('VEN-UPD-04-E2E-C: rejects case-insensitive duplicate name at the same location', async () => {
       const staff = await authenticate(staffEmail);
@@ -1473,6 +1491,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body.message).toMatch(/already exists/i);
     });
 
+    // Traceability: Jira 121 AC5 (matrix 28770883)
     /** SPM-121 AC5 VEN-UPD-05-C: repeating the same save does not duplicate the venue row. */
     it('VEN-UPD-05-E2E-B: repeated save does not duplicate the venue', async () => {
       const staff = await authenticate(staffEmail);
@@ -1489,6 +1508,7 @@ describe.skipIf(!databaseUrl)(
       expect(Number(count.rows[0].count)).toBe(1);
     });
 
+    // Traceability: Jira 121 AC9 (matrix 28770883)
     /** SPM-121 AC9 VEN-UPD-09-C: rejected, blocked, and other-venue bookings are excluded from the capacity list. */
     it('VEN-UPD-09-E2E-C: capacityBookings excludes rejected, blocked and other-venue bookings', async () => {
       const staff = await authenticate(staffEmail);
@@ -1524,6 +1544,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([pending, rejected, otherVenue]);
     });
 
+    // Traceability: Jira 121 AC9 (matrix 28770883)
     /** SPM-121 AC9 VEN-UPD-09-D: capacity change on a venue with no eligible bookings returns an empty list. */
     it('VEN-UPD-09-E2E-D: capacityBookings is empty when the venue has no pending or approved bookings', async () => {
       const staff = await authenticate(staffEmail);
@@ -1539,6 +1560,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body.capacityBookings).toEqual([]);
     });
 
+    // Traceability: Jira 121 AC9 (matrix 28770883)
     /** SPM-121 AC9 VEN-UPD-09-VAR-1: successive capacity changes list correct bookings each time without duplication. */
     it('VEN-UPD-09-VAR-1-E2E: successive capacity changes list bookings correctly without duplication', async () => {
       const staff = await authenticate(staffEmail);
@@ -1560,6 +1582,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([booking]);
     });
 
+    // Traceability: Jira 121 AC2 (matrix 28770883)
     /** SPM-121 AC2 VEN-UPD-02-B: changing one field preserves all other fields. */
     it('VEN-UPD-02-E2E-B: updating one field does not erase unrelated venue details', async () => {
       const staff = await authenticate(staffEmail);
@@ -1584,6 +1607,7 @@ describe.skipIf(!databaseUrl)(
       expect(get.body.name).toBe(name);
     });
 
+    // Traceability: Jira 121 AC2 (matrix 28770883)
     /**
      * SPM-121 AC2 VEN-UPD-02-C: uploading image A, replacing it with a distinct image B and reloading shows image B,
      * and every other venue field keeps its value.
@@ -1625,6 +1649,7 @@ describe.skipIf(!databaseUrl)(
       });
     });
 
+    // Traceability: Jira 121 AC8 (matrix 28770883)
     /** SPM-121 AC8 VEN-UPD-08-D: multiple bookings affected while unrelated one is excluded. */
     it('VEN-UPD-08-D-E2E: lists A, B, C as affected but excludes unrelated D', async () => {
       const staff = await authenticate(staffEmail);
@@ -1651,6 +1676,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([bookingA, bookingB, bookingC, bookingD]);
     });
 
+    // Traceability: Jira 121 AC8 (matrix 28770883)
     /** SPM-121 AC8 VEN-UPD-08-BND-1: endpoint-contact bookings are not listed as affected (half-open intervals). */
     it('VEN-UPD-08-BND-1-E2E: bookings touching at exactly one endpoint are not affected', async () => {
       const staff = await authenticate(staffEmail);
@@ -1675,6 +1701,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([bookingA, bookingB]);
     });
 
+    // Traceability: Jira 121 AC9 (matrix 28770883)
     /** SPM-121 AC9 VEN-UPD-09-B: capacity increase also lists pending and approved bookings. */
     it('VEN-UPD-09-B-E2E: capacity increase lists all pending and approved bookings', async () => {
       const staff = await authenticate(staffEmail);
@@ -1697,6 +1724,7 @@ describe.skipIf(!databaseUrl)(
       await expectBookingsUnchanged([pending, approved]);
     });
 
+    // Traceability: Jira 121 AC9 (matrix 28770883)
     /** SPM-121 AC9 VEN-UPD-09-BND-1: bookings listed regardless of attendance relative to capacity. */
     it('VEN-UPD-09-BND-1-E2E: lists bookings with attendance below, equal, and above updated capacity', async () => {
       const staff = await authenticate(staffEmail);

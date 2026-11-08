@@ -30,6 +30,7 @@ function rejection(input: unknown) {
 }
 
 describe('validateChangeRequest', () => {
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-A: every permitted change type is accepted on its own. */
   it.each([
     ['description', 'A new description.'],
@@ -46,6 +47,7 @@ describe('validateChangeRequest', () => {
     });
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-A: the permitted list is exactly the AC1 change types. */
   it('REQ-CHANGE-01-A permits exactly description, date/time, attendance, venue requirements, equipment and accessibility', () => {
     expect([...PERMITTED_CHANGE_FIELDS].sort()).toEqual(
@@ -62,6 +64,7 @@ describe('validateChangeRequest', () => {
     );
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-B: several permitted fields travel in one request; text is trimmed and lists de-duplicated. */
   it('REQ-CHANGE-01-B accepts several fields and cleans their values', () => {
     expect(
@@ -87,6 +90,7 @@ describe('validateChangeRequest', () => {
     });
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-C: invalid proposed values are reported together, by field. */
   it('REQ-CHANGE-01-C reports every invalid value at once', () => {
     const body = rejection({
@@ -104,6 +108,7 @@ describe('validateChangeRequest', () => {
     );
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-D: values exactly on the limits are accepted. */
   it.each([
     ['expectedAttendance', 1],
@@ -116,6 +121,7 @@ describe('validateChangeRequest', () => {
     expect(() => validateChangeRequest({ changes: { [field]: value } })).not.toThrow();
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-D: one past each limit is rejected. */
   it.each([
     ['expectedAttendance', 2147483648],
@@ -125,6 +131,7 @@ describe('validateChangeRequest', () => {
     expect(rejection({ changes: { [field]: value } }).errors).toHaveProperty(field);
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-E: an empty request is not a change request. */
   it.each([[{}], [{ changes: {} }], [{ changes: [] }], [null], ['text']])(
     'REQ-CHANGE-01-E rejects a request with no changes: %j',
@@ -133,6 +140,7 @@ describe('validateChangeRequest', () => {
     },
   );
 
+  // Traceability: Jira 64 AC2 (matrix 28016760)
   /** REQ-CHANGE-02-B, REQ-CHANGE-06-A: the event name can never be changed, and nothing is partially accepted. */
   it('REQ-CHANGE-02-B rejects a change to the event name, even alongside a valid change', () => {
     const body = rejection({ changes: { name: 'Alumni Gala', description: 'New text' } });
@@ -140,6 +148,7 @@ describe('validateChangeRequest', () => {
     expect(body.errors).toEqual({ name: 'Event name cannot be changed.' });
   });
 
+  // Traceability: Jira 64 AC2 (matrix 28016760)
   /** REQ-CHANGE-02-C: every way of naming the organiser is rejected. */
   it.each(['organiser', 'organiserId', 'organiserName', 'organiserEmail'])(
     'REQ-CHANGE-02-C rejects a change to %s',
@@ -150,6 +159,7 @@ describe('validateChangeRequest', () => {
     },
   );
 
+  // Traceability: Jira 64 AC2 (matrix 28016760)
   /** REQ-CHANGE-02-D: other details outside the permitted list are rejected by name. */
   it.each(['purpose', 'status', 'coordinatorId', 'registrationEnabled', 'attachments', 'unknownField'])(
     'REQ-CHANGE-02-D rejects a change to %s',
@@ -160,6 +170,7 @@ describe('validateChangeRequest', () => {
     },
   );
 
+  // Traceability: Jira 64 AC6 (matrix 28016760)
   /** REQ-CHANGE-06-B: the error names every non-permitted field and any invalid value together. */
   it('REQ-CHANGE-06-B names every non-permitted field and invalid value in one response', () => {
     const body = rejection({
@@ -171,6 +182,7 @@ describe('validateChangeRequest', () => {
     );
   });
 
+  // Traceability: Jira 64 Cross-cutting (matrix 28016760)
   /** REQ-CHANGE-08-B: server-owned values cannot be supplied next to the changes. */
   it('REQ-CHANGE-08-B rejects server-controlled fields in the body', () => {
     const body = rejection({
@@ -205,6 +217,7 @@ describe('validateChangeRequest', () => {
     });
   });
 
+  // Traceability: Jira 64 Cross-cutting (matrix 28016760)
   /**
    * REQ-CHANGE-08-D: keys that exist on Object.prototype, parsed from JSON as
    * own properties, are refused by name with a 400 like any other field,
@@ -226,6 +239,7 @@ describe('validateChangeRequest', () => {
     expect(JSON.parse(JSON.stringify(body)).errors).toHaveProperty([key], fieldMessage);
   });
 
+  // Traceability: Jira 64 Cross-cutting (matrix 28016760)
   /** REQ-CHANGE-08-D: a locked field next to a prototype key keeps the locked-field message. */
   it('REQ-CHANGE-08-D keeps the locked message when a prototype key is also sent', () => {
     const body = rejection(JSON.parse('{"changes":{"name":"X","constructor":"y"}}'));

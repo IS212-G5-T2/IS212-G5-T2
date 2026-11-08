@@ -76,6 +76,7 @@ function buildService() {
 }
 
 describe('ClarificationsService.createClarification', () => {
+  // Traceability: Jira 39 AC2 (matrix 8060934)
   // SPM-39 REQ-CLAR-01-B (AC2), unit level
   // Kills: a blank message reaching the transaction or the comment insert instead of failing before the database is touched.
   it('rejects a blank message without opening a transaction', async () => {
@@ -87,6 +88,7 @@ describe('ClarificationsService.createClarification', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 39 AC2 (matrix 8060934)
   // SPM-39 REQ-CLAR-01-C (AC2), unit level
   // Kills: whitespace-only text accepted because the trim step runs after the blank check.
   it('rejects a whitespace-only message without opening a transaction', async () => {
@@ -98,6 +100,7 @@ describe('ClarificationsService.createClarification', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 39 AC1 (matrix 8060934)
   // REQ-CLAR-01-A (AC1): "Under Review" was retired as a distinct status (see SPM-38
   // follow-up), so a clarification request no longer changes the event's status.
   // SPM-39 REQ-CLAR-01-A (AC1) and REQ-CLAR-02-B (AC5, flag only), unit level
@@ -454,6 +457,7 @@ describe('ClarificationsService.resolve', () => {
 });
 
 describe('ClarificationsService.listComments', () => {
+  // Traceability: Jira 39 AC3 (matrix 8060934)
   // SPM-39 REQ-CLAR-02-A (AC3, AC4), unit level. The repository returns rows in created_at order (SQL ORDER BY,
   // checked in the e2e test). This test checks that the service keeps that order and maps every field.
   it('REQ-CLAR-02-A: returns the thread in repository order with author, role, timestamp and flags', async () => {
@@ -678,6 +682,7 @@ describe('ClarificationsService notice wording (SPM-177)', () => {
   const noticeMessage = (repository: ReturnType<typeof buildService>['repository']) =>
     vi.mocked(repository.insertNotification).mock.calls[0][1].message;
 
+  // Traceability: Jira 177 DoD2 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-09-A (SPM-177 DoD2): a requested clarification names the Coordinator who asked.
    * Kills: the old unnamed wording, the wrong actor name.
@@ -690,6 +695,7 @@ describe('ClarificationsService notice wording (SPM-177)', () => {
     expect(noticeMessage(repository)).toBe('Marcus Lee requested clarification on "Community Welcome Evening".');
   });
 
+  // Traceability: Jira 177 DoD2 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-09-B (SPM-177 DoD2): a reply names whoever replied, for both directions.
    * Kills: the old "The organiser/coordinator replied" wording, the actor swapped with the recipient.
@@ -706,6 +712,7 @@ describe('ClarificationsService notice wording (SPM-177)', () => {
     expect(noticeMessage(repository)).toBe(`${name} replied to a clarification on "Community Welcome Evening".`);
   });
 
+  // Traceability: Jira 177 DoD2 (matrix 8060934)
   /**
    * CLARIFY-NOTIF-09-C (SPM-177 DoD2): a resolve names whoever resolved, for both directions; an actor with no name
    * falls back to the same value the comment author uses (email, then uid).

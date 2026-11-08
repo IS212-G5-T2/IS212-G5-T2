@@ -106,6 +106,7 @@ describe('assessVenueBookings', () => {
     expect(T).toBeGreaterThan(0);
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: a proposed window that overlaps another event is an overlap.
   it('EVENT-FLAG-02-A reports an overlap with another event at the same venue', () => {
     const [result] = assessVenueBookings({ endDateTime: iso('15:00') }, [
@@ -120,6 +121,7 @@ describe('assessVenueBookings', () => {
     });
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   /**
    * Conflict text is read by coordinators in Singapore, so the neighbour's
    * period is shown in Singapore time with am/pm, never as UTC.
@@ -135,6 +137,7 @@ describe('assessVenueBookings', () => {
     expect(result.conflicts[1].detail).not.toContain('UTC');
   });
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-B: a gap shorter than setup/turnaround time is also a conflict.
   it('EVENT-FLAG-02-B reports a turnaround conflict when the gap is too short', () => {
     // Start moved one hour earlier, to within T-1 minutes of the neighbour.
@@ -156,6 +159,7 @@ describe('assessVenueBookings', () => {
   // first; the boundary decides what, if anything, follows it.
   const S2 = shift(START, -60);
   const E2 = shift(END, 60);
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   it.each([
     [
       'gap equals the turnaround buffer before',
@@ -210,6 +214,7 @@ describe('assessVenueBookings', () => {
     );
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: attendance above the venue capacity is a capacity conflict.
   it('EVENT-FLAG-02-A flags attendance above venue capacity but not equal to it', () => {
     const [over] = assessVenueBookings({ expectedAttendance: 201 }, [
@@ -222,6 +227,7 @@ describe('assessVenueBookings', () => {
     expect(equal.impacted).toBe(false);
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: lowering attendance well inside the confirmed capacity
   // (80 -> 70 with capacity 200) cannot affect the booking.
   it('EVENT-UPDATE-05-B leaves the booking unimpacted when attendance stays within capacity', () => {
@@ -231,6 +237,7 @@ describe('assessVenueBookings', () => {
     expect(result).toMatchObject({ impacted: false, conflicts: [] });
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-06-A / 07-A: each venue booking is assessed on its own and listed.
   it('EVENT-FLAG-07-A assesses each venue booking independently and lists them all', () => {
     // Hall B already holds the venue until 16:00, so the later end fits it.
@@ -251,6 +258,7 @@ describe('assessVenueBookings', () => {
   });
 });
 describe('assessVenueBookings: requirements checks and output shape', () => {
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: layout and facilities cannot be verified (no venue data yet), so every booking is listed for a manual check.
   it('EVENT-FLAG-02-A asks for a manual layout check on every booking', () => {
     const results = assessVenueBookings({ layout: 'Theatre' }, [
@@ -268,6 +276,7 @@ describe('assessVenueBookings: requirements checks and output shape', () => {
     expect(results[1].conflicts[0].detail).toContain('Hall B');
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: the facilities check names the facilities, or says none are required.
   it.each([
     [['AV System', 'Stage'], 'AV System, Stage'],
@@ -283,6 +292,7 @@ describe('assessVenueBookings: requirements checks and output shape', () => {
     },
   );
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: a layout and a capacity change together report both reasons for the same booking.
   it('EVENT-FLAG-02-A reports every reason on a booking together', () => {
     const [result] = assessVenueBookings(
@@ -296,6 +306,7 @@ describe('assessVenueBookings: requirements checks and output shape', () => {
     ]);
   });
 
+  // Traceability: Jira 85 AC7 (matrix 19890731)
   // EVENT-FLAG-06-A: each result carries the booking and venue ids so the UI can address one booking.
   it('EVENT-FLAG-06-A returns the booking and venue identity with each assessment', () => {
     const [result] = assessVenueBookings({ expectedAttendance: 10 }, [
@@ -310,11 +321,13 @@ describe('assessVenueBookings: requirements checks and output shape', () => {
     });
   });
 
+  // Traceability: Jira 85 AC7 (matrix 19890731)
   // EVENT-FLAG-06-A: no bookings, no assessments.
   it('EVENT-FLAG-06-A returns nothing when there are no bookings', () => {
     expect(assessVenueBookings({ expectedAttendance: 999 }, [])).toEqual([]);
   });
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-B: a missing edge keeps the booking's own value (only the start moves here).
   it('EVENT-FLAG-02-B keeps the booking end when only the start is proposed', () => {
     const [result] = assessVenueBookings({ startDateTime: iso('09:00') }, [
@@ -324,6 +337,7 @@ describe('assessVenueBookings: requirements checks and output shape', () => {
     expect(result.conflicts.map((c) => c.kind)).toEqual(['window', 'overlap']);
   });
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-B: several neighbours are all reported, in input order.
   it('EVENT-FLAG-02-B reports each clashing neighbour', () => {
     const [result] = assessVenueBookings({ endDateTime: iso('15:00') }, [
@@ -351,6 +365,7 @@ describe('assessVenueBookings: only conflicts the change can cause', () => {
       neighbours: [neighbour(shift(START, -120), shift(START, -10))],
     });
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-C: a change that does not move the booking is not blamed for a gap that already existed.
   it.each([
     ['attendance', { expectedAttendance: 90 }],
@@ -365,6 +380,7 @@ describe('assessVenueBookings: only conflicts the change can cause', () => {
     },
   );
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-C: an attendance change over capacity still reports only the capacity problem.
   it('EVENT-FLAG-02-C reports only the capacity conflict for an attendance change over capacity', () => {
     const [result] = assessVenueBookings({ expectedAttendance: 150 }, [
@@ -373,12 +389,14 @@ describe('assessVenueBookings: only conflicts the change can cause', () => {
     expect(result.conflicts.map((c) => c.kind)).toEqual(['capacity']);
   });
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-C: a layout change still asks for the manual check, and nothing else.
   it('EVENT-FLAG-02-C reports only the requirements check for a layout change', () => {
     const [result] = assessVenueBookings({ layout: 'Theatre' }, [tightGap()]);
     expect(result.conflicts.map((c) => c.kind)).toEqual(['requirements']);
   });
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-C: a time that stays inside the held window cannot create a
   // clash, so the existing tight gap is not reported for it.
   it.each([
@@ -392,6 +410,7 @@ describe('assessVenueBookings: only conflicts the change can cause', () => {
     },
   );
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-C: moving the start earlier, outside the held window, makes
   // the gap tighter, so it is checked against the neighbour again.
   it('EVENT-FLAG-02-C checks the gap again when the start moves outside the held window', () => {
@@ -404,6 +423,7 @@ describe('assessVenueBookings: only conflicts the change can cause', () => {
     ]);
   });
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-C: no proposal at all changes nothing, so nothing is impacted.
   it('EVENT-FLAG-02-C reports nothing for an empty proposal', () => {
     const [result] = assessVenueBookings({}, [tightGap()]);
@@ -422,6 +442,7 @@ describe('assessVenueBookings: compatible changes leave bookings unimpacted (SPM
       ],
     });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: shortening the event inside the booked window keeps the
   // booking valid, even with tight neighbours on both sides.
   it.each([
@@ -440,6 +461,7 @@ describe('assessVenueBookings: compatible changes leave bookings unimpacted (SPM
     },
   );
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: leaving the held window is reported with both windows so
   // the coordinator can see what the booking must change to.
   it('EVENT-FLAG-02-A describes the held and proposed windows', () => {
@@ -455,6 +477,7 @@ describe('assessVenueBookings: compatible changes leave bookings unimpacted (SPM
     ]);
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: removing facilities only can never make a venue unsuitable.
   it('EVENT-UPDATE-05-B leaves bookings unimpacted when facilities are only removed', () => {
     const [result] = assessVenueBookings(
@@ -464,6 +487,7 @@ describe('assessVenueBookings: compatible changes leave bookings unimpacted (SPM
     expect(result).toMatchObject({ impacted: false, conflicts: [] });
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: added facilities are the only ones the coordinator must re-check.
   it('EVENT-FLAG-02-A names only the facilities being added', () => {
     const [result] = assessVenueBookings(
@@ -482,6 +506,7 @@ describe('assessVenueBookings: compatible changes leave bookings unimpacted (SPM
 describe('withinWindow', () => {
   const at = (time: string) => Date.parse(iso(time));
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: edges may touch the held window; the window must not be empty.
   it.each([
     ['identical window', '10:00', '13:00', true],

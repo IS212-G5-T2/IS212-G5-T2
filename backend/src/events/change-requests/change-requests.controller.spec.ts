@@ -37,6 +37,7 @@ function controller() {
 }
 
 describe('ChangeRequestsController', () => {
+  // Traceability: Jira 64 Cross-cutting (matrix 28016760)
   /** REQ-CHANGE-08-B: the session user, not the body, identifies the requester. */
   it('passes the session user, event id and body to create', async () => {
     const { service, controller: c } = controller();
@@ -45,6 +46,7 @@ describe('ChangeRequestsController', () => {
     expect(service.create).toHaveBeenCalledWith(user, 'evt', body);
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-A: the event list, withdraw and dashboard routes delegate with the session user. */
   it('delegates the list, withdraw and dashboard routes', async () => {
     const { service, controller: c } = controller();
@@ -56,6 +58,7 @@ describe('ChangeRequestsController', () => {
     expect(service.listMine).toHaveBeenCalledWith(user, 'Pending');
   });
 
+  // Traceability: Jira 65 Cross-cutting (matrix 28016830)
   /** SPM-65 (REVIEW-CHANGE-11-A): the review routes delegate with the session user and route values only. */
   it('delegates the SPM-65 review routes', async () => {
     const { review, controller: c } = controller();

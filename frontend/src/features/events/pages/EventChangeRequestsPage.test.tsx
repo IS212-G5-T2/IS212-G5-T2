@@ -126,6 +126,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("EventChangeRequestsPage", () => {
+  // Traceability: Jira 64 AC4 (matrix 28016760)
   /**
    * REQ-CHANGE-01-A, REQ-CHANGE-04-A, REQ-CHANGE-05-A: the organiser opens the form, submits a change,
    * sees the confirmation message and the new request as Pending, and cannot open
@@ -155,6 +156,7 @@ describe("EventChangeRequestsPage", () => {
     expect(screen.queryByText(/has been submitted for review/)).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-A: arriving from the event page's Request Change button opens the form directly; Cancel closes it. */
   it("opens the form directly when asked by the event page", async () => {
     const user = renderPage(ORGANISER, { openForm: true });
@@ -164,6 +166,7 @@ describe("EventChangeRequestsPage", () => {
     expect(screen.getByRole("button", { name: "Request Change" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 64 AC7, AC1 (matrix 28016760)
   /** REQ-CHANGE-01-F: a closed or started event offers no form. */
   it.each([eventRecord({ status: "cancelled" }), eventRecord({ startDateTime: "2020-01-01T00:00:00.000Z" })])(
     "REQ-CHANGE-01-F offers no form when the event can no longer change",
@@ -175,6 +178,7 @@ describe("EventChangeRequestsPage", () => {
     },
   );
 
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** REQ-CHANGE-09-C: withdrawing a pending request refreshes the list and allows a new request. */
   it("REQ-CHANGE-09-C withdraws the pending request and allows a new one", async () => {
     listMock.mockResolvedValueOnce([changeRequest()]).mockResolvedValueOnce([changeRequest({ status: "Withdrawn", decidedBy: "Organiser 1", decidedAt: "2026-10-16T03:00:00.000Z" })]);
@@ -187,6 +191,7 @@ describe("EventChangeRequestsPage", () => {
     expect(screen.getByRole("button", { name: "Request Change" })).toBeInTheDocument();
   });
 
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** REQ-CHANGE-09-B: a request decided meanwhile cannot be withdrawn; the page shows the error and the request's current state. */
   it("REQ-CHANGE-09-B shows the refusal and the current state when withdrawal fails", async () => {
     listMock
@@ -203,6 +208,7 @@ describe("EventChangeRequestsPage", () => {
     expect(screen.queryByText("Your change request was withdrawn.")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-A: the assigned coordinator reads the list without the form or withdraw action. */
   it("REQ-CHANGE-03-A shows the assigned coordinator the request, without the organiser's actions", async () => {
     listMock.mockResolvedValue([changeRequest()]);
@@ -216,6 +222,7 @@ describe("EventChangeRequestsPage", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-A: anyone else the server lets read the list sees it read-only. */
   it("REQ-CHANGE-03-A shows other readers a read-only list", async () => {
     listMock.mockResolvedValue([changeRequest()]);
@@ -226,6 +233,7 @@ describe("EventChangeRequestsPage", () => {
     expect(screen.queryByRole("heading", { name: "Audit Log" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-C: someone the server refuses sees its message and a way back. */
   it("REQ-CHANGE-05-C shows the server's refusal", async () => {
     apiMock.mockRejectedValue(new Error("Event not found."));
@@ -234,6 +242,7 @@ describe("EventChangeRequestsPage", () => {
     expect(screen.getByRole("link", { name: "Back To Events" })).toHaveAttribute("href", "/events");
   });
 
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** REQ-CHANGE-09-B: if the list cannot be refreshed after a failed withdrawal, the refusal is still shown. */
   it("REQ-CHANGE-09-B still shows the refusal when the refresh also fails", async () => {
     listMock.mockResolvedValueOnce([changeRequest()]).mockRejectedValueOnce(new Error("offline"));
@@ -319,6 +328,7 @@ describe("EventChangeRequestsPage", () => {
 
   // ------------------------------------------------------------------ SPM-65
 
+  // Traceability: Jira 65 AC6 (matrix 28016830)
   /** REVIEW-CHANGE-04-A, REVIEW-CHANGE-06-A, REVIEW-CHANGE-08-A, REVIEW-CHANGE-09-A, REVIEW-CHANGE-10-A: approving updates the list, confirms it and reloads the audit log. */
   it("REVIEW-CHANGE-06-A confirms an approval, says the safety check was reset and lists the re-checks", async () => {
     listMock.mockResolvedValue([changeRequest()]);
@@ -345,6 +355,7 @@ describe("EventChangeRequestsPage", () => {
     expect(recheckMock).toHaveBeenCalledWith("evt-1", "cr-1", "i1");
   });
 
+  // Traceability: Jira 65 AC6 (matrix 28016830)
   /** REVIEW-CHANGE-06-A: the approval confirmation without a safety reset or re-check list. */
   it("confirms an approval without a reset or re-checks", async () => {
     // An older decided request stays as it was.
@@ -357,6 +368,7 @@ describe("EventChangeRequestsPage", () => {
     expect(screen.getAllByRole("article")[1]).toHaveTextContent("Earlier reason.");
   });
 
+  // Traceability: Jira 65 AC6 (matrix 28016830)
   /** REVIEW-CHANGE-05-A, REVIEW-CHANGE-06-B: denying confirms it and shows the reason in the list. */
   it("REVIEW-CHANGE-06-B confirms a denial", async () => {
     listMock.mockResolvedValue([changeRequest()]);
@@ -372,6 +384,7 @@ describe("EventChangeRequestsPage", () => {
     await waitFor(() => expect(auditMock).toHaveBeenCalledTimes(2));
   });
 
+  // Traceability: Jira 65 AC11 (matrix 28016830)
   /** REVIEW-CHANGE-12-C (AC11): a request withdrawn meanwhile is closed; the server's message shows and the list reloads. */
   it("REVIEW-CHANGE-12-C reloads when the request was withdrawn meanwhile", async () => {
     listMock
@@ -386,6 +399,7 @@ describe("EventChangeRequestsPage", () => {
     expect(listMock).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 65 AC11 (matrix 28016830)
   /** REVIEW-CHANGE-12-C: a failed reload after a stale decision keeps the request shown. */
   it("still shows the request when the reload after a stale decision fails", async () => {
     listMock.mockResolvedValueOnce([changeRequest()]).mockRejectedValueOnce(new Error("offline"));
@@ -397,6 +411,7 @@ describe("EventChangeRequestsPage", () => {
     expect(within(screen.getByRole("article")).getByText("Pending review")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC10 (matrix 28016830)
   /** REVIEW-CHANGE-10-B: the owner reads the audit log too, and a withdrawal reloads it. */
   it("REVIEW-CHANGE-10-B shows the owner the audit log and reloads it after withdrawing", async () => {
     listMock.mockResolvedValueOnce([changeRequest()]).mockResolvedValueOnce([changeRequest({ status: "Withdrawn" })]);

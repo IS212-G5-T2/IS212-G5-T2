@@ -38,14 +38,17 @@ function completedRepository() {
 }
 
 describe('COMPLETE-EVENT-06-C: the venue repository refuses a booking of a Completed event', () => {
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-C: approve reports event-completed and does not decide the booking', async () => {
     await expect(completedRepository().approveVenueBooking(STAFF_ID, BOOKING)).resolves.toEqual({ kind: 'event-completed' });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-C: reject reports event-completed and does not decide the booking', async () => {
     await expect(completedRepository().rejectVenueBooking(STAFF_ID, BOOKING, 'Venue clash')).resolves.toEqual({ kind: 'event-completed' });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-C: the coordinator cancel reports event-completed', async () => {
     await expect(completedRepository().cancelCoordinatorBooking(COORDINATOR.uid, BOOKING, true)).resolves.toEqual({ kind: 'event-completed' });
   });
@@ -54,6 +57,7 @@ describe('COMPLETE-EVENT-06-C: the venue repository refuses a booking of a Compl
 describe('COMPLETE-EVENT-06-C: the venue service answers 409 EVENT_COMPLETED', () => {
   const rbac = { hasPermission: vi.fn(async () => true) };
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-C: approve is refused with 409 EVENT_COMPLETED', async () => {
     const repository = { approveVenueBooking: vi.fn(async () => ({ kind: 'event-completed' })) };
     const service = new VenuesService(repository as never, rbac as never);
@@ -67,6 +71,7 @@ describe('COMPLETE-EVENT-06-C: the venue service answers 409 EVENT_COMPLETED', (
     });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-C: reject is refused with 409 EVENT_COMPLETED', async () => {
     const repository = { rejectVenueBooking: vi.fn(async () => ({ kind: 'event-completed' })) };
     const service = new VenuesService(repository as never, rbac as never);
@@ -74,6 +79,7 @@ describe('COMPLETE-EVENT-06-C: the venue service answers 409 EVENT_COMPLETED', (
     await expect(service.rejectVenueBooking(STAFF, BOOKING, { reason: 'Venue clash' })).rejects.toMatchObject({ response: { code: 'EVENT_COMPLETED' } });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-C: the coordinator cancel is refused with 409 EVENT_COMPLETED', async () => {
     const repository = { cancelCoordinatorBooking: vi.fn(async () => ({ kind: 'event-completed' })) };
     const service = new VenuesService(repository as never, rbac as never);

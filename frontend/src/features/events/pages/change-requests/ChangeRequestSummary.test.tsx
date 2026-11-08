@@ -55,6 +55,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ChangeRequestSummary", () => {
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-A, REQ-CHANGE-05-B: the newest request's status, fields, date and any denial reason, with a link. */
   it("REQ-CHANGE-05-B shows the latest request's status and a link to all requests", async () => {
     fetchMock.mockResolvedValue([LATEST, { ...LATEST, id: "cr-1", status: "Approved" }]);
@@ -67,6 +68,7 @@ describe("ChangeRequestSummary", () => {
     expect(fetchMock).toHaveBeenCalledWith("evt-1");
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-E: nothing is shown before the first request. */
   it("REQ-CHANGE-05-E renders nothing when there are no requests", async () => {
     fetchMock.mockResolvedValue([]);
@@ -138,6 +140,7 @@ describe("ChangeRequestSummary", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/^Could not load your change requests\.$/);
   });
 
+  // Traceability: Jira 65 AC2 (matrix 28016830)
   /** REVIEW-CHANGE-02-A: the assigned coordinator reviews a pending request on the event page. */
   it("REVIEW-CHANGE-02-A shows the requested changes and the review actions to the coordinator", async () => {
     previewMock.mockResolvedValue({ requestId: "cr-2", venueBookings: [], equipment: [], registrations: { registered: 0, waitlisted: 0, details: [] }, hasConflicts: false });
@@ -159,6 +162,7 @@ describe("ChangeRequestSummary", () => {
     expect(await screen.findByText("No conflicts with existing bookings or registrations.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC6 (matrix 28016830)
   it("REVIEW-CHANGE-06-A confirms an approval and tells the event page", async () => {
     previewMock.mockResolvedValue({ requestId: "cr-2", venueBookings: [], equipment: [], registrations: { registered: 0, waitlisted: 0, details: [] }, hasConflicts: false });
     fetchMock.mockResolvedValue([{ ...LATEST, status: "Pending" }]);
@@ -179,6 +183,7 @@ describe("ChangeRequestSummary", () => {
     expect(screen.queryByRole("button", { name: "Approve Change" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC6 (matrix 28016830)
   it("REVIEW-CHANGE-06-A confirms a denial", async () => {
     previewMock.mockResolvedValue({ requestId: "cr-2", venueBookings: [], equipment: [], registrations: { registered: 0, waitlisted: 0, details: [] }, hasConflicts: false });
     fetchMock.mockResolvedValue([{ ...LATEST, status: "Pending" }]);
@@ -192,6 +197,7 @@ describe("ChangeRequestSummary", () => {
     expect(screen.getByText("Coordinator’s reason: “Not this time, sorry.”")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC11 (matrix 28016830)
   it("REVIEW-CHANGE-12-C reloads a request that was withdrawn meanwhile", async () => {
     previewMock.mockResolvedValue({ requestId: "cr-2", venueBookings: [], equipment: [], registrations: { registered: 0, waitlisted: 0, details: [] }, hasConflicts: false });
     fetchMock
@@ -215,6 +221,7 @@ describe("ChangeRequestSummary", () => {
     expect(screen.getByText("Change Requested by Organiser")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC2 (matrix 28016830)
   /**
    * REVIEW-CHANGE-02-D (case page 28180526): the review panel is only for the assigned coordinator while the request
    * is pending. Once decided, the coordinator sees the plain status and no review actions.
@@ -229,6 +236,7 @@ describe("ChangeRequestSummary", () => {
     expect(screen.queryByRole("button", { name: "Deny Change" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC2 (matrix 28016830)
   /**
    * REVIEW-CHANGE-02-D (case page 28180526): the organiser sees the status of their pending request (REQ-CHANGE-05-A),
    * not the coordinator's Approve/Deny panel.

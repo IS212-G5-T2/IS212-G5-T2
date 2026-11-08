@@ -18,12 +18,14 @@ const controller = new EquipmentRequestsController({ submit, update, markCannotP
 beforeEach(() => vi.resetAllMocks());
 
 describe('SPM-57 equipment request controller', () => {
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-A: the event picker endpoint passes only the authenticated coordinator identity. */
   it('forwards the eligible event picker read', () => {
     controller.listEligibleEvents(request);
     expect(listEligibleEvents).toHaveBeenCalledWith(identity);
   });
 
+  // Traceability: Jira 57 AC3 (matrix 28868989)
   /** EQUIP-REQUEST-03-A: HTTP submission forwards only the session identity and submitted request body. */
   it('forwards a request submission to the service', () => {
     const body = { eventId: 'event-1', items: [] };
@@ -31,6 +33,7 @@ describe('SPM-57 equipment request controller', () => {
     expect(submit).toHaveBeenCalledWith(identity, body);
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: the update endpoint forwards the session identity, selected request id, and edited body. */
   it('forwards an in-place request update to the service', () => {
     const body = { eventId: 'event-1', items: [{ equipmentName: 'Updated microphone', equipmentType: 'Audio', quantity: 2 }] };
@@ -38,18 +41,21 @@ describe('SPM-57 equipment request controller', () => {
     expect(update).toHaveBeenCalledWith(identity, 'request-1', body);
   });
 
+  // Traceability: Jira 57 AC6 (matrix 28868989)
   /** EQUIP-REQUEST-06-A: My Equipment Requests reads use the authenticated session identity. */
   it('forwards the coordinator list read', () => {
     controller.listMine(request);
     expect(listMine).toHaveBeenCalledWith(identity);
   });
 
+  // Traceability: Jira 57 AC7 (matrix 28868989)
   /** EQUIP-REQUEST-07-A: review queue reads delegate with the authenticated caller for role enforcement. */
   it('forwards the Technical Support queue read', () => {
     controller.listQueue(request);
     expect(listQueue).toHaveBeenCalledWith(identity);
   });
 
+  // Traceability: Jira 58 AC7 (matrix 33292299)
   /** EQUIP-RESERVE-07-A: reservation reads forward the verified caller for Technical Support authorization. */
   it('forwards the reservation read', () => {
     controller.listReservations(request);
@@ -65,6 +71,7 @@ describe('SPM-57 equipment request controller', () => {
 });
 
 describe('SPM-58 equipment request reserve route', () => {
+  // Traceability: Jira 58 AC3 (matrix 33292299)
   /** EQUIP-RESERVE-03-A (DECIDED SC-SPM58-05, chaw678 2026-11-06: reserve takes no quantity and is all-or-nothing per request): the reserve endpoint forwards the session identity and request id and returns the service result. */
   it('forwards a reserve decision to the service', () => {
     reserve.mockReturnValue('reserved');

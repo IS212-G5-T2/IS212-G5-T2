@@ -11,6 +11,7 @@ import { ReportTable } from "./ReportTable";
 import { ALICE_TAN, CHLOE_NG, DEV_PATEL } from "./report.fixtures";
 
 describe("SPM-63 AC3: the table shows each attendee's details", () => {
+  // Traceability: Jira 63 AC3 (matrix 16515107)
   // VIEW-REG-INFO-03-A
   // Oracle (SPEC 03-A): headers Name, Email, Contact Number, Registration Date, Status; three rows in the given (date)
   // order with SGT dates "27 Sep 2026 15:00 SGT", "28 Sep 2026 10:30 SGT", "29 Sep 2026 09:00 SGT" and status Confirmed.
@@ -33,6 +34,7 @@ describe("SPM-63 AC3: the table shows each attendee's details", () => {
     ]);
   });
 
+  // Traceability: Jira 63 AC3 (matrix 16515107)
   // VIEW-REG-INFO-03-A-NULL
   // Oracle (derived from SPM-61: contact number optional): a missing contact number is an empty cell, not "null".
   // Kills: "undefined" or "null" printed.
@@ -47,6 +49,7 @@ describe("SPM-63 AC3: the table shows each attendee's details", () => {
 });
 
 describe("SPM-63 AC3 (legacy rows): name and email a legacy registration does not have", () => {
+  // Traceability: Jira 63 AC3 (matrix 16515107)
   it("VIEW-REG-INFO-03-A-NULL: a missing name and email show Not provided, not a blank cell", () => {
     render(<ReportTable registrations={[{ ...DEV_PATEL, fullName: "", email: "" }]} />);
 
@@ -56,6 +59,7 @@ describe("SPM-63 AC3 (legacy rows): name and email a legacy registration does no
 });
 
 describe("SPM-63 AC4: an event with no registrations", () => {
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-C
   // Oracle (SPEC 04-C): the empty state reads exactly "No registrations yet" and there is no data table.
   // Kills: a blank page; an empty table shown instead of the message.
@@ -70,6 +74,7 @@ describe("SPM-63 AC4: an event with no registrations", () => {
 });
 
 describe("SPM-63 AC3: attendee-supplied text is shown as text", () => {
+  // Traceability: Jira 61 Cross-cutting (matrix 16482307)
   // EVENT-REG-03-SEC-1
   // Oracle (EVENT-REG-03-SEC-1, coordinator report): a registration named <script>alert(1)</script> is rendered as
   // literal text: the same characters are visible and no script element exists.
@@ -86,6 +91,7 @@ describe("SPM-63 AC3: attendee-supplied text is shown as text", () => {
     expect(container.querySelector("script")).toBeNull();
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-E
   // Oracle (SPM-61 03-SEC-1 / R10): a formula payload is shown literally on screen (neutralisation is export-only).
   // Kills: neutralisation applied to the screen (a leading ' would show).

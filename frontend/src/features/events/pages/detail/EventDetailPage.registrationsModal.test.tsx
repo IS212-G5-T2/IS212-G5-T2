@@ -82,6 +82,7 @@ describe("SPM-63 registrations modal on the event detail page", () => {
     }
   });
 
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-F
   // Oracle (SPEC: non-owning organiser does not see button)
   // Kills: organiser access check dropped; column matched wrong way
@@ -115,6 +116,7 @@ describe("SPM-63 registrations modal on the event detail page", () => {
     expect(screen.queryByRole("button", { name: "View Registrations" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-D
   // Oracle (SPEC: modal opens and closes from the button and x button)
   // Kills: button does nothing; wrong event's data shown

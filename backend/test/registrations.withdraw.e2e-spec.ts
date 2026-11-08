@@ -334,6 +334,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       }
     });
 
+    // Traceability: Jira 120 AC5 (matrix 16613384)
     // WITHDRAW-EVENT-REG-05-C
     // ASSUMPTION A10: a registration made before migration 004 added the detail columns has NULL name, email and
     // contact (the frontend type says "absent on older records"). The API contract keeps attendeeName, fullName and
@@ -563,6 +564,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
 
   // WITHDRAW-EVENT-REG-07-A, WITHDRAW-EVENT-REG-07-B
   describe('WITHDRAW-EVENT-REG-07-A / 07-B (cross-cutting): ownership and authentication', () => {
+    // Traceability: Jira 120 Cross-cutting (matrix 16613384)
     // WITHDRAW-EVENT-REG-07-A
     // Oracle (SPEC 07-A A + D16): another attendee gets 404 "Registration not found." and nothing changes.
     // Kills: M2 ownership scoping removed; M6 403 instead of 404.
@@ -581,6 +583,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       expect(await registeredCount(eventId)).toBe(3);
     });
 
+    // Traceability: Jira 120 Cross-cutting (matrix 16613384)
     // WITHDRAW-EVENT-REG-07-A
     // Oracle (SPEC 07-A C): the owner baseline succeeds.
     // Kills: ownership rule that rejects everyone.
@@ -589,6 +592,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       await withdraw(regId, att01.cookie).expect(200);
     });
 
+    // Traceability: Jira 120 Cross-cutting (matrix 16613384)
     // WITHDRAW-EVENT-REG-07-A
     // Oracle (Added D): a missing registration answers identically to a non-owned one (no ownership leak).
     // Kills: different body for missing vs non-owned; malformed id -> 500.
@@ -609,6 +613,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       expect(res.body).toEqual(reference.body);
     });
 
+    // Traceability: Jira 120 Cross-cutting (matrix 16613384)
     // WITHDRAW-EVENT-REG-07-A
     // Oracle (DERIVED, D16): every non-attendee role takes the same 404 path, never a 403.
     // Kills: a role-specific 403 that reveals the route exists (for any one of the four other roles).
@@ -629,6 +634,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       },
     );
 
+    // Traceability: Jira 120 Cross-cutting (matrix 16613384)
     // WITHDRAW-EVENT-REG-07-B
     // Oracle (SPEC 07-A B = 07-B, run once): no session -> 401 with the existing middleware message.
     // Kills: authentication checked after the lookup; unauthenticated withdrawal processed.
@@ -648,6 +654,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     // a wrong order gives a different, observable answer. Nothing may change in any of them.
     const ALREADY_WITHDRAWN = 'This registration has already been withdrawn.';
 
+    // Traceability: Jira 120 Cross-cutting (matrix 16613384)
     // WITHDRAW-EVENT-REG-07-INT-1
     // Kills: the body checked before the session (an anonymous caller learns the body rules: 400, not 401).
     it('07-INT-1 (authentication before body): no session and a bad body -> 401, not 400', async () => {
@@ -663,6 +670,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       expect((await dbRow(regId)).status).toBe('Registered');
     });
 
+    // Traceability: Jira 120 Cross-cutting (matrix 16613384)
     // WITHDRAW-EVENT-REG-07-INT-2
     // Kills: the body validated only after the ownership lookup (a non-owner would get 404, not 400).
     it('07-INT-2 (body before ownership): a non-owner with a bad body -> 400, not 404', async () => {
@@ -702,6 +710,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       expect(stored.withdrawn_at).toBeNull();
     });
 
+    // Traceability: Jira 120 Cross-cutting (matrix 16613384)
     // WITHDRAW-EVENT-REG-07-INT-5
     // Kills: the event-start check moved before the state check (the owner of a withdrawn registration
     // on a past event would get "Event has already occurred" instead of "already been withdrawn").

@@ -92,6 +92,7 @@ const row = (label: string) =>
 afterEach(cleanup);
 
 describe("SPM-54 AC11: capacity summaries", () => {
+  // Traceability: Jira 54 AC11 (matrix 22839839)
   // VEN-BKG-11-A: organiser capacity is capped at expected attendance and excludes pending/unavailable venues.
   // Kills: a pending or unavailable venue counted into confirmed capacity, or the organiser total not capped at expected attendance.
   it("VEN-BKG-11-A caps confirmed usable capacity for the organiser and separates pending capacity", () => {
@@ -169,6 +170,7 @@ describe("SPM-54 AC11: capacity summaries", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC11 (matrix 22839839)
   // VEN-BKG-11-B: coordinator sees aggregate confirmed capacity without the organiser cap.
   // Kills: the coordinator summary capped at expected attendance (180 shown instead of 220 actual), or the actual sum wrong.
   it("VEN-BKG-11-B shows actual confirmed capacity to the coordinator", () => {
@@ -208,6 +210,7 @@ describe("SPM-54 AC11: capacity summaries", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC11 (matrix 22839839)
   // VEN-BKG-11-A: the coordinator sees the same 40/180 usable summary as the organiser.
   // Kills: the coordinator summary showing a different actual figure, or dropping the expected value from the summary.
   it("VEN-BKG-11-A shows 40 of 180 confirmed usable capacity to the coordinator", () => {
@@ -238,6 +241,7 @@ describe("SPM-54 AC11: capacity summaries", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC11 (matrix 22839839)
   // VEN-BKG-11-BND-1: the organiser total stops at expected attendance when confirmed venues exceed it.
   // Kills: the organiser total not stopping at 180 when confirmed capacity is 220 (cap missing or off by one).
   it("VEN-BKG-11-BND-1 caps 220 confirmed seats at 180 for the organiser", () => {
@@ -274,6 +278,7 @@ describe("SPM-54 AC11: capacity summaries", () => {
     expect(within(summary).getByText("180 / 180")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 54 AC11 (matrix 22839839)
   // VEN-BKG-11-VAR-1: a venue becoming unavailable immediately removes only its capacity from the live summary.
   // Kills: capacity not recalculated when a confirmed venue becomes unavailable, so its capacity stays in the summary.
   it("VEN-BKG-11-VAR-1 recalculates usable capacity when one confirmed venue becomes unavailable", () => {
@@ -327,6 +332,7 @@ describe("SPM-54 AC11: capacity summaries", () => {
 });
 
 describe("PlanningInformationPanel", () => {
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   // EVENT-VIEW-02-A: AC2 — every row of event information is shown in readable form.
   // Kills: a row (date and time, attendance, room layout, facilities, accessibility or equipment) missing or showing the wrong value.
   it("EVENT-VIEW-02-A shows the current event information", () => {
@@ -341,6 +347,7 @@ describe("PlanningInformationPanel", () => {
     expect(row("Equipment requirements")).toHaveTextContent("Two microphones");
   });
 
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   // EVENT-VIEW-02-A: bookings and equipment are listed with their schedule, quantity and status.
   // Kills: a venue booking or equipment arrangement rendered without its schedule, quantity or status.
   it("EVENT-VIEW-02-A lists each venue booking and equipment arrangement with its status", () => {
@@ -354,6 +361,7 @@ describe("PlanningInformationPanel", () => {
   });
 
   // Kills: a cancelled booking listed among the active venues (status filter removed).
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: a cancelled request is retained in history but omitted from the event's active venue list. */
   it("VEN-BKG-09-A hides a cancelled venue booking while keeping other active venues visible", () => {
     const cancelled = {
@@ -394,6 +402,7 @@ describe("PlanningInformationPanel", () => {
     expect(within(venues).queryByText("Old Hall")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   // EVENT-VIEW-02-A: nothing booked yet is stated, not left blank.
   // Kills: an empty list rendered blank instead of 'No venue booked yet.' or 'No equipment arranged yet.'
   it("EVENT-VIEW-02-A says when no venue or equipment has been arranged", () => {
@@ -406,6 +415,7 @@ describe("PlanningInformationPanel", () => {
     expect(screen.getByText("No equipment arranged yet.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 49 AC6 (matrix 19890466)
   // EVENT-UPDATE-06-A: the last-updated time is shown on the panel as well as the form.
   // Kills: the last-updated time omitted, or formatted differently from formatDateTime.
   it("EVENT-UPDATE-06-A shows when the information was last updated", () => {
@@ -415,6 +425,7 @@ describe("PlanningInformationPanel", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC4 (matrix 19890855)
   // EVENT-VIEW-04-A: AC4 — whoever sees the panel, it never offers a way to edit.
   // Kills: a button, text box, checkbox, combobox or link rendered in the panel for either readOnly value.
   it.each([true, false])(
@@ -443,6 +454,7 @@ describe("PlanningInformationPanel", () => {
     },
   );
 
+  // Traceability: Jira 97 AC4 (matrix 19890855)
   // EVENT-VIEW-04-A: the explanatory sentence tells the organiser who keeps this up to date.
   // Kills: the read-only sentence missing or reworded for a read-only viewer.
   it("EVENT-VIEW-04-A tells a read-only viewer that the coordinator maintains the information", () => {
@@ -454,6 +466,7 @@ describe("PlanningInformationPanel", () => {
     ).toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC4 (matrix 19890855)
   // Kills: the organiser-view description missing when readOnly is false.
   it("EVENT-VIEW-04-A describes the panel as the organiser's view when the coordinator sees it", () => {
     render(<PlanningInformationPanel view={view({ readOnly: false })} />);
@@ -464,6 +477,7 @@ describe("PlanningInformationPanel", () => {
 });
 
 describe("PlanningInformationPanel: pending changes and replacements", () => {
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-A: AC3 — "Change pending" appears on the affected row only, with the proposed value.
   // Kills: 'Change pending' shown on every row, or the proposed value missing from the affected row.
   it("EVENT-VIEW-03-A marks only the row with a pending change and shows the proposed value", () => {
@@ -482,6 +496,7 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
     expect(screen.getAllByText("Change pending")).toHaveLength(1);
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-A: a start or end change both belong to the date & time row.
   // Kills: a pending start or end change shown on another row, or only one of the two marked on Date & time.
   it("EVENT-VIEW-03-A shows pending start and end changes on the Date & time row", () => {
@@ -500,6 +515,7 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
     expect(marked).toHaveTextContent("Proposed: 11 Nov 2026, 6:00 pm"); // Singapore time with am/pm
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-A: a pending list value is shown as readable text.
   // Kills: a proposed list shown as raw array text or '[object Object]' instead of comma-separated text.
   it("EVENT-VIEW-03-A shows a proposed list value as text", () => {
@@ -515,6 +531,7 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
     );
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-B: AC3 — the unavailable venue is marked on its own booking.
   // Kills: the replacement label shown on every booking, or missing from the unavailable booking.
   it("EVENT-VIEW-03-B marks the unavailable booking as needing a replacement venue", () => {
@@ -560,6 +577,7 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-B: a replacement for a booking that is no longer listed is still shown, by venue name.
   // Kills: a replacement dropped when its booking is no longer listed.
   it("EVENT-VIEW-03-B still shows a replacement whose booking is no longer listed", () => {
@@ -586,6 +604,7 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
 });
 
 describe("PlanningInformationPanel: refresh problems", () => {
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // EVENT-VIEW-05-C: a failed refresh is shown above the data, which stays visible.
   // Kills: the refresh error not shown as an alert, or the planning data hidden when the refresh fails.
   it("EVENT-VIEW-05-C shows the refresh error and keeps the data", () => {
@@ -599,6 +618,7 @@ describe("PlanningInformationPanel: refresh problems", () => {
     expect(screen.getByText("Hall A")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // Kills: an alert shown when no refresh error was supplied.
   it("EVENT-VIEW-05-C shows no alert when the last refresh succeeded", () => {
     render(<PlanningInformationPanel view={view()} />);
@@ -621,6 +641,7 @@ describe("PlanningInformationPanel: refresh problems", () => {
 
 // SPM-94: the organiser sees the safety state in the planning information, in words (the label stays in the header).
 describe("planning information shows the safety check to the organiser", () => {
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // Kills: a safety indicator mapped to the wrong sentence (e.g. CLEARED described as awaiting a check).
   it.each([
     ["AWAITING_CHECK", "Waiting for the Safety Officer's check."],
@@ -639,6 +660,7 @@ describe("planning information shows the safety check to the organiser", () => {
     },
   );
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // Kills: the 'No safety check requested yet.' sentence missing when the safety indicator is null.
   it("TRACK-EVENT-STATUS-03-B PLANNING: no safety check requested yet when there is no indicator", () => {
     render(<PlanningInformationPanel view={view()} safetyIndicator={null} />);

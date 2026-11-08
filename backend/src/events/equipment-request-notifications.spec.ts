@@ -43,6 +43,7 @@ describe('SPM-172 equipment request notices in the notification feed', () => {
     service = module.get(EventsService);
   });
 
+  // Traceability: Jira 172 AC1 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-01-D (SPM-172 AC1): the feed asks for the equipment decision types only for a Coordinator. An
    * Organiser, the Lead, an Attendee and Technical Support never ask for them.
@@ -64,6 +65,7 @@ describe('SPM-172 equipment request notices in the notification feed', () => {
     expect(params[1].includes('equipment_request_cannot_provide')).toBe(included);
   });
 
+  // Traceability: Jira 172 AC3 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-03-A (SPM-172 AC3): each equipment notice in the feed carries the id of its request (the bell link
    * target) and is labelled a Coordinator notice; a notice without a request link carries null.
@@ -91,6 +93,7 @@ describe('SPM-172 equipment request notices in the notification feed', () => {
     expect(db.query.mock.calls[0][0]).toContain('n.*');
   });
 
+  // Traceability: Jira 172 AC4 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-04-A (SPM-172 AC4): a Coordinator can mark an equipment notice read, and the read call is limited
    * to the caller's own notices of the types they may read; an Organiser finds nothing.

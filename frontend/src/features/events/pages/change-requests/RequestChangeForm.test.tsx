@@ -66,6 +66,7 @@ function renderForm(
 afterEach(cleanup);
 
 describe("RequestChangeForm", () => {
+  // Traceability: Jira 64 AC2 (matrix 28016760)
   /** REQ-CHANGE-01-A, REQ-CHANGE-02-A: permitted fields are pre-filled inputs; name and organiser are read-only text. */
   it("REQ-CHANGE-02-A shows the event name and organiser read-only and pre-fills the permitted fields", () => {
     renderForm();
@@ -101,6 +102,7 @@ describe("RequestChangeForm", () => {
     );
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-E: nothing can be submitted until a detail differs from the current value. */
   it("REQ-CHANGE-01-E keeps Submit disabled until something changes", async () => {
     const { user } = renderForm();
@@ -116,6 +118,7 @@ describe("RequestChangeForm", () => {
     expect(submit).toBeEnabled();
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-B: only changed fields are sent, dates converted from Singapore time, with the optional reason. */
   it("REQ-CHANGE-01-B sends only the changed fields and the reason", async () => {
     const { user, onSubmit } = renderForm();
@@ -148,6 +151,7 @@ describe("RequestChangeForm", () => {
     });
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-C: a value that is not a whole number is sent as typed so the server names the problem; a cleared date is sent empty. */
   it("REQ-CHANGE-01-C passes invalid attendance and a cleared date through for server validation", async () => {
     const { user, onSubmit } = renderForm();
@@ -161,6 +165,7 @@ describe("RequestChangeForm", () => {
     });
   });
 
+  // Traceability: Jira 64 AC6 (matrix 28016760)
   /** REQ-CHANGE-06-A, REQ-CHANGE-04-B: server errors are shown, including fields that are not inputs here; typed values are kept. */
   it("REQ-CHANGE-06-A shows the server's message and field errors and keeps the typed values", async () => {
     const onSubmit = vi.fn().mockRejectedValue(
@@ -197,6 +202,7 @@ describe("RequestChangeForm", () => {
     ).toBeEnabled();
   });
 
+  // Traceability: Jira 64 AC4 (matrix 28016760)
   /** REQ-CHANGE-04-B: an unexpected failure shows a generic retry message. */
   it("REQ-CHANGE-04-B shows a generic message for a non-API failure", async () => {
     const { user } = renderForm(
@@ -212,6 +218,7 @@ describe("RequestChangeForm", () => {
     );
   });
 
+  // Traceability: Jira 64 AC4 (matrix 28016760)
   /** REQ-CHANGE-04-B: facility and accessibility errors from the server are shown under their groups. */
   it("REQ-CHANGE-04-B shows choice-list errors under their groups", async () => {
     const onSubmit = vi
@@ -230,6 +237,7 @@ describe("RequestChangeForm", () => {
     expect(await screen.findAllByText("Choose valid options.")).toHaveLength(2);
   });
 
+  // Traceability: Jira 64 AC4 (matrix 28016760)
   /** REQ-CHANGE-04-C: the request is sent once while saving. */
   it("REQ-CHANGE-04-C disables Submit while the request is saving", async () => {
     let resolve!: (value: ChangeRequest) => void;
@@ -261,6 +269,7 @@ describe("RequestChangeForm", () => {
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 64 AC1 (matrix 28016760)
   /** REQ-CHANGE-01-E: submitting the form directly (Enter key) with nothing changed sends nothing. */
   it("REQ-CHANGE-01-E ignores a form submit with no changes", () => {
     const { onSubmit } = renderForm();
@@ -268,6 +277,7 @@ describe("RequestChangeForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 64 AC6 (matrix 28016760)
   /** REQ-CHANGE-06-A: a server message without field errors is shown on its own. */
   it("REQ-CHANGE-06-A shows a server message that has no field errors", async () => {
     const { user } = renderForm(

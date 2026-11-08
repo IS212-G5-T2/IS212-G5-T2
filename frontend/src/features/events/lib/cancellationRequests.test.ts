@@ -26,6 +26,7 @@ const att = { id: "att-01", role: "attendee" };
 
 describe("SPM-155 canRequestCancellation (AC1)", () => {
   // Kills: FM4
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-B (D5): the owning Organiser is offered the action on Submitted, Approved, Planning and Confirmed only. */
   it.each([
     ["submitted", true],
@@ -42,6 +43,7 @@ describe("SPM-155 canRequestCancellation (AC1)", () => {
   });
 
   // Kills: FM5
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-E: only the submitting Organiser is offered the action. */
   it.each([
     ["ORG-02", org2],
@@ -56,6 +58,7 @@ describe("SPM-155 canRequestCancellation (AC1)", () => {
 
 describe("SPM-155 canDecideCancellation (AC3)", () => {
   // Kills: FM6
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-C (D3): only the Coordinator assigned to the event is offered Accept and Decline. */
   it.each([
     ["COO-01, assigned", coo1, true],
@@ -69,6 +72,7 @@ describe("SPM-155 canDecideCancellation (AC3)", () => {
   });
 
   // Kills: FM6
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-G: on an unassigned event nobody is offered the decision controls. */
   it("CANCEL-REQUEST-01-G: an unassigned event offers the decision controls to nobody", () => {
     // Act / Assert
@@ -78,6 +82,7 @@ describe("SPM-155 canDecideCancellation (AC3)", () => {
 
 describe("SPM-155 labels and reason length", () => {
   // Kills: FM7
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A to 02-C: the status words the Organiser reads. */
   it.each([
     ["pending", "Pending"],
@@ -90,6 +95,7 @@ describe("SPM-155 labels and reason length", () => {
   });
 
   // Kills: FM51
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: the event-list indicator (D13b). */
   it.each([
     ["pending", "Cancellation requested"],
@@ -102,6 +108,7 @@ describe("SPM-155 labels and reason length", () => {
   });
 
   // Kills: FM8
+  // Traceability: Jira 155 AC1 (matrix 35848252)
   /** CANCEL-REQUEST-01-H: the limit is 500 code points, matching the server. */
   it("CANCEL-REQUEST-01-H: REASON_MAX is 500 and the count is in code points", () => {
     // Assert

@@ -92,6 +92,7 @@ afterEach(() => {
 });
 
 describe('EventsService.approve (SPM-40)', () => {
+  // Traceability: Jira 40 AC3 (matrix 13336613)
   // EVENT-APPROVE-03-A — happy path (AC3; the notification is SPM-88)
   // Kills: approve that does not write Approved, skips the FOR UPDATE lock, or inserts no approval notification (wrong type, recipient or event id).
   it('approves a Submitted request: sets Approved and notifies the organiser', async () => {
@@ -156,7 +157,9 @@ describe('EventsService.approve (SPM-40)', () => {
 });
 
 describe('EventsService.approve — state guard (EVENT-APPROVE-04-A)', () => {
+  // Traceability: Jira 40 AC6 (matrix 13336613)
   // Kills: approval of an event in any non-Submitted status (UPDATE runs or no ConflictException).
+  // ID: EVENT-APPROVE-04-A
   it.each(['Approved', 'Planning', 'Confirmed', 'Completed', 'Rejected', 'Cancelled'])(
     'cannot approve a %s request (Conflict, no update)',
     async (status) => {
@@ -173,7 +176,9 @@ describe('EventsService.approve — state guard (EVENT-APPROVE-04-A)', () => {
 });
 
 describe('EventsService.approve — immutability (EVENT-APPROVE-04-B)', () => {
+  // Traceability: Jira 40 AC6 (matrix 13336613)
   // Kills: re-approval of an Approved event that issues an UPDATE or a second approval notification.
+  // ID: EVENT-APPROVE-04-B
   it('does not re-process or revert an already-Approved event', async () => {
     // An already-approved event stays approved: the Submitted-only guard blocks
     // it, so no status-mutating UPDATE and no duplicate approval notification.
@@ -244,6 +249,7 @@ describe('SPM-88 decision notification write path', () => {
     },
   ];
 
+  // Traceability: Jira 88 AC6 (matrix 37322836)
   /**
    * DECISION-NOTIFY-06-D: for both approve and reject, the notification INSERT runs
    * on the transaction client between BEGIN and COMMIT, and never on this.database.

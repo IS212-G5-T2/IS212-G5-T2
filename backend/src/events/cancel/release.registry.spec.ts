@@ -46,6 +46,7 @@ describe('SPM-136 release registry', () => {
 });
 
 describe('CANCEL-EVENT-04-A: venue bookings and holds', () => {
+  // Traceability: Jira 136 AC4 (matrix 23691421)
   // Kills: M14, S11
   it('CANCEL-EVENT-04-A: releases approved bookings and pending holds of this event only, stamped with the instant', async () => {
     // Arrange
@@ -65,6 +66,7 @@ describe('CANCEL-EVENT-04-A: venue bookings and holds', () => {
 });
 
 describe('CANCEL-EVENT-05-A: equipment reservations', () => {
+  // Traceability: Jira 136 AC5 (matrix 23691421)
   // Kills: S12 (only Reserved lines released), S13 (Requested lines not released)
   it('CANCEL-EVENT-05-A: releases Requested, Reserved and Unavailable lines of this event, stamped with the instant', async () => {
     // Arrange
@@ -84,6 +86,7 @@ describe('CANCEL-EVENT-05-A: equipment reservations', () => {
 });
 
 describe('CANCEL-EVENT-08-A: registrations', () => {
+  // Traceability: Jira 136 AC8 (matrix 23691421)
   // Kills: M18, S20
   it('CANCEL-EVENT-08-A: collects the Registered attendees as recipients before any row changes', async () => {
     // Arrange: two Registered attendees
@@ -98,6 +101,7 @@ describe('CANCEL-EVENT-08-A: registrations', () => {
     expect(queries[0].params).toEqual([EVENT]);
   });
 
+  // Traceability: Jira 136 AC8 (matrix 23691421)
   // Kills: M19, S14
   it('CANCEL-EVENT-08-A: sets Registered rows to Cancelled with the reason and leaves Withdrawn rows alone', async () => {
     // Arrange

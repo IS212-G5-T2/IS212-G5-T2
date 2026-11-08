@@ -42,13 +42,16 @@ describe('EVENT-REG-01-BND-1: the opening boundary and the open-state rules', ()
 
 // SPM-139 F5: a disabled registration reports its own state, distinct from closed.
 describe('SPM-139 F5: the disabled state', () => {
+  // Traceability: Jira 139 AC1 (matrix 28869217)
   it('CONFIG-REG-01-B: reports disabled, not closed, when the coordinator has switched registration off', () => {
     expect(registrationWindowState({ ...event, registrationEnabled: false }, at(1000))).toBe('disabled');
   });
+  // Traceability: Jira 139 Cross-cutting (matrix 28869217)
   // Guards the precedence of the status check over the disabled check (M29 removes the status check).
   it('CONFIG-REG-11-A: reports closed, not disabled, for a switched-off event that is not Confirmed', () => {
     expect(registrationWindowState({ ...event, status: 'Approved', registrationEnabled: false }, at(1000))).toBe('closed');
   });
+  // Traceability: Jira 139 Cross-cutting (matrix 28869217)
   it('CONFIG-REG-11-A: still reports closed for an enabled event outside the window', () => {
     expect(registrationWindowState(event, at(-1000))).toBe('not_open');
     expect(registrationWindowState(event, closesAt)).toBe('closed');
@@ -69,6 +72,7 @@ describe('EVENT-REG-02-BND-1: the closing boundary', () => {
 
 // The one predicate every caller uses: true only inside an open, enabled, Confirmed window.
 describe('SPM-139 isRegistrationOpen: plain cases (mutation mapping)', () => {
+  // Traceability: Jira 139 AC2 (matrix 28869217)
   // Kills: isRegistrationOpen returning the wrong comparison (open for a switched-off or closed window)
   it('CONFIG-REG-02-C: isRegistrationOpen is true only inside an open, enabled, Confirmed window', () => {
     expect(isRegistrationOpen(event, at(1000))).toBe(true);

@@ -240,6 +240,7 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(screen.getByText(/Alice Tan/)).toBeInTheDocument();
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-E
   // Oracle (SPEC: click inside does not close)
   // Kills: any click closes; backdrop click not checked
@@ -252,6 +253,7 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-F
   // Oracle (SPEC: close button closes)
   // Kills: close button does nothing
@@ -264,6 +266,7 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-G
   // Oracle (SPEC: Escape closes)
   // Kills: Escape ignored
@@ -276,6 +279,7 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-H
   // Oracle (SPEC: backdrop click closes)
   // Kills: backdrop click not wired

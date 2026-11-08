@@ -203,6 +203,7 @@ describe("SPM-155 status timeline: only the stages reached (commit 02e56aa3)", (
   });
 
   // Kills: FM27, FM35, FM36, FM56, FM57, FM59, FM63, FM66
+  // Traceability: Jira 155 AC4 (matrix 35848252)
   /** CANCEL-REQUEST-04-A (page, DERIVED): accepting a request on the page moves the timeline from Confirmed to Confirmed then Cancelled. */
   it("CANCEL-REQUEST-04-SUP-TIMELINE: accepting the request extends the timeline with Cancelled after the stage it was cancelled from", async () => {
     // Arrange: a Confirmed event with a pending request; once cancelled its history says Confirmed to Cancelled

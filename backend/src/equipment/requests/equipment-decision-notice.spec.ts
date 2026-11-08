@@ -51,6 +51,7 @@ const decide = (repository: EquipmentRequestsRepository, kind: 'reserve' | 'cann
   kind === 'reserve' ? repository.reserve(requestId) : repository.markCannotProvide(requestId, 'Only 8 available.');
 
 describe('SPM-172 equipment request decision notices', () => {
+  // Traceability: Jira 172 AC1 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-01-A (SPM-172 AC1): reserving a request writes exactly one notification, addressed to the event's
    * Coordinator, linked to the event and to the request, of the reserved type.
@@ -69,6 +70,7 @@ describe('SPM-172 equipment request decision notices', () => {
     expect(written[0][1][0]).toMatch(/^[0-9a-f-]{36}$/);
   });
 
+  // Traceability: Jira 172 AC1 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-01-B (SPM-172 AC1): marking a request cannot-provide writes exactly one cannot-provide notice to the
    * Coordinator.
@@ -86,6 +88,7 @@ describe('SPM-172 equipment request decision notices', () => {
     ]);
   });
 
+  // Traceability: Jira 172 AC1 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-01-C (SPM-172 AC1, defensive): an event with no Coordinator has no recipient; the decision still
    * stands and nothing is written.
@@ -102,6 +105,7 @@ describe('SPM-172 equipment request decision notices', () => {
     },
   );
 
+  // Traceability: Jira 172 AC2 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-02-A (SPM-172 AC2): a reservation's message is exactly the specified sentence with the event name
    * quoted; a name that itself contains quotes is carried through unchanged.
@@ -115,6 +119,7 @@ describe('SPM-172 equipment request decision notices', () => {
     expect(notices(query)[0][1][3]).toBe('Your equipment request for "Spring "Gala" & Fair" has been reserved.');
   });
 
+  // Traceability: Jira 172 AC2 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-02-B (SPM-172 AC2): a cannot-provide message is exactly the specified sentence, and the reason is not
    * in it (the request page shows the reason).
@@ -128,6 +133,7 @@ describe('SPM-172 equipment request decision notices', () => {
     expect(notices(query)[0][1][3]).toBe('Your equipment request for "Spring "Gala" & Fair" cannot be provided.');
   });
 
+  // Traceability: Jira 172 AC2 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-02-C (SPM-172 AC2): the notice carries the decision time (the clock the decision used), not a time
    * taken at some other moment, and it is the same instant the request row is stamped with.
@@ -142,6 +148,7 @@ describe('SPM-172 equipment request decision notices', () => {
     expect(notices(query)[0][0]).toContain('created_at');
   });
 
+  // Traceability: Jira 172 AC2 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-02-D (SPM-172 AC2): the notice is written after the request status update, in the same transaction
    * (one transaction call), so a decision and its notice are saved together or not at all.
@@ -162,6 +169,7 @@ describe('SPM-172 equipment request decision notices', () => {
     expect(insert).toBeGreaterThan(update);
   });
 
+  // Traceability: Jira 172 AC5 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-05-A (SPM-172 AC5, atomic): if the notice cannot be saved the decision fails with it (the error
    * propagates out of the transaction callback, which the database service rolls back).
@@ -173,6 +181,7 @@ describe('SPM-172 equipment request decision notices', () => {
     await expect(decide(repository, kind)).rejects.toThrow('notice insert failed');
   });
 
+  // Traceability: Jira 172 AC6 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-06-A (SPM-172 AC6): the recipient is the Coordinator on the event row read in the decision's own
    * locked statement (FOR UPDATE OF r, e), so it is whoever is assigned at decision time.
@@ -190,6 +199,7 @@ describe('SPM-172 equipment request decision notices', () => {
     expect(notices(query)[0][1][1]).toBe('coo-new');
   });
 
+  // Traceability: Jira 172 AC7 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-07-A (SPM-172 AC7): a refused decision writes no notice: request not found, event Completed, event
    * Confirmed, request not Pending Review. Both decision paths.
@@ -211,6 +221,7 @@ describe('SPM-172 equipment request decision notices', () => {
     }
   });
 
+  // Traceability: Jira 172 AC7 (matrix 40632321)
   /**
    * EQUIP-REQ-NOTIF-07-B (SPM-172 AC7): a reservation refused for insufficient active stock writes no notice and no
    * status change.

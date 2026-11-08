@@ -51,6 +51,7 @@ async function openHistory(refreshKey = 0) {
 }
 
 describe("SPM-125 venue booking history", () => {
+  // Traceability: Jira 125 AC5 (matrix 39125581)
   /**
    * VEN-IMPACT-05-C (AC5): every booking and hold the API returns is shown, past and future, with its event,
    * reference, kind, status, period, Coordinator and whether it overlaps an unavailable period.
@@ -85,6 +86,7 @@ describe("SPM-125 venue booking history", () => {
     expect(items[2]).toHaveTextContent("Cancelled");
   });
 
+  // Traceability: Jira 125 AC5 (matrix 39125581)
   /** VEN-IMPACT-05-D (AC5): each stored status has its own label; an approved hold is never shown as Confirmed. */
   it.each([
     ["a pending booking", { status: "pending" as const }, "Pending"],
@@ -100,11 +102,13 @@ describe("SPM-125 venue booking history", () => {
     expect(bookingHistoryStatus(entry(overrides), NOW)).toBe(label);
   });
 
+  // Traceability: Jira 132 AC6 (matrix 39125047)
   /** VEN-HOLD-DEC-06-B: persisted expiry remains visible in venue booking history. */
   it('VEN-HOLD-DEC-06-B labels a persisted expired hold in venue history', () => {
     expect(bookingHistoryStatus(entry({ status: 'expired', requestKind: 'tentative_hold', holdExpiresAt: '2030-01-10T12:00:00.000Z' }), NOW)).toBe('Hold expired');
   });
 
+  // Traceability: Jira 125 AC5 (matrix 39125581)
   /** VEN-IMPACT-05-E (AC5): read only when opened; says when the venue has had no bookings; can be hidden. */
   it("VEN-IMPACT-05-E loads only when opened and says when there are no bookings", async () => {
     const pending = deferred<never>();
@@ -121,6 +125,7 @@ describe("SPM-125 venue booking history", () => {
     expect(screen.queryByText("No bookings or tentative holds have been made at this venue.")).toBeNull();
   });
 
+  // Traceability: Jira 125 AC5 (matrix 39125581)
   /** VEN-IMPACT-05-F (AC5): a failed read says so and Retry reads again; a page change reads it again. */
   it("VEN-IMPACT-05-F shows a load error, retries, and reloads after a change on the page", async () => {
     apiMock
@@ -137,6 +142,7 @@ describe("SPM-125 venue booking history", () => {
     expect(await screen.findByText("Spring Gala")).toBeTruthy();
   });
 
+  // Traceability: Jira 125 AC5 (matrix 39125581)
   /** VEN-IMPACT-05-G (AC5): a response or failure arriving after the card closed is ignored. */
   it("VEN-IMPACT-05-G ignores a late response or late failure after the card closed", async () => {
     const late = deferred<never>();

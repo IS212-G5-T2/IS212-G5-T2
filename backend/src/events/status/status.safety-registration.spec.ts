@@ -42,6 +42,7 @@ function makeService(registration: { enabled: boolean; opensAt: Date | null; clo
 }
 
 describe('StatusService safety request registration prerequisite', () => {
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: the locked persisted enabled setting blocks a request until both registration dates are configured. */
   it('SAFETY-OUTCOME-06 blocks an initial request when enabled registration has unsaved dates', async () => {
     const { service, clientQuery } = makeService({ enabled: true, opensAt: null, closesAt: null });
@@ -54,6 +55,7 @@ describe('StatusService safety request registration prerequisite', () => {
     expect(clientQuery.mock.calls.some(([sql]) => sql.startsWith('DELETE '))).toBe(false);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: the persisted complete registration period appears in the coordinator's planning checklist. */
   it('SAFETY-OUTCOME-06 reads saved enabled registration settings into planning status', async () => {
     const opensAt = new Date('2026-10-20T00:00:00.000Z');
@@ -69,6 +71,7 @@ describe('StatusService safety request registration prerequisite', () => {
     expect(status.checklist.canRequestSafetyCheck).toBe(true);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: a deliberate disabled-registration setting remains a valid no-registration choice for initial safety requests. */
   it('SAFETY-OUTCOME-06 permits an initial request when registration is saved as disabled', async () => {
     const { service, clientQuery } = makeService({ enabled: false, opensAt: null, closesAt: null });
@@ -78,6 +81,7 @@ describe('StatusService safety request registration prerequisite', () => {
     expect(clientQuery.mock.calls.some(([sql]) => sql.includes('INSERT INTO event_safety_checks'))).toBe(true);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: legacy missing settings metadata is interpreted as disabled with no dates. */
   it('SAFETY-OUTCOME-06 defaults missing registration metadata to disabled', async () => {
     const { service } = makeService({ enabled: false, opensAt: null, closesAt: null }, 'Projector', true);
@@ -85,6 +89,7 @@ describe('StatusService safety request registration prerequisite', () => {
     expect(status.checklist.registration).toEqual({ enabled: false, status: 'confirmed' });
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: confirm-no-equipment reads the same saved registration fields while keeping its existing equipment acknowledgement rule. */
   it('SAFETY-OUTCOME-06 confirms no equipment when disabled registration is saved', async () => {
     const { service, clientQuery } = makeService({ enabled: false, opensAt: null, closesAt: null }, 'None');

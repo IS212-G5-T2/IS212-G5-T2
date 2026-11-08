@@ -15,6 +15,7 @@ const auditMock = vi.mocked(fetchChangeRequestAudit);
 beforeEach(() => vi.resetAllMocks());
 
 describe("ChangeRequestAuditLog", () => {
+  // Traceability: Jira 65 AC10 (matrix 28016830)
   it("REVIEW-CHANGE-10-B lists each outcome in the order the server gives (newest first)", async () => {
     auditMock.mockResolvedValue([
       {
@@ -47,6 +48,7 @@ describe("ChangeRequestAuditLog", () => {
     expect(auditMock).toHaveBeenCalledWith("evt-1");
   });
 
+  // Traceability: Jira 65 AC10 (matrix 28016830)
   /** REVIEW-CHANGE-10-B: the audit log’s empty and failed states. */
   it("says when nothing is recorded and when the log cannot load", async () => {
     auditMock.mockResolvedValue([]);
@@ -62,6 +64,7 @@ describe("ChangeRequestAuditLog", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the audit log.");
   });
 
+  // Traceability: Jira 65 AC10 (matrix 28016830)
   /** REVIEW-CHANGE-10-B: the audit log reloads after a decision. */
   it("reloads when the refresh key changes", async () => {
     auditMock.mockResolvedValue([]);

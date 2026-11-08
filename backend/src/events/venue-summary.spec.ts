@@ -7,6 +7,7 @@ const sql = VENUE_SUMMARY_SQL.replace(/\s+/g, ' ');
 
 describe('VEN-HOLD-04-SUP-EVENTS VENUE_SUMMARY_SQL', () => {
   /** SPM-159: an approved tentative hold is labelled (hold) while running and (hold expired) afterwards, never the plain confirmed name. */
+  // ID: VEN-HOLD-04-SUP-EVENTS
   it('labels an approved tentative hold (hold) or (hold expired) ahead of the confirmed label', () => {
     const expired = sql.indexOf("THEN v.name || ' (hold expired)'");
     const active = sql.indexOf("THEN v.name || ' (hold)'");
@@ -19,6 +20,7 @@ describe('VEN-HOLD-04-SUP-EVENTS VENUE_SUMMARY_SQL', () => {
   });
 
   /** Released bookings stay out; pending and rejected keep their labels. */
+  // ID: VEN-HOLD-04-SUP-EVENTS
   it('keeps the pending, unavailable and released rules', () => {
     expect(sql).toContain("WHEN b.status = 'pending' THEN v.name || ' (pending)'");
     expect(sql).toContain("ELSE v.name || ' (unavailable)'");

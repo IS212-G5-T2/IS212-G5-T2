@@ -6,6 +6,7 @@ const eventId = '00000000-0000-4000-8000-000000000125';
 const itemId = '00000000-0000-4000-8000-000000000126';
 
 describe('SAFETY-OUTCOME-06 equipment revision input identifiers', () => {
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: valid existing item IDs survive DTO validation so the repository can update retained rows by identity. */
   it('SAFETY-OUTCOME-06 preserves a valid stable item identifier', () => {
     expect(validateEquipmentRequest({
@@ -17,6 +18,7 @@ describe('SAFETY-OUTCOME-06 equipment revision input identifiers', () => {
     });
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: a malformed item identifier is rejected before the request can mutate reservation rows. */
   it('SAFETY-OUTCOME-06 refuses an invalid stable item identifier', () => {
     expect(() => validateEquipmentRequest({
@@ -25,6 +27,7 @@ describe('SAFETY-OUTCOME-06 equipment revision input identifiers', () => {
     })).toThrow(BadRequestException);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: new non-revision requests may omit item IDs, while updates preserve only IDs actually supplied. */
   it('SAFETY-OUTCOME-06 leaves identifiers absent on new request items', () => {
     expect(validateEquipmentRequest({

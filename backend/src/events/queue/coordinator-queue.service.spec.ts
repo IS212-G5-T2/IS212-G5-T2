@@ -31,6 +31,7 @@ function setup(records: Array<Record<string, unknown>>, safety: unknown[] = [], 
 }
 
 describe('SPM-48 CoordinatorQueueService', () => {
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   /** MONITOR-QUEUE-01-D: no session is 401; a signed-in user without the Coordinator role is 403 before any read. */
   it('MONITOR-QUEUE-01-D refuses a missing session and non-coordinators', async () => {
     const { service, list } = setup([]);
@@ -55,6 +56,7 @@ describe('SPM-48 CoordinatorQueueService', () => {
     expect(list).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   /** MONITOR-QUEUE-01-C: an empty assignment list returns [] without the indicator queries. */
   it('MONITOR-QUEUE-01-C returns an empty queue without further reads', async () => {
     const { service, list, query } = setup([]);
@@ -63,6 +65,7 @@ describe('SPM-48 CoordinatorQueueService', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   /**
    * MONITOR-QUEUE-01-A, 01-SUP-FILTER: the coordinator's list is filtered by status, then each record keeps its fields and gains
    * its queue indicators; the indicator reads are scoped to the listed ids and the coordinator.
@@ -107,6 +110,7 @@ describe('SPM-48 CoordinatorQueueService', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining("b.status IN ('pending', 'approved', 'expired')"), [['e1', 'e2']]);
   });
 
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   /** MONITOR-QUEUE-01-A: with no filter every listed event is kept; one reassigned away between the reads is dropped (AC1). */
   it('MONITOR-QUEUE-01-A drops an event that is no longer assigned when the indicators are read', async () => {
     const records = [
@@ -118,6 +122,7 @@ describe('SPM-48 CoordinatorQueueService', () => {
     expect(result.map((row) => row.name)).toEqual(['EVT-409']);
   });
 
+  // Traceability: Jira 48 AC5 (matrix 23691437)
   /**
    * MONITOR-QUEUE-05-B: the indicators use the status of the listed record (CQ-48-02), so a card never shows a
    * follow-up its own status rules out. A Completed event with a stored pending check shows no safety state or action.
@@ -129,6 +134,7 @@ describe('SPM-48 CoordinatorQueueService', () => {
     expect(row).toMatchObject({ status: 'completed', queue: { safety: null, actions: [], needsAction: false } });
   });
 
+  // Traceability: Jira 48 AC1 (matrix 23691437)
   /** MONITOR-QUEUE-01-C: built without an injected clock (system clock), an empty assignment list still returns []. */
   it('MONITOR-QUEUE-01-C uses the system clock when none is injected', async () => {
     const service = new CoordinatorQueueService(
@@ -140,6 +146,7 @@ describe('SPM-48 CoordinatorQueueService', () => {
 });
 
 describe('SPM-48 CoordinatorQueueController', () => {
+  // Traceability: Jira 48 AC4 (matrix 23691437)
   /** MONITOR-QUEUE-04-A: the route passes the session user and the status filter to the service and is never cached. */
   it('MONITOR-QUEUE-04-A passes the session user and filter, with Cache-Control no-store', async () => {
     const queue = vi.fn().mockResolvedValue([]);

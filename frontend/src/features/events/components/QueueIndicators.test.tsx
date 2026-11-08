@@ -12,6 +12,7 @@ afterEach(cleanup);
 const none: QueueIndicators = { safety: null, holds: [], unavailableVenues: [], actions: [], needsAction: false };
 
 describe("SPM-48 AC5: the Needs action marker", () => {
+  // Traceability: Jira 48 AC5 (matrix 23691437)
   /**
    * MONITOR-QUEUE-05-B: an event with reasons carries the marker. The reasons are text inside it (visually hidden,
    * also in the hover title), so screen readers announce them; an aria-label on a plain span may be ignored (CQ-48-01).
@@ -25,12 +26,14 @@ describe("SPM-48 AC5: the Needs action marker", () => {
     expect(marker).not.toHaveAttribute("aria-label");
   });
 
+  // Traceability: Jira 48 AC5 (matrix 23691437)
   /** MONITOR-QUEUE-05-B: an event with no reasons (EVT-406, EVT-410, EVT-411) has no marker. */
   it("MONITOR-QUEUE-05-B shows no marker when nothing needs action", () => {
     const { container } = render(<NeedsActionMarker queue={none} />);
     expect(container).toBeEmptyDOMElement();
   });
 
+  // Traceability: Jira 48 AC5 (matrix 23691437)
   /** MONITOR-QUEUE-05-B: every action reason the server can send has its own wording. */
   it("MONITOR-QUEUE-05-B words every action reason differently", () => {
     const labels = Object.values(QUEUE_ACTION_LABELS);
@@ -40,6 +43,7 @@ describe("SPM-48 AC5: the Needs action marker", () => {
 });
 
 describe("SPM-48 AC6, AC7: the safety label", () => {
+  // Traceability: Jira 48 AC6 (matrix 23691437)
   /** MONITOR-QUEUE-06-A, 06-B, 07-A, 07-C: each safety state has its own text; awaiting, changes and cleared keep the SPM-94 wording. */
   it.each([
     ["AWAITING_CHECK", "Awaiting Safety Officer Check"],
@@ -53,12 +57,14 @@ describe("SPM-48 AC6, AC7: the safety label", () => {
     expect(QUEUE_SAFETY_LABELS[safety].label).toBe(text);
   });
 
+  // Traceability: Jira 48 AC7 (matrix 23691437)
   /** MONITOR-QUEUE-07-C: rejected is the one safety state shown in red; the others are not. */
   it("MONITOR-QUEUE-07-C shows a rejected arrangement in red", () => {
     expect(QUEUE_SAFETY_LABELS.REJECTED.tone).toBe("red");
     expect(QUEUE_SAFETY_LABELS.CHANGES_REQUESTED.tone).not.toBe("red");
   });
 
+  // Traceability: Jira 48 AC6 (matrix 23691437)
   /** MONITOR-QUEUE-06-A: no safety state shows no label (EVT-406 Confirmed). */
   it("MONITOR-QUEUE-06-A shows nothing without a safety state", () => {
     const { container } = render(<QueueSafetyLabel queue={{ safety: null }} />);
@@ -67,6 +73,7 @@ describe("SPM-48 AC6, AC7: the safety label", () => {
 });
 
 describe("SPM-48 AC8, AC9: venue notes", () => {
+  // Traceability: Jira 48 AC8 (matrix 23691437)
   /** MONITOR-QUEUE-08-A: an active hold names its venue and its expiry date and time in SGT. */
   it("MONITOR-QUEUE-08-A shows an active hold with its expiry in SGT", () => {
     render(
@@ -78,6 +85,7 @@ describe("SPM-48 AC8, AC9: venue notes", () => {
     expect(within(notes).getByText("Hold active: Hall A, expires 12 Nov 2026, 12:00 SGT")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 48 AC8 (matrix 23691437)
   /** MONITOR-QUEUE-08-B: an expired hold says so, with the instant it expired. */
   it("MONITOR-QUEUE-08-B shows an expired hold", () => {
     render(
@@ -89,6 +97,7 @@ describe("SPM-48 AC8, AC9: venue notes", () => {
     expect(screen.queryByText(/Hold active/)).toBeNull();
   });
 
+  // Traceability: Jira 48 AC9 (matrix 23691437)
   /** MONITOR-QUEUE-09-A, 09-B: each unavailable venue is named once, with the alternative-arrangements wording. */
   it("MONITOR-QUEUE-09-B names only the affected venues", () => {
     render(<QueueVenueNotes queue={{ holds: [], unavailableVenues: ["Hall H"] }} />);
@@ -98,6 +107,7 @@ describe("SPM-48 AC8, AC9: venue notes", () => {
     ]);
   });
 
+  // Traceability: Jira 48 AC9 (matrix 23691437)
   /** MONITOR-QUEUE-09-A: no holds and no unavailable venues show no notes (EVT-406). */
   it("MONITOR-QUEUE-09-A shows no notes when nothing applies", () => {
     const { container } = render(<QueueVenueNotes queue={{ holds: [], unavailableVenues: [] }} />);

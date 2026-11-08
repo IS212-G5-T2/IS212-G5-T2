@@ -163,6 +163,7 @@ describe('DatabaseService', () => {
       return client;
     }
 
+    // Traceability: Jira 157 AC5 (matrix 39813204)
     /** AUDIT-HISTORY-05-C: a transaction run for a signed-in user sets app.actor_id right after BEGIN. */
     it('AUDIT-HISTORY-05-C sets the transaction-local actor after BEGIN', async () => {
       process.env.DATABASE_URL = 'postgresql://app:secret@localhost:5432/app';
@@ -174,6 +175,7 @@ describe('DatabaseService', () => {
       expect(client.query.mock.calls).toEqual([['BEGIN'], [SET_ACTOR, ['user-1']], ['COMMIT']]);
     });
 
+    // Traceability: Jira 157 AC5 (matrix 39813204)
     /** AUDIT-HISTORY-05-C: a single write for a signed-in user runs in its own transaction with the actor. */
     it.each([
       'INSERT INTO t VALUES (1)',
@@ -191,6 +193,7 @@ describe('DatabaseService', () => {
       expect(poolMocks.query).not.toHaveBeenCalled();
     });
 
+    // Traceability: Jira 157 AC5 (matrix 39813204)
     /** AUDIT-HISTORY-05-C: reads are sent as they are, even for a signed-in user. */
     it('AUDIT-HISTORY-05-C sends a SELECT straight to the pool', async () => {
       process.env.DATABASE_URL = 'postgresql://app:secret@localhost:5432/app';
@@ -203,6 +206,7 @@ describe('DatabaseService', () => {
       expect(poolMocks.connect).not.toHaveBeenCalled();
     });
 
+    // Traceability: Jira 157 AC5 (matrix 39813204)
     /** AUDIT-HISTORY-05-D: outside a signed-in request nothing is set, so the triggers record the system. */
     it('AUDIT-HISTORY-05-D sets no actor outside a signed-in request', async () => {
       process.env.DATABASE_URL = 'postgresql://app:secret@localhost:5432/app';

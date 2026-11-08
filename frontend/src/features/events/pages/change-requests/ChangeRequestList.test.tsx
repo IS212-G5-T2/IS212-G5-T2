@@ -37,6 +37,7 @@ function request(overrides: Partial<ChangeRequest> = {}): ChangeRequest {
 afterEach(cleanup);
 
 describe("ChangeRequestList", () => {
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-A: a pending request shows its fields, values in Singapore time, status and safety note. */
   it("REQ-CHANGE-05-A shows a pending request with its changes and status", () => {
     render(<ChangeRequestList requests={[request({ reason: "More guests." })]} />);
@@ -54,6 +55,7 @@ describe("ChangeRequestList", () => {
     expect(within(card).queryByRole("button")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-B: decided requests show who decided and when, and a denial shows the coordinator's reason. */
   it("REQ-CHANGE-05-B shows the decision, the decider and the denial reason", () => {
     render(
@@ -72,12 +74,14 @@ describe("ChangeRequestList", () => {
     expect(approved).not.toHaveTextContent("Coordinator’s reason");
   });
 
+  // Traceability: Jira 64 AC5 (matrix 28016760)
   /** REQ-CHANGE-05-E: the empty state. */
   it("REQ-CHANGE-05-E says when there are no change requests", () => {
     render(<ChangeRequestList requests={[]} />);
     expect(screen.getByText("No change requests for this event.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 64 AC8 (matrix 28016760)
   /** REQ-CHANGE-09-B: the owner can withdraw only a pending request; a failure is shown and the button re-enabled. */
   it("REQ-CHANGE-09-B withdraws a pending request and reports a failure", async () => {
     const user = userEvent.setup();
@@ -92,6 +96,7 @@ describe("ChangeRequestList", () => {
     expect(await within(pending).findByText("Could not withdraw this change request.")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC11 (matrix 28016830)
   /** SPM-65: closed requests, safety resets, re-check lists and the coordinator's review panel. */
   it("REVIEW-CHANGE-12-B shows why a request was closed", () => {
     render(<ChangeRequestList requests={[request({ status: "Closed", decidedBy: "System", decidedAt: "2026-10-18T02:00:00.000Z", decisionReason: "The event was cancelled." })]} />);
@@ -101,6 +106,7 @@ describe("ChangeRequestList", () => {
     expect(vi.mocked(fetchChangeRequestAudit)).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 65 AC8 (matrix 28016830)
   it("REVIEW-CHANGE-08-A notes the safety check reset and lists arrangements to re-check on an approved request", () => {
     render(
       <ChangeRequestList
@@ -120,6 +126,7 @@ describe("ChangeRequestList", () => {
     expect(screen.queryByRole("button", { name: "Mark As Re-checked" })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC2 (matrix 28016830)
   /**
    * REVIEW-CHANGE-02-B (case page 28180526, CR-4): a multi-field request lists every requested field with its
    * value when requested and the requested value, and no other field (description, attendance and the rest).
@@ -152,6 +159,7 @@ describe("ChangeRequestList", () => {
       expect(within(card).queryByRole("rowheader", { name: absent })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 65 AC2 (matrix 28016830)
   /**
    * REVIEW-CHANGE-02-C (case page 28180526, CR-5): the requested times are shown in Singapore time (lowercase "pm", confirmed by the story owner on
    * 4 Nov 2026; see the SPM-65 entry in spec-conflicts.md), and a list field shows only what is added and removed.
@@ -180,6 +188,7 @@ describe("ChangeRequestList", () => {
     expect(items("Accessibility / special requirements")).toEqual(["+ Hearing loop"]);
   });
 
+  // Traceability: Jira 65 AC2 (matrix 28016830)
   it("REVIEW-CHANGE-02-A gives the coordinator the review panel on pending requests only", async () => {
     vi.mocked(previewChangeRequestConflicts).mockResolvedValue({
       requestId: "cr-1",

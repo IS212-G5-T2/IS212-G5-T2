@@ -68,6 +68,7 @@ All under `docs/test-cases/workflow/`, one set per repository, keyed by story.
 - `SUPPORTING`: a group of tests that supports a parent AC and is not a matrix row. It must name its parent AC and be approved by the story owner (`pending` is reported as a gap). Supporting IDs stay out of the summary matrix.
 - A test may not carry an ID that is absent from the registry. Fixture labels, message codes, Jira keys and review labels are listed under "Non-test tokens" so they are not mistaken for test IDs.
 - A test with no ID of its own inherits the ID of the nearest enclosing `describe`.
+- Keep the ID visible at the test: put the ID first in the title. Where a test's title cannot carry it (for example a title shared with a mutation mapping), a single `// ID: <test id>` line directly above the call is the accepted form. Only add one where the title and the comment block carry no ID, and never invent one: the ID must already be in the registry.
 
 G1 compares three sets: IDs in the scope's test files, IDs in the registry, IDs in the Confluence matrix.
 
@@ -78,6 +79,7 @@ One row per `it` / `test` / `it.each` call site (an `it.each` is one row). The s
 | Field | Source | Rule |
 |---|---|---|
 | `test_id`, `file`, `title`, `line`, `level` | script | `test_id` must be in the registry |
+| `double` | script (heuristic) | The test doubles the test uses: `none`, `fake`, `mock`, `spy`, `stub`, `dummy` (joined with `+`). Rules and limits in [`docs/test-cases/workflow/test-doubles.md`](../../docs/test-cases/workflow/test-doubles.md); a reviewer confirms it |
 | `ac` | script from the registry, else reviewer | One or more ACs of the story |
 | `tier`, `tier_status` | reviewer | Tier from the allowed list; matches the tier matrix |
 | `oracle_class` | reviewer | `SPEC`, `DERIVED`, `ASSUMED`, `CODE-DERIVED` (blocker), `UNTRACEABLE` (blocker) |

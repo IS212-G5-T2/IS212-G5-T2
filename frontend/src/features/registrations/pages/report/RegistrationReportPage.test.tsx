@@ -102,6 +102,7 @@ afterEach(() => {
 });
 
 describe("SPM-63 AC1: a manager sees the report for their event", () => {
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-A
   // Oracle (SPEC 01-A FE, F1): heading "Tech Talk: Cloud 101 - Registration Report", the table rendered with its three
   // rows, no error state; the request is for this event's report.
@@ -120,6 +121,7 @@ describe("SPM-63 AC1: a manager sees the report for their event", () => {
     expect(apiMock).toHaveBeenCalledWith("/events/EVT-101/registrations/report");
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-C
   // Oracle (SPEC 01-C FE): the owning organiser sees the same heading and table.
   // Kills: the page restricted to the coordinator role.
@@ -136,6 +138,7 @@ describe("SPM-63 AC1: a manager sees the report for their event", () => {
     expect(names()).toEqual(["Dev Patel", "Alice Tan", "Chloe Ng"]);
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-B
   // Oracle (SPEC 01-B): EVT-101 shows 3 rows; switching to EVT-105 shows 2 rows (Ben Lim, Dev Patel) under
   // "Data Science Meetup - Registration Report"; back to EVT-101 shows 3 again.
@@ -160,6 +163,7 @@ describe("SPM-63 AC1: a manager sees the report for their event", () => {
     expect(rowCount()).toBe(3);
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-B-RACE
   // Oracle (SPEC 2.5 added to 01-B): a slow EVT-101 response that arrives after the user moved to EVT-105 must not
   // overwrite the EVT-105 table.
@@ -187,6 +191,7 @@ describe("SPM-63 AC1: a manager sees the report for their event", () => {
 });
 
 describe("SPM-63 AC2: the count is read fresh on every visit", () => {
+  // Traceability: Jira 63 AC2 (matrix 16515107)
   // VIEW-REG-INFO-02-B
   // Oracle (SPEC 02-B FE): a remount after a registration shows "4 Attendees Registered (4 / 50)"; a remount after a
   // withdrawal shows "2 Attendees Registered (2 / 50)".
@@ -230,6 +235,7 @@ describe("SPM-63 AC4: exporting the report", () => {
       headers: { "Content-Disposition": 'attachment; filename="EVT-101_registrations_2026-09-29.csv"', "Content-Type": "text/csv; charset=utf-8" },
     });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-A
   // Oracle (SPEC 04-A FE, D15): "Export As CSV" sends exactly one authenticated (credentialed) request for format=csv and
   // saves the file under the server's filename; the object URL is revoked.
@@ -254,6 +260,7 @@ describe("SPM-63 AC4: exporting the report", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:report");
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-B
   // Oracle (SPEC 04-B FE): "Export As PDF" requests format=pdf.
   // Kills: both buttons asking for the same format.
@@ -274,6 +281,7 @@ describe("SPM-63 AC4: exporting the report", () => {
     expect((fetchMock.mock.calls[0] as unknown as [string])[0].endsWith("/export?format=pdf")).toBe(true);
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-A-BUSY
   // Oracle (D15): the buttons are disabled while a download is in flight, so a double click cannot start two.
   // Kills: two requests for one click-and-click; buttons left enabled.
@@ -322,6 +330,7 @@ describe("SPM-63 AC4: exporting the report", () => {
     expect(saved).toEqual([]);
   });
 
+  // Traceability: Jira 63 AC4 (matrix 16515107)
   // VIEW-REG-INFO-04-C
   // Oracle (SPEC 04-C FE): an event with no registrations shows exactly "No registrations yet" and a 0 count.
   // Kills: an error or blank page for an empty report.
@@ -340,6 +349,7 @@ describe("SPM-63 AC4: exporting the report", () => {
 });
 
 describe("SPM-63 AC5: people who may not view the report are refused on screen", () => {
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-A
   // Oracle (SPEC 05-A FE): COO-02 navigating straight to EVT-101's report sees MSG-08 and no table or attendee data.
   // Kills: the table shown from stale store data; the message dropped.
@@ -357,6 +367,7 @@ describe("SPM-63 AC5: people who may not view the report are refused on screen",
     expect(screen.queryByText("Dev Patel")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-D
   // Oracle (SPEC 05-D A FE): a registered attendee gets MSG-08 and is NOT redirected to the attendee event view.
   // Kills: a role guard that bounces the attendee to /events/:id.
@@ -373,6 +384,7 @@ describe("SPM-63 AC5: people who may not view the report are refused on screen",
     expect(screen.queryByText("Attendee event view")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   // VIEW-REG-INFO-05-D
   // Oracle (SPEC 05-D B FE): an expired or missing session (401) sends the user to the login page.
   // Kills: a 401 shown as a generic error; no redirect.
@@ -387,6 +399,7 @@ describe("SPM-63 AC5: people who may not view the report are refused on screen",
     expect(await screen.findByText("Login screen")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-A-ERR
   // Oracle (derived): a server error on first load is shown with a Retry that fetches again.
   // Kills: an endless spinner; Retry that does nothing.
@@ -419,6 +432,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     serve({ "EVT-101": () => (++calls === 1 ? Promise.resolve(buildReport()) : next()) });
   }
 
+  // Traceability: Jira 63 AC6 (matrix 16515107)
   // VIEW-REG-INFO-06-A
   // Oracle (SPEC 06-A): initial "3 Attendees Registered (3 / 50)"; ATT-05 Farhan Rahman registers; after exactly 10 000 ms
   // and no user action the header reads "4 Attendees Registered (4 / 50)", Farhan's row is present with his email, contact
@@ -445,6 +459,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(consoleError).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 63 AC6 (matrix 16515107)
   // VIEW-REG-INFO-06-B
   // Oracle (SPEC 06-B): after REG-9001 (Alice Tan) is withdrawn, within 10 000 ms the header reads
   // "2 Attendees Registered (2 / 50)" and Alice's row is gone.
@@ -464,6 +479,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(names()).toEqual(["Dev Patel", "Chloe Ng"]);
   });
 
+  // Traceability: Jira 63 AC6 (matrix 16515107)
   // VIEW-REG-INFO-06-A-UNMOUNT
   // Oracle (SPEC 2.5 added to 06-A): once the page is closed no further request is made.
   // Kills: M16 interval not cleared on unmount (a closed page keeps downloading personal data).
@@ -482,6 +498,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(apiMock.mock.calls.length).toBe(callsAtUnmount);
   });
 
+  // Traceability: Jira 63 AC6 (matrix 16515107)
   // VIEW-REG-INFO-06-A-REVOKE
   // Oracle (SPEC 2.5 added to 06-A): a 403 during polling (access was revoked) stops polling, clears the rows already
   // shown and shows MSG-08.
@@ -505,6 +522,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(apiMock.mock.calls.length).toBe(callsAfterRefusal);
   });
 
+  // Traceability: Jira 63 AC6 (matrix 16515107)
   // VIEW-REG-INFO-06-A-SESSION
   // Oracle (derived, R13): a 401 while polling (session ended) stops polling and sends the user to login.
   // Kills: polling on with an expired session.
@@ -524,6 +542,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(apiMock.mock.calls.length).toBe(callsAfter);
   });
 
+  // Traceability: Jira 63 AC6 (matrix 16515107)
   // VIEW-REG-INFO-06-A-BLIP
   // Oracle (ASSUMED A13): a transient failure during polling keeps the rows on screen and polling carries on, so the next
   // good response is applied.
@@ -551,6 +570,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(rowCount()).toBe(4);
   });
 
+  // Traceability: Jira 63 AC6 (matrix 16515107)
   // VIEW-REG-INFO-06-A-INFLIGHT
   // Oracle (derived): while a request is still outstanding no second one is started, so a slow server is not flooded.
   // Kills: overlapping requests piling up behind a slow response.
@@ -567,6 +587,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 63 AC1 (matrix 16515107)
   // VIEW-REG-INFO-01-B-POLL
   // Oracle (SPEC 2.5 / 3.1): changing event stops polling the old event.
   // Kills: the interval of the previous event surviving a navigation.

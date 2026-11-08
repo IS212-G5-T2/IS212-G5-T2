@@ -3,7 +3,7 @@
  * notices, and the shape the feed returns for them. Unit level: the database is a fixture that records the query
  * and returns fixed rows, so these cases show what the service asks for and how it maps the answer; the e2e suite
  * (test/venue-booking-decision-notifications.e2e-spec.ts) runs the same rules against PostgreSQL.
- * Cases: VENUE-BOOK-NOTIF-01-F, 03-N, 04-F.
+ * Cases: BOOKING-NOTIFY-01-F, 03-N, 04-F.
  */
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -43,8 +43,9 @@ describe('SPM-137 venue booking notices in the notification feed', () => {
     service = module.get(EventsService);
   });
 
+  // Traceability: Jira 137 AC1 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-01-F (SPM-137 AC1): the feed asks for the booking decision types only for a Coordinator. An
+   * BOOKING-NOTIFY-01-F (SPM-137 AC1): the feed asks for the booking decision types only for a Coordinator. An
    * Organiser, the Lead and an Attendee never ask for them, so the Organiser's bell cannot receive them.
    * Kills: adding the types to the Organiser, Lead or Attendee list, or leaving them off the Coordinator list.
    */
@@ -53,7 +54,7 @@ describe('SPM-137 venue booking notices in the notification feed', () => {
     ['an Organiser', as('org-01', 'ORGANISER'), false],
     ['the Lead', as('lead-01', 'COORDINATOR_LEAD'), false],
     ['an Attendee', as('att-01', 'ATTENDEE'), false],
-  ])('VENUE-BOOK-NOTIF-01-F the feed for %s includes the booking decision types: %s', async (_label, user, included) => {
+  ])('BOOKING-NOTIFY-01-F the feed for %s includes the booking decision types: %s', async (_label, user, included) => {
     // Arrange: an empty feed, so only the query matters.
     db.query.mockResolvedValue({ rows: [] });
 
@@ -68,14 +69,15 @@ describe('SPM-137 venue booking notices in the notification feed', () => {
     expect(params[1].includes('venue_booking_rejected')).toBe(included);
   });
 
+  // Traceability: Jira 137 AC3 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-03-N (SPM-137 AC3): each booking notice in the feed carries the id of its booking (the bell link
+   * BOOKING-NOTIFY-03-N (SPM-137 AC3): each booking notice in the feed carries the id of its booking (the bell link
    * target) and is labelled a Coordinator notice; a notice without a booking link carries null.
    * Any other notice type (here an Organiser change-request decision) still falls through to its own label.
    * Kills: dropping relatedBookingId from the response, the query not selecting it, labelling the notice Organiser,
    * labelling every other notice type Coordinator.
    */
-  it('VENUE-BOOK-NOTIF-03-N returns the booking id and a coordinator audience for each booking notice', async () => {
+  it('BOOKING-NOTIFY-03-N returns the booking id and a coordinator audience for each booking notice', async () => {
     db.query.mockResolvedValue({
       rows: [row(), row({ id: 'n2', type: 'venue_booking_rejected', related_booking_id: null })],
     });
@@ -96,12 +98,13 @@ describe('SPM-137 venue booking notices in the notification feed', () => {
     expect(other).toMatchObject({ id: 'n3', type: 'change_request_approved', audienceRole: 'organiser' });
   });
 
+  // Traceability: Jira 137 AC4 (matrix 39158102)
   /**
-   * VENUE-BOOK-NOTIF-04-F (SPM-137 AC4): a Coordinator can mark a booking notice read, and the read call is limited to
+   * BOOKING-NOTIFY-04-F (SPM-137 AC4): a Coordinator can mark a booking notice read, and the read call is limited to
    * the caller's own notices of the types they may read; an Organiser's call carries no booking types and finds nothing.
    * Kills: the read allow-list missing the booking types, a read call not scoped to the recipient.
    */
-  it('VENUE-BOOK-NOTIF-04-F marks a booking notice read for the Coordinator only', async () => {
+  it('BOOKING-NOTIFY-04-F marks a booking notice read for the Coordinator only', async () => {
     // Arrange: the Coordinator's update finds the row; the Organiser's finds nothing.
     db.query.mockResolvedValueOnce({ rows: [{ id: NOTICE }] }).mockResolvedValueOnce({ rows: [] });
 

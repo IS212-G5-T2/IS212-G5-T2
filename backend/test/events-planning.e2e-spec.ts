@@ -212,6 +212,7 @@ describe.skipIf(!database)(
       await db?.end();
     });
 
+    // Traceability: Jira 97 AC2 (matrix 19890855)
     // SPM-97 AC1/AC2/AC4: the organiser sees live bookings and equipment, read-only.
     it('EVENT-VIEW-02-A organiser sees bookings and equipment from the database, read-only', async () => {
       const view = await service.getPlanningView(organiser, eventId);
@@ -229,6 +230,7 @@ describe.skipIf(!database)(
       ]);
     });
 
+    // Traceability: Jira 54 AC11 (matrix 22839839)
     // VEN-BKG-11-VAR-1: the planning HTTP projection applies both venue buffers while preserving event and booking history.
     it('VEN-BKG-11-VAR-1 projects setup and turnaround blockouts but ignores non-overlapping blockouts through the planning HTTP endpoint', async () => {
       const venueId = (
@@ -309,6 +311,7 @@ describe.skipIf(!database)(
       expect(turnaroundHistory.rows[0].status).toBe('approved');
     });
 
+    // Traceability: Jira 54 AC11 (matrix 22839839)
     /** VEN-BKG-11-VAR-1: a blockout ending exactly at the setup-buffer start leaves the confirmed booking Booked. Kills: SPM54-BE-AC11-BLOCKOUT-SETUP-INCLUSIVE. */
     it('VEN-BKG-11-VAR-1 keeps a booking Booked when a blockout ends at the setup-buffer boundary', async () => {
       const venueId = (
@@ -333,6 +336,7 @@ describe.skipIf(!database)(
       );
     });
 
+    // Traceability: Jira 54 AC11 (matrix 22839839)
     /** VEN-BKG-11-VAR-1: a blockout starting exactly at the turnaround-buffer end leaves the confirmed booking Booked. Kills: SPM54-BE-AC11-BLOCKOUT-TURNAROUND-INCLUSIVE. */
     it('VEN-BKG-11-VAR-1 keeps a booking Booked when a blockout starts at the turnaround-buffer boundary', async () => {
       const venueId = (
@@ -425,6 +429,7 @@ describe.skipIf(!database)(
       expect(byId.get(hallA)).toBe('Booked');
     });
 
+    // Traceability: Jira 85 AC7 (matrix 19890731)
     // SPM-49 AC3 + SPM-85 AC1/AC2/AC6: direct field applies, booking field is flagged per venue.
     it('EVENT-FLAG-06-A applies the name, flags the end time and finds the Hall B turnaround clash', async () => {
       const result = await service.updateEvent(coordinator, eventId, {
@@ -468,6 +473,7 @@ describe.skipIf(!database)(
       ]);
     });
 
+    // Traceability: Jira 49 AC5 (matrix 19890466)
     // SPM-49 AC3/AC5: a change that stays compatible with every booking and
     // arrangement is applied immediately even though bookings exist.
     it('EVENT-UPDATE-05-B applies a lower attendance and an earlier end immediately despite existing bookings', async () => {
@@ -495,6 +501,7 @@ describe.skipIf(!database)(
       expect(pending.rows[0].n).toBe(0);
     });
 
+    // Traceability: Jira 85 AC1 (matrix 19890731)
     // SPM-85: the partial unique index allows one pending change per field.
     it('EVENT-FLAG-01-A refuses a second pending change to the same field', async () => {
       await service.updateEvent(coordinator, eventId, {
@@ -505,6 +512,7 @@ describe.skipIf(!database)(
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
+    // Traceability: Jira 85 AC8 (matrix 19890731)
     // SPM-85 AC7 + AC3 + AC5: per-booking decisions are stored independently; a reject closes the change.
     it('EVENT-FLAG-07-A records per-booking decisions and closes the change once all are decided', async () => {
       const { flagged } = await service.updateEvent(coordinator, eventId, {
@@ -567,6 +575,7 @@ describe.skipIf(!database)(
       expect(cleared.rows[0].impacts).toEqual([]);
     });
 
+    // Traceability: Jira 97 AC3 (matrix 19890855)
     // SPM-97 AC3 + AC5: an unavailable venue surfaces as needing a replacement on the next read.
     it('EVENT-VIEW-03-B shows a replacement venue requirement once a booking becomes unavailable', async () => {
       await db.query(
@@ -584,6 +593,7 @@ describe.skipIf(!database)(
       ]);
     });
 
+    // Traceability: Jira 85 AC5 (matrix 19890731)
     // SPM-85 AC4: two simultaneous confirms apply and record the decision once; the loser is refused.
     it('EVENT-FLAG-04-SEC-2 applies and records a simultaneous double confirm exactly once', async () => {
       const { flagged } = await service.updateEvent(coordinator, eventId, {
@@ -614,6 +624,7 @@ describe.skipIf(!database)(
       ]);
     });
 
+    // Traceability: Jira 97 AC1 (matrix 19890855)
     // SPM-97 AC1/AC4: a Confirmed event is still viewable, but read-only for everyone.
     it('EVENT-VIEW-01-C shows a Confirmed event read-only and refuses edits', async () => {
       await db.query(`UPDATE events SET status = 'Confirmed' WHERE id = $1`, [
@@ -629,6 +640,7 @@ describe.skipIf(!database)(
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
+    // Traceability: Jira 97 AC3 (matrix 19890855)
     // SPM-97 AC3: the organiser learns a change is pending, never which other events caused the clash.
     it('EVENT-VIEW-03-A keeps other events out of what the organiser reads', async () => {
       const { flagged } = await service.updateEvent(coordinator, eventId, {
@@ -647,6 +659,7 @@ describe.skipIf(!database)(
       expect(JSON.stringify(view)).not.toContain('Chemistry Workshop');
     });
 
+    // Traceability: Jira 85 AC1 (matrix 19890731)
     // SPM-85 AC1: bookings that were cancelled or released hold nothing, so changes apply directly.
     it('EVENT-FLAG-01-D applies changes directly once every booking is cancelled or released', async () => {
       await db.query(
@@ -670,6 +683,7 @@ describe.skipIf(!database)(
       expect(stored.rows[0].expected_attendance).toBe(150);
     });
 
+    // Traceability: Jira 85 AC5 (matrix 19890731)
     // SPM-85 AC4: a date move is confirmed in an order that never leaves the end before the start.
     it('EVENT-FLAG-04-B refuses a start that would pass the stored end until the end has moved', async () => {
       const nextStart = at(START, 24 * 60);
@@ -709,6 +723,7 @@ describe.skipIf(!database)(
       expect(stored.rows[0].end_date_time.toISOString()).toBe(nextEnd);
     });
 
+    // Traceability: Jira 85 AC6 (matrix 19890731)
     // SPM-85 AC5: the owning organiser can read the history; another organiser cannot.
     it('EVENT-FLAG-05-B lets the owning organiser read the history but not another organiser', async () => {
       const { flagged } = await service.updateEvent(coordinator, eventId, {
@@ -730,6 +745,7 @@ describe.skipIf(!database)(
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
+    // Traceability: Jira 156 DoD2, DoD6, DoD7 (matrix 38010922)
     // SPM-156 EVENT-UPDATE-07-A: on an Approved event (nothing booked yet) every
     // update applies immediately and is stored as an Applied history row.
     it('EVENT-UPDATE-07-A records an update on an Approved event in change history', async () => {
@@ -787,6 +803,7 @@ describe.skipIf(!database)(
       expect(view.lastUpdatedAt).toBe(result.updatedAt);
     });
 
+    // Traceability: Jira 156 DoD7, DoD8 (matrix 38010922)
     // SPM-156 EVENT-UPDATE-07-B: on a Planning event with bookings, the
     // compatible change is recorded directly and the flagged one only once
     // it is resolved.
@@ -809,6 +826,7 @@ describe.skipIf(!database)(
       ]);
     });
 
+    // Traceability: Jira 156 DoD9 (matrix 38010922)
     // SPM-156: the database refuses a direct update or change request that is
     // not Applied, and a flagged change to a field that can never affect a booking.
     it('EVENT-UPDATE-07-SEC-1 rejects malformed history rows in the database', async () => {
@@ -833,6 +851,7 @@ describe.skipIf(!database)(
       ).rejects.toMatchObject({ code: '23514' });
     });
 
+    // Traceability: Jira 156 DoD2, DoD6, DoD7 (matrix 38010922)
     /**
      * EVENT-UPDATE-07-A (SPM-156): the direct-update history write runs in the
      * same transaction as the event update. When the history insert fails, the
@@ -885,6 +904,7 @@ describe.skipIf(!database)(
       expect(history.rows[0].n).toBe(0);
     });
 
+    // Traceability: Jira 156 DoD2, DoD6, DoD7 (matrix 38010922)
     /**
      * EVENT-UPDATE-07-A (SPM-156): entries saved by one update share their time and are
      * listed by field name. The rows are inserted in editable-field order (name before
@@ -903,6 +923,7 @@ describe.skipIf(!database)(
       expect(history.map((h) => h.field)).toEqual(['description', 'name']);
     });
 
+    // Traceability: Jira 156 DoD9 (matrix 38010922)
     /**
      * EVENT-UPDATE-07-SEC-1 (SPM-156): migration 026 runs as one transaction. It is applied the
      * documented way (psql -v ON_ERROR_STOP=1 -f) to a scratch copy of event_flagged_changes holding a

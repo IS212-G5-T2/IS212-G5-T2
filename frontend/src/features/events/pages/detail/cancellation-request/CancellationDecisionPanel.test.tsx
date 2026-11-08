@@ -48,6 +48,7 @@ afterEach(() => cleanup());
 
 describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   // Kills: FM18b, FM26
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-A step 1: the assigned Coordinator sees the pending request with its reason and requester. */
   it("CANCEL-REQUEST-03-A: shows the pending request with the requester, the date and the reason as text", async () => {
     // Arrange
@@ -65,6 +66,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   });
 
   // Kills: FM24, FM27, FM30, FM9
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-A (F7): Accept opens CancelEventDialog; nothing is decided until Confirm cancellation; then accept is sent. */
   it("CANCEL-REQUEST-03-A: Accept opens the confirmation dialog, and Confirm cancellation sends the accept decision", async () => {
     // Arrange
@@ -92,6 +94,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   });
 
   // Kills: FM27, FM28, FM53
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-A (F7): Keep event closes the dialog and the request stays pending. */
   it("CANCEL-REQUEST-03-A: Keep event closes the dialog and sends nothing", async () => {
     // Arrange
@@ -108,6 +111,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   });
 
   // Kills: FM24, FM29
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-B (F7): Decline sends the decline decision at once, with no dialog, and shows MSG-CR-05. */
   it("CANCEL-REQUEST-03-B: Decline sends the decline decision with no dialog, shows MSG-CR-05 and reloads the status", async () => {
     // Arrange
@@ -130,6 +134,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   });
 
   // Kills: FM49, FM6, FM6b
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-C: the controls are not shown to COO-02, LEAD-01, ORG-01 or ATT-01, and nothing is fetched. */
   it.each([
     ["COO-02, not assigned", { id: "coo-02", role: "coordinator" }],
@@ -146,6 +151,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   });
 
   // Kills: FM30
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-D: a decided request shows its status and no Accept or Decline. */
   it.each([
     ["accepted", "Status: Accepted"],
@@ -164,6 +170,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   });
 
   // Kills: FM24, FM31
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-D and 03-E: when the server says the request was already decided, the Coordinator reads it. */
   it("CANCEL-REQUEST-03-E: an already-decided refusal is shown in an alert and the status is reloaded", async () => {
     // Arrange: the other decision won the race
@@ -181,6 +188,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   });
 
   // Kills: FM32
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-E (UI): Decline is disabled while its request is in flight, so two clicks send one decision. */
   it("CANCEL-REQUEST-03-E: double-clicking Decline sends one decision and disables both buttons while pending", async () => {
     // Arrange
@@ -201,6 +209,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   });
 
   // Kills: FM23b, FM30
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-F and 03-G (D4): a closed request reads Closed with its line and offers no controls. */
   it.each([
     ["completed", "The event is already completed."],
@@ -220,6 +229,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   });
 
   // Kills: FM48
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-A: with no request the Coordinator sees no panel. */
   it("CANCEL-REQUEST-03-A: an event with no request shows no panel", async () => {
     // Arrange
@@ -234,6 +244,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
   });
 
   // Kills: FM25
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-A: a failed load is reported to the Coordinator. */
   it("CANCEL-REQUEST-03-A: a failed load shows an alert", async () => {
     // Arrange
@@ -249,6 +260,7 @@ describe("SPM-155 CancellationDecisionPanel (AC3)", () => {
 
 describe("SPM-155 CancellationDecisionPanel: fallbacks", () => {
   // Kills: FM31
+  // Traceability: Jira 155 AC3 (matrix 35848252)
   /** CANCEL-REQUEST-03-B: a decline failure that carries no message still tells the Coordinator. */
   it("CANCEL-REQUEST-03-B: a rejection that is not an Error shows the fallback alert", async () => {
     // Arrange

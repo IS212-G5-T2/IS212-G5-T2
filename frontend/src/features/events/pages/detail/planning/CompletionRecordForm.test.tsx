@@ -48,6 +48,7 @@ describe("SPM-153 completion record (form)", () => {
     cleanup();
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-A (FE): the saved record is loaded and a save shows MSG-CP-04.
   it("COMPLETE-EVENT-05-A: loads the saved record and announces a save (MSG-CP-04)", async () => {
     route();
@@ -63,6 +64,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Completion details saved.");
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-B (FE): an edit sends the whole set as entered, with the changed attendance as a number.
   it("COMPLETE-EVENT-05-B: sends the edited attendance as a number and the issues as entered", async () => {
     route();
@@ -90,6 +92,7 @@ describe("SPM-153 completion record (form)", () => {
     });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-D (FE): a refused value shows the server's message and keeps what was typed.
   it("COMPLETE-EVENT-05-D: shows MSG-CP-07 for an invalid attendance and keeps the entered values", async () => {
     route(async () => {
@@ -109,6 +112,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(screen.getByRole("button", { name: "Save completion details" })).toBeEnabled();
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-C (FE): the form is not rendered on an event that is not Completed.
   it.each(["confirmed", "planning", "cancelled"])("COMPLETE-EVENT-05-C: is not rendered for a %s event", (status) => {
     renderForm({ status });
@@ -117,6 +121,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-F (FE): only the assigned coordinator sees the form.
   it("COMPLETE-EVENT-05-F: is not rendered for a user who is not the assigned coordinator", () => {
     renderForm({ isAssignedCoordinator: false });
@@ -125,6 +130,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-A (empty): a record with nothing saved loads empty fields.
   it("COMPLETE-EVENT-05-A: a record with nothing saved loads empty fields", async () => {
     apiMock.mockResolvedValue({ attendanceCount: null, operationalNotes: null, issues: [], updatedAt: null, updatedBy: null } as never);
@@ -135,6 +141,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(screen.getByLabelText("Operational notes")).toHaveValue("");
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-A (load failure): a record that cannot be read says so and the form stays closed.
   it("COMPLETE-EVENT-05-A: a failed load shows an error and leaves the save disabled", async () => {
     apiMock.mockRejectedValue(new Error("Network down"));
@@ -144,6 +151,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(screen.getByRole("button", { name: "Save completion details" })).toBeDisabled();
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-A (unmount): a record that arrives after the form is closed is ignored.
   it("COMPLETE-EVENT-05-A: a record that arrives after the form is closed is ignored", async () => {
     let deliver: (value: unknown) => void = () => undefined;
@@ -157,6 +165,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-B (notes): edited notes are sent as entered.
   it("COMPLETE-EVENT-05-B: edited notes are sent as entered", async () => {
     route();
@@ -173,6 +182,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(JSON.parse(String(put?.[1]?.body)).operationalNotes).toBe("Doors opened late.");
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-B (remove): removing an issue sends the remaining issues only.
   it("COMPLETE-EVENT-05-B: removing an issue sends the remaining issues only", async () => {
     route();
@@ -190,6 +200,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(JSON.parse(String(put?.[1]?.body)).issues).toEqual([{ description: "Queue at registration desk" }]);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-A (unmount): a load that fails after the form is closed is ignored.
   it("COMPLETE-EVENT-05-A: a load that fails after the form is closed is ignored", async () => {
     let fail: (reason: unknown) => void = () => undefined;
@@ -203,6 +214,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-D (typed): an attendance that is not a whole number is sent as typed, so the server refuses it.
   it("COMPLETE-EVENT-05-D: an attendance that is not a whole number is sent as typed", async () => {
     route();
@@ -219,6 +231,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(JSON.parse(String(put?.[1]?.body)).attendanceCount).toBe("12.5");
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-A (stale): a record for the previous event that arrives after the form has moved on is ignored.
   it("COMPLETE-EVENT-05-A: a load for a previous event that arrives late is ignored", async () => {
     let deliverOld: (value: unknown) => void = () => undefined;
@@ -239,6 +252,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(screen.queryByDisplayValue("Setup started 08:00")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-A (stale failure): a failed load for the previous event does not show its error on the current one.
   it("COMPLETE-EVENT-05-A: a failed load for a previous event that arrives late shows no error", async () => {
     let failOld: (reason: unknown) => void = () => undefined;
@@ -258,6 +272,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-B (empty): an empty attendance is sent as null, which clears it.
   it("COMPLETE-EVENT-05-B: an empty attendance is sent as null", async () => {
     route();
@@ -273,6 +288,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(JSON.parse(String(put?.[1]?.body)).attendanceCount).toBeNull();
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-D (plain error): a save that fails with a plain Error shows its message.
   it("COMPLETE-EVENT-05-D: a save that fails with a plain error shows its message", async () => {
     route(async () => {
@@ -287,6 +303,7 @@ describe("SPM-153 completion record (form)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Save is unavailable.");
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-D (fallback): a save that fails with something other than an error shows the fallback text.
   it("COMPLETE-EVENT-05-D: a save that fails with something other than an error shows the fallback message", async () => {
     route(async () => {

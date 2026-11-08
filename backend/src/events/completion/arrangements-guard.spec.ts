@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { assertArrangementsEditable } from '../cancelled-guard.js';
 
 describe('COMPLETE-EVENT-06-B: assertArrangementsEditable', () => {
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   // Kills: M19 (the planning guard removed), M20 (the venue or equipment guard removed)
   it('COMPLETE-EVENT-06-B: refuses a Completed event with 409 EVENT_COMPLETED and MSG-CP-06', () => {
     let thrown: unknown;
@@ -23,6 +24,7 @@ describe('COMPLETE-EVENT-06-B: assertArrangementsEditable', () => {
     });
   });
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it.each(['Submitted', 'Approved', 'Planning', 'Confirmed'])(
     'COMPLETE-EVENT-06-B: does not refuse a %s event',
     (status) => {
@@ -30,6 +32,7 @@ describe('COMPLETE-EVENT-06-B: assertArrangementsEditable', () => {
     },
   );
 
+  // Traceability: Jira 153 AC6 (matrix 35979372)
   it('COMPLETE-EVENT-06-B: keeps the MSG-CN-04 refusal for a Cancelled event', () => {
     expect(() => assertArrangementsEditable('Cancelled')).toThrow(ConflictException);
     expect(() => assertArrangementsEditable('Cancelled')).toThrow(/cancelled/i);

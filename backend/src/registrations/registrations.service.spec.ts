@@ -196,6 +196,7 @@ describe('EVENT-REG-03-A (AC3, AC4): a valid submission is stored and confirmed'
     expect(inserts[0].params).toEqual([EVENT_ID, ATTENDEE.uid, 'Alice Tan', 'alice@example.com', '+6591234567', 'Wheelchair access']);
   });
 
+  // Traceability: Jira 61 AC3 (matrix 16482307)
   it('EVENT-REG-03-A: an omitted optional field is stored as NULL, not as an empty string', async () => {
     const fake = scripted({ event: [openEvent()], existing: [], taken: 0, inserted: [insertedRow()] });
     await serviceFor(fake.database).register(ATTENDEE, EVENT_ID, { fullName: 'Alice Tan', email: 'alice@example.com' });
@@ -244,6 +245,7 @@ describe('EVENT-REG-01-BND-1 (AC1): the opening instant itself is open', () => {
     expect(fake.statements.filter(isInsert)).toHaveLength(1);
   });
 
+  // Traceability: Jira 61 AC1 (matrix 16482307)
   it('EVENT-REG-01-BND-1: one millisecond before the opening instant -> 422 registration_not_open', async () => {
     const fake = scripted({
       event: [openEvent({ registration_opens_at: new Date(T0.getTime() + 1) })],
@@ -277,6 +279,7 @@ describe('EVENT-REG-02-A (AC2): registration is refused once the period has clos
     expect(fake.statements.some(isInsert)).toBe(false);
   });
 
+  // Traceability: Jira 61 AC2 (matrix 16482307)
   it('EVENT-REG-02-A: one millisecond before the closing instant is still open', async () => {
     const fake = scripted({
       event: [openEvent({ registration_closes_at: new Date(T0.getTime() + 1) })],
@@ -306,6 +309,7 @@ describe('EVENT-REG-05-A (AC5): a second active registration for the same event 
     expect(fake.statements.some(isInsert)).toBe(false);
   });
 
+  // Traceability: Jira 61 AC5 (matrix 16482307)
   it('EVENT-REG-05-A: the ON CONFLICT WHERE miss (row changed under us) surfaces as a duplicate, not a success', async () => {
     // The pre-check saw no row, but the upsert affected nothing: the service must not report success.
     const fake = scripted({ event: [openEvent()], existing: [], taken: 0, inserted: [] });
@@ -380,6 +384,7 @@ describe('EVENT-REG-05-SEC-1 (role and event visibility): who may register', () 
     expect(fake.statements.some(isInsert)).toBe(false);
   });
 
+  // Traceability: Jira 61 AC2 (matrix 16482307)
   it('EVENT-REG-02-A: a Completed or Cancelled event is visible but not registrable -> 422 registration_closed, no INSERT', async () => {
     // Both statuses pass the visibility filter, so only the window rule (status must be Confirmed) refuses them.
     for (const status of ['Completed', 'Cancelled']) {
@@ -441,6 +446,7 @@ const mineRow = (status: 'Registered' | 'Withdrawn' | 'Cancelled', withdrawnAt: 
 });
 
 describe('VIEW-REG-DET-02-A (AC2): the attendee sees their own registration status', () => {
+  // Traceability: Jira 62 AC2 (matrix 16678936)
   // Kills: the status mapping (registered/withdrawn) broken, or the event name or stored details dropped.
   it('VIEW-REG-DET-02-A: a Registered row -> status "registered" with the event name and the stored details', async () => {
     const fake = scripted({ mine: [mineRow('Registered')] });
@@ -456,6 +462,7 @@ describe('VIEW-REG-DET-02-A (AC2): the attendee sees their own registration stat
     expect(result.registration?.withdrawnAt).toBeUndefined();
   });
 
+  // Traceability: Jira 62 AC2 (matrix 16678936)
   it('VIEW-REG-DET-02-A: a Withdrawn row is still returned, with status "withdrawn" and the withdrawal time (SPM-120 AC6)', async () => {
     const withdrawn = new Date('2026-10-04T05:00:00Z');
     const fake = scripted({ mine: [mineRow('Withdrawn', withdrawn)] });
@@ -463,6 +470,7 @@ describe('VIEW-REG-DET-02-A (AC2): the attendee sees their own registration stat
     expect(result.registration).toMatchObject({ status: 'withdrawn', withdrawnAt: '2026-10-04T05:00:00.000Z' });
   });
 
+  // Traceability: Jira 62 AC1 (matrix 16678936)
   it('VIEW-REG-DET-01-A: the lookup is scoped to this event and this caller (own registration only)', async () => {
     const fake = scripted({ mine: [] });
     await serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID);
@@ -472,11 +480,13 @@ describe('VIEW-REG-DET-02-A (AC2): the attendee sees their own registration stat
     expect(lookup?.params?.[1]).toBe(ATTENDEE.uid);
   });
 
+  // Traceability: Jira 62 AC1 (matrix 16678936)
   it('VIEW-REG-DET-01-A: no registration for this event -> null, not an error', async () => {
     const fake = scripted({ mine: [] });
     await expect(serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID)).resolves.toEqual({ registration: null });
   });
 
+  // Traceability: Jira 62 AC1 (matrix 16678936)
   it('VIEW-REG-DET-01-A: a non-attendee cannot read a registration -> 403, nothing queried', async () => {
     const fake = scripted({ mine: [mineRow('Registered')] });
     const coordinator: AuthenticatedUser = { uid: '66666666-6666-4666-8666-666666666666', roles: ['COORDINATOR'] };
@@ -487,6 +497,7 @@ describe('VIEW-REG-DET-02-A (AC2): the attendee sees their own registration stat
 });
 
 describe('VIEW-REG-DET-02-B (AC2, state only): a cancelled registration is read back with its status', () => {
+  // Traceability: Jira 62 AC2 (matrix 16678936)
   // Kills: the Cancelled value dropped by the status mapping, or a cancelled row hidden from the attendee.
   it('VIEW-REG-DET-02-B: a Cancelled row is returned with status "cancelled"', async () => {
     const fake = scripted({ mine: [mineRow('Cancelled')] });
@@ -496,6 +507,7 @@ describe('VIEW-REG-DET-02-B (AC2, state only): a cancelled registration is read 
 });
 
 describe('VIEW-REG-DET-03-A (AC3): the attendee sees the details they submitted, including the optional requirements', () => {
+  // Traceability: Jira 62 AC3 (matrix 16678936)
   it('VIEW-REG-DET-03-A: special requirements present -> shown; a legacy row with NULL details -> blank name and email, no requirements (ASSUMPTION A-NULL)', async () => {
     // ASSUMPTION A-NULL as in VIEW-REG-INFO-03-A-NULL: blank strings for NULL legacy details.
     const fake = scripted({ mine: [mineRow('Registered')] });
@@ -525,6 +537,7 @@ const registeredRow = (id: string, name: string, createdAt: Date): Row => ({
 });
 
 describe('VIEW-REG-DET-04-A (AC4): the attendee can view the registration before or after the event', () => {
+  // Traceability: Jira 62 AC4 (matrix 16678936)
   // Kills: the visible-status list narrowed to Confirmed (the registration disappears once the event has completed
   // or been cancelled), or the list reordered so the statuses no longer match the lookup.
   it('VIEW-REG-DET-04-A: the lookup keeps Completed and Cancelled events visible', async () => {
@@ -579,6 +592,7 @@ describe('VIEW-REG-INFO-05-A (AC5): only the assigned coordinator or the owning 
     await expect(serviceFor(fake.database).getReport(attendeeSameId, EVENT_ID)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  // Traceability: Jira 63 AC5 (matrix 16515107)
   it('VIEW-REG-INFO-05-A: an unknown event -> 404 Event not found, no registration rows read', async () => {
     const coordinator: AuthenticatedUser = { uid: '66666666-6666-4666-8666-666666666666', roles: ['COORDINATOR'] };
     const fake = scripted({ event: [], registered: [registeredRow('r1', 'Bob', T0)] });
@@ -587,6 +601,7 @@ describe('VIEW-REG-INFO-05-A (AC5): only the assigned coordinator or the owning 
     expect(fake.statements.some((s) => /r\.status = ANY/.test(s.sql))).toBe(false);
   });
 
+  // Traceability: Jira 63 AC3 (matrix 16515107)
   it('VIEW-REG-INFO-03-A: a row with special requirements carries them into the report', async () => {
     const coordinator: AuthenticatedUser = { uid: '66666666-6666-4666-8666-666666666666', roles: ['COORDINATOR'] };
     const withNeeds: Row = { ...registeredRow('r7', 'Dana', T0), special_requirements: 'Halal meals' };
@@ -595,6 +610,7 @@ describe('VIEW-REG-INFO-05-A (AC5): only the assigned coordinator or the owning 
     expect(report.registrations[0]).toMatchObject({ registrationId: 'r7', specialRequirements: 'Halal meals' });
   });
 
+  // Traceability: Jira 63 AC3 (matrix 16515107)
   it('VIEW-REG-INFO-03-A-NULL: a legacy row with no detail columns is reported with blank text and no special requirements (ASSUMPTION A-NULL)', async () => {
     // ASSUMPTION A-NULL: the AC does not say what a legacy (SPM-99) row without details displays.
     // Migration 004 keeps the detail columns nullable for those rows; blank strings are chosen so the

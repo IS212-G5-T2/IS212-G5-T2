@@ -169,6 +169,7 @@ afterEach(() => {
 });
 
 describe('SPM-97 organiser view', () => {
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // EVENT-VIEW-01-A: AC1 — the owning organiser sees info once planning has started.
   it.each(['Approved', 'Planning'])(
     'EVENT-VIEW-01-A organiser can view planning information when the event is %s',
@@ -182,6 +183,7 @@ describe('SPM-97 organiser view', () => {
     },
   );
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // EVENT-VIEW-01-B: AC1 — before planning there is nothing to show.
   it.each(['Submitted', 'Rejected'])(
     'EVENT-VIEW-01-B organiser gets a conflict, not data, while the event is %s',
@@ -194,6 +196,7 @@ describe('SPM-97 organiser view', () => {
     },
   );
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // EVENT-VIEW-01-SEC-1: only the owning organiser may look; a different organiser is refused with 403 and no data (SPM-94 D6).
   it('EVENT-VIEW-01-SEC-1 refuses the event to a different organiser without data', async () => {
     await expect(
@@ -201,6 +204,7 @@ describe('SPM-97 organiser view', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   it('EVENT-VIEW-01-SEC-1 rejects unauthenticated, attendee and malformed-id requests', async () => {
     await expect(
       service.getPlanningView(undefined, EVENT_ID),
@@ -213,6 +217,7 @@ describe('SPM-97 organiser view', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   // EVENT-VIEW-02-A: AC2 — current venues, equipment and booking details, read live.
   it('EVENT-VIEW-02-A shows current venue bookings and equipment and reflects later updates', async () => {
     repo.listVenueBookings.mockResolvedValue([
@@ -248,6 +253,7 @@ describe('SPM-97 organiser view', () => {
     ).toEqual(['Auditorium']);
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-A: AC3 — a change pending because of a booking conflict is surfaced.
   it('EVENT-VIEW-03-A marks a field with a conflict-driven change as pending', async () => {
     repo.listPendingChanges.mockResolvedValue([flaggedChange()]);
@@ -264,6 +270,7 @@ describe('SPM-97 organiser view', () => {
     ]);
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-B: AC3 — an unavailable booked venue shows as needing a replacement.
   it('EVENT-VIEW-03-B flags a booked venue that became unavailable as needing a replacement', async () => {
     repo.listVenueBookings.mockResolvedValue([
@@ -281,6 +288,7 @@ describe('SPM-97 organiser view', () => {
     ]);
   });
 
+  // Traceability: Jira 97 AC4 (matrix 19890855)
   // EVENT-VIEW-04-A: AC4 — the organiser's view is read-only and the API refuses writes.
   it('EVENT-VIEW-04-A marks the organiser view read-only and rejects update and resolve calls', async () => {
     const view = await service.getPlanningView(organiser(), EVENT_ID);
@@ -300,6 +308,7 @@ describe('SPM-97 organiser view', () => {
     expect(repo.resolveChange).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 97 AC5 (matrix 19890855)
   // EVENT-VIEW-05-A: AC5 — once the coordinator resolves a change, the next read shows it.
   it('EVENT-VIEW-05-A shows the resolved value and clears the pending flag on the next view', async () => {
     repo.listPendingChanges.mockResolvedValue([flaggedChange()]);
@@ -365,6 +374,7 @@ describe('SPM-49 coordinator update', () => {
     expect(repo.safetyCheckExists).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC1 (matrix 19890466)
   // EVENT-UPDATE-01-A: AC1 — the assigned coordinator sees the current information.
   it('EVENT-UPDATE-01-A lets the assigned coordinator view current event information', async () => {
     const view = await service.getPlanningView(coordinator(), EVENT_ID);
@@ -376,6 +386,7 @@ describe('SPM-49 coordinator update', () => {
     expect(view.lastUpdatedAt).toBe('2026-10-04T09:00:00.000Z');
   });
 
+  // Traceability: Jira 49 AC1 (matrix 19890466)
   // EVENT-UPDATE-01-B: AC1 — a coordinator who is not assigned cannot see or change it.
   it('EVENT-UPDATE-01-B hides the event from an unassigned coordinator', async () => {
     repo.findEvent.mockResolvedValue(eventRow({ coordinatorId: 'coord-1' }));
@@ -388,6 +399,7 @@ describe('SPM-49 coordinator update', () => {
     expect(repo.applyFields).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC1 (matrix 19890466)
   // EVENT-UPDATE-01-C: updates are only allowed after approval and before confirmation.
   it.each(['Submitted', 'Rejected', 'Confirmed'])(
     'EVENT-UPDATE-01-C refuses updates while the event is %s',
@@ -400,6 +412,7 @@ describe('SPM-49 coordinator update', () => {
     },
   );
 
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-A: AC2 — with nothing booked, every field is edited directly.
   it('EVENT-UPDATE-02-A labels every field as direct when nothing is booked', async () => {
     const view = await service.getPlanningView(coordinator(), EVENT_ID);
@@ -420,6 +433,7 @@ describe('SPM-49 coordinator update', () => {
     );
   };
 
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-A: AC2 — with a venue booking, each booking-sensitive
   // field says exactly when a change applies directly and when it needs review.
   it('EVENT-UPDATE-02-A labels each field with the condition under which it applies immediately', async () => {
@@ -451,6 +465,7 @@ describe('SPM-49 coordinator update', () => {
     });
   });
 
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-A: with only equipment arranged, venue fields stay direct.
   it('EVENT-UPDATE-02-A labels only equipment-sensitive fields when only equipment is arranged', async () => {
     repo.listEquipmentArrangements.mockResolvedValue([equipment()]);
@@ -466,6 +481,7 @@ describe('SPM-49 coordinator update', () => {
     });
   });
 
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-A: with several bookings, the limits are the strictest of them.
   it('EVENT-UPDATE-02-A uses the smallest capacity and the shared window across bookings', async () => {
     repo.listVenueBookings.mockResolvedValue([
@@ -493,6 +509,7 @@ describe('SPM-49 coordinator update', () => {
     });
   });
 
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-A: bookings that share no common window leave no time
   // change that fits them all, so every time change needs review.
   it('EVENT-UPDATE-02-A labels date and time needs_review when the bookings share no window', async () => {
@@ -506,6 +523,7 @@ describe('SPM-49 coordinator update', () => {
     });
   });
 
+  // Traceability: Jira 49 AC2 (matrix 19890466)
   // EVENT-UPDATE-02-A: inactive bookings and arrangements hold nothing, so everything stays direct.
   it('EVENT-UPDATE-02-A ignores inactive bookings and arrangements when labelling fields', async () => {
     repo.listVenueBookings.mockResolvedValue([
@@ -519,6 +537,7 @@ describe('SPM-49 coordinator update', () => {
     );
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-03-A: AC3 — fields that cannot affect a booking apply even when bookings exist.
   it.each([
     ['name', { name: 'Orientation Night' }],
@@ -537,6 +556,7 @@ describe('SPM-49 coordinator update', () => {
     },
   );
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-A: AC4 — blank required field gives an error and saves nothing.
   it('EVENT-UPDATE-04-A rejects a blank required field and saves nothing', async () => {
     await expect(
@@ -546,6 +566,7 @@ describe('SPM-49 coordinator update', () => {
     expect(repo.createFlaggedChange).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC4 (matrix 19890466)
   // EVENT-UPDATE-04-B: an end earlier than the stored start is checked against stored data.
   it('EVENT-UPDATE-04-B rejects an end time before the stored start time', async () => {
     await expect(
@@ -556,6 +577,7 @@ describe('SPM-49 coordinator update', () => {
     expect(repo.applyFields).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-A: AC5 — fields not affecting bookings are applied immediately.
   it.each(DIRECT_WHEN_UNBOOKED)(
     'EVENT-UPDATE-05-A applies %s immediately when nothing is booked',
@@ -568,6 +590,7 @@ describe('SPM-49 coordinator update', () => {
     },
   );
 
+  // Traceability: Jira 49 AC6 (matrix 19890466)
   // EVENT-UPDATE-06-A: AC6 — the response carries when the information was last updated.
   it('EVENT-UPDATE-06-A returns the time of the update', async () => {
     const result = await service.updateEvent(coordinator(), EVENT_ID, {
@@ -590,6 +613,7 @@ describe('SPM-85 flagged changes', () => {
     ['equipmentNeeds', { equipmentNeeds: 'Four microphones' }],
   ];
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-A: AC1 — a change incompatible with an existing venue
   // booking or equipment arrangement becomes Needs Review.
   it.each(REVIEW_PATCHES)(
@@ -616,6 +640,7 @@ describe('SPM-85 flagged changes', () => {
     },
   );
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-A: in a mixed update only the booking-affecting field is flagged.
   it('EVENT-FLAG-01-A applies the direct field and flags the other in a mixed update', async () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking()]);
@@ -634,6 +659,7 @@ describe('SPM-85 flagged changes', () => {
     ]);
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-B: AC1 — an equipment arrangement alone is enough to require
   // review of a change that affects it.
   it('EVENT-FLAG-01-B flags an equipment change when only an equipment arrangement exists', async () => {
@@ -645,6 +671,7 @@ describe('SPM-85 flagged changes', () => {
     expect(result.flagged).toHaveLength(1);
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: an equipment arrangement cannot be affected by attendance.
   it('EVENT-UPDATE-05-B applies an attendance change immediately when only equipment is arranged', async () => {
     repo.listEquipmentArrangements.mockResolvedValue([equipment()]);
@@ -655,6 +682,7 @@ describe('SPM-85 flagged changes', () => {
     expect(result.applied).toEqual(['expectedAttendance']);
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-C: AC1 — no bookings or arrangements means no flag.
   it('EVENT-FLAG-01-C does not flag a change when no bookings or arrangements exist', async () => {
     const result = await service.updateEvent(coordinator(), EVENT_ID, {
@@ -664,6 +692,7 @@ describe('SPM-85 flagged changes', () => {
     expect(result.applied).toEqual(['expectedAttendance']);
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: AC2 — the coordinator sees current and proposed value plus impacted bookings.
   it('EVENT-FLAG-02-A returns current value, proposed value and impacted bookings', async () => {
     const impacts = [
@@ -685,6 +714,7 @@ describe('SPM-85 flagged changes', () => {
     });
   });
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-B: AC2 — a setup/turnaround clash is recorded against the affected booking.
   it('EVENT-FLAG-02-B records a turnaround conflict against the affected booking', async () => {
     const proposedStart = '2026-11-10T09:00:00.000Z';
@@ -729,6 +759,7 @@ describe('SPM-85 flagged changes', () => {
     ]);
   });
 
+  // Traceability: Jira 85 AC7 (matrix 19890731)
   // EVENT-FLAG-06-A: AC6 — with two venue bookings, impacts are listed per booking.
   it('EVENT-FLAG-06-A stores one impact entry per venue booking', async () => {
     repo.listVenueBookings.mockResolvedValue([
@@ -762,6 +793,7 @@ describe('SPM-85 flagged changes', () => {
     ]);
   });
 
+  // Traceability: Jira 85 AC4 (matrix 19890731)
   // EVENT-FLAG-03-A: AC3 — rejecting keeps the original value and clears the impact assessment.
   it('EVENT-FLAG-03-A rejecting keeps the original value and clears the impact assessment', async () => {
     repo.findChange.mockResolvedValue(flaggedChange());
@@ -785,6 +817,7 @@ describe('SPM-85 flagged changes', () => {
     expect(result.event.expectedAttendance).toBe(80);
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-A: AC4 — confirming applies the proposed value straight away.
   it('EVENT-FLAG-04-A confirming applies the proposed value immediately', async () => {
     repo.findChange.mockResolvedValue(flaggedChange());
@@ -856,6 +889,7 @@ describe('SPM-85 flagged changes', () => {
     });
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: AC7 — resolving one booking passes only that booking to the repository.
   // NOTE: scoped-resolution semantics are an interpretation of the AC (assumption 5 in docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md); confirm with the team.
   it('EVENT-FLAG-07-A confirming for one booking resolves only that booking', async () => {
@@ -889,6 +923,7 @@ describe('SPM-85 flagged changes', () => {
     );
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: rejecting one booking clears only that booking's impact entry.
   it('EVENT-FLAG-07-A rejecting for one booking clears only that booking impact', async () => {
     repo.findChange.mockResolvedValue(
@@ -924,6 +959,7 @@ describe('SPM-85 flagged changes', () => {
     );
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: a booking that is not part of the change is refused.
   it('EVENT-FLAG-07-A rejects a booking id that is not part of the change', async () => {
     repo.findChange.mockResolvedValue(
@@ -947,6 +983,7 @@ describe('SPM-85 flagged changes', () => {
     expect(repo.resolveChange).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-SEC-1: an already-resolved change cannot be resolved again.
   it.each(['Applied', 'Rejected'])(
     'EVENT-FLAG-04-SEC-1 refuses to resolve a change that is already %s',
@@ -962,6 +999,7 @@ describe('SPM-85 flagged changes', () => {
     },
   );
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-SEC-1: only confirm or reject are valid decisions.
   it.each(['approve', '', undefined])(
     'EVENT-FLAG-04-SEC-1 rejects invalid decision %j',
@@ -974,6 +1012,7 @@ describe('SPM-85 flagged changes', () => {
     },
   );
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-SEC-1: only the assigned coordinator can resolve, and the change must exist.
   it('EVENT-FLAG-04-SEC-1 refuses an unassigned coordinator and an unknown change', async () => {
     repo.findChange.mockResolvedValue(flaggedChange());
@@ -1039,6 +1078,7 @@ function threeBookingChange(
 }
 
 describe('SPM-97 view: lifecycle and privacy', () => {
+  // Traceability: Jira 97 AC1 (matrix 19890855)
   // EVENT-VIEW-01-C: AC1 — a Confirmed event can still be viewed, but nobody can edit it.
   it('EVENT-VIEW-01-C lets the organiser and coordinator view a Confirmed event read-only', async () => {
     repo.findEvent.mockResolvedValue(eventRow({ status: 'Confirmed' }));
@@ -1065,6 +1105,7 @@ describe('SPM-97 view: lifecycle and privacy', () => {
     expect(repo.applyFields).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 97 AC3 (matrix 19890855)
   // EVENT-VIEW-03-A: AC3 — the organiser sees that a change is pending, never the impact detail.
   it('EVENT-VIEW-03-A hides impact details from the organiser but shows them to the coordinator', async () => {
     const impacts = [
@@ -1112,6 +1153,7 @@ describe('SPM-97 view: lifecycle and privacy', () => {
     });
   });
 
+  // Traceability: Jira 97 AC2 (matrix 19890855)
   // EVENT-VIEW-02-A: AC2 — other events' bookings at the same venue are never sent to the client.
   it('EVENT-VIEW-02-A does not expose neighbouring bookings of other events', async () => {
     repo.listVenueBookings.mockResolvedValue([
@@ -1137,6 +1179,7 @@ describe('SPM-97 view: lifecycle and privacy', () => {
 });
 
 describe('SPM-85 flagging: which bookings count', () => {
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-D: AC1 — a lost or cancelled booking holds nothing, so it does not force a review.
   // SPM-159: an expired approved hold ('Hold expired') holds no venue either; an active 'Hold' still does.
   it.each(['Unavailable', 'Cancelled', 'Hold expired'])(
@@ -1175,6 +1218,7 @@ describe('SPM-85 flagging: which bookings count', () => {
     expect(repo.createFlaggedChange).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   it.each(['Unavailable', 'Cancelled', 'Released'])(
     'EVENT-FLAG-01-D ignores an equipment arrangement that is %s',
     async (status) => {
@@ -1187,6 +1231,7 @@ describe('SPM-85 flagging: which bookings count', () => {
     },
   );
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-D: the editable-field labels follow the same rule, so the form never promises a review that will not happen.
   it('EVENT-FLAG-01-D labels every field direct when only inactive bookings remain', async () => {
     repo.listVenueBookings.mockResolvedValue([
@@ -1201,6 +1246,7 @@ describe('SPM-85 flagging: which bookings count', () => {
     ).toEqual(new Set(['direct']));
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-D: AC6 — only active bookings are assessed and listed as impacted.
   it('EVENT-FLAG-01-D assesses only the active bookings of the event', async () => {
     repo.listVenueBookings.mockResolvedValue([
@@ -1223,6 +1269,7 @@ describe('SPM-85 flagging: which bookings count', () => {
     ).toEqual(['bk-2']);
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-A: one open review per field; nothing is half-applied when it is refused.
   it('EVENT-FLAG-01-A refuses a second change to a field that is already awaiting review', async () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking()]);
@@ -1237,6 +1284,7 @@ describe('SPM-85 flagging: which bookings count', () => {
     expect(repo.createFlaggedChange).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   it('EVENT-FLAG-01-A still flags a different field while another is awaiting review', async () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking()]);
     repo.listPendingChanges.mockResolvedValue([flaggedChange()]);
@@ -1248,6 +1296,7 @@ describe('SPM-85 flagging: which bookings count', () => {
     ]);
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-A: a date/time move is flagged field by field but assessed as one move.
   it('EVENT-FLAG-01-A assesses start and end proposed together as one move', async () => {
     const nextDayStart = '2026-11-11T10:00:00.000Z';
@@ -1283,6 +1332,7 @@ describe('SPM-85 flagging: which bookings count', () => {
     }
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: layout and facility changes cannot be checked automatically, so every active booking is listed.
   it('EVENT-FLAG-02-A lists a manual requirements check for every active booking on a layout change', async () => {
     repo.listVenueBookings.mockResolvedValue([
@@ -1312,6 +1362,7 @@ describe('SPM-85 flagging: which bookings count', () => {
     ]);
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: AC2 — equipment arrangements are listed to re-check, but only for time and equipment changes.
   it('EVENT-FLAG-02-A lists active equipment arrangements to re-check for time and equipment changes only', async () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking()]);
@@ -1344,6 +1395,7 @@ describe('SPM-85 flagging: which bookings count', () => {
     expect(await equipmentImpactsOf({ expectedAttendance: 250 })).toEqual([]);
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: an earlier end stays inside the period the equipment is
   // held for, so no reservation is affected and the change applies at once.
   it('EVENT-UPDATE-05-B applies a shorter event immediately when venue and equipment still cover it', async () => {
@@ -1356,6 +1408,7 @@ describe('SPM-85 flagging: which bookings count', () => {
     expect(result.applied).toEqual(['endDateTime']);
   });
 
+  // Traceability: Jira 85 AC3 (matrix 19890731)
   // EVENT-FLAG-02-A: with only equipment arranged, a later end is flagged for
   // the equipment alone; no venue booking is listed.
   it('EVENT-FLAG-02-A flags a longer event for equipment when only equipment is arranged', async () => {
@@ -1399,6 +1452,7 @@ describe('SPM-85 flagging: impacts are specific to the changed field', () => {
     ).impacts[0].conflicts.map((c) => c.kind);
   };
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-C: the coordinator is not told an attendance or layout change causes a gap that was already there.
   it('EVENT-FLAG-02-C reports only the capacity problem for an attendance change', async () => {
     expect(await conflictKindsFor({ expectedAttendance: 150 })).toEqual([
@@ -1406,12 +1460,14 @@ describe('SPM-85 flagging: impacts are specific to the changed field', () => {
     ]);
   });
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   it('EVENT-FLAG-02-C reports only the manual check for a layout change', async () => {
     expect(await conflictKindsFor({ layout: 'Theatre' })).toEqual([
       'requirements',
     ]);
   });
 
+  // Traceability: Jira 85 AC2 (matrix 19890731)
   // EVENT-FLAG-02-C: moving the start into the gap is a real conflict and is reported.
   it('EVENT-FLAG-02-C reports the clash when the start is moved into the neighbouring event', async () => {
     expect(
@@ -1426,6 +1482,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     appliedBy: { name: 'Coord Nine', id: 'coord-9' },
   };
 
+  // Traceability: Jira 156 DoD2, DoD6, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-A: on an Approved event nothing is booked, so every update
   // applies immediately and each changed field gets a history entry.
   it('EVENT-UPDATE-07-A records every field applied on an Approved event, by the coordinator, at the update time', async () => {
@@ -1458,6 +1515,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     expect(result.updatedAt).toBe(NOW.toISOString());
   });
 
+  // Traceability: Jira 156 DoD2, DoD6, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-A: every SPM-49 AC5 field group is recorded on an Approved event.
   it.each([
     [
@@ -1494,6 +1552,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     },
   );
 
+  // Traceability: Jira 156 DoD7, DoD8 (matrix 38010922)
   // EVENT-UPDATE-07-B: on a Planning event, the compatible part is recorded as
   // applied directly and the incompatible part is flagged, never both.
   it('EVENT-UPDATE-07-B records only the immediately applied fields on a Planning event and flags the rest', async () => {
@@ -1514,6 +1573,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     );
   });
 
+  // Traceability: Jira 156 DoD7, DoD8 (matrix 38010922)
   // EVENT-UPDATE-07-B: a change that is only flagged writes no direct entry;
   // it reaches history when it is confirmed or rejected (SPM-85 AC6).
   it('EVENT-UPDATE-07-B writes no direct entry when every change is flagged or nothing changed', async () => {
@@ -1526,6 +1586,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     expect(repo.createFlaggedChange).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 156 DoD2, DoD6, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-A: a refused update records nothing.
   it('EVENT-UPDATE-07-A records nothing when the update is refused', async () => {
     repo.findEvent.mockResolvedValue(eventRow({ status: 'Confirmed' }));
@@ -1538,6 +1599,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     expect(repo.recordAppliedChanges).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 156 DoD2, DoD6, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-A: the history write is part of the update's transaction.
   it('EVENT-UPDATE-07-A fails the whole update when the history write fails', async () => {
     // Track whether each write runs inside the transaction callback.
@@ -1572,6 +1634,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     });
   });
 
+  // Traceability: Jira 156 DoD5, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-C: history tells a direct update from a reviewed change.
   it('EVENT-UPDATE-07-C lists direct updates with their kind, newest first, beside reviewed changes', async () => {
     repo.listHistory.mockResolvedValue([
@@ -1608,6 +1671,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     expect(history[1]).toMatchObject({ id: 'chg-1', kind: 'booking_conflict' });
   });
 
+  // Traceability: Jira 156 DoD3, DoD5, DoD6, DoD7 (matrix 38010922)
   // EVENT-UPDATE-07-E: a change applied by approving a change request is listed
   // with its kind and the organiser who asked for it.
   it('EVENT-UPDATE-07-E lists an approved change request with the organiser who proposed it', async () => {
@@ -1639,6 +1703,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
 });
 
 describe('SPM-49 update: unchanged values', () => {
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-04-C: AC3 — saving values identical to the stored ones is not a change.
   it('EVENT-UPDATE-04-C ignores values identical to the stored ones', async () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking()]);
@@ -1659,6 +1724,7 @@ describe('SPM-49 update: unchanged values', () => {
     expect(repo.listVenueBookings).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-04-C: dates compare as instants and lists as sets, not as text.
   it('EVENT-UPDATE-04-C compares dates as instants and lists as sets', async () => {
     repo.findEvent.mockResolvedValue(
@@ -1672,6 +1738,7 @@ describe('SPM-49 update: unchanged values', () => {
     expect(repo.applyFields).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC3 (matrix 19890466)
   // EVENT-UPDATE-04-C: only the fields that really changed are applied or flagged.
   it('EVENT-UPDATE-04-C applies only the fields that differ', async () => {
     const result = await service.updateEvent(coordinator(), EVENT_ID, {
@@ -1688,6 +1755,7 @@ describe('SPM-49 update: unchanged values', () => {
 });
 
 describe('SPM-85 resolution: date halves, per-booking closing rule, access', () => {
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-B: AC4 — confirming one half of a date move may not leave the end before the start.
   it('EVENT-FLAG-04-B refuses to confirm a start that would fall after the stored end', async () => {
     repo.findChange.mockResolvedValue(
@@ -1706,6 +1774,7 @@ describe('SPM-85 resolution: date halves, per-booking closing rule, access', () 
     expect(repo.resolveChange).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-B: once the other half has been applied the same confirmation is valid.
   it('EVENT-FLAG-04-B confirms the start once the end has already moved', async () => {
     repo.findEvent.mockResolvedValue(
@@ -1728,6 +1797,7 @@ describe('SPM-85 resolution: date halves, per-booking closing rule, access', () 
     );
   });
 
+  // Traceability: Jira 85 AC4 (matrix 19890731)
   // EVENT-FLAG-03-A: rejecting is always allowed, whatever the other half is doing.
   it('EVENT-FLAG-03-A lets the coordinator reject a date half without a schedule check', async () => {
     repo.findChange.mockResolvedValue(
@@ -1747,6 +1817,7 @@ describe('SPM-85 resolution: date halves, per-booking closing rule, access', () 
     expect(repo.applyFields).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: AC7 — the change closes as Applied when the last impacted booking is confirmed and all others were.
   it('EVENT-FLAG-07-A closes the change as Applied once every impacted booking is confirmed', async () => {
     repo.findChange.mockResolvedValue(
@@ -1774,6 +1845,7 @@ describe('SPM-85 resolution: date halves, per-booking closing rule, access', () 
     );
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: one rejected booking means the single event value is not changed.
   it('EVENT-FLAG-07-A closes the change as Rejected, applying nothing, if any impacted booking was rejected', async () => {
     repo.findChange.mockResolvedValue(
@@ -1797,6 +1869,7 @@ describe('SPM-85 resolution: date halves, per-booking closing rule, access', () 
     );
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: while another impacted booking is undecided the change stays open and unapplied.
   it('EVENT-FLAG-07-A keeps the change open while another impacted booking is undecided', async () => {
     repo.findChange.mockResolvedValue(threeBookingChange());
@@ -1814,6 +1887,7 @@ describe('SPM-85 resolution: date halves, per-booking closing rule, access', () 
     expect(repo.resolveChange).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: a booking with no impact never blocks closing the change.
   it('EVENT-FLAG-07-A does not wait for a booking that has no impact', async () => {
     repo.findChange.mockResolvedValue(
@@ -1842,6 +1916,7 @@ describe('SPM-85 resolution: date halves, per-booking closing rule, access', () 
     expect(result.closed).toBe(true);
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: each booking is decided once, and only if it has something to decide.
   it('EVENT-FLAG-07-A refuses a second decision for a booking and a decision for an unaffected booking', async () => {
     repo.findChange.mockResolvedValue(
@@ -1862,6 +1937,7 @@ describe('SPM-85 resolution: date halves, per-booking closing rule, access', () 
     expect(repo.resolveChange).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 85 AC8 (matrix 19890731)
   // EVENT-FLAG-07-A: a booking id must be text.
   it.each([42, '', null])(
     'EVENT-FLAG-07-A rejects booking id %j',
@@ -1876,6 +1952,7 @@ describe('SPM-85 resolution: date halves, per-booking closing rule, access', () 
     },
   );
 
+  // Traceability: Jira 85 AC6 (matrix 19890731)
   // EVENT-FLAG-05-B: the owning organiser may read the history; nobody else outside the event may.
   it('EVENT-FLAG-05-B lets the owning organiser read the history but not other users', async () => {
     repo.listHistory.mockResolvedValue([
@@ -1907,6 +1984,7 @@ describe('SPM-49 / SPM-85 atomicity', () => {
     return runInTransaction;
   };
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-SEC-1: an update and a decision each run inside one repository transaction.
   it('EVENT-FLAG-04-SEC-1 runs an update and a decision each inside one repository transaction', async () => {
     const runInTransaction = inTransaction();
@@ -1918,6 +1996,7 @@ describe('SPM-49 / SPM-85 atomicity', () => {
     expect(runInTransaction).toHaveBeenCalledTimes(2);
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-SEC-1: invalid input is refused before any transaction is opened.
   it('EVENT-FLAG-04-SEC-1 refuses invalid input before opening a transaction', async () => {
     const runInTransaction = inTransaction();
@@ -1935,6 +2014,7 @@ describe('SPM-49 / SPM-85 atomicity', () => {
     expect(runInTransaction).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 85 AC5 (matrix 19890731)
   // EVENT-FLAG-04-SEC-1: a failure part-way propagates, so the repository rolls the whole transaction back.
   it('EVENT-FLAG-04-SEC-1 propagates a failure part-way so nothing is half-saved', async () => {
     inTransaction();
@@ -1950,6 +2030,7 @@ describe('SPM-49 / SPM-85 atomicity', () => {
 });
 
 describe('SPM-49 / SPM-85 impact-based decision: apply what is compatible, flag what is not', () => {
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: the reviewer's example — lowering attendance from 80 to
   // 70 with a confirmed 200-seat venue cannot affect the booking.
   it('EVENT-UPDATE-05-B applies a lower attendance immediately when it still fits every booked venue', async () => {
@@ -1970,6 +2051,7 @@ describe('SPM-49 / SPM-85 impact-based decision: apply what is compatible, flag 
     });
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: attendance equal to the smallest venue's capacity still fits.
   it('EVENT-UPDATE-05-B applies attendance equal to the capacity immediately', async () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking({ capacity: 200 })]);
@@ -1979,6 +2061,7 @@ describe('SPM-49 / SPM-85 impact-based decision: apply what is compatible, flag 
     expect(result.applied).toEqual(['expectedAttendance']);
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: removing a facility cannot make a booked venue unsuitable.
   it('EVENT-UPDATE-05-B applies a facility removal immediately', async () => {
     repo.findEvent.mockResolvedValue(
@@ -1992,6 +2075,7 @@ describe('SPM-49 / SPM-85 impact-based decision: apply what is compatible, flag 
     expect(repo.createFlaggedChange).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: equipment requirements cannot affect a venue booking.
   it('EVENT-UPDATE-05-B applies an equipment change immediately when only a venue is booked', async () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking()]);
@@ -2002,6 +2086,7 @@ describe('SPM-49 / SPM-85 impact-based decision: apply what is compatible, flag 
     expect(repo.createFlaggedChange).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 49 AC5 (matrix 19890466)
   // EVENT-UPDATE-05-B: start and end moved inward together stay inside the booking.
   it('EVENT-UPDATE-05-B applies a time change inside the booked window immediately', async () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking()]);
@@ -2013,6 +2098,7 @@ describe('SPM-49 / SPM-85 impact-based decision: apply what is compatible, flag 
     expect(repo.createFlaggedChange).not.toHaveBeenCalled();
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-A: in one update, the compatible field applies and only the
   // incompatible one is held for review.
   it('EVENT-FLAG-01-A applies a compatible change and flags an incompatible one in the same update', async () => {
@@ -2032,6 +2118,7 @@ describe('SPM-49 / SPM-85 impact-based decision: apply what is compatible, flag 
     ]);
   });
 
+  // Traceability: Jira 85 AC7 (matrix 19890731)
   // EVENT-FLAG-06-A: only the venue the new attendance does not fit is marked
   // impacted; the larger venue is listed as unaffected.
   it('EVENT-FLAG-06-A marks only the bookings the change is incompatible with', async () => {
@@ -2053,6 +2140,7 @@ describe('SPM-49 / SPM-85 impact-based decision: apply what is compatible, flag 
     ]);
   });
 
+  // Traceability: Jira 85 AC1 (matrix 19890731)
   // EVENT-FLAG-01-A: a field awaiting review stays locked even for a value that
   // would otherwise apply immediately, so the pending original stays accurate.
   it('EVENT-FLAG-01-A refuses a compatible change to a field that is awaiting review', async () => {

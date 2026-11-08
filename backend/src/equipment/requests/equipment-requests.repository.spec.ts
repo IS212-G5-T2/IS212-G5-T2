@@ -27,6 +27,7 @@ function setup(status = 'Approved', updateRows = 1) {
 beforeEach(() => setup());
 
 describe('SPM-57 equipment request persistence', () => {
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: coordinator revisions preserve item and reservation IDs, and return only selected equipment to Technical Support. */
   it('SAFETY-OUTCOME-06 revises only safety-selected equipment and retains unselected reservation rows', async () => {
     const selected = { item_id: 'selected-item', reservation_id: 'selected-reservation', equipment_name: 'Projector', equipment_type: 'Visual', quantity: 1, status: 'Requested' };
@@ -55,6 +56,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining("UPDATE equipment_requests SET status = 'Pending Review'"), [requestId, new Date('2030-01-10T12:00:00Z')]);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: an unselected retained reservation cannot be changed while safety feedback is open. */
   it('SAFETY-OUTCOME-06 refuses edits to unselected equipment without writing rows', async () => {
     const selected = { item_id: 'selected-item', reservation_id: 'selected-reservation', equipment_name: 'Projector', equipment_type: 'Visual', quantity: 1, status: 'Requested' };
@@ -76,6 +78,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE ') || sql.startsWith('DELETE ') || sql.startsWith('INSERT '))).toBe(false);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: every existing request item must be submitted exactly once by its stable ID during safety revision. */
   it.each([
     ['missing item identifier', [{ equipmentName: 'Projector', equipmentType: 'Visual' as const, quantity: 1 }, { id: 'retained-item', equipmentName: 'Microphone', equipmentType: 'Audio' as const, quantity: 2 }]],
@@ -97,6 +100,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE ') || sql.startsWith('DELETE ') || sql.startsWith('INSERT '))).toBe(false);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: absent linked reservations omit optional reservation fields from coordinator projections. */
   it('SAFETY-OUTCOME-06 omits reservation fields when an item has no linked reservation', async () => {
     query.mockImplementation(async (sql: string) => sql.includes('SELECT r.id, r.event_id, e.event_name')
@@ -201,6 +205,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 58 AC9 (matrix 33292299)
   /** EQUIP-RESERVE-09-A (DECIDED SC-SPM58-03, chaw678 2026-11-06: reserve and Cannot Provide are accepted only from a Pending Review request): marking a pending request Cannot Provide stores the reason and retires placeholders. */
   it('marks a pending request Cannot Provide with its reason and retires placeholder reservations', async () => {
     query.mockImplementation(async (sql: string) => {
@@ -242,6 +247,7 @@ describe('SPM-57 equipment request persistence', () => {
     await expect(repository.markCannotProvide(requestId, 'reason')).resolves.toEqual({ kind: 'not-pending' });
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-A: the request picker is coordinator-scoped and labels each option from event_name, never venue data. */
   it('lists eligible assigned events by event name', async () => {
     query.mockResolvedValueOnce({ rows: [{ ...event, venue_name: 'Venue that must not be displayed' }], rowCount: 1 });
@@ -255,6 +261,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query.mock.calls[0][0]).toContain('NOT EXISTS (SELECT 1 FROM equipment_requests r WHERE r.event_id = events.id)');
   });
 
+  // Traceability: Jira 57 AC9 (matrix 28868989)
   /** EQUIP-REQUEST-09-A: the first request for an Approved event, request items, status transition, and history commit together. */
   it('creates all requested items and transitions Approved to Planning atomically', async () => {
     const result = await repository.submit(coordinatorId, { eventId, items: [input.items[0], { equipmentName: 'Display screen', equipmentType: 'Visual', quantity: 1 }] });
@@ -269,6 +276,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining('event_status_history'), [expect.any(String), eventId, coordinatorId, new Date('2030-01-10T12:00:00Z')]);
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: updating an owned pre-Confirmed request replaces its items and linked reservations without changing request identity. */
   it('updates an existing request in place and replaces only its linked reservation items', async () => {
     const result = await repository.update(coordinatorId, requestId, {
@@ -308,6 +316,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-A: an update cannot move an existing request to another event. */
   it('does not allow an existing request to be reassigned to another event', async () => {
     await expect(repository.update(coordinatorId, requestId, { ...input, eventId: '00000000-0000-4000-8000-000000000777' }))
@@ -322,6 +331,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenCalledOnce();
   });
 
+  // Traceability: Jira 57 AC9 (matrix 28868989)
   /** EQUIP-REQUEST-09-B: a first equipment request on an already-Planning event leaves its lifecycle unchanged. */
   it('does not repeat the transition when an event was already moved to Planning by another arrangement', async () => {
     setup('Planning');
@@ -331,6 +341,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query.mock.calls.some(([sql]) => sql.includes('event_status_history'))).toBe(false);
   });
 
+  // Traceability: Jira 57 AC10 (matrix 28868989)
   /** EQUIP-REQUEST-10-N: a second POST for an event with a request is refused; updates use the existing request. */
   it('refuses a duplicate event request before inserting request or reservation rows', async () => {
     query.mockImplementation(async (sql: string) => {
@@ -345,6 +356,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query.mock.calls.some(([sql]) => sql.includes('UPDATE events SET status'))).toBe(false);
   });
 
+  // Traceability: Jira 57 AC1 (matrix 28868989)
   /** EQUIP-REQUEST-01-N and EQUIP-REQUEST-08-N: unassigned, cancelled, and rejected events do not persist requests. */
   it('EQUIP-REQUEST-01-N refuses an unavailable event before request or item writes', async () => {
     query.mockImplementation(async (sql: string) => sql.includes('FROM events WHERE') ? { rows: [], rowCount: 0 } : { rows: [], rowCount: 0 });
@@ -357,12 +369,14 @@ describe('SPM-57 equipment request persistence', () => {
     }
   });
 
+  // Traceability: Jira 57 AC9 (matrix 28868989)
   /** EQUIP-REQUEST-09-A: a request cannot commit when its required Approved-to-Planning transition fails. */
   it('fails the transaction when the status compare-and-set touches no row', async () => {
     setup('Approved', 0);
     await expect(repository.submit(coordinatorId, input)).rejects.toThrow('Could not transition the approved event to Planning.');
   });
 
+  // Traceability: Jira 57 AC6 (matrix 28868989)
   /** EQUIP-REQUEST-06-A: coordinator and Technical Support lists expose grouped event and item information. */
   it('groups request items for the coordinator list and review queue', async () => {
     query = vi.fn().mockResolvedValue({ rows: [
@@ -380,6 +394,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenNthCalledWith(2, expect.stringContaining("WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')"), []);
   });
 
+  // Traceability: Jira 58 AC1 (matrix 33292299)
   /** EQUIP-RESERVE-01-BND-1: a single item at quantity 1 keeps the event name, window, equipment type, name and quantity in the queue row. */
   it('maps every required field for a single item at quantity 1', async () => {
     query = vi.fn().mockResolvedValue({ rows: [
@@ -392,6 +407,7 @@ describe('SPM-57 equipment request persistence', () => {
     }]);
   });
 
+  // Traceability: Jira 57 AC7 (matrix 28868989)
   /** EQUIP-REQUEST-07-A: an empty review queue is returned as an empty list. */
   it('returns an empty list when no requests match', async () => {
     query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
@@ -399,6 +415,7 @@ describe('SPM-57 equipment request persistence', () => {
     await expect(repository.listQueue()).resolves.toEqual([]);
   });
 
+  // Traceability: Jira 58 AC7 (matrix 33292299)
   /** EQUIP-RESERVE-07-A: the reservations view reads only persisted Reserved rows and includes event context. */
   it('lists Reserved equipment with the event it belongs to', async () => {
     query = vi.fn().mockResolvedValue({ rows: [{
@@ -418,6 +435,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenCalledWith(expect.stringMatching(/FROM equipment_reservations r[\s\S]*LEFT JOIN users u ON u.id::text = e.coordinator_id[\s\S]*WHERE r.status = 'Reserved'/i));
   });
 
+  // Traceability: Jira 58 AC7 (matrix 33292299)
   /** EQUIP-RESERVE-07-A: a reservation whose event has no assigned coordinator falls back to a placeholder email. */
   it('falls back to a placeholder when the owning event has no coordinator', async () => {
     query = vi.fn().mockResolvedValue({ rows: [{
@@ -450,6 +468,7 @@ describe('EQUIP-AVAIL-04 reserve stock check and lookup fallbacks', () => {
   }
   const wroteReserved = () => query.mock.calls.some(([sql]) => String(sql).includes("UPDATE equipment_requests SET status = 'Reserved'"));
 
+  // ID: EQUIP-AVAIL-04
   it('reports request-not-found and writes nothing when the request id is unknown', async () => {
     query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'request-not-found' });
@@ -468,17 +487,20 @@ describe('EQUIP-AVAIL-04 reserve stock check and lookup fallbacks', () => {
     expect(wroteReserved()).toBe(true);
   });
 
+  // ID: EQUIP-AVAIL-04
   it('EQUIP-UNAVAIL refuses a reservation for equipment flagged unavailable even with active units', async () => {
     stockScenario({ inventory: [{ equipment_name: 'Conference microphone', active_quantity: 10, is_available: false }], requested: 1 });
     await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'insufficient-active-stock', equipmentName: 'Conference microphone' });
     expect(wroteReserved()).toBe(false);
   });
 
+  // ID: EQUIP-AVAIL-04
   it('refuses a reservation for equipment with no inventory record', async () => {
     stockScenario({ inventory: [], requested: 1 });
     await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'insufficient-active-stock', equipmentName: 'Conference microphone' });
   });
 
+  // ID: EQUIP-AVAIL-04
   it('shows an em dash for a Reserved row without an equipment type', async () => {
     query = vi.fn().mockResolvedValue({ rows: [{
       id: 'reservation-1', event_id: eventId, event_name: 'Workshop',

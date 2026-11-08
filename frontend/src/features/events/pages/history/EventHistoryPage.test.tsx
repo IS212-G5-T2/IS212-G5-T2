@@ -66,6 +66,7 @@ describe("SPM-157 EventHistoryPage", () => {
   beforeEach(() => fetchMock.mockReset());
   afterEach(cleanup);
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** AUDIT-HISTORY-01-G: the coordinator sees all four histories, titled, for the event in the URL. */
   it("AUDIT-HISTORY-01-G shows the four sections of a coordinator's history", async () => {
     fetchMock.mockResolvedValue(coordinatorHistory);
@@ -81,6 +82,7 @@ describe("SPM-157 EventHistoryPage", () => {
     expect(screen.getByRole("link", { name: "Back To Event" })).toHaveAttribute("href", "/events/event-1");
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /**
    * AUDIT-HISTORY-05-E, AUDIT-HISTORY-06-C: each entry has what happened, when (SGT), who, each change as one line
    * and the reason, in order.
@@ -115,6 +117,7 @@ describe("SPM-157 EventHistoryPage", () => {
     expect(venue).not.toHaveTextContent("Reason:");
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-E: a message is quoted and a new booking slot is one time range. */
   it("AUDIT-HISTORY-05-E quotes messages and shows a new slot as one time range", async () => {
     fetchMock.mockResolvedValue({
@@ -142,6 +145,7 @@ describe("SPM-157 EventHistoryPage", () => {
     expect(venue).not.toHaveTextContent("Start:");
   });
 
+  // Traceability: Jira 157 AC8 (matrix 39813204)
   /** AUDIT-HISTORY-08-B: the organiser's history has only the sections the server returned. */
   it("AUDIT-HISTORY-08-B shows only the organiser's sections", async () => {
     fetchMock.mockResolvedValue({
@@ -156,6 +160,7 @@ describe("SPM-157 EventHistoryPage", () => {
     ]);
   });
 
+  // Traceability: Jira 157 AC9 (matrix 39813204)
   /** AUDIT-HISTORY-09-C: a refusal shows the server's message and a way back. */
   it("AUDIT-HISTORY-09-C shows the server's refusal", async () => {
     fetchMock.mockRejectedValueOnce(new ApiError("You can only view the history of events assigned to you or that you own.", undefined, "FORBIDDEN", 403));
@@ -165,6 +170,7 @@ describe("SPM-157 EventHistoryPage", () => {
     expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
   });
 
+  // Traceability: Jira 157 AC9 (matrix 39813204)
   /** AUDIT-HISTORY-09-C: a non-Error rejection still shows a message. */
   it("AUDIT-HISTORY-09-C falls back to a generic message", async () => {
     fetchMock.mockRejectedValueOnce("boom");
@@ -172,6 +178,7 @@ describe("SPM-157 EventHistoryPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the event history.");
   });
 
+  // Traceability: Jira 157 AC10 (matrix 39813204)
   /** AUDIT-HISTORY-10-C: the page offers no way to change an entry. */
   it("AUDIT-HISTORY-10-C has no edit or delete controls", async () => {
     fetchMock.mockResolvedValue(coordinatorHistory);
@@ -181,6 +188,7 @@ describe("SPM-157 EventHistoryPage", () => {
     expect(screen.queryAllByRole("textbox")).toHaveLength(0);
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   /** A response that arrives after leaving the page is ignored. */
   it("AUDIT-HISTORY-01-G ignores a response that arrives after unmounting", async () => {
     let resolve: (value: EventHistory) => void = () => undefined;
@@ -192,6 +200,7 @@ describe("SPM-157 EventHistoryPage", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 157 AC9 (matrix 39813204)
   /** A failure that arrives after leaving the page is ignored too. */
   it("AUDIT-HISTORY-09-C ignores a refusal that arrives after unmounting", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -206,6 +215,7 @@ describe("SPM-157 EventHistoryPage", () => {
     consoleError.mockRestore();
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   /** AUDIT-HISTORY-05-E: a value that was removed reads as the old value struck through and "removed". */
   it("AUDIT-HISTORY-05-E shows a removed value as removed", async () => {
     fetchMock.mockResolvedValue({

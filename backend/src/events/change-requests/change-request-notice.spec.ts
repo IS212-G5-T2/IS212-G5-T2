@@ -17,6 +17,7 @@ function client(pending: unknown[]) {
 }
 
 describe('change request notice', () => {
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-A: the message names the organiser, the event and every field requested. */
   it('REQ-CHANGE-03-A names the requester, event and fields', () => {
     expect(
@@ -27,6 +28,7 @@ describe('change request notice', () => {
     ).toBe('Organiser 1 requested a change to "Alumni Night": expected attendance, accessibility needs.');
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-A: the notice is a coordinator_change_request for the event. */
   it('REQ-CHANGE-03-A inserts a coordinator_change_request notice', async () => {
     const db = client([]);
@@ -36,6 +38,7 @@ describe('change request notice', () => {
     expect(params.slice(1)).toEqual(['coord-1', 'Message', EVENT_ID]);
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-C, REQ-CHANGE-03-D: a newly assigned coordinator is told about the pending request. */
   it('REQ-CHANGE-03-D notifies the new coordinator of a pending request', async () => {
     const db = client([{ requested_by: 'Organiser 1', changes: [{ field: 'description' }] }]);
@@ -50,6 +53,7 @@ describe('change request notice', () => {
     ]);
   });
 
+  // Traceability: Jira 64 AC3 (matrix 28016760)
   /** REQ-CHANGE-03-C: without a pending request nothing is sent. */
   it('REQ-CHANGE-03-C sends nothing when no request is pending', async () => {
     const db = client([]);

@@ -30,6 +30,7 @@ function FocusHarness() {
 }
 
 describe("Modal focus and dismissal behavior", () => {
+  // Traceability: Jira 130 AC2 (matrix 36798526)
   /** SAFETY-DECISION-02: a changing parent callback keeps rejection input focused and Escape closes with the latest handler once. */
   it("SAFETY-DECISION-02 keeps feedback focus during controlled typing and cleans up the current Escape listener", async () => {
     const user = userEvent.setup();

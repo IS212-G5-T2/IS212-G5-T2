@@ -113,6 +113,7 @@ describe('Events coordinator assignment (e2e)', () => {
     });
   });
 
+  // Traceability: Jira 38 AC4 (matrix 12353538)
   // SPM-38 AC4: a coordinator the event is not assigned to gets the same 404
   // as a non-existent event when reading it through the real HTTP pipeline,
   // and an unauthenticated request is rejected before it ever reaches that check.

@@ -62,6 +62,7 @@ afterEach(() => {
 });
 
 describe("SPM-120 AC2: the confirmation prompt names the consequences", () => {
+  // Traceability: Jira 120 AC2 (matrix 16613384)
   // WITHDRAW-EVENT-REG-02-A
   // Oracle (registration status cards spec, withdraw variant): title "Withdraw your registration?", body "You'll give up
   // your spot for this event.", buttons "Keep registration" (safe) and "Withdraw" (danger). Opening sends nothing.
@@ -86,6 +87,7 @@ describe("SPM-120 AC2: the confirmation prompt names the consequences", () => {
 });
 
 describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => {
+  // Traceability: Jira 120 AC3 (matrix 16613384)
   // WITHDRAW-EVENT-REG-03-A
   // Oracle (SPEC 03-A frontend): exactly one POST to /registrations/REG-9001/withdraw; dialog closes; toast "Registration
   // withdrawn"; withdrawn card with Registered 3 Oct 2026, 12:00 and Withdrawn 4 Oct 2026, 12:00 in its timeline.
@@ -114,6 +116,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
     expect(timelineEntry("Withdrawn").getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 120 AC3 (matrix 16613384)
   // WITHDRAW-EVENT-REG-03-A
   // Oracle (SPEC 03-A: exactly one POST): two activations of Withdraw before React re-renders (a fast double click)
   // still send a single request; the second would be refused as "already withdrawn" and show a false error.
@@ -138,6 +141,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Traceability: Jira 120 AC3 (matrix 16613384)
   // WITHDRAW-EVENT-REG-03-B
   // Oracle (SPEC 03-B + F12): "Keep registration" closes the dialog with zero requests, the card stays registered, no
   // toast, focus returns to the card's Withdraw action.
@@ -162,6 +166,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
     expect(withdrawButton()).toHaveFocus();
   });
 
+  // Traceability: Jira 120 AC3 (matrix 16613384)
   // WITHDRAW-EVENT-REG-03-B
   // Oracle (ASSUMED, F12): a click on the dimmed backdrop is ignored; the dialog stays and nothing is sent.
   // Kills: M9 backdrop click closes or confirms.
@@ -183,6 +188,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
 });
 
 describe("SPM-120 AC6: a toast confirms the withdrawal, then times out", () => {
+  // Traceability: Jira 120 AC6 (matrix 16613384)
   // WITHDRAW-EVENT-REG-06-A
   // Oracle (SPEC 06-A A, toast): Withdraw disabled and aria-busy while pending, no success text early; after 200 the
   // dialog is gone within 500 ms and a status toast reads "Registration withdrawn". The toast dismisses itself after
@@ -226,6 +232,7 @@ describe("SPM-120 AC6: a toast confirms the withdrawal, then times out", () => {
     expect(screen.getByText("Withdrawn")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 120 AC6 (matrix 16613384)
   // WITHDRAW-EVENT-REG-06-A
   // Oracle (Added 06-A B, the spec's error copy): a 5xx, a network failure, a plain Error or a rejection with no value
   // shows the inline error "Couldn't withdraw your registration. Try again." inside the dialog. The dialog stays open,

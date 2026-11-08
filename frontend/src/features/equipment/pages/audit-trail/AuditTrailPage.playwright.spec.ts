@@ -8,6 +8,7 @@ const email = "tech_support1@connectsphere.test";
 // tech_support is tech_support1, the account named in `email` above; the reader below is a second, different account.
 test.use({ as: "tech_support" });
 
+// Traceability: Jira 119 AC5 (matrix 21528751)
 // EQUIP-UNAVAIL-05-A/B/C: shared audit history shows mark and reactivation snapshots to Technical Support.
 test("EQUIP-UNAVAIL-05-A/B/C displays shared audit history for unavailable and reactivated equipment", async ({
   page,

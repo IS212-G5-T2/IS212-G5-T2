@@ -8,6 +8,7 @@ import { hasEventEnded, validateCompletionRecord } from './completion.rules.js';
 const END = new Date('2026-12-10T13:00:00.000Z'); // 21:00 SGT
 
 describe('COMPLETE-EVENT-01-C: hasEventEnded is true from the end instant, inclusive', () => {
+  // Traceability: Jira 153 AC1 (matrix 35979372)
   // Kills: M2 (`>` instead of `>=`), M1 (start used instead of end)
   it.each([
     ['2026-12-10T12:59:59.000Z', false],
@@ -19,6 +20,7 @@ describe('COMPLETE-EVENT-01-C: hasEventEnded is true from the end instant, inclu
 });
 
 describe('COMPLETE-EVENT-05-D/05-E: completion record validation at its boundaries', () => {
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it.each([
     [{ attendanceCount: 0 }, true],
     [{ attendanceCount: 2147483647 }, true],
@@ -30,6 +32,7 @@ describe('COMPLETE-EVENT-05-D/05-E: completion record validation at its boundari
     expect(validateCompletionRecord(body).ok).toBe(accepted);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it.each([
     ['a'.repeat(2000), true],
     ['a'.repeat(2001), false],
@@ -38,6 +41,7 @@ describe('COMPLETE-EVENT-05-D/05-E: completion record validation at its boundari
     expect(validateCompletionRecord({ operationalNotes: notes }).ok).toBe(accepted);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it.each([
     [[{ description: 'a'.repeat(1000) }], true],
     [[{ description: 'a'.repeat(1001) }], false],
@@ -49,6 +53,7 @@ describe('COMPLETE-EVENT-05-D/05-E: completion record validation at its boundari
     expect(validateCompletionRecord({ issues }).ok).toBe(accepted);
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // Kills: M14 (a subset save must not clear the other items)
   it('COMPLETE-EVENT-05-B: a subset is accepted, and empty notes and an empty list clear their item', () => {
     expect(validateCompletionRecord({ attendanceCount: 118 })).toEqual({ ok: true, value: { attendanceCount: 118 } });
@@ -56,6 +61,7 @@ describe('COMPLETE-EVENT-05-D/05-E: completion record validation at its boundari
     expect(validateCompletionRecord({ issues: [] })).toEqual({ ok: true, value: { issues: [] } });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it.each([
     [{ operationalNotes: 5 }, 'operationalNotes'],
     [{ issues: ['not an object'] }, 'issues'],
@@ -64,12 +70,14 @@ describe('COMPLETE-EVENT-05-D/05-E: completion record validation at its boundari
     expect(validateCompletionRecord(body)).toEqual({ ok: false, field });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   it('COMPLETE-EVENT-05-D: an empty body and an unknown key are refused as the body', () => {
     expect(validateCompletionRecord({})).toEqual({ ok: false, field: 'body' });
     expect(validateCompletionRecord({ attendanceCount: 1, changedBy: 'x' })).toEqual({ ok: false, field: 'body' });
     expect(validateCompletionRecord(null)).toEqual({ ok: false, field: 'body' });
   });
 
+  // Traceability: Jira 153 AC5 (matrix 35979372)
   // COMPLETE-EVENT-05-B (clear): null clears attendance and notes, and the record keeps the other items.
   it('COMPLETE-EVENT-05-B: null clears attendance and notes', () => {
     expect(validateCompletionRecord({ attendanceCount: null, operationalNotes: null })).toEqual({

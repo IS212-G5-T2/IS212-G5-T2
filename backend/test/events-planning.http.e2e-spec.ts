@@ -179,6 +179,7 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     expect(await storedName()).toBe('HTTP Welcome Evening');
   });
 
+  // Traceability: Jira 156 DoD11 (matrix 38010922)
   // SPM-49 AC3/AC5 + SPM-85 AC1/AC3/AC5 end to end over HTTP: a compatible
   // change applies immediately despite a booking, an incompatible one is
   // flagged, the resolve route confirms it, and history records it.
@@ -243,6 +244,7 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     ]);
   });
 
+  // Traceability: Jira 156 DoD2, DoD4, DoD6 (matrix 38010922)
   // SPM-156 EVENT-UPDATE-HTTP-07: an update on an Approved event is in the
   // change history read by both the coordinator and the owning organiser.
   it('EVENT-UPDATE-HTTP-07 records an update on an Approved event in change history over HTTP', async () => {
@@ -275,6 +277,7 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     }
   });
 
+  // Traceability: Jira 58 AC11 (matrix 33292299)
   // EQUIP-RESERVE-11-A (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): a date/time change within the held window returns the request to
   // the review queue but keeps the equipment reserved.
   it('EVENT-UPDATE-HTTP-AC11-within re-opens the request and keeps reservations for an in-window reschedule', async () => {
@@ -293,6 +296,7 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     });
   });
 
+  // Traceability: Jira 58 AC11 (matrix 33292299)
   // EQUIP-RESERVE-11-A (DECIDED SC-SPM58-04, chaw678 2026-11-06: the request returns to Pending Review; reservations are released when the new window is outside the held window and retained otherwise, with no separate flag): a date/time change outside the held window is flagged; confirming it
   // returns the request to review and releases the held equipment.
   it('EVENT-UPDATE-HTTP-AC11-outside re-opens the request and releases equipment for an out-of-window reschedule', async () => {

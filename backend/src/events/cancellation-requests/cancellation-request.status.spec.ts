@@ -29,6 +29,7 @@ describe('SPM-155 displayStatusOf (AC2, D4)', () => {
   });
 
   // Kills: M14c
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-A: a pending request on any open status stays pending, with no note. */
   it.each(['Submitted', 'Approved', 'Planning', 'Confirmed', 'Rejected'])(
     'CANCEL-REQUEST-02-A: pending on a %s event stays pending',
@@ -39,6 +40,7 @@ describe('SPM-155 displayStatusOf (AC2, D4)', () => {
   );
 
   // Kills: M17a
+  // Traceability: Jira 155 AC2 (matrix 35848252)
   /** CANCEL-REQUEST-02-B / 02-C: accepted and declined are shown as stored whatever the event's status is. */
   it.each([
     ['accepted', 'Cancelled'],

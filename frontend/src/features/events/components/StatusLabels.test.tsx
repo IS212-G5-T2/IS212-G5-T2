@@ -33,6 +33,7 @@ describe("planning state labels by significance", () => {
     expect(safetyLabel(status)).toEqual({ label, tone });
   });
 
+  // Traceability: Jira 48 AC7 (matrix 23691437)
   /** MONITOR-QUEUE-07-C (SPM-48 AC7): a rejected safety arrangement is labelled Rejected in red, not "Not Requested". */
   it("MONITOR-QUEUE-07-C labels a rejected safety check Rejected (red)", () => {
     expect(safetyLabel("rejected")).toEqual({ label: "Rejected", tone: "red" });
@@ -68,6 +69,7 @@ describe("shared arrangement readiness helpers", () => {
   });
 
   // Kills: an event with no equipment list (the field is optional) throws in the readiness helpers, or is reported as reserved.
+  // Traceability: Jira 54 AC8 (matrix 22839839)
   /** VEN-BKG-08-A: an approved venue on a planning event whose equipment list is absent is not reserved, and its safety check is ready. */
   it("VEN-BKG-08-A SPM-54 treats an absent equipment list as no equipment for readiness", () => {
     expect(arrangementsReserved({ status: "planning", venueRequestStatus: "approved" })).toBe(false);
@@ -76,6 +78,7 @@ describe("shared arrangement readiness helpers", () => {
 });
 
 describe("card labels name the resource and its state", () => {
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: a planning event with venue and equipment reserved shown as separate labels instead of one combined label.
   it("TRACK-EVENT-STATUS-01-A CARD: a planning event with venue and all equipment reserved shows one combined label", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved", "Reserved"] })).toEqual([
@@ -83,6 +86,7 @@ describe("card labels name the resource and its state", () => {
     ]);
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: venue or equipment labels shown for submitted, approved or confirmed events (phase check removed).
   it("TRACK-EVENT-STATUS-01-A CARD: venue and equipment labels are shown only in the planning phase", () => {
     expect(cardArrangementLabels({ status: "submitted", venueRequestStatus: "pending", equipmentStatuses: ["Requested"] })).toEqual([]);
@@ -90,11 +94,13 @@ describe("card labels name the resource and its state", () => {
     expect(cardArrangementLabels({ status: "confirmed", venueRequestStatus: null, equipmentStatuses: [] })).toEqual([]);
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: a Reserved label shown for a confirmed event.
   it("TRACK-EVENT-STATUS-01-A CARD: reserved labels are not shown outside the planning phase", () => {
     expect(cardArrangementLabels({ status: "confirmed", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] })).toEqual([]);
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: a pending venue or a requested item rendered green or merged into a single combined label.
   it("TRACK-EVENT-STATUS-01-A CARD: a pending venue and a requested item read as awaiting requests", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "pending", equipmentStatuses: ["Requested", "Reserved"] })).toEqual([
@@ -103,6 +109,7 @@ describe("card labels name the resource and its state", () => {
     ]);
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: an extra equipment label shown with no equipment, or the venue awaiting label omitted when the venue is missing.
   it("TRACK-EVENT-STATUS-01-A CARD: a planning event with no venue and no equipment shows only the venue awaiting label", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: null, equipmentStatuses: [] })).toEqual([
@@ -110,6 +117,7 @@ describe("card labels name the resource and its state", () => {
     ]);
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // Kills: a rejected venue or unavailable or cancelled equipment shown amber or green instead of red.
   it("TRACK-EVENT-STATUS-01-A CARD: a rejected venue and unavailable or cancelled items read as red", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "rejected", equipmentStatuses: ["Unavailable", "Cancelled"] })).toEqual([
@@ -119,6 +127,7 @@ describe("card labels name the resource and its state", () => {
   });
 
   // Kills: a Cancelled booking labelled Reserved or Approved because its request status is approved.
+  // Traceability: Jira 54 AC8 (matrix 22839839)
   /** VEN-BKG-08-A: a cancelled booking is unavailable even if its request retains approved status. */
   it("VEN-BKG-08-A SPM-54 labels a Cancelled booking as unavailable when request status is approved", () => {
     expect(venueLabel({ status: "Cancelled", requestStatus: "approved" })).toEqual({
@@ -128,6 +137,7 @@ describe("card labels name the resource and its state", () => {
   });
 
   // Kills: an approved venue with no equipment dropped from the card labels, or labelled with another tone.
+  // Traceability: Jira 54 AC8 (matrix 22839839)
   /** VEN-BKG-08-A: an approved venue without equipment is still shown as reserved on the event card. */
   it("VEN-BKG-08-A SPM-54 labels an approved venue as reserved when no equipment is needed", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "approved" })).toEqual([
@@ -136,6 +146,7 @@ describe("card labels name the resource and its state", () => {
   });
 
   // Kills: a cancelled event venue shown as Reserved, or the red Venue Unavailable label omitted.
+  // Traceability: Jira 54 AC9 (matrix 22839839)
   /** VEN-BKG-09-A: an event card reports its cancelled venue as unavailable, not reserved. */
   it("VEN-BKG-09-A SPM-54 labels a cancelled event venue as unavailable on the card", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "cancelled", equipmentStatuses: ["Reserved"] })).toEqual([

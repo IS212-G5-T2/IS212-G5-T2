@@ -157,6 +157,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     return request(app.getHttpServer()).get(`/api/events/${id}`).set('Cookie', cookie);
   }
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // TRACK-EVENT-STATUS-01-A (AC1): the organiser's list holds their own events, scoped from the token.
   // Kills: M2 (owner filter removed from the list). Also fails if the mine parameter widens the scope.
   it("TRACK-EVENT-STATUS-01-A: the list holds only the caller's events, whatever the mine parameter says", async () => {
@@ -188,6 +189,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect((mine.body as Listed[]).find((e) => e.id === bOnly)).toBeUndefined();
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // TRACK-EVENT-STATUS-01-B (AC1): the list row and the planning (detail) page show the same literal status.
   // Kills: status casing or status drift between the list and the detail API (no runner mutant).
   it('TRACK-EVENT-STATUS-01-B: the list row and the detail show the same status for the same event', async () => {
@@ -214,6 +216,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     }
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // TRACK-EVENT-STATUS-01-C (AC1, D6): another organiser's event is 403 with the literal message and no event data; no token is 401.
   // Kills: M3 (detail route without owner check), M2 (owner filter removed from the list).
   it('TRACK-EVENT-STATUS-01-C: another organiser gets 403 with the literal message and no data; no token gets 401', async () => {
@@ -238,6 +241,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     await request(app.getHttpServer()).get(`/api/events/${eventId}`).expect(401);
   });
 
+  // Traceability: Jira 94 AC2 (matrix 22839633)
   // TRACK-EVENT-STATUS-02-A (AC2): an unassigned Submitted event shows awaiting assignment; assigned or non-Submitted does not.
   // Kills: M6 (indicator on any unassigned event).
   it('TRACK-EVENT-STATUS-02-A: awaiting Coordinator assignment only for an unassigned Submitted event', async () => {
@@ -254,6 +258,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect((await detailFor(org.cookie, unassigned)).body).toMatchObject({ awaitingCoordinatorAssignment: true });
   });
 
+  // Traceability: Jira 94 AC2 (matrix 22839633)
   // TRACK-EVENT-STATUS-02-A (interaction of AC2 and AC3): an unassigned Submitted event with a pending safety check shows both indicators from the server.
   // Kills: X12 (the safety indicator dropped while the event awaits assignment).
   it('TRACK-EVENT-STATUS-02-A INT: an unassigned Submitted event with a pending safety check shows both indicators', async () => {
@@ -266,6 +271,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect((await detailFor(org.cookie, eventId)).body).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: null });
   });
 
+  // Traceability: Jira 94 AC2 (matrix 22839633)
   // TRACK-EVENT-STATUS-02-B (AC2): the Lead's assignment clears the indicator on the list and the detail.
   // Kills: M7 (indicator persists after assignment). Oracle: the status stays Submitted, which is what 'Under Review' means (owner decision 17 Oct 2026; D11).
   it('TRACK-EVENT-STATUS-02-B: the Lead assigning the event clears the indicator for the organiser', async () => {
@@ -295,6 +301,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     });
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // TRACK-EVENT-STATUS-03-A (AC3): a pending safety check on a Planning event shows AWAITING_CHECK; no record shows none.
   // Kills: a missing safety record shown as an indicator (no runner mutant); the AWAITING_CHECK value for a pending record.
   it('TRACK-EVENT-STATUS-03-A: a pending safety check shows AWAITING_CHECK; an event without a record shows none', async () => {
@@ -308,6 +315,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect((await detailFor(org.cookie, pending)).body).toMatchObject({ safetyIndicator: 'AWAITING_CHECK' });
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // TRACK-EVENT-STATUS-03-B (AC3): each safety state gives exactly its own indicator; a terminal event shows none (D5).
   // Kills: M8 (changes requested and cleared swapped). M9 (two indicators at once) is checked at component level, not here: the API holds one value.
   it('TRACK-EVENT-STATUS-03-B: each safety state gives exactly its own indicator, and a terminal event shows none', async () => {
@@ -324,6 +332,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect(list.find((e) => e.id === cancelled)).toMatchObject({ status: 'cancelled' });
   });
 
+  // Traceability: Jira 94 AC3 (matrix 22839633)
   // TRACK-EVENT-STATUS-03-C (AC3): once the Safety Officer responds, the awaiting indicator is replaced.
   // Kills: awaiting indicator kept after a Safety Officer response (no spec mutant id). The stored status after changes are requested is not asserted (F3: Unknown).
   it('TRACK-EVENT-STATUS-03-C: the awaiting indicator is gone once the Safety Officer responds', async () => {
@@ -340,6 +349,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect(list.find((e) => e.id === changesClone)).toMatchObject({ safetyIndicator: 'CHANGES_REQUESTED' });
   });
 
+  // Traceability: Jira 94 AC4 (matrix 22839633)
   // TRACK-EVENT-STATUS-04-A (AC4): after the coordinator approves, the organiser sees Approved; both GET responses are no-store.
   // Kills: M5 (Cache-Control removed from the list). Also fails on a stale status after the approval.
   it('TRACK-EVENT-STATUS-04-A: after the coordinator approves, the organiser sees Approved and nothing is cached', async () => {
@@ -367,6 +377,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect(detail.body.status).toBe('approved');
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // TRACK-EVENT-STATUS-01-A (matrix fixture): EVT-501 to EVT-506 and EVT-508 for ORG-01, EVT-507 for ORG-02.
   // Matrix rows: Submitted, Under Review, Planning, Planning, Confirmed, Rejected, Draft.
   // Under Review is not a stored status, so EVT-502 is seeded Approved (decided 17 Oct 2026).
@@ -420,6 +431,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect(list.length + drafts.length).toBe(7);
   });
 
+  // Traceability: Jira 94 AC1 (matrix 22839633)
   // TRACK-EVENT-STATUS-01-A (ordering): the organiser's list runs from the earliest start date to the latest.
   // Kills: the list ordered by creation time (the events are created latest-first on purpose).
   it('TRACK-EVENT-STATUS-01-A ORDER: the organiser list is ordered by start date, earliest first', async () => {

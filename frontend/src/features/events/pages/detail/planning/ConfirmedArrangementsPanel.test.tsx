@@ -25,6 +25,7 @@ describe("SPM-135 AC5: the organiser sees the confirmed arrangements", () => {
   });
   afterEach(cleanup);
 
+  // Traceability: Jira 135 AC5 (matrix 22905205)
   it("CONFIRM-EVENT-05-B (FE): venue in SGT, equipment lines and Approved safety are shown from the allowlist response", async () => {
     // Arrange: the allowlist response for EVT-201
     apiMock.mockResolvedValue({

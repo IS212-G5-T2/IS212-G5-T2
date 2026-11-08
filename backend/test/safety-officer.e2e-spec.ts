@@ -183,6 +183,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     return { eventId, venueId: venue.id, venueBookingId, equipmentId };
   }
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: an eligible confirmed event is returned to an authenticated Safety Officer over HTTP. */
   it('SAFETY-QUEUE-01 lists the eligible event through a persisted Safety Officer session', async () => {
     const result = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
@@ -193,6 +194,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     });
   });
 
+  // Traceability: Jira 129 AC1 (matrix 36831243)
   /** SAFETY-QUEUE-01: anonymous and signed-in non-Safety-Officer callers cannot read queue or details. */
   it('SAFETY-QUEUE-01 refuses unauthenticated and non-Safety-Officer reads', async () => {
     await http().get('/api/safety-officer/queue').expect(401);
@@ -200,6 +202,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     await http().get(`/api/safety-officer/queue/${eligible.eventId}`).set('Cookie', coordinator.cookie).expect(403);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: saved registration settings are required for initial and repeat safety requests when registration is enabled. */
   it('SAFETY-OUTCOME-06 gates initial and repeat safety requests on persisted enabled registration settings', async () => {
     await pool.query('UPDATE events SET coordinator_id = $2, registration_enabled = true, registration_opens_at = NULL, registration_closes_at = NULL WHERE id = $1', [eligible.eventId, coordinator.uid]);
@@ -235,6 +238,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     await http().post(`/api/events/${eligible.eventId}/safety-check/request`).set('Cookie', coordinator.cookie).expect(200);
   });
 
+  // Traceability: Jira 131 AC6 (matrix 36798544)
   /** SAFETY-OUTCOME-06: a disabled registration setting is treated as an intentional no-registration configuration. */
   it('SAFETY-OUTCOME-06 allows a safety request when registration is deliberately disabled', async () => {
     await pool.query('UPDATE events SET coordinator_id = $2, registration_enabled = false, registration_opens_at = NULL, registration_closes_at = NULL WHERE id = $1', [eligible.eventId, coordinator.uid]);
@@ -245,6 +249,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     await http().post(`/api/events/${eligible.eventId}/safety-check/request`).set('Cookie', coordinator.cookie).expect(200);
   });
 
+  // Traceability: Jira 129 AC2 (matrix 36831243)
   /** SAFETY-QUEUE-02: event attendance and requirements, venue capacity and layout, and accessibility map from PostgreSQL rows. */
   it('SAFETY-QUEUE-02 reads attendance, capacity, layout, and accessibility from linked database rows', async () => {
     const result = await http().get(`/api/safety-officer/queue/${eligible.eventId}`).set('Cookie', officer.cookie).expect(200).expect('Cache-Control', 'no-store');
@@ -255,18 +260,21 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     });
   });
 
+  // Traceability: Jira 129 AC3 (matrix 36831243)
   /** SAFETY-QUEUE-03: technical requirements and reserved equipment are projected from their database rows. */
   it('SAFETY-QUEUE-03 returns technical arrangements and reserved equipment from PostgreSQL', async () => {
     const result = await http().get(`/api/safety-officer/queue/${eligible.eventId}`).set('Cookie', officer.cookie).expect(200);
     expect(result.body).toMatchObject({ equipmentNeeds: 'Wireless microphone', equipment: [{ id: expect.any(String), name: 'Microphone', quantity: 2 }] });
   });
 
+  // Traceability: Jira 129 AC4 (matrix 36831243)
   /** SAFETY-QUEUE-04: configured venue operating restrictions are visible in event details. */
   it('SAFETY-QUEUE-04 returns the venue restrictions from PostgreSQL', async () => {
     const result = await http().get(`/api/safety-officer/queue/${eligible.eventId}`).set('Cookie', officer.cookie).expect(200);
     expect(result.body.venues[0]).toMatchObject({ restrictions: 'No open flames', facilities: ['AV System'] });
   });
 
+  // Traceability: Jira 129 AC6 (matrix 36831243)
   /** SAFETY-QUEUE-06: pending venue and requested equipment are excluded, while a Reserved equipment line is itself confirmation. */
   it('SAFETY-QUEUE-06 excludes each event with incomplete venue or technical arrangements', async () => {
     const result = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
@@ -282,6 +290,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     await http().get(`/api/safety-officer/queue/${reservedEquipmentWithoutNoneConfirmation.eventId}`).set('Cookie', officer.cookie).expect(200);
   });
 
+  // Traceability: Jira 129 AC6 (matrix 36831243)
   /** SAFETY-QUEUE-06-SUP-HISTORY: a confirmed replacement remains eligible beside rejected, released, or cancelled booking history. */
   it.each(['rejected', 'released', 'cancelled'] as const)('SAFETY-QUEUE-06 keeps a confirmed replacement eligible beside %s venue history', async (historyStatus) => {
     const replacement = await createSafetyEvent(`Replacement with ${historyStatus} history`, true, 'approved', 'Reserved', 'booking', historyStatus);
@@ -347,6 +356,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     expect((await pool.query('SELECT event_id FROM event_status_history WHERE event_id = $1', [replacement.eventId])).rows).toEqual([]);
   });
 
+  // Traceability: Jira 129 AC6 (matrix 36831243)
   /** SAFETY-QUEUE-06: an approved tentative hold without an ordinary booking does not confirm an event venue. */
   it('SAFETY-QUEUE-06 excludes an approved tentative hold without a confirmed booking', async () => {
     const result = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
@@ -357,6 +367,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     await http().get(`/api/safety-officer/queue/${expiredTentativeHoldOnly.eventId}`).set('Cookie', officer.cookie).expect(404);
   });
 
+  // Traceability: Jira 129 AC6 (matrix 36831243)
   /** SAFETY-QUEUE-06: an additional pending booking makes an otherwise approved venue arrangement incomplete. */
   it('SAFETY-QUEUE-06 excludes an event with approved and pending venue bookings', async () => {
     const result = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
@@ -365,6 +376,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     await http().get(`/api/safety-officer/queue/${mixedVenueBookings.eventId}`).set('Cookie', officer.cookie).expect(404);
   });
 
+  // Traceability: Jira 130 AC1 (matrix 36798526)
   /** SAFETY-DECISION-01: an authenticated Safety Officer can approve an arrangement that is still pending. */
   it('SAFETY-DECISION-01 persists approval and removes the event from the decision queue', async () => {
     await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', officer.cookie).send({ decision: 'approved' }).expect(201);
@@ -374,6 +386,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
       .not.toContain(eligible.eventId);
   });
 
+  // Traceability: Jira 130 AC2 (matrix 36798526)
   /** SAFETY-DECISION-02: a nonblank rejection reason is persisted with the rejected outcome. */
   it('SAFETY-DECISION-02 persists rejection with its required reason', async () => {
     await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', officer.cookie)
@@ -384,6 +397,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
       .toEqual([{ feedback_text: 'Add a fire exit plan.' }]);
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: a nonblank change description is persisted with the changes-needed outcome. */
   it('SAFETY-DECISION-03 persists requested changes with their description', async () => {
     await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', officer.cookie)
@@ -394,6 +408,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
       .toEqual([{ feedback_text: 'Confirm a backup microphone.' }]);
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: three submitted change rows become independent coordinator items that must all be resolved before re-request. */
   it('SAFETY-DECISION-03 persists and independently resolves multiple requested changes', async () => {
     await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [eligible.eventId, coordinator.uid]);
@@ -434,6 +449,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
       .toBe(3);
   });
 
+  // Traceability: Jira 130 AC4 (matrix 36798526)
   /** SAFETY-DECISION-04: a blank row rejects the complete changes decision without persisting any subset. */
   it('SAFETY-DECISION-04 refuses a changes array containing a blank row atomically', async () => {
     const before = await pool.query('SELECT status, approver_name, feedback, decided_at FROM event_safety_checks WHERE event_id = $1', [eligible.eventId]);
@@ -447,6 +463,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
       .toBe(0);
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: legacy reason and string-row payloads cannot persist feedback with empty review identifiers. */
   it.each([
     ['legacy reason', { decision: 'changes_needed', reason: 'Review the microphone.' }],
@@ -461,6 +478,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
       .toBe(0);
   });
 
+  // Traceability: Jira 130 AC4 (matrix 36798526)
   /** SAFETY-DECISION-04: rejected and changes-needed decisions with absent or whitespace-only reasons are refused without a database change. */
   it.each([
     ['rejected', undefined], ['rejected', '   '], ['changes_needed', undefined], ['changes_needed', '\t '],
@@ -475,21 +493,25 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
       .toBe(0);
   });
 
+  // Traceability: Jira 130 AC1 (matrix 36798526)
   /** SAFETY-DECISION-01: approval with a valid payload rejects missing and non-officer sessions without changing the pending row. */
   it('SAFETY-DECISION-01 refuses unauthorized approval attempts and preserves the pending decision', async () => {
     await expectUnauthorizedSafetyDecision({ decision: 'approved' });
   });
 
+  // Traceability: Jira 130 AC2 (matrix 36798526)
   /** SAFETY-DECISION-02: rejection with a valid reason rejects missing and non-officer sessions without changing decision or feedback. */
   it('SAFETY-DECISION-02 refuses unauthorized rejection attempts and preserves the pending decision', async () => {
     await expectUnauthorizedSafetyDecision({ decision: 'rejected', reason: 'Add a fire exit plan.' });
   });
 
+  // Traceability: Jira 130 AC3 (matrix 36798526)
   /** SAFETY-DECISION-03: request changes with a valid row rejects missing and non-officer sessions without changing decision or feedback. */
   it('SAFETY-DECISION-03 refuses unauthorized change-request attempts and preserves the pending decision', async () => {
     await expectUnauthorizedSafetyDecision({ decision: 'changes_needed', changes: [{ text: 'Confirm occupancy.', venueIds: [eligible.venueBookingId] }] as unknown as string[] });
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: only a Safety Officer may respond; the response, feedback, queue removal, and repeat refusal persist in PostgreSQL. */
   it('SAFETY-QUEUE-05 persists a response and removes the event from the subsequent queue', async () => {
     await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).send({ decision: 'rejected', reason: 'Add a fire exit plan.' }).expect(401);
@@ -509,6 +531,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     expect(unchanged.rows[0]).toMatchObject({ status: 'rejected', feedback: 'Add a fire exit plan.' });
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: approval persists, exits the pending queue, and creates no feedback item. */
   it('SAFETY-QUEUE-05 persists an approval without feedback', async () => {
     const next = await createSafetyEvent('Approval Response Event', true, 'approved', 'Reserved');
@@ -522,6 +545,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     expect((await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200)).body.map((row: { id: string }) => row.id)).not.toContain(next.eventId);
   });
 
+  // Traceability: Jira 131 AC1 (matrix 36798544)
   /** SAFETY-OUTCOME-01: the assigned coordinator receives a durable notice when the Safety Officer responds. */
   it('SAFETY-OUTCOME-01 notifies the assigned coordinator of a safety response', async () => {
     const event = await createSafetyEvent('Coordinator Safety Response Event', true, 'approved', 'Reserved');
@@ -542,6 +566,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     ]));
   });
 
+  // Traceability: Jira 131 AC2 (matrix 36798544)
   /** SAFETY-OUTCOME-02: the coordinator's authenticated planning read exposes the response decision and exact feedback text. */
   it('SAFETY-OUTCOME-02 shows the safety decision and comments to the assigned coordinator', async () => {
     const event = await createSafetyEvent('Visible Safety Outcome Event', true, 'approved', 'Reserved');
@@ -646,6 +671,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     expect(['approved', 'changes_needed', 'rejected']).not.toContain(result.body.checklist.safetyCheck.status);
   });
 
+  // Traceability: Jira 131 AC4 (matrix 36798544)
   /** SAFETY-OUTCOME-04: selected arrangements return to real staff review; feedback acknowledgement alone cannot resubmit. */
   it('SAFETY-OUTCOME-04 requires selected staff re-approval as well as coordinator acknowledgement', async () => {
     const event = await createSafetyEvent('Requested Safety Changes Event', true, 'approved', 'Reserved');
@@ -707,6 +733,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     expect(unchangedQueue.body.map((row: { id: string }) => row.id)).not.toContain(event.eventId);
   });
 
+  // Traceability: Jira 131 AC5 (matrix 36798544)
   /** SAFETY-OUTCOME-05: rejection feedback remains visible while every active arrangement returns to staff review. */
   it('SAFETY-OUTCOME-05 keeps the event and bookings active when the Safety Officer rejects it', async () => {
     const event = await createSafetyEvent('Rejected Safety Outcome Event', true, 'approved', 'Reserved');
@@ -757,6 +784,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     expect(queue.body.map((row: { id: string }) => row.id)).not.toContain(event.eventId);
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: an event whose arrangements became incomplete cannot receive a response or change state. */
   it('SAFETY-QUEUE-05 refuses a response when the venue is no longer confirmed', async () => {
     await pool.query("UPDATE venue_bookings SET status = 'pending' WHERE event_id = $1", [eligible.eventId]);
@@ -774,6 +802,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     expect(stored.rows[0]).toEqual({ status: 'pending', approver_name: null, decided_at: null });
   });
 
+  // Traceability: Jira 129 AC5 (matrix 36831243)
   /** SAFETY-QUEUE-05: current venue availability is rechecked before a pending safety response can be persisted. */
   it('SAFETY-QUEUE-05 refuses a decision when a confirmed venue later becomes unavailable', async () => {
     await pool.query(

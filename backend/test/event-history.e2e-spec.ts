@@ -165,6 +165,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
 
   const brief = (entries: Entry[]) => entries.map((entry) => [entry.summary, entry.actor.name]);
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   // AUDIT-HISTORY-01-A, AUDIT-HISTORY-01-B, AUDIT-HISTORY-05-C, AUDIT-HISTORY-06-A, AUDIT-HISTORY-07-A,
   // AUDIT-HISTORY-09-A: actions taken through the API carry the signed-in user, and the
   // Coordinator the event is reassigned to sees everything from before the reassignment; the previous one is refused.
@@ -204,6 +205,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(refused.body.message).toBe('You can only view the history of events assigned to you or that you own.');
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   // AUDIT-HISTORY-01-A, AUDIT-HISTORY-05-A: a rejection decision shows the old and new status, the coordinator and
   // the reason.
   it('AUDIT-HISTORY-01-A records a rejection with its reason', async () => {
@@ -224,6 +226,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     });
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   // AUDIT-HISTORY-01-C, AUDIT-HISTORY-01-D, AUDIT-HISTORY-01-E, AUDIT-HISTORY-06-A: the histories other stories keep
   // are part of the event history, in time order.
   it('AUDIT-HISTORY-01-C / 01-D / 01-E reads flagged changes, change requests and cancellation requests in order', async () => {
@@ -282,6 +285,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(later[5].reason).toBe('Speaker unavailable');
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   // AUDIT-HISTORY-01-F, AUDIT-HISTORY-05-B: safety check request, the Safety Officer's outcome with every feedback
   // item as the
   // reason, and the reset caused by an event change shown as the system's with its reason.
@@ -322,6 +326,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     ]);
   });
 
+  // Traceability: Jira 157 AC2 (matrix 39813204)
   // AUDIT-HISTORY-02-A, AUDIT-HISTORY-02-B, AUDIT-HISTORY-02-C, AUDIT-HISTORY-05-B: venue bookings and holds; a hold
   // cancelled because the event time changed is the system's.
   it('AUDIT-HISTORY-02-A / 02-B / 02-C records the venue booking and tentative hold lifecycle', async () => {
@@ -391,6 +396,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(pendingHold).toBeTruthy();
   });
 
+  // Traceability: Jira 157 AC2 (matrix 39813204)
   // AUDIT-HISTORY-02-D: an approved hold is expired from its expiry instant (SPM-159 rule), shown as the system's, and
   // stays one entry after the SPM-132 expiry processor stores it as 'expired'.
   it('AUDIT-HISTORY-02-D shows a hold as expired by the system exactly from its expiry time', async () => {
@@ -430,6 +436,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(processed).toEqual(expired);
   });
 
+  // Traceability: Jira 157 AC3 (matrix 39813204)
   // AUDIT-HISTORY-03-A, AUDIT-HISTORY-03-B, AUDIT-HISTORY-03-C: equipment request (recorded with its items when
   // saved), decisions and release.
   it('AUDIT-HISTORY-03-A / 03-B / 03-C records the equipment request lifecycle', async () => {
@@ -468,6 +475,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(entries[1].changes).toEqual([{ field: 'status', label: 'Status', from: 'Pending Review', to: 'Reserved' }]);
   });
 
+  // Traceability: Jira 157 AC4 (matrix 39813204)
   // AUDIT-HISTORY-04-A, AUDIT-HISTORY-04-B, AUDIT-HISTORY-04-C, AUDIT-HISTORY-05-B, AUDIT-HISTORY-08-A:
   // registrations; promotion and removal are the system's; the owning
   // Organiser sees event and registration history only.
@@ -518,6 +526,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(organiserView.sections.registrations).toEqual(entries);
   });
 
+  // Traceability: Jira 157 AC4 (matrix 39813204)
   // AUDIT-HISTORY-04-A: leaving the waiting list, and registering again on the reused row (SPM-61 D16), are their own entries.
   it('AUDIT-HISTORY-04-A records leaving the waiting list and registering again on the same row', async () => {
     const app = await startApp();
@@ -544,6 +553,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(entries[2].changes).toEqual([{ field: 'status', label: 'Status', from: 'Withdrawn', to: 'Registered' }]);
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   // AUDIT-HISTORY-01-H: clarification requests, the organiser's reply and the resolution (SPM-39).
   it('AUDIT-HISTORY-01-H records a clarification request, its reply and its resolution', async () => {
     const app = await startApp();
@@ -578,6 +588,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     }
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   // AUDIT-HISTORY-01-I: the coordinator's response to each Safety Officer feedback item (SPM-131).
   it('AUDIT-HISTORY-01-I records the coordinator marking a safety feedback item resolved and reopening it', async () => {
     const app = await startApp();
@@ -599,6 +610,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     ]);
   });
 
+  // Traceability: Jira 157 AC1 (matrix 39813204)
   // AUDIT-HISTORY-01-J: the completion record of a Completed event (SPM-153), saved twice.
   it('AUDIT-HISTORY-01-J records the completion record with its attendance, notes and issues', async () => {
     const app = await startApp();
@@ -632,6 +644,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(entries[1].changes).toEqual([{ field: 'attendanceCount', label: 'Attendance', from: 70, to: 72 }]);
   });
 
+  // Traceability: Jira 157 AC2 (matrix 39813204)
   // AUDIT-HISTORY-02-E: a venue change that affects the booking, from the Coordinator's SPM-125 notice.
   it('AUDIT-HISTORY-02-E records a venue change that affects the booking, with the notice text', async () => {
     const app = await startApp();
@@ -663,6 +676,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(entries.filter((entry) => entry.action.startsWith('venue_'))).toHaveLength(1);
   });
 
+  // Traceability: Jira 157 AC3 (matrix 39813204)
   // AUDIT-HISTORY-03-D: an edit of a Pending Review request's items is recorded with the items before and after (SPM-57).
   it('AUDIT-HISTORY-03-D records an edit of the requested items', async () => {
     const app = await startApp();
@@ -694,6 +708,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect(entries[1].changes).toEqual([{ field: 'items', label: 'Items', from: '1 x Projector', to: '2 x Projector' }]);
   });
 
+  // Traceability: Jira 157 AC4 (matrix 39813204)
   // AUDIT-HISTORY-04-D: the registration period and capacity (SPM-139), visible to the coordinator and the owner.
   it('AUDIT-HISTORY-04-D records registration settings changes with old and new values', async () => {
     const app = await startApp();
@@ -722,6 +737,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     }
   });
 
+  // Traceability: Jira 157 AC5 (matrix 39813204)
   // AUDIT-HISTORY-05-D: a change made outside a signed-in request is the system's.
   it('AUDIT-HISTORY-05-D records a change with no signed-in user as made by the system', async () => {
     const app = await startApp();
@@ -738,6 +754,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     });
   });
 
+  // Traceability: Jira 157 AC6 (matrix 39813204)
   // AUDIT-HISTORY-06-B: the history stays readable after the event is Completed or Cancelled.
   it.each(['Completed', 'Cancelled'])('AUDIT-HISTORY-06-B keeps the history of a %s event readable', async (status) => {
     const app = await startApp();
@@ -757,6 +774,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     }
   });
 
+  // Traceability: Jira 157 AC9 (matrix 39813204)
   // AUDIT-HISTORY-09-A, AUDIT-HISTORY-09-B: nobody else can read the history.
   it('AUDIT-HISTORY-09-A / 09-B refuses everyone but the assigned coordinator and the owner', async () => {
     const app = await startApp();
@@ -781,6 +799,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     await history(app, null, eventId, 401);
   });
 
+  // Traceability: Jira 157 AC10 (matrix 39813204)
   // AUDIT-HISTORY-10-A, AUDIT-HISTORY-10-B: entries cannot be changed through the API or in the database.
   it('AUDIT-HISTORY-10-A / 10-B keeps entries unchangeable', async () => {
     const app = await startApp();
@@ -805,6 +824,7 @@ describe.skipIf(!database)('SPM-157 Audit History of Important Actions (e2e)', (
     expect((await history(app, coordinator, eventId)).body.sections.event).toEqual(before);
   });
 
+  // Traceability: Jira 157 AC11 (matrix 39813204)
   // AUDIT-HISTORY-11-A: at release, earlier records are loaded; an earlier entry without a recorded author says so.
   it('AUDIT-HISTORY-11-A loads earlier records once, naming an author only where one was recorded', async () => {
     const app = await startApp();

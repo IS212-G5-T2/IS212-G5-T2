@@ -71,6 +71,7 @@ function range(start: string, end: string): [Date, Date] {
 }
 
 describe("isValidVenueSelection", () => {
+  // Traceability: Jira 51 AC1 (matrix 24117310)
   /** VEN-AVL-01-A: positive ranges are valid on any date or time because venues have no operating-hours schedule. */
   it("allows daytime, weekend, overnight, and after-hours selections", () => {
     const [dayStart, dayEnd] = range("2030-01-07T09:00", "2030-01-07T18:00");
@@ -84,6 +85,7 @@ describe("isValidVenueSelection", () => {
     expect(isValidVenueSelection(afterHoursStart, afterHoursEnd)).toBe(true);
   });
 
+  // Traceability: Jira 51 AC1 (matrix 24117310)
   /** VEN-AVL-01-B: calendar selection still requires a finite, positive-duration range. Kills: FE-B06. */
   it("rejects zero-length, reversed, and invalid ranges", () => {
     const [zeroLengthStart, zeroLengthEnd] = range("2030-01-07T12:00", "2030-01-07T12:00");
@@ -96,6 +98,7 @@ describe("isValidVenueSelection", () => {
 });
 
 describe("venue schedule occupancy", () => {
+  // Traceability: Jira 132 AC8 (matrix 39125047)
   /** VEN-HOLD-DEC-08-A: an active hold receives the exact Tentative hold label and blocks setup/event/turnaround. */
   it("VEN-HOLD-DEC-08-A labels the hold and blocks its complete occupied interval", () => {
     const heldVenue: VenueRecord = {
@@ -123,6 +126,7 @@ describe("venue schedule occupancy", () => {
     ]);
   });
 
+  // Traceability: Jira 132 AC8 (matrix 39125047)
   /** VEN-HOLD-DEC-08-BND-1: the calendar's setup end and turnaround start meet the event interval exactly. */
   it("VEN-HOLD-DEC-08-BND-1 places buffers at the exact event boundaries", () => {
     const heldVenue: VenueRecord = {
@@ -137,6 +141,7 @@ describe("venue schedule occupancy", () => {
     expect(entries.find((entry) => entry.id === "dec-08-edge-turnaround-buffer")).toMatchObject({ start: "2030-01-07T03:00:00.000Z", end: "2030-01-07T03:20:00.000Z" });
   });
 
+  // Traceability: Jira 51 AC2 (matrix 24117310)
   /** VEN-AVL-02-B: clear shading covers the entire SGT date without declaring the venue open 24 hours. */
   it("shades clear periods over a full SGT day without an operating-hours label", () => {
     const entries = getVenueScheduleEntries(
@@ -152,6 +157,7 @@ describe("venue schedule occupancy", () => {
     expect(free[0].extendedProps.detail).not.toMatch(/operating hours|24 hours/i);
   });
 
+  // Traceability: Jira 51 AC2 (matrix 24117310)
   /** VEN-AVL-02-A: confirmed event occupancy is excluded from available calendar shading. */
   it("does not shade a confirmed booking or its setup and turnaround as free", () => {
     const bookedVenue: VenueRecord = {
@@ -179,6 +185,7 @@ describe("venue schedule occupancy", () => {
     expect(free.some((entry) => Date.parse(entry.start) < Date.parse("2030-01-07T03:30:00.000Z") && Date.parse(entry.end) > Date.parse("2030-01-07T01:30:00.000Z"))).toBe(false);
   });
 
+  // Traceability: Jira 51 AC4 (matrix 24117310)
   /** VEN-AVL-04-A: unavailable periods and active tentative holds both split green free intervals. A second equal case is the active tentative hold, which is tentative rather than confirmed. */
   it("excludes a closure and an active hold with setup and turnaround from free shading", () => {
     const blockedVenue: VenueRecord = {
@@ -213,6 +220,7 @@ describe("venue schedule occupancy", () => {
     ]);
   });
 
+  // Traceability: Jira 51 AC8 (matrix 24117310)
   /** VEN-AVL-08-A: setup ends at the event start and turnaround begins at the event end across SGT midnight. The turnaround-start edge of the same buffer rule is the second AC8 case. */
   it("places exact setup and turnaround intervals on their SGT calendar days", () => {
     const crossMidnightVenue: VenueRecord = {
@@ -248,6 +256,7 @@ describe("venue schedule occupancy", () => {
 });
 
 describe("VenueScheduleCalendar interactions", () => {
+  // Traceability: Jira 51 AC1 (matrix 24117310)
   /** VEN-AVL-01-A (SPM-51): calendar selection accepts ranges without applying retired operating-hours rules. */
   it("allows selections on any weekday through FullCalendar's selectAllow prop", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
@@ -258,6 +267,7 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(screen.getByText("true")).toBeInTheDocument();
   });
 
+  // Traceability: Jira 51 AC1 (matrix 24117310)
   /** VEN-AVL-01-A (SPM-51): keeps selection independent of days and times previously treated as closed. */
   it("allows cross-day, closed-day, and formerly out-of-hour ranges through selectAllow", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
@@ -268,6 +278,7 @@ describe("VenueScheduleCalendar interactions", () => {
     }
   });
 
+  // Traceability: Jira 51 AC6 (matrix 24117310)
   /** VEN-AVL-06-A (SPM-51): calendar selection forwards a drag range to the page callback that starts the booking request review. */
   it("connects the FullCalendar select callback to the selected range handler", () => {
     const onSelectRange = vi.fn();
@@ -352,6 +363,7 @@ describe("VenueScheduleCalendar interactions", () => {
  * calendar's entry builder; no user or API.
  */
 describe("SPM-125 unavailable periods in the availability calendar", () => {
+  // Traceability: Jira 125 AC2 (matrix 39125581)
   /** VEN-IMPACT-02-A (AC2): the period is an "Unavailable" calendar entry at its exact times, carrying its reason. */
   it("VEN-IMPACT-02-A shows an unavailable period at its times with its reason", () => {
     const period = {
@@ -376,6 +388,7 @@ describe("SPM-125 unavailable periods in the availability calendar", () => {
 
 /** SPM-132 AC8/AC12: FullCalendar renders hold, booking, buffer and selected interval content distinctly. */
 describe("VEN-HOLD-DEC-08-A calendar rendering", () => {
+  // Traceability: Jira 132 AC8 (matrix 39125047)
   /** VEN-HOLD-DEC-08-A: holds retain their exact label, buffers suppress duplicate detail, and selections explain clearing. */
   it("VEN-HOLD-DEC-08-A renders the event content and category class supplied to FullCalendar", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
